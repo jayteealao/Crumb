@@ -49,11 +49,41 @@ import timber.log.Timber
 fun CrumbsNavHost(
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
+    startDestination: String = Screens.SPLASHSCREEN.name,
+    loginViewModel: LoginViewModel = hiltViewModel()
+) {
+    val isAccessTokenAvailable by loginViewModel.isAccessTokenAvailable.collectAsState()
     val snackbarHostState = SnackbarHostState()
     val scaffoldState = rememberBackdropScaffoldState(snackbarHostState = snackbarHostState, initialValue = BackdropValue.Concealed)
+    val scope = rememberCoroutineScope()
     BackdropScaffold(
         scaffoldState = scaffoldState,
         frontLayerShape = RectangleShape,
+        appBar = {
+            TopAppBar(
+                modifier = Modifier
+                    .fillMaxWidth(),
+                elevation = 0.dp
+            ) {
+                CompositionLocalProvider(LocalContentAlpha provides ContentAlpha.high) {
+                    IconButton(onClick = { scope.launch { if (scaffoldState.isConcealed) scaffoldState.reveal() else scaffoldState.conceal() } }) {
+                        Icon(imageVector = Icons.Default.Navigation, contentDescription = "")
+                    }
+                    Text(
+                        modifier = Modifier.align(Alignment.CenterVertically),
+                        text = "Crumbs",
+                        style = TextStyle(
+                            brush = Brush.horizontalGradient(
+                                listOf(
+                                    Color(0x80F12711),
+                                    Color(0x80F5AF19)
+                                )
+                            )
+                        )
+                    )
+                }
+            }
+        },
         backLayerContent = { Box(modifier = Modifier.fillMaxSize()) },
         frontLayerContent = {
             NavHost(
@@ -61,8 +91,21 @@ fun CrumbsNavHost(
                 modifier = modifier,
                 startDestination = startDestination
             ) {
+                composable(
+                    Screens.SPLASHSCREEN.name
+                ) {
+                    SplashScreen(
+                        isLoggedIn = isAccessTokenAvailable,
+                        navController = navController,
+                        loginViewModel = loginViewModel
+                    )
                 }
             }
         }
     )
+}
+
+enum class Screens {
+    SPLASHSCREEN,
+    open fun screenRoute(refreshed: Boolean) = this.name
 }
