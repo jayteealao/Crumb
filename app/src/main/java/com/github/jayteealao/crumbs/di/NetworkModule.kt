@@ -1,5 +1,7 @@
 package com.github.jayteealao.crumbs.di
 
+import com.github.jayteealao.crumbs.services.TwitterAuthService
+import com.skydoves.sandwich.adapters.ApiResponseCallAdapterFactory
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
