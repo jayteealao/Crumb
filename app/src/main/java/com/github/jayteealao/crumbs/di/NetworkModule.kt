@@ -34,6 +34,12 @@ object NetworkModule {
             .addCallAdapterFactory(ApiResponseCallAdapterFactory.create())
             .build()
     }
+
+    @Provides
+    @Singleton
+    fun provideTwitterAuthService(retrofit: Retrofit): TwitterAuthService {
+        return retrofit.create(TwitterAuthService::class.java)
+    }
 }
 
 internal class HttpRequestInterceptor : Interceptor {
