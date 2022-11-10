@@ -2,6 +2,7 @@ package com.github.jayteealao.crumbs.data
 
 import com.github.jayteealao.crumbs.models.TwitterUser
 import com.github.jayteealao.crumbs.services.AuthPref
+import com.github.jayteealao.crumbs.services.TwitterApiClient
 import com.github.jayteealao.crumbs.services.TwitterAuthClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -18,6 +19,7 @@ import javax.inject.Singleton
 class AuthRepository @Inject constructor(
     val authPref: AuthPref,
     private val twitterAuthClient: TwitterAuthClient,
+    private val twitterApiClient: TwitterApiClient,
     private val scope: CoroutineScope
 ) {
 
@@ -29,6 +31,7 @@ class AuthRepository @Inject constructor(
 
     fun getAuthorizationCodeIntent() = twitterAuthClient.authIntent()!!
 
+    suspend fun getUser(accessToken: String) = twitterApiClient.getUser(accessToken)
 
     suspend fun getAccess(authorizationCode: String) {
         combine(authPref.accessCode, authPref.refreshCode, authPref.userId) { access, refreshToken, userId ->
@@ -43,6 +46,13 @@ class AuthRepository @Inject constructor(
                     Timber.d("emitted fail")
                 }
             } else if (userId.isBlank() && access.isNotBlank()) {
+                val userResp = twitterApiClient.getUser(access)
+                Timber.d("user response: $userResp")
+                if (userResp != null) {
+                    user.value = userResp.data
+                    authPref.setUserId(userResp.data.id)
+                    authPref.setUserName(userResp.data.username)
+                }
             }
         }.collect {}
     }

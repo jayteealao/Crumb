@@ -1,5 +1,6 @@
 package com.github.jayteealao.crumbs.di
 
+import com.github.jayteealao.crumbs.services.TwitterApiService
 import com.github.jayteealao.crumbs.services.TwitterAuthService
 import com.skydoves.sandwich.adapters.ApiResponseCallAdapterFactory
 import dagger.Module
@@ -35,6 +36,12 @@ object NetworkModule {
             .addConverterFactory(GsonConverterFactory.create())
             .addCallAdapterFactory(ApiResponseCallAdapterFactory.create())
             .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideTwitterApiService(retrofit: Retrofit): TwitterApiService {
+        return retrofit.create(TwitterApiService::class.java)
     }
 
     @Provides
