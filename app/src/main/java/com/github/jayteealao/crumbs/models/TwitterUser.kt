@@ -1,5 +1,9 @@
 package com.github.jayteealao.crumbs.models
 
+import androidx.room.ColumnInfo
+import androidx.room.Entity
+import androidx.room.Index
+import androidx.room.PrimaryKey
 import com.google.gson.annotations.SerializedName
 
 data class TwitterUser(
@@ -21,6 +25,32 @@ data class TwitterUserResponse(
     indices = [
         Index("id")
     ]
+)
+data class TwitterUserEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val username: String,
+    @ColumnInfo(name = "profile_image_url") val profileImageUrl: String?,
+    val verified: Boolean?,
+//    TODO: use this to reference users mentioned in a tweet
+    val mentionedIn: String?
+)
+
+fun TwitterUser.toTwitterUserEntity(mentionedIn: String? = null) = TwitterUserEntity(
+    id,
+    name,
+    username,
+    profileImageUrl,
+    verified,
+    mentionedIn
+)
+
+fun TwitterUserEntity.toTwitterUser() = TwitterUser(
+    id,
+    name,
+    username,
+    profileImageUrl,
+    verified
 )
 
 fun TweetIncludes.extractUsersInTweet(tweet: Tweet): List<TwitterUserEntity> {
