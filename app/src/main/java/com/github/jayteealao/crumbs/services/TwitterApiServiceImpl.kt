@@ -17,6 +17,19 @@ class TwitterApiClientImpl @Inject constructor(
     private val twitterApiService: TwitterApiService
 ) : TwitterApiClient {
 
+    override suspend fun getBookmarks(
+        authorization: String,
+        id: String,
+        paginationToken: String?
+    ): ApiResponse<TweetResponse> {
+        Timber.d("getBookmarks called in client, paginationToken: $paginationToken")
+        return twitterApiService.listBookmarks(
+            authorization = authorization,
+            userId = id,
+            paginationToken = paginationToken
+        )
+    }
+
     override suspend fun getUser(accessCode: String): TwitterUserResponse? {
         return twitterApiService.getUser("Bearer $accessCode").suspendOnSuccess {
             Timber.d("userRawData: ${response.raw().body}")

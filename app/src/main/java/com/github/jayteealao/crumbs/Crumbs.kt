@@ -92,6 +92,18 @@ fun CrumbsNavHost(
                 startDestination = startDestination
             ) {
                 composable(
+                    Screens.LOGINSCREEN.name,
+                    deepLinks = listOf(navDeepLink { uriPattern = "https://graphitenerd.xyz/{code}" })
+                ) {
+                    LoginScreen(
+                        viewModel = loginViewModel,
+                        navController = navController,
+                        authorizationCode = navController
+                            .currentBackStackEntry?.arguments?.getString("code")
+                    )
+                }
+
+                composable(
                     Screens.SPLASHSCREEN.name
                 ) {
                     SplashScreen(
@@ -107,5 +119,6 @@ fun CrumbsNavHost(
 
 enum class Screens {
     SPLASHSCREEN,
+    LOGINSCREEN,
     open fun screenRoute(refreshed: Boolean) = this.name
 }
