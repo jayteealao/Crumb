@@ -1,9 +1,11 @@
-package com.github.jayteealao.crumbs.services
+package com.github.jayteealao.crumbs.services.twitter
 
-import com.github.jayteealao.crumbs.models.TweetResponse
-import com.github.jayteealao.crumbs.models.TwitterUserResponse
+import com.github.jayteealao.crumbs.models.twitter.TweetResponse
+import com.github.jayteealao.crumbs.models.twitter.TwitterUserResponse
+import com.github.jayteealao.crumbs.services.AuthPref
 import com.skydoves.sandwich.ApiResponse
 import com.skydoves.sandwich.getOrNull
+import com.skydoves.sandwich.mapSuccess
 import com.skydoves.sandwich.message
 import com.skydoves.sandwich.onError
 import com.skydoves.sandwich.onException
@@ -28,6 +30,36 @@ class TwitterApiClientImpl @Inject constructor(
             userId = id,
             paginationToken = paginationToken
         )
+    }
+
+    override suspend fun getTweetThread(
+        authorization: String,
+        userId: String,
+        conversationId: String,
+        paginationToken: String?
+    ): ApiResponse<TweetResponse> {
+        return twitterApiService.getTweetThread(
+            authorization,
+            query = "conversation_id:$conversationId from:$userId to:$userId",
+            paginationToken = paginationToken
+        )
+    }
+
+    override suspend fun getTweetThread2(
+        authorization: String,
+        userId: String,
+        conversationId: String,
+        paginationToken: String?
+    ): ApiResponse<TweetResponse> {
+        return twitterApiService.getTweetThread2(
+            authorization,
+            userId = userId,
+            paginationToken = paginationToken
+        ).mapSuccess {
+            this.copy(
+                data = this.data.filter { it.conversationId == conversationId }
+            )
+        }
     }
 
     override suspend fun getUser(accessCode: String): TwitterUserResponse? {

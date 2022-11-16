@@ -1,4 +1,4 @@
-package com.github.jayteealao.crumbs.models
+package com.github.jayteealao.crumbs.models.twitter
 
 import com.google.gson.annotations.SerializedName
 

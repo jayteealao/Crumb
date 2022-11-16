@@ -1,9 +1,9 @@
 package com.github.jayteealao.crumbs.di
 
-import com.github.jayteealao.crumbs.services.TwitterApiClient
-import com.github.jayteealao.crumbs.services.TwitterApiClientImpl
-import com.github.jayteealao.crumbs.services.TwitterAuthClient
-import com.github.jayteealao.crumbs.services.TwitterAuthClientImpl
+import com.github.jayteealao.crumbs.services.twitter.TwitterApiClient
+import com.github.jayteealao.crumbs.services.twitter.TwitterApiClientImpl
+import com.github.jayteealao.crumbs.services.twitter.TwitterAuthClient
+import com.github.jayteealao.crumbs.services.twitter.TwitterAuthClientImpl
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn

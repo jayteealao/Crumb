@@ -4,7 +4,8 @@ import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.jayteealao.crumbs.data.AuthRepository
-import com.github.jayteealao.crumbs.models.TwitterUser
+import com.github.jayteealao.crumbs.models.twitter.TokenResponse
+import com.github.jayteealao.crumbs.models.twitter.TwitterUser
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

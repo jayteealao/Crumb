@@ -1,4 +1,4 @@
-package com.github.jayteealao.crumbs.models
+package com.github.jayteealao.crumbs.models.twitter
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity

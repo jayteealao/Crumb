@@ -6,17 +6,17 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
-import com.github.jayteealao.crumbs.models.MediaKeys
-import com.github.jayteealao.crumbs.models.PollIds
-import com.github.jayteealao.crumbs.models.TweetContextAnnotationEntity
-import com.github.jayteealao.crumbs.models.TweetData
-import com.github.jayteealao.crumbs.models.TweetEntity
-import com.github.jayteealao.crumbs.models.TweetIncludesEntity
-import com.github.jayteealao.crumbs.models.TweetMediaEntity
-import com.github.jayteealao.crumbs.models.TweetPublicMetrics
-import com.github.jayteealao.crumbs.models.TweetReferencedTweets
-import com.github.jayteealao.crumbs.models.TweetTextEntityAnnotation
-import com.github.jayteealao.crumbs.models.TwitterUserEntity
+import com.github.jayteealao.crumbs.models.twitter.MediaKeys
+import com.github.jayteealao.crumbs.models.twitter.PollIds
+import com.github.jayteealao.crumbs.models.twitter.TweetContextAnnotationEntity
+import com.github.jayteealao.crumbs.models.twitter.TweetData
+import com.github.jayteealao.crumbs.models.twitter.TweetEntity
+import com.github.jayteealao.crumbs.models.twitter.TweetIncludesEntity
+import com.github.jayteealao.crumbs.models.twitter.TweetMediaEntity
+import com.github.jayteealao.crumbs.models.twitter.TweetPublicMetrics
+import com.github.jayteealao.crumbs.models.twitter.TweetReferencedTweets
+import com.github.jayteealao.crumbs.models.twitter.TweetTextEntityAnnotation
+import com.github.jayteealao.crumbs.models.twitter.TwitterUserEntity
 
 @Dao
 interface TweetDao {

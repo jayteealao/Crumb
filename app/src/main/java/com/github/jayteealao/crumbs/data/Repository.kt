@@ -2,12 +2,12 @@ package com.github.jayteealao.crumbs.data
 
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
-import com.github.jayteealao.crumbs.models.TweetEntities
-import com.github.jayteealao.crumbs.models.TweetEntity
-import com.github.jayteealao.crumbs.models.tweetEntitiesToOrderLens
+import com.github.jayteealao.crumbs.models.twitter.TweetEntities
+import com.github.jayteealao.crumbs.models.twitter.TweetEntity
+import com.github.jayteealao.crumbs.models.twitter.tweetEntitiesToOrderLens
 import com.github.jayteealao.crumbs.services.AuthPref
-import com.github.jayteealao.crumbs.services.TwitterApiClient
-import com.github.jayteealao.crumbs.services.TwitterAuthClient
+import com.github.jayteealao.crumbs.services.twitter.TwitterApiClient
+import com.github.jayteealao.crumbs.services.twitter.TwitterAuthClient
 import com.github.jayteealao.crumbs.utils.produceTweetResponseEntities
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

@@ -1,7 +1,7 @@
 package com.github.jayteealao.crumbs.utils
 
-import com.github.jayteealao.crumbs.models.SuccessMapper
-import com.github.jayteealao.crumbs.models.TweetResponse
+import com.github.jayteealao.crumbs.models.twitter.SuccessMapper
+import com.github.jayteealao.crumbs.models.twitter.TweetResponse
 import com.skydoves.sandwich.ApiResponse
 import com.skydoves.sandwich.getOrNull
 import com.skydoves.sandwich.message

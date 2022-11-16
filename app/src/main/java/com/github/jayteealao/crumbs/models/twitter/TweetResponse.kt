@@ -1,4 +1,4 @@
-package com.github.jayteealao.crumbs.models
+package com.github.jayteealao.crumbs.models.twitter
 
 import arrow.optics.Lens
 import com.skydoves.sandwich.ApiResponse

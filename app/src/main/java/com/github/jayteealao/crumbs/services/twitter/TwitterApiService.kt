@@ -1,7 +1,7 @@
-package com.github.jayteealao.crumbs.services
+package com.github.jayteealao.crumbs.services.twitter
 
-import com.github.jayteealao.crumbs.models.TweetResponse
-import com.github.jayteealao.crumbs.models.TwitterUserResponse
+import com.github.jayteealao.crumbs.models.twitter.TweetResponse
+import com.github.jayteealao.crumbs.models.twitter.TwitterUserResponse
 import com.skydoves.sandwich.ApiResponse
 import retrofit2.http.GET
 import retrofit2.http.Header
@@ -22,6 +22,20 @@ interface TwitterApiClient {
         id: String,
         paginationToken: String? = null
     ): ApiResponse<TweetResponse>
+
+    suspend fun getTweetThread(
+        authorization: String,
+        userId: String,
+        conversationId: String,
+        paginationToken: String? = null
+    ): ApiResponse<TweetResponse>
+
+    suspend fun getTweetThread2(
+        authorization: String,
+        userId: String,
+        conversationId: String,
+        paginationToken: String? = null
+    ): ApiResponse<TweetResponse>
 }
 
 interface TwitterApiService {
@@ -34,6 +48,30 @@ interface TwitterApiService {
 
     @GET("2/users/{userId}/bookmarks")
     suspend fun listBookmarks(
+        @Header("Authorization") authorization: String,
+        @Path("userId") userId: String,
+        @Query("tweet.fields") tweetFields: String = TWEETFIELDS,
+        @Query("expansions") expansions: String = EXPANSIONS,
+        @Query("media.fields") mediaFields: String = MEDIAFIELDS,
+        @Query("user.fields") userFields: String = USERFIELDS,
+        @Query("max_results") maxResults: Int = 100,
+        @Query("pagination_token") paginationToken: String? = null
+    ): ApiResponse<TweetResponse>
+
+    @GET("2/tweets/search/recent")
+    suspend fun getTweetThread(
+        @Header("Authorization") authorization: String,
+        @Query("query") query: String,
+        @Query("tweet.fields") tweetFields: String = TWEETFIELDS,
+        @Query("expansions") expansions: String = EXPANSIONS,
+        @Query("media.fields") mediaFields: String = MEDIAFIELDS,
+        @Query("user.fields") userFields: String = USERFIELDS,
+        @Query("max_results") maxResults: Int = 100,
+        @Query("pagination_token") paginationToken: String? = null
+    ): ApiResponse<TweetResponse>
+
+    @GET("2/users/{userId}/tweets")
+    suspend fun getTweetThread2(
         @Header("Authorization") authorization: String,
         @Path("userId") userId: String,
         @Query("tweet.fields") tweetFields: String = TWEETFIELDS,
