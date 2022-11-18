@@ -45,6 +45,11 @@ class AuthPref @Inject constructor(@ApplicationContext val context: Context) {
         }
     }
 
+    suspend fun setAccessAndRefreshToken(accessCode: String, refreshCode: String) {
+        setAccessCode(accessCode)
+        setRefreshCode(refreshCode)
+    }
+
     private val USERID = stringPreferencesKey("userId")
 
     val userId = context.dataStore.data.map { prefs ->

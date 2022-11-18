@@ -1,6 +1,7 @@
 package com.github.jayteealao.crumbs.data
 
 import androidx.paging.PagingSource
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -71,4 +72,12 @@ interface TweetDao {
 
     @Query("SELECT * FROM tweetEntity WHERE referenced = false ORDER BY `order` DESC")
     fun getLatestBookmark(): TweetEntity
+
+    @Query("SELECT author_id, conversation_id FROM tweetEntity WHERE referenced = false ORDER BY `order` DESC")
+    fun getLatestThreadId(): List<IdForThread>
 }
+
+data class IdForThread(
+    @ColumnInfo(name = "author_id") val authorId: String,
+    @ColumnInfo(name = "conversation_id") val conversationId: String
+)

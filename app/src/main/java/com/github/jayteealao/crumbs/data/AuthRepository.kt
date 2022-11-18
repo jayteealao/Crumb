@@ -79,6 +79,9 @@ class AuthRepository @Inject constructor(
     suspend fun revokeToken(): TokenResponse? =
         twitterAuthClient.revokeToken(authPref.accessCode.first()).also { data ->
             Timber.d("account revoked: $data")
+//            if (data != null) { // is the data check necessary
                 authPref.setAccessAndRefreshToken("", "")
+//            }
+//        }
     }
 }

@@ -24,8 +24,12 @@ fun SplashScreen(
     loginViewModel: LoginViewModel
 ) {
     LaunchedEffect(isLoggedIn) {
-            delay(1000)
-            navController.navigate(Screens.LOGINSCREEN.name) {
+        delay(1000)
+        if (isLoggedIn) {
+            val refreshed = loginViewModel.refreshToken()
+            Timber.d("refreshed $refreshed")
+            navController.currentBackStackEntry?.savedStateHandle?.set("refreshed", refreshed)
+            navController.navigate(Screens.HOMESCREEN.screenRoute(true)) {
                 popUpTo(Screens.SPLASHSCREEN.name) { inclusive = true }
             }
     }

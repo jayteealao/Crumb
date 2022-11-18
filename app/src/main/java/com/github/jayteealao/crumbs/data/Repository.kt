@@ -59,6 +59,7 @@ class Repository @Inject constructor(
 
     fun buildDatabase() {
         var id = latestBookmarkInDatabase?.id
+        var saveThreads = true
         scope.launch(Dispatchers.IO) {
             latestBookmarkInDatabase = tweetDao.getLatestBookmark()
             Timber.tag("latest bookmark in database: $latestBookmarkInDatabase")
@@ -89,8 +90,77 @@ class Repository @Inject constructor(
                             launch(Dispatchers.IO) {
 //                                Timber.d("saving entity ${it.tweetEntity.id}")
                                 saveTweetEntities(tweetEntitiesToOrderLens.modify(it) { order })
+                                if (saveThreads) {
+                                    saveTweetThreads(it.tweetEntity.authorId, it.tweetEntity.conversationId)
+                                    saveThreads = id != it.tweetEntity.id
+                                } // during updates prevent savetweetthread for running for the 100 tweets in a
+
                             }
                             orderStart--
+                        }
+                    }
+                }
+            }.collect {}
+        }
+    }
+
+    fun saveTweetThreads(tweetAuthorId: String, conversationId: String) {
+        scope.launch {
+
+            combine(authPref.accessCode, authPref.userId, authPref.refreshCode) {
+                    accessCode, userId, refreshToken ->
+                if (refreshToken.isNotBlank() && userId.isNotBlank()) {
+                    val tweetEntitiesChannel =
+                        produceTweetResponseEntities(
+                            refreshToken,
+                            latestIdInDb = "",
+                            onError = {  }
+                        ) {
+                            twitterApiClient.getTweetThread(
+                                "Bearer $accessCode",
+                                tweetAuthorId,
+                                conversationId,
+                                it
+                            )
+                        }
+                    tweetEntitiesChannel.consumeEach {
+                        it.data.forEach {
+                            launch(Dispatchers.IO) {
+                                Timber.d("saving entity ${it.tweetEntity}")
+                                saveTweetEntities(it)
+                            }
+                        }
+                    }
+                }
+            }.collect {}
+        }
+    }
+
+    fun saveTweetThreadsAppOnly(tweetAuthorId: String, conversationId: String) {
+        scope.launch {
+
+            combine(authPref.accessCodeAppOnly, authPref.userId, authPref.refreshCode) {
+                    accessCode, userId, refreshToken ->
+                if (refreshToken.isNotBlank() && userId.isNotBlank()) {
+                    val tweetEntitiesChannel =
+                        produceTweetResponseEntities(
+                            refreshToken,
+                            latestIdInDb = "",
+                            onError = { twitterAuthClient.refreshAccessToken(refreshToken) }
+                        ) {
+                            twitterApiClient.getTweetThread2(
+                                "Bearer $accessCode",
+                                tweetAuthorId,
+                                conversationId,
+                                it
+                            )
+                        }
+                    tweetEntitiesChannel.consumeEach {
+                        it.data.forEach {
+                            launch(Dispatchers.IO) {
+                                Timber.d("saving entity ${it.tweetEntity}")
+                                saveTweetEntities(it)
+                            }
                         }
                     }
                 }
@@ -107,4 +177,6 @@ class Repository @Inject constructor(
     }
 
     fun pagingTweetData() = pager.flow
+
+    fun getThreadIds(): List<IdForThread> = tweetDao.getLatestThreadId()
 }

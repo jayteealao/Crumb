@@ -48,6 +48,17 @@ fun LoginScreen(
         }
     }
 
+    LaunchedEffect(access) {
+        delay(500)
+        if (access) {
+            Timber.d("access approved")
+            delay(1500)
+            navController.navigate(Screens.HOMESCREEN.screenRoute(true)) {
+                popUpTo(Screens.LOGINSCREEN.name) { inclusive = true }
+            }
+        }
+    }
+
     if (authorizationCode == null) {
         Column(modifier = modifier.fillMaxSize()) {
             Image(

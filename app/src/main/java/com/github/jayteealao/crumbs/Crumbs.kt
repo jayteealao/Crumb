@@ -117,6 +117,22 @@ fun CrumbsNavHost(
                             .currentBackStackEntry?.arguments?.getString("code")
                     )
                 }
+                
+                
+                composable(
+                    "${Screens.HOMESCREEN.name}/{refreshed}",
+                    deepLinks = listOf(navDeepLink { uriPattern = "https://graphitenerd.xyz/{code}" }),
+                    arguments = listOf(navArgument(name = "refreshed") { type = NavType.BoolType })
+                ) {
+                    HomeScreen(
+                        scope = scope,
+                        navController = navController,
+                        loginViewModel = loginViewModel,
+                        bookmarksViewModel = bookmarksViewModel,
+                        twitterAuthCode = navController
+                            .currentBackStackEntry?.arguments?.getString("code") ?: ""
+                    )
+                }
 
                 composable(
                     Screens.SPLASHSCREEN.name
@@ -135,5 +151,8 @@ fun CrumbsNavHost(
 enum class Screens {
     SPLASHSCREEN,
     LOGINSCREEN,
+    HOMESCREEN {
+        override fun screenRoute(refreshed: Boolean) = "${this.name}/$refreshed"
+    };
     open fun screenRoute(refreshed: Boolean) = this.name
 }
