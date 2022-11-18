@@ -46,6 +46,10 @@ fun CoroutineScope.produceTweetResponseEntities(
 //                    val resp = twitterApiClient.refreshAccessToken(refreshToken)
 //                    Timber.d("refreshedToken: ${resp?.getOrNull()?.refreshToken}")
                 }
+
+                if (response.code() == 429) {
+                    this@produce.close()
+                }
 //                if (retries > 3) {
 //                    token = null
 //                    Timber.d("retrying failed")

@@ -16,6 +16,7 @@ import javax.inject.Inject
 class LoginViewModel @Inject constructor(
     private val authRepository: AuthRepository
 ) : ViewModel() {
+
     private var _isAccessTokenAvailable: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val isAccessTokenAvailable: StateFlow<Boolean>
         get() = _isAccessTokenAvailable
@@ -45,8 +46,9 @@ class LoginViewModel @Inject constructor(
         return refreshed
     }
 
+    suspend fun revokeToken() = authRepository.revokeToken()
+
     fun authIntent(): Intent {
-        _loginScreenState.value = LoginScreenState.Loading
         return authRepository.getAuthorizationCodeIntent()
     }
 }

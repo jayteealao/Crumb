@@ -67,7 +67,7 @@ interface TweetDao {
 
     @Transaction
     @Query("SELECT * FROM tweetEntity WHERE referenced = false ORDER BY `order` DESC")
-    fun getTweets(order: String): PagingSource<Int, TweetData>
+    fun getTweets(): PagingSource<Int, TweetData>
 
     @Query("SELECT * FROM tweetEntity WHERE referenced = false ORDER BY `order` DESC")
     fun getLatestBookmark(): TweetEntity

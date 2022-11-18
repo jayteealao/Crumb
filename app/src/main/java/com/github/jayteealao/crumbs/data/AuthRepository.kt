@@ -6,11 +6,9 @@ import com.github.jayteealao.crumbs.services.AuthPref
 import com.github.jayteealao.crumbs.services.twitter.TwitterApiClient
 import com.github.jayteealao.crumbs.services.twitter.TwitterAuthClient
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import timber.log.Timber
 import javax.inject.Inject
@@ -41,7 +39,7 @@ class AuthRepository @Inject constructor(
                 val tokenResponse = twitterAuthClient.getAccessToken(authorizationCode)
                 Timber.d("token response: $tokenResponse")
                 if (tokenResponse != null) {
-                    authPref.setAccessAndRefreshToken(tokenResponse.accessToken, tokenResponse.refreshToken)
+                    authPref.setAccessAndRefreshToken(tokenResponse.accessToken!!, tokenResponse.refreshToken!!)
                 } else {
                     Timber.d("token response: $tokenResponse")
                     Timber.d("emitted fail")
@@ -66,8 +64,8 @@ class AuthRepository @Inject constructor(
             Timber.d("token response: $tokenResponse")
             bool = if (tokenResponse != null) {
                 authPref.setAccessAndRefreshToken(
-                    tokenResponse.accessToken,
-                    tokenResponse.refreshToken
+                    tokenResponse.accessToken!!,
+                    tokenResponse.refreshToken!!
                 )
                 true
             } else {
@@ -77,13 +75,10 @@ class AuthRepository @Inject constructor(
 
         return bool
     }
-}
 
-sealed class AuthState {
-    object NoAccess : AuthState()
-    data class AccessGranted(val accessToken: String, val refreshToken: String) : AuthState()
-    data class AccessRefreshed(val accessToken: String, val refreshToken: String) : AuthState()
-    data class Failed(val message: String) : AuthState()
-    data class RefreshFailed(val message: String) : AuthState()
-    data class userIdSet(val userId: String, val name: String, val userName: String, val previewImageUrl: String) : AuthState()
+    suspend fun revokeToken(): TokenResponse? =
+        twitterAuthClient.revokeToken(authPref.accessCode.first()).also { data ->
+            Timber.d("account revoked: $data")
+                authPref.setAccessAndRefreshToken("", "")
+    }
 }
