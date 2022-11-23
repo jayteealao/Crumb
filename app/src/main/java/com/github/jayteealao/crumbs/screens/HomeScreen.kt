@@ -14,9 +14,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.github.jayteealao.crumbs.screens.login.LoginViewModel
-import com.github.jayteealao.crumbs.screens.twitter.BookmarksViewModel
-import com.github.jayteealao.crumbs.screens.twitter.TwitterBookmarksScreen
+import com.github.jayteealao.twitter.screens.LoginViewModel
+import com.github.jayteealao.twitter.screens.BookmarksViewModel
+import com.github.jayteealao.twitter.screens.TwitterBookmarksScreen
 import com.google.accompanist.pager.ExperimentalPagerApi
 import com.google.accompanist.pager.HorizontalPager
 import com.google.accompanist.pager.pagerTabIndicatorOffset

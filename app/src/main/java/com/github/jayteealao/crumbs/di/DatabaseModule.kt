@@ -2,7 +2,8 @@ package com.github.jayteealao.crumbs.di
 
 import android.content.Context
 import androidx.room.Room
-import com.github.jayteealao.crumbs.data.AppDatabase
+import com.github.jayteealao.crumbs.db.AppDatabase
+import com.github.jayteealao.twitter.data.TweetDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -26,5 +27,5 @@ class DatabaseModule {
 
     @Singleton
     @Provides
-    fun providesTweetDao(appDatabase: AppDatabase) = appDatabase.tweetDao()
+    fun providesTweetDao(appDatabase: AppDatabase): TweetDao = appDatabase.tweetDao()
 }

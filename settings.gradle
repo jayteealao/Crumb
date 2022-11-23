@@ -17,3 +17,7 @@ dependencyResolutionManagement {
 rootProject.name = "Crumbs"
 enableFeaturePreview("VERSION_CATALOGS")
 include ':app'
+include ':feature:reddit'
+//include ':plugins'
+include ':feature:twitter'
+include ':core:pref'
