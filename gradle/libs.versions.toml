@@ -1,0 +1,46 @@
+[versions]
+kotlin = "1.7.10"
+composeUi = "1.3.1"
+coroutines = "1.5.2"
+accompanist = "0.22.0-rc"
+arrow = "1.1.4-alpha.10"
+lifecycle = "2.6.0-alpha01"
+retrofit = "2.9.0"
+room = "2.4.3"
+
+[libraries]
+#androidx
+androidx-core = {module = "androidx.core:core-ktx", version = "1.9.0"}
+androidx-lifecycle = {module = "androidx.lifecycle:lifecycle-runtime-ktx", version = "2.5.1"}
+#compose
+compose-ui = {module = "androidx.compose.ui:ui", version.ref = "composeUi" }
+compose-uiTooling = {module = "androidx.compose.ui:ui-tooling-preview", version.ref = "composeUi" }
+compose-material = {module = "androidx.compose.material:material", version.ref = "composeUi" }
+compose-materialIcons = {module = "androidx.compose.material:material-icons-core", version.ref = "composeUi" }
+compose-materialIconsExt = {module = "androidx.compose.material:material-icons-extended", version.ref = "composeUi" }
+compose-foundation = {module = "androidx.compose.foundation:foundation", version.ref = "composeUi" }
+compose-runtime = {module = "androidx.compose.runtime:runtime-livedata", version.ref = "composeUi" }
+#compose-interop
+activityCompose = {module = "androidx.activity:activity-compose", version = "1.6.1"}
+lifecycleViewmodelCompose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version = "2.5.1"}
+lifecycleRuntimeCompose = {module = "androidx.lifecycle:lifecycle-runtime-compose", version = "2.6.0-alpha03"}
+hiltNavigationCompose = {module = "androidx.hilt:hilt-navigation-compose", version = "1.0.0"}
+navigationCompose = {module = "androidx.navigation:navigation-compose", version = "2.5.3"}
+pagingCompose = {module = "androidx.paging:paging-compose", version = "1.0.0-alpha17"}
+#retrofit
+retrofit-core = { module = "com.squareup.retrofit2:retrofit", version.ref = "retrofit" }
+retrofit-gson = { module = "com.squareup.retrofit2:converter-gson", version.ref = "retrofit" }
+retrofit-sandwich = { module = "com.github.skydoves:sandwich", version = "1.3.1" }
+#room
+room-runtime = {module = "androidx.room:room-runtime", version.ref = "room"}
+room-compiler = {module = "androidx.room:room-compiler", version.ref = "room"}
+room-ktx = {module = "androidx.room:room-ktx", version.ref = "room"}
+room-paging = {module = "androidx.room:room-paging", version.ref = "room"}
+#timber
+timber = {module = "com.jakewharton.timber:timber", version = "5.0.1"}
+[bundles]
+androidx = ['androidx-core', 'androidx-lifecycle']
+compose = ['compose-ui', 'compose-uiTooling', 'compose-foundation', 'compose-material', 'compose-materialIcons', 'compose-materialIconsExt', 'compose-runtime']
+composeInterop = ['activityCompose', 'lifecycleRuntimeCompose', 'lifecycleViewmodelCompose', 'hiltNavigationCompose', 'navigationCompose', 'pagingCompose']
+retrofit = ['retrofit-core', 'retrofit-gson', 'retrofit-sandwich']
+room = ['room-runtime', 'room-ktx', 'room-paging']

@@ -1,4 +1,5 @@
 pluginManagement {
+    includeBuild("plugins")
     repositories {
         google()
         mavenCentral()
@@ -14,4 +15,5 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "Crumbs"
+enableFeaturePreview("VERSION_CATALOGS")
 include ':app'

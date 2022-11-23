@@ -1,0 +1,11 @@
+plugins {
+//    `kotlin-dsl`
+//    id 'java-library'
+//    id 'org.jetbrains.kotlin.jvm'  version '1.7.20'
+}
+
+repositories {
+    google()
+    mavenCentral()
+    maven { url "https://jitpack.io" }
+}
