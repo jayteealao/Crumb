@@ -1,0 +1,172 @@
+name: PR Build Check
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to test (optional for manual runs)'
+        required: false
+        type: number
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write  # needed to comment on PR
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Gradle cache
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Fix gradlew perms & line endings
+        run: |
+          sed -i 's/\r$//' gradlew
+          chmod +x gradlew
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-33 build-tools;33.0.2
+
+      - name: check for signing secrets
+        id: has_signing
+        env:
+          B64: ${{ secrets.SIGNING_STORE_FILE_B64 }}
+        run: |
+          if [ -n "$B64" ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; fi
+
+      # --- Optional: Decode keystore & expose signing to Gradle ---
+      - name: Decode keystore (optional)
+        if: ${{ steps.has_signing.outputs.present == 'true' }}
+        env:
+          SIGNING_STORE_FILE_B64: ${{ secrets.SIGNING_STORE_FILE_B64 }}
+        run: |
+          echo "$SIGNING_STORE_FILE_B64" | base64 -d > keystore.jks
+
+      - name: Write signing properties (optional)
+        if: ${{ steps.has_signing.outputs.present == 'true' }}
+        run: |
+          {
+            echo "SIGNING_STORE_FILE=$(pwd)/keystore.jks"
+            echo "SIGNING_STORE_PASSWORD=${{ secrets.SIGNING_STORE_PASSWORD }}"
+            echo "SIGNING_KEY_ALIAS=${{ secrets.SIGNING_KEY_ALIAS }}"
+            echo "SIGNING_KEY_PASSWORD=${{ secrets.SIGNING_KEY_PASSWORD }}"
+          } >> $GITHUB_ENV
+
+      - name: Build debug APK
+        id: build
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon clean assembleDebug 2>&1 | tee build-log.txt
+          status=${PIPESTATUS[0]}
+          echo "build_status=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
+
+      - name: Check build result and comment on PR
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          BUILD_STATUS: ${{ steps.build.outcome }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const buildStatus = process.env.BUILD_STATUS;
+            const prNumber = process.env.PR_NUMBER;
+
+            // Skip commenting if no PR context (e.g., manual workflow_dispatch without PR number)
+            if (!prNumber) {
+              console.log('Skipping PR comment: no PR number available');
+              console.log(`Build status: ${buildStatus}`);
+              if (buildStatus === 'failure') {
+                console.log('Build failed - check the workflow logs for details');
+                try {
+                  const buildLog = fs.readFileSync('build-log.txt', 'utf8');
+                  const errorLines = buildLog.split('\n').filter(line =>
+                    line.includes('error:') || line.includes('FAILURE:') ||
+                    line.includes('BUILD FAILED') || line.includes('Execution failed')
+                  );
+                  if (errorLines.length > 0) {
+                    console.log('Error summary:', errorLines.slice(0, 10).join('\n'));
+                  }
+                } catch (error) {
+                  console.log('Could not read build log');
+                }
+              }
+              return;
+            }
+
+            let comment = '';
+
+            if (buildStatus === 'failure') {
+              // Read the build log
+              let buildLog = '';
+              try {
+                buildLog = fs.readFileSync('build-log.txt', 'utf8');
+              } catch (error) {
+                buildLog = 'Could not read build log';
+              }
+
+              // Extract relevant error information
+              const errorLines = buildLog.split('\n').filter(line =>
+                line.includes('error:') ||
+                line.includes('FAILURE:') ||
+                line.includes('BUILD FAILED') ||
+                line.includes('Execution failed')
+              );
+
+              // Get the last 50 lines of the log for context
+              const logLines = buildLog.split('\n');
+              const contextLines = logLines.slice(Math.max(0, logLines.length - 50));
+
+              comment = `## ❌ Build Failed\n\n`;
+              comment += `The PR build has failed. Please review and fix the following errors:\n\n`;
+
+              if (errorLines.length > 0) {
+                comment += `### Error Summary:\n\`\`\`\n${errorLines.slice(0, 20).join('\n')}\n\`\`\`\n\n`;
+              }
+
+              comment += `### Build Log (last 50 lines):\n<details>\n<summary>Click to expand</summary>\n\n\`\`\`\n${contextLines.join('\n')}\n\`\`\`\n</details>\n\n`;
+              comment += `Please fix these issues and push your changes to re-trigger the build check.`;
+            } else {
+              comment = `## ✅ Build Successful\n\nThe PR build completed successfully! The code compiles without errors.`;
+            }
+
+            // Post comment on PR
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: parseInt(prNumber),
+              body: comment
+            });
+
+      - name: Fail job if build failed
+        if: steps.build.outcome == 'failure'
+        run: |
+          echo "Build failed. Check the PR comment for details."
+          exit 1
+
+      - name: Upload build outputs on success
+        if: steps.build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 7

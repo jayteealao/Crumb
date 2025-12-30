@@ -1,0 +1,169 @@
+name: Android Release on Tag
+
+on:
+  push:
+    tags:
+      - "v*"     # e.g., v1.4.0, v2.0.0-rc.1
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to create releases & upload assets
+#    env:
+#      ACT: ${{ env.ACT }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+          fetch-depth: 0  # needed to access full git history for changelog
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Gradle cache
+        uses: gradle/actions/setup-gradle@v3
+
+          # Windows-safe guard
+      - name: Fix gradlew perms & line endings (Windows devs)
+        run: |
+          sed -i 's/\r$//' gradlew
+          chmod +x gradlew
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-33 build-tools;33.0.2
+
+      - name: check for signing secrets
+        id: has_signing
+        env:
+          B64: ${{ secrets.SIGNING_STORE_FILE_B64 }}
+        run: |
+          if [ -n "$B64" ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; fi
+
+      # --- Optional: Decode keystore & expose signing to Gradle ---
+      - name: Decode keystore (optional)
+        if: ${{ steps.has_signing.outputs.present == 'true' }}
+        env:
+          SIGNING_STORE_FILE_B64: ${{ secrets.SIGNING_STORE_FILE_B64 }}
+        run: |
+          echo "$SIGNING_STORE_FILE_B64" | base64 -d > keystore.jks
+
+      - name: Write signing properties (optional)
+        if: ${{ steps.has_signing.outputs.present == 'true' }}
+        run: |
+          {
+            echo "SIGNING_STORE_FILE=$(pwd)/keystore.jks"
+            echo "SIGNING_STORE_PASSWORD=${{ secrets.SIGNING_STORE_PASSWORD }}"
+            echo "SIGNING_KEY_ALIAS=${{ secrets.SIGNING_KEY_ALIAS }}"
+            echo "SIGNING_KEY_PASSWORD=${{ secrets.SIGNING_KEY_PASSWORD }}"
+          } >> $GITHUB_ENV
+
+      # --- Build (adjust module & tasks as needed) ---
+      # If you have flavors, e.g., prod, replace with assembleProdRelease/bundleProdRelease
+      - name: Build APK + AAB
+        run: |
+          ./gradlew --no-daemon clean assembleRelease bundleRelease
+
+      - name: List build outputs (debug)
+        if: always()
+        run: |
+          echo "=== APK outputs ==="
+          find . -type f -name "*.apk" -o -name "*.aab" | sort
+          echo "=== Mapping files ==="
+          find . -type f -name "mapping.txt" || echo "No mapping.txt found"
+
+      # Collect artifacts
+      - name: Find outputs
+        id: find_outputs
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+          # Find APK (case-insensitive for release/Release)
+          APK=$(find . -type f -path "*/build/outputs/apk/*elease/*.apk" ! -name "*-unsigned.apk" ! -name "*-unaligned.apk" | head -n1)
+          AAB=$(find . -type f -path "*/build/outputs/bundle/*elease/*.aab" | head -n1)
+          MAP=$(find . -type f -path "*/build/outputs/mapping/*elease/mapping.txt" | head -n1 || true)
+
+          echo "Found APK: ${APK}"
+          echo "Found AAB: ${AAB}"
+          echo "Found Mapping: ${MAP}"
+
+          echo "apk=${APK}" >> "$GITHUB_OUTPUT"
+          echo "aab=${AAB}" >> "$GITHUB_OUTPUT"
+          echo "mapping=${MAP}" >> "$GITHUB_OUTPUT"
+
+        # ── A) Run git-cliff directly when using act ──────────────────────────────────
+      - name: Install git-cliff (ACT)
+        if: ${{ env.ACT == 'true' }}
+        run: |
+          set -eux
+          curl -sSL https://github.com/orhun/git-cliff/releases/download/v2.10.1/git-cliff-2.10.1-x86_64-unknown-linux-gnu.tar.gz \
+            | tar xz
+          sudo mv git-cliff*/git-cliff /usr/local/bin/git-cliff
+
+      - name: Generate changelog (ACT)
+        if: ${{ env.ACT == 'true' }}
+        run: |
+          git-cliff --tag "${{ env.GITHUB_REF_NAME || 'main' }}" \
+            -o "CHANGELOG-${{ env.GITHUB_REF_NAME || 'main' }}.md" --verbose
+
+      # ── B) Keep your existing action for real GitHub runs ─────────────────────────
+      # --- Optional: pretty CHANGELOG from commits with git-cliff ---
+      - name: Generate changelog with git-cliff (optional)
+        id: cliff
+        if: ${{ env.ACT != 'true' }}  # Skip on ACT runs
+        continue-on-error: true
+        uses: orhun/git-cliff-action@v4
+        with:
+          args: --tag ${{ steps.find_outputs.outputs.tag }} --verbose
+        env:
+          OUTPUT: CHANGELOG-${{ steps.find_outputs.outputs.tag }}.md
+
+      - name: Prepare release body
+        id: body
+        run: |
+          BODY_FILE="RELEASE_BODY.md"
+          {
+            echo "## Release ${{ steps.find_outputs.outputs.tag }}"
+            echo
+            if [ -f "CHANGELOG-${{ steps.find_outputs.outputs.tag }}.md" ]; then
+              echo "### Changelog"
+              echo
+              cat "CHANGELOG-${{ steps.find_outputs.outputs.tag }}.md"
+            else
+              echo "_Auto-generated notes will be used by GitHub._"
+            fi
+          } > "$BODY_FILE"
+          echo "file=${BODY_FILE}" >> "$GITHUB_OUTPUT"
+
+      # Create GitHub Release + upload assets
+      - name: Create release & upload assets
+        if: ${{ env.ACT != 'true' }}  # Skip on ACT runs
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.find_outputs.outputs.tag }}
+          name: ${{ steps.find_outputs.outputs.tag }}
+          body_path: ${{ steps.body.outputs.file }}
+          generate_release_notes: ${{ !hashFiles(format('CHANGELOG-{0}.md', steps.find_outputs.outputs.tag)) }}
+          files: |
+            ${{ steps.find_outputs.outputs.apk }}
+            ${{ steps.find_outputs.outputs.aab }}
+            ${{ steps.find_outputs.outputs.mapping }}
+            CHANGELOG-${{ steps.find_outputs.outputs.tag }}.md
+
+      - name: Upload release outputs
+        if: ${{ env.ACT == 'true' }}   # only matters locally
+        uses: actions/upload-artifact@v4
+        with:
+          name: Crumbs-${{ steps.find_outputs.outputs.tag }}
+          path: |
+            ${{ steps.find_outputs.outputs.apk }}
+            ${{ steps.find_outputs.outputs.aab }}
+            ${{ steps.find_outputs.outputs.mapping }}
+            CHANGELOG-${{ steps.find_outputs.outputs.tag }}.md

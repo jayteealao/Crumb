@@ -1,0 +1,113 @@
+name: Manual Release Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Version name (e.g., 1.0.0, 1.0.0-beta)'
+        required: true
+        default: '1.0.0'
+      create_release:
+        description: 'Create a GitHub release?'
+        required: true
+        type: boolean
+        default: false
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Gradle cache
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Fix gradlew perms & line endings
+        run: |
+          sed -i 's/\r$//' gradlew
+          chmod +x gradlew
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-33 build-tools;33.0.2
+
+      - name: Check for signing secrets
+        id: has_signing
+        env:
+          B64: ${{ secrets.SIGNING_STORE_FILE_B64 }}
+        run: |
+          if [ -n "$B64" ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Decode keystore
+        if: ${{ steps.has_signing.outputs.present == 'true' }}
+        env:
+          SIGNING_STORE_FILE_B64: ${{ secrets.SIGNING_STORE_FILE_B64 }}
+        run: |
+          echo "$SIGNING_STORE_FILE_B64" | base64 -d > keystore.jks
+
+      - name: Write signing properties
+        if: ${{ steps.has_signing.outputs.present == 'true' }}
+        run: |
+          {
+            echo "SIGNING_STORE_FILE=$(pwd)/keystore.jks"
+            echo "SIGNING_STORE_PASSWORD=${{ secrets.SIGNING_STORE_PASSWORD }}"
+            echo "SIGNING_KEY_ALIAS=${{ secrets.SIGNING_KEY_ALIAS }}"
+            echo "SIGNING_KEY_PASSWORD=${{ secrets.SIGNING_KEY_PASSWORD }}"
+          } >> $GITHUB_ENV
+
+      - name: Build APK + AAB
+        run: |
+          ./gradlew --no-daemon clean assembleRelease bundleRelease
+
+      - name: Find outputs
+        id: find_outputs
+        run: |
+          VERSION="${{ github.event.inputs.version_name }}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+          APK=$(find . -type f -path "*/build/outputs/apk/*elease/*.apk" ! -name "*-unsigned.apk" ! -name "*-unaligned.apk" | head -n1)
+          AAB=$(find . -type f -path "*/build/outputs/bundle/*elease/*.aab" | head -n1)
+          MAP=$(find . -type f -path "*/build/outputs/mapping/*elease/mapping.txt" | head -n1 || true)
+
+          echo "apk=${APK}" >> "$GITHUB_OUTPUT"
+          echo "aab=${AAB}" >> "$GITHUB_OUTPUT"
+          echo "mapping=${MAP}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Crumbs-v${{ github.event.inputs.version_name }}
+          retention-days: 30
+          path: |
+            ${{ steps.find_outputs.outputs.apk }}
+            ${{ steps.find_outputs.outputs.aab }}
+            ${{ steps.find_outputs.outputs.mapping }}
+
+      - name: Create GitHub Release
+        if: ${{ github.event.inputs.create_release == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.event.inputs.version_name }}
+          name: v${{ github.event.inputs.version_name }}
+          body: |
+            ## Release v${{ github.event.inputs.version_name }}
+
+            Manual release build triggered by @${{ github.actor }}
+          draft: true
+          files: |
+            ${{ steps.find_outputs.outputs.apk }}
+            ${{ steps.find_outputs.outputs.aab }}
+            ${{ steps.find_outputs.outputs.mapping }}

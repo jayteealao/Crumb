@@ -11,6 +11,18 @@ android {
     namespace 'com.github.jayteealao.crumbs'
     compileSdk 33
 
+    signingConfigs {
+        release {
+            def storeFilePath = System.getenv("SIGNING_STORE_FILE")
+            if (storeFilePath != null) {
+                storeFile file(storeFilePath)
+                storePassword System.getenv("SIGNING_STORE_PASSWORD")
+                keyAlias System.getenv("SIGNING_KEY_ALIAS")
+                keyPassword System.getenv("SIGNING_KEY_PASSWORD")
+            }
+        }
+    }
+
     defaultConfig {
         applicationId "com.github.jayteealao.crumbs"
         minSdk 24
@@ -35,6 +47,9 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (System.getenv("SIGNING_STORE_FILE") != null) {
+                signingConfig signingConfigs.release
+            }
         }
     }
     compileOptions {
@@ -61,7 +76,6 @@ android {
 dependencies {
 
     implementation(project(":feature:twitter"))
-    implementation(project(":core:database"))
     implementation(project(":core:pref"))
     implementation(libs.bundles.androidx)
     implementation(libs.bundles.composeInterop)
