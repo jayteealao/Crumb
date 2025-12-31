@@ -78,9 +78,15 @@ jobs:
           VERSION="${{ github.event.inputs.version_name }}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
-          APK=$(find . -type f -path "*/build/outputs/apk/*elease/*.apk" ! -name "*-unsigned.apk" ! -name "*-unaligned.apk" | head -n1)
-          AAB=$(find . -type f -path "*/build/outputs/bundle/*elease/*.aab" | head -n1)
-          MAP=$(find . -type f -path "*/build/outputs/mapping/*elease/mapping.txt" | head -n1 || true)
+          # Try to find signed APK first, fall back to unsigned
+          APK=$(find . -type f -path "*/app/build/outputs/apk/*elease/*.apk" ! -name "*-unaligned.apk" | grep -v "unsigned" | head -n1)
+          if [ -z "$APK" ]; then
+            echo "No signed APK found, looking for unsigned APK..."
+            APK=$(find . -type f -path "*/app/build/outputs/apk/*elease/*-unsigned.apk" | head -n1)
+          fi
+
+          AAB=$(find . -type f -path "*/app/build/outputs/bundle/*elease/*.aab" | head -n1)
+          MAP=$(find . -type f -path "*/app/build/outputs/mapping/*elease/mapping.txt" | head -n1 || true)
 
           echo "=== DEBUG: Found files ==="
           echo "APK: ${APK}"
@@ -112,10 +118,7 @@ jobs:
         with:
           name: Crumbs-v${{ github.event.inputs.version_name }}-all-apks
           retention-days: 30
-          path: |
-            **/build/outputs/apk/**/*.apk
-            !**/*-unsigned.apk
-            !**/*-unaligned.apk
+          path: app/build/outputs/apk/release/*.apk
 
       - name: Create GitHub Release
         if: ${{ github.event.inputs.create_release == 'true' }}
