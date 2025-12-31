@@ -87,6 +87,7 @@ jobs:
           echo "mapping=${MAP}" >> "$GITHUB_OUTPUT"
 
       - name: Upload APK artifact
+        if: ${{ steps.find_outputs.outputs.apk != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: Crumbs-v${{ github.event.inputs.version_name }}.apk
