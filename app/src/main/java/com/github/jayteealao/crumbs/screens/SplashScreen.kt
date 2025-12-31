@@ -32,6 +32,7 @@ fun SplashScreen(
             navController.navigate(Screens.HOMESCREEN.screenRoute(true)) {
                 popUpTo(Screens.SPLASHSCREEN.name) { inclusive = true }
             }
+        }
     }
     Box(
         contentAlignment = Alignment.Center,
