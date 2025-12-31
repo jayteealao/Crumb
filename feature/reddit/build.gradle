@@ -42,8 +42,8 @@ dependencies {
 
 
 //    hilt
-    implementation "com.google.dagger:hilt-android:2.44"
-    kapt "com.google.dagger:hilt-compiler:2.44"
+    implementation "com.google.dagger:hilt-android:2.50"
+    kapt "com.google.dagger:hilt-compiler:2.50"
     implementation libs.bundles.retrofit
     implementation(libs.timber)
 //    implementation "com.squareup.retrofit2:retrofit:$retrofit_version"

@@ -59,8 +59,8 @@ dependencies {
     kapt(libs.room.compiler)
 
 //    hilt
-    implementation "com.google.dagger:hilt-android:2.44"
-    kapt "com.google.dagger:hilt-compiler:2.44"
+    implementation "com.google.dagger:hilt-android:2.50"
+    kapt "com.google.dagger:hilt-compiler:2.50"
 
 //    retrofit
     implementation(libs.bundles.retrofit)
