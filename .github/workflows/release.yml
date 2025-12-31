@@ -157,13 +157,9 @@ jobs:
             ${{ steps.find_outputs.outputs.mapping }}
             CHANGELOG-${{ steps.find_outputs.outputs.tag }}.md
 
-      - name: Upload release outputs
+      - name: Upload APK artifact
         if: ${{ env.ACT == 'true' }}   # only matters locally
         uses: actions/upload-artifact@v4
         with:
-          name: Crumbs-${{ steps.find_outputs.outputs.tag }}
-          path: |
-            ${{ steps.find_outputs.outputs.apk }}
-            ${{ steps.find_outputs.outputs.aab }}
-            ${{ steps.find_outputs.outputs.mapping }}
-            CHANGELOG-${{ steps.find_outputs.outputs.tag }}.md
+          name: Crumbs-${{ steps.find_outputs.outputs.tag }}.apk
+          path: ${{ steps.find_outputs.outputs.apk }}

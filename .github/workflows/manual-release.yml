@@ -86,15 +86,12 @@ jobs:
           echo "aab=${AAB}" >> "$GITHUB_OUTPUT"
           echo "mapping=${MAP}" >> "$GITHUB_OUTPUT"
 
-      - name: Upload build artifacts
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Crumbs-v${{ github.event.inputs.version_name }}
+          name: Crumbs-v${{ github.event.inputs.version_name }}.apk
           retention-days: 30
-          path: |
-            ${{ steps.find_outputs.outputs.apk }}
-            ${{ steps.find_outputs.outputs.aab }}
-            ${{ steps.find_outputs.outputs.mapping }}
+          path: ${{ steps.find_outputs.outputs.apk }}
 
       - name: Create GitHub Release
         if: ${{ github.event.inputs.create_release == 'true' }}
