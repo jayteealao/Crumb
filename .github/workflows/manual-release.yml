@@ -68,9 +68,9 @@ jobs:
             echo "SIGNING_KEY_PASSWORD=${{ secrets.SIGNING_KEY_PASSWORD }}"
           } >> $GITHUB_ENV
 
-      - name: Build APK + AAB
+      - name: Build APK (Debug)
         run: |
-          ./gradlew --no-daemon clean assembleRelease bundleRelease
+          ./gradlew --no-daemon clean assembleDebug
 
       - name: Find outputs
         id: find_outputs
@@ -78,15 +78,11 @@ jobs:
           VERSION="${{ github.event.inputs.version_name }}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
-          # Try to find signed APK first, fall back to unsigned
-          APK=$(find . -type f -path "*/app/build/outputs/apk/*elease/*.apk" ! -name "*-unaligned.apk" | grep -v "unsigned" | head -n1)
-          if [ -z "$APK" ]; then
-            echo "No signed APK found, looking for unsigned APK..."
-            APK=$(find . -type f -path "*/app/build/outputs/apk/*elease/*-unsigned.apk" | head -n1)
-          fi
+          # Find debug APK (automatically signed with debug keystore)
+          APK=$(find . -type f -path "*/app/build/outputs/apk/debug/*.apk" ! -name "*-unaligned.apk" | head -n1)
 
-          AAB=$(find . -type f -path "*/app/build/outputs/bundle/*elease/*.aab" | head -n1)
-          MAP=$(find . -type f -path "*/app/build/outputs/mapping/*elease/mapping.txt" | head -n1 || true)
+          AAB=""
+          MAP=""
 
           echo "=== DEBUG: Found files ==="
           echo "APK: ${APK}"
@@ -118,7 +114,7 @@ jobs:
         with:
           name: Crumbs-v${{ github.event.inputs.version_name }}-all-apks
           retention-days: 30
-          path: app/build/outputs/apk/release/*.apk
+          path: app/build/outputs/apk/debug/*.apk
 
       - name: Create GitHub Release
         if: ${{ github.event.inputs.create_release == 'true' }}

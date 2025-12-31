@@ -66,9 +66,9 @@ jobs:
 
       # --- Build (adjust module & tasks as needed) ---
       # If you have flavors, e.g., prod, replace with assembleProdRelease/bundleProdRelease
-      - name: Build APK + AAB
+      - name: Build APK (Debug)
         run: |
-          ./gradlew --no-daemon clean assembleRelease bundleRelease
+          ./gradlew --no-daemon clean assembleDebug
 
       - name: List build outputs (debug)
         if: always()
@@ -85,10 +85,10 @@ jobs:
           TAG="${GITHUB_REF_NAME}"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
-          # Find APK (case-insensitive for release/Release)
-          APK=$(find . -type f -path "*/build/outputs/apk/*elease/*.apk" ! -name "*-unsigned.apk" ! -name "*-unaligned.apk" | head -n1)
-          AAB=$(find . -type f -path "*/build/outputs/bundle/*elease/*.aab" | head -n1)
-          MAP=$(find . -type f -path "*/build/outputs/mapping/*elease/mapping.txt" | head -n1 || true)
+          # Find debug APK (automatically signed with debug keystore)
+          APK=$(find . -type f -path "*/app/build/outputs/apk/debug/*.apk" ! -name "*-unaligned.apk" | head -n1)
+          AAB=""
+          MAP=""
 
           echo "Found APK: ${APK}"
           echo "Found AAB: ${AAB}"
