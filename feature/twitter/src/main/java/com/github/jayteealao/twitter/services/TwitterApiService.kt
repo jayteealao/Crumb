@@ -94,10 +94,12 @@ interface TwitterApiService {
 
 const val TWEETFIELDS = "id,in_reply_to_user_id,lang,entities," +
     "created_at,attachments,author_id,context_annotations,conversation_id," +
-    "public_metrics,referenced_tweets,text"
+    "public_metrics,referenced_tweets,text,edit_history_tweet_ids,edit_controls," +
+    "note_tweet,reply_settings,possibly_sensitive"
 const val EXPANSIONS = "attachments.media_keys,attachments.poll_ids,author_id," +
     "entities.mentions.username,in_reply_to_user_id,referenced_tweets.id," +
-    "referenced_tweets.id.author_id"
+    "referenced_tweets.id.author_id,edit_history_tweet_ids"
 const val MEDIAFIELDS = "alt_text,media_key,url,type,public_metrics," +
     "preview_image_url,height,duration_ms,width,variants"
-const val USERFIELDS = "id,profile_image_url,name,username,verified"
+const val USERFIELDS = "id,profile_image_url,name,username,verified,verified_type," +
+    "verified_blue_checkmark,description,created_at,location"

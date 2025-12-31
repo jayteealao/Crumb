@@ -18,10 +18,10 @@ interface TwitterAuthService {
     @POST("2/oauth2/token")
     suspend fun getAccessToken(
         @Field("code") code: String,
+        @Field("code_verifier") codeVerifier: String,
         @Field("grant_type") grantType: String = "authorization_code",
         @Field("client_id") clientId: String = CLIENT_ID,
-        @Field("redirect_uri") redirectUri: String = "https://graphitenerd.xyz",
-        @Field("code_verifier") codeVerifier: String = "challenge"
+        @Field("redirect_uri") redirectUri: String = "https://graphitenerd.xyz"
     ): ApiResponse<TokenResponse>
 
     @Headers("Content-Type: application/x-www-form-urlencoded;charset=UTF-8")
