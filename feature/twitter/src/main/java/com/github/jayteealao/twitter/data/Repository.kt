@@ -12,7 +12,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -28,6 +31,8 @@ class Repository @Inject constructor(
     private var latestBookmarkInDatabase: TweetEntity? = null
     private var orderOfLastBookmark: Int = 1000
     private var needsRefresh = false
+    private val fetchMutex = Mutex()
+    private var isFetching = false
     companion object {
         const val BUFFER = 250
     }
@@ -57,23 +62,39 @@ class Repository @Inject constructor(
     )
 
     fun buildDatabase() {
-        var id = latestBookmarkInDatabase?.id
-        var saveThreads = true
         scope.launch(Dispatchers.IO) {
-            latestBookmarkInDatabase = tweetDao.getLatestBookmark()
-            Timber.tag("latest bookmark in database: $latestBookmarkInDatabase")
-            if (latestBookmarkInDatabase != null) {
-                orderOfLastBookmark = latestBookmarkInDatabase!!.order
-                id = latestBookmarkInDatabase!!.id
+            // Prevent concurrent fetches
+            fetchMutex.withLock {
+                if (isFetching) {
+                    Timber.d("buildDatabase: Already fetching, skipping")
+                    return@launch
+                }
+                isFetching = true
             }
-            combine(authPref.accessCode, authPref.userId, authPref.refreshCode) {
-                    accessCode, userId, refreshToken ->
+
+            try {
+                var saveThreads = true
+
+                latestBookmarkInDatabase = tweetDao.getLatestBookmark()
+                Timber.d("latest bookmark in database: $latestBookmarkInDatabase")
+                if (latestBookmarkInDatabase != null) {
+                    orderOfLastBookmark = latestBookmarkInDatabase!!.order
+                }
+
+                // Get current values once instead of continuously collecting
+                val (accessCode, userId, refreshToken) = combine(
+                    authPref.accessCode,
+                    authPref.userId,
+                    authPref.refreshCode
+                ) { access, user, refresh -> Triple(access, user, refresh) }
+                    .first()
+
                 if (refreshToken.isNotBlank() && userId.isNotBlank()) {
-                    Timber.d("building database: latestId: $id")
+                    Timber.d("building database: fetching all bookmarks (up to 800)")
                     val tweetEntitiesChannel =
                         produceTweetResponseEntities(
                             refreshToken,
-                            latestIdInDb = id,
+                            latestIdInDb = null, // Fetch all bookmarks, don't stop early
                             onError = { twitterAuthClient.refreshAccessToken(refreshToken) }
                         ) {
                             twitterApiClient.getBookmarks(
@@ -83,87 +104,100 @@ class Repository @Inject constructor(
                             )
                         }
                     var orderStart = orderOfLastBookmark + BUFFER
+                    val existingLatestId = latestBookmarkInDatabase?.id
                     tweetEntitiesChannel.consumeEach {
                         it.data.forEach {
                             val order = orderStart
                             launch(Dispatchers.IO) {
-//                                Timber.d("saving entity ${it.tweetEntity.id}")
                                 saveTweetEntities(tweetEntitiesToOrderLens.modify(it) { order })
+                                // Only save threads for new bookmarks (not already in database)
                                 if (saveThreads) {
                                     saveTweetThreads(it.tweetEntity.authorId, it.tweetEntity.conversationId)
-                                    saveThreads = id != it.tweetEntity.id
-                                } // during updates prevent savetweetthread for running for the 100 tweets in a
-
+                                    // Stop saving threads once we reach existing bookmarks
+                                    if (existingLatestId == it.tweetEntity.id) {
+                                        saveThreads = false
+                                    }
+                                }
                             }
                             orderStart--
                         }
                     }
                 }
-            }.collect {}
+            } finally {
+                fetchMutex.withLock {
+                    isFetching = false
+                }
+            }
         }
     }
 
     fun saveTweetThreads(tweetAuthorId: String, conversationId: String) {
-        scope.launch {
+        scope.launch(Dispatchers.IO) {
+            val (accessCode, userId, refreshToken) = combine(
+                authPref.accessCode,
+                authPref.userId,
+                authPref.refreshCode
+            ) { access, user, refresh -> Triple(access, user, refresh) }
+                .first()
 
-            combine(authPref.accessCode, authPref.userId, authPref.refreshCode) {
-                    accessCode, userId, refreshToken ->
-                if (refreshToken.isNotBlank() && userId.isNotBlank()) {
-                    val tweetEntitiesChannel =
-                        produceTweetResponseEntities(
-                            refreshToken,
-                            latestIdInDb = "",
-                            onError = {  }
-                        ) {
-                            twitterApiClient.getTweetThread(
-                                "Bearer $accessCode",
-                                tweetAuthorId,
-                                conversationId,
-                                it
-                            )
-                        }
-                    tweetEntitiesChannel.consumeEach {
-                        it.data.forEach {
-                            launch(Dispatchers.IO) {
-                                Timber.d("saving entity ${it.tweetEntity}")
-                                saveTweetEntities(it)
-                            }
+            if (refreshToken.isNotBlank() && userId.isNotBlank()) {
+                val tweetEntitiesChannel =
+                    produceTweetResponseEntities(
+                        refreshToken,
+                        latestIdInDb = "",
+                        onError = { }
+                    ) {
+                        twitterApiClient.getTweetThread(
+                            "Bearer $accessCode",
+                            tweetAuthorId,
+                            conversationId,
+                            it
+                        )
+                    }
+                tweetEntitiesChannel.consumeEach {
+                    it.data.forEach {
+                        launch(Dispatchers.IO) {
+                            Timber.d("saving entity ${it.tweetEntity}")
+                            saveTweetEntities(it)
                         }
                     }
                 }
-            }.collect {}
+            }
         }
     }
 
     fun saveTweetThreadsAppOnly(tweetAuthorId: String, conversationId: String) {
-        scope.launch {
+        scope.launch(Dispatchers.IO) {
+            val (accessCode, userId, refreshToken) = combine(
+                authPref.appAccessCode,
+                authPref.userId,
+                authPref.refreshCode
+            ) { access, user, refresh -> Triple(access, user, refresh) }
+                .first()
 
-            combine(authPref.appAccessCode, authPref.userId, authPref.refreshCode) {
-                    accessCode, userId, refreshToken ->
-                if (refreshToken.isNotBlank() && userId.isNotBlank()) {
-                    val tweetEntitiesChannel =
-                        produceTweetResponseEntities(
-                            refreshToken,
-                            latestIdInDb = "",
-                            onError = { twitterAuthClient.refreshAccessToken(refreshToken) }
-                        ) {
-                            twitterApiClient.getTweetThread2(
-                                "Bearer $accessCode",
-                                tweetAuthorId,
-                                conversationId,
-                                it
-                            )
-                        }
-                    tweetEntitiesChannel.consumeEach {
-                        it.data.forEach {
-                            launch(Dispatchers.IO) {
-                                Timber.d("saving entity ${it.tweetEntity}")
-                                saveTweetEntities(it)
-                            }
+            if (refreshToken.isNotBlank() && userId.isNotBlank()) {
+                val tweetEntitiesChannel =
+                    produceTweetResponseEntities(
+                        refreshToken,
+                        latestIdInDb = "",
+                        onError = { twitterAuthClient.refreshAccessToken(refreshToken) }
+                    ) {
+                        twitterApiClient.getTweetThread2(
+                            "Bearer $accessCode",
+                            tweetAuthorId,
+                            conversationId,
+                            it
+                        )
+                    }
+                tweetEntitiesChannel.consumeEach {
+                    it.data.forEach {
+                        launch(Dispatchers.IO) {
+                            Timber.d("saving entity ${it.tweetEntity}")
+                            saveTweetEntities(it)
                         }
                     }
                 }
-            }.collect {}
+            }
         }
     }
 

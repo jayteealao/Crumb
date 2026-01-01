@@ -21,7 +21,12 @@ data class Tweet(
     @SerializedName("in_reply_to_user_id") val inReplyToUserId: String?,
     val lang: String?,
     @SerializedName("public_metrics") val publicMetrics: TweetPublicMetrics,
-    @SerializedName("referenced_tweets") val referencedTweets: List<TweetReferencedTweets>?
+    @SerializedName("referenced_tweets") val referencedTweets: List<TweetReferencedTweets>?,
+    @SerializedName("edit_history_tweet_ids") val editHistoryTweetIds: List<String>? = null,
+    @SerializedName("edit_controls") val editControls: TweetEditControls? = null,
+    @SerializedName("note_tweet") val noteTweet: NoteTweet? = null,
+    @SerializedName("reply_settings") val replySettings: String? = null,
+    @SerializedName("possibly_sensitive") val possiblySensitive: Boolean? = null
 )
 
 /*
@@ -88,3 +93,20 @@ fun tweetResponseToTweetMapper(tweetData: List<Tweet>, includes: TweetIncludes):
         )
     }
 }
+
+/**
+ * Edit controls data for tweets that can be edited
+ */
+data class TweetEditControls(
+    @SerializedName("edits_remaining") val editsRemaining: Int?,
+    @SerializedName("is_edit_eligible") val isEditEligible: Boolean?,
+    @SerializedName("editable_until") val editableUntil: String?
+)
+
+/**
+ * Note tweet data for long-form posts (posts exceeding 280 characters)
+ */
+data class NoteTweet(
+    val text: String?,
+    val entities: TweetTextEntity?
+)

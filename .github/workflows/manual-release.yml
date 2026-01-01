@@ -68,9 +68,9 @@ jobs:
             echo "SIGNING_KEY_PASSWORD=${{ secrets.SIGNING_KEY_PASSWORD }}"
           } >> $GITHUB_ENV
 
-      - name: Build APK + AAB
+      - name: Build APK (Debug)
         run: |
-          ./gradlew --no-daemon clean assembleRelease bundleRelease
+          ./gradlew --no-daemon clean assembleDebug
 
       - name: Find outputs
         id: find_outputs
@@ -78,23 +78,43 @@ jobs:
           VERSION="${{ github.event.inputs.version_name }}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
-          APK=$(find . -type f -path "*/build/outputs/apk/*elease/*.apk" ! -name "*-unsigned.apk" ! -name "*-unaligned.apk" | head -n1)
-          AAB=$(find . -type f -path "*/build/outputs/bundle/*elease/*.aab" | head -n1)
-          MAP=$(find . -type f -path "*/build/outputs/mapping/*elease/mapping.txt" | head -n1 || true)
+          # Find debug APK (automatically signed with debug keystore)
+          APK=$(find . -type f -path "*/app/build/outputs/apk/debug/*.apk" ! -name "*-unaligned.apk" | head -n1)
+
+          AAB=""
+          MAP=""
+
+          echo "=== DEBUG: Found files ==="
+          echo "APK: ${APK}"
+          echo "AAB: ${AAB}"
+          echo "MAP: ${MAP}"
+          echo "=========================="
+
+          if [ -z "$APK" ]; then
+            echo "WARNING: No APK found!"
+            echo "Listing all APK files:"
+            find . -name "*.apk" -type f
+          fi
 
           echo "apk=${APK}" >> "$GITHUB_OUTPUT"
           echo "aab=${AAB}" >> "$GITHUB_OUTPUT"
           echo "mapping=${MAP}" >> "$GITHUB_OUTPUT"
 
-      - name: Upload build artifacts
+      - name: Upload APK artifact
+        if: ${{ steps.find_outputs.outputs.apk != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Crumbs-v${{ github.event.inputs.version_name }}
+          name: Crumbs-v${{ github.event.inputs.version_name }}.apk
           retention-days: 30
-          path: |
-            ${{ steps.find_outputs.outputs.apk }}
-            ${{ steps.find_outputs.outputs.aab }}
-            ${{ steps.find_outputs.outputs.mapping }}
+          path: ${{ steps.find_outputs.outputs.apk }}
+
+      - name: Upload APK artifact (fallback - find any APK)
+        if: ${{ steps.find_outputs.outputs.apk == '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Crumbs-v${{ github.event.inputs.version_name }}-all-apks
+          retention-days: 30
+          path: app/build/outputs/apk/debug/*.apk
 
       - name: Create GitHub Release
         if: ${{ github.event.inputs.create_release == 'true' }}

@@ -12,7 +12,11 @@ data class TwitterUser(
     val username: String,
     @SerializedName("profile_image_url") val profileImageUrl: String?,
     val verified: Boolean? = false,
-    val protected: Boolean? = false
+    val protected: Boolean? = false,
+    @SerializedName("verified_type") val verifiedType: String? = null,
+    val description: String? = null,
+    @SerializedName("created_at") val createdAt: String? = null,
+    val location: String? = null
 )
 
 data class TwitterUserResponse(
@@ -32,6 +36,8 @@ data class TwitterUserEntity(
     val username: String,
     @ColumnInfo(name = "profile_image_url") val profileImageUrl: String?,
     val verified: Boolean?,
+    @ColumnInfo(name = "verified_type") val verifiedType: String?,
+    val description: String?,
 //    TODO: use this to reference users mentioned in a tweet
     val mentionedIn: String?
 )
@@ -42,6 +48,8 @@ fun TwitterUser.toTwitterUserEntity(mentionedIn: String? = null) = TwitterUserEn
     username,
     profileImageUrl,
     verified,
+    verifiedType,
+    description,
     mentionedIn
 )
 
@@ -50,7 +58,10 @@ fun TwitterUserEntity.toTwitterUser() = TwitterUser(
     name,
     username,
     profileImageUrl,
-    verified
+    verified,
+    protected = false,
+    verifiedType = verifiedType,
+    description = description
 )
 
 fun TweetIncludes.extractUsersInTweet(tweet: Tweet): List<TwitterUserEntity> {
