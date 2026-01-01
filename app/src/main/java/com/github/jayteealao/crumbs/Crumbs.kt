@@ -109,7 +109,7 @@ fun CrumbsNavHost(
             ) {
                 composable(
                     Screens.LOGINSCREEN.name,
-                    deepLinks = listOf(navDeepLink { uriPattern = "https://graphitenerd.xyz/{code}" })
+                    deepLinks = listOf(navDeepLink { uriPattern = "crumbs://graphitenerd.xyz?code={code}" })
                 ) {
                     LoginScreen(
                         viewModel = loginViewModel,
@@ -122,7 +122,6 @@ fun CrumbsNavHost(
                 
                 composable(
                     "${Screens.HOMESCREEN.name}/{refreshed}",
-                    deepLinks = listOf(navDeepLink { uriPattern = "https://graphitenerd.xyz/{code}" }),
                     arguments = listOf(navArgument(name = "refreshed") { type = NavType.BoolType })
                 ) {
                     HomeScreen(

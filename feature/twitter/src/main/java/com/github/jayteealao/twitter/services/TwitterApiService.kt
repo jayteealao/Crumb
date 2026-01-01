@@ -102,4 +102,4 @@ const val EXPANSIONS = "attachments.media_keys,attachments.poll_ids,author_id," 
 const val MEDIAFIELDS = "alt_text,media_key,url,type,public_metrics," +
     "preview_image_url,height,duration_ms,width,variants"
 const val USERFIELDS = "id,profile_image_url,name,username,verified,verified_type," +
-    "verified_blue_checkmark,description,created_at,location"
+    "description,created_at,location"

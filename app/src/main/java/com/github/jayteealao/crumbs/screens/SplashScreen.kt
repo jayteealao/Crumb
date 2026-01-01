@@ -32,6 +32,10 @@ fun SplashScreen(
             navController.navigate(Screens.HOMESCREEN.screenRoute(true)) {
                 popUpTo(Screens.SPLASHSCREEN.name) { inclusive = true }
             }
+        } else {
+            navController.navigate(Screens.LOGINSCREEN.name) {
+                popUpTo(Screens.SPLASHSCREEN.name) { inclusive = true }
+            }
         }
     }
     Box(

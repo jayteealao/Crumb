@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1032153206630",
+    "project_id": "crumbs-a4fdb",
+    "storage_bucket": "crumbs-a4fdb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1032153206630:android:49ed11cf1cdcdae2b882a7",
+        "android_client_info": {
+          "package_name": "com.github.jayteealao.crumbs"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAUXoD37Cy8ghlz7dGggEC9w657nHLbo9U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

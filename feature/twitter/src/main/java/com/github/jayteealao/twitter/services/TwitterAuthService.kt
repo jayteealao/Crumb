@@ -21,7 +21,7 @@ interface TwitterAuthService {
         @Field("code_verifier") codeVerifier: String,
         @Field("grant_type") grantType: String = "authorization_code",
         @Field("client_id") clientId: String = CLIENT_ID,
-        @Field("redirect_uri") redirectUri: String = "https://graphitenerd.xyz"
+        @Field("redirect_uri") redirectUri: String = "crumbs://graphitenerd.xyz"
     ): ApiResponse<TokenResponse>
 
     @Headers("Content-Type: application/x-www-form-urlencoded;charset=UTF-8")

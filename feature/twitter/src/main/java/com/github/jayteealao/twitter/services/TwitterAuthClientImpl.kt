@@ -31,7 +31,7 @@ class TwitterAuthClientImpl @Inject constructor(
     private val authorizationUrl: String
         get() = "https://x.com/i/oauth2/authorize?response_type=code" +
             "&client_id=QnFuclQ0SGZIS01zVlZsdm5jU0o6MTpjaQ" +
-            "&redirect_uri=https://graphitenerd.xyz" +
+            "&redirect_uri=crumbs://graphitenerd.xyz" +
             "&scope=offline.access%20tweet.read%20users.read%20bookmark.read%20bookmark.write" +
             "&state=state&code_challenge=$codeChallenge&code_challenge_method=S256"
 
