@@ -1,4 +1,4 @@
-package com.github.jayteealao.crumbs.ui.theme
+package com.github.jayteealao.crumbs.designsystem.theme
 
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color

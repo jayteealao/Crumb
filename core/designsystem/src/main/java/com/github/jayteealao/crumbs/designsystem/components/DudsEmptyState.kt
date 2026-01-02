@@ -1,4 +1,4 @@
-package com.github.jayteealao.crumbs.components
+package com.github.jayteealao.crumbs.designsystem.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,8 +19,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.github.jayteealao.crumbs.ui.theme.DudsColors
-import com.github.jayteealao.crumbs.ui.theme.DudsTypography
+import com.github.jayteealao.crumbs.designsystem.theme.DudsColors
+import com.github.jayteealao.crumbs.designsystem.theme.DudsTypography
 
 /**
  * DudsEmptyState - Empty state component with icon, title, subtitle, and optional CTA

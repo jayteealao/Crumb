@@ -1,4 +1,4 @@
-package com.github.jayteealao.crumbs.components
+package com.github.jayteealao.crumbs.designsystem.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -15,9 +15,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.github.jayteealao.crumbs.ui.theme.DudsColors
-import com.github.jayteealao.crumbs.ui.theme.DudsRadius
-import com.github.jayteealao.crumbs.ui.theme.DudsTypography
+import com.github.jayteealao.crumbs.designsystem.theme.DudsColors
+import com.github.jayteealao.crumbs.designsystem.theme.DudsRadius
+import com.github.jayteealao.crumbs.designsystem.theme.DudsTypography
 
 /**
  * DudsCard - Base card component with flat design

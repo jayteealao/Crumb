@@ -24,10 +24,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.items
-import com.github.jayteealao.crumbs.components.DudsPrimaryButton
-import com.github.jayteealao.crumbs.ui.theme.DudsColors
-import com.github.jayteealao.crumbs.ui.theme.DudsSpacing
-import com.github.jayteealao.crumbs.ui.theme.DudsTypography
+import com.github.jayteealao.crumbs.designsystem.components.DudsPrimaryButton
+import com.github.jayteealao.crumbs.designsystem.theme.DudsColors
+import com.github.jayteealao.crumbs.designsystem.theme.DudsSpacing
+import com.github.jayteealao.crumbs.designsystem.theme.DudsTypography
 import com.github.jayteealao.twitter.components.TwitterCard
 import timber.log.Timber
 

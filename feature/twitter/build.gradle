@@ -47,8 +47,8 @@ android {
 
 dependencies {
 
-    implementation(project(":app"))  // Add dependency on app module for design system components
     implementation(project(":core:pref"))
+    implementation(project(":core:designsystem"))
 //    implementation(project(":core:database"))
 
     implementation(libs.bundles.androidx)

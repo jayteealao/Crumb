@@ -21,8 +21,8 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.github.jayteealao.crumbs.R
 import com.github.jayteealao.crumbs.Screens
-import com.github.jayteealao.crumbs.components.DudsLoadingIndicator
-import com.github.jayteealao.crumbs.ui.theme.DudsColors
+import com.github.jayteealao.crumbs.designsystem.components.DudsLoadingIndicator
+import com.github.jayteealao.crumbs.designsystem.theme.DudsColors
 import com.github.jayteealao.twitter.screens.LoginViewModel
 import kotlinx.coroutines.delay
 import timber.log.Timber

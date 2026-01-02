@@ -18,11 +18,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.github.jayteealao.crumbs.components.DudsBottomNav
-import com.github.jayteealao.crumbs.components.DudsChip
-import com.github.jayteealao.crumbs.components.DudsTopBar
-import com.github.jayteealao.crumbs.ui.theme.DudsColors
-import com.github.jayteealao.crumbs.ui.theme.DudsSpacing
+import com.github.jayteealao.crumbs.designsystem.components.DudsBottomNav
+import com.github.jayteealao.crumbs.designsystem.components.DudsChip
+import com.github.jayteealao.crumbs.designsystem.components.DudsTopBar
+import com.github.jayteealao.crumbs.designsystem.theme.DudsColors
+import com.github.jayteealao.crumbs.designsystem.theme.DudsSpacing
 import com.github.jayteealao.twitter.screens.BookmarksViewModel
 import com.github.jayteealao.twitter.screens.LoginViewModel
 import com.github.jayteealao.twitter.screens.TwitterBookmarksScreen

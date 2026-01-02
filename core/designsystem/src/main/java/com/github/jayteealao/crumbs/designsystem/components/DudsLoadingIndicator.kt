@@ -1,4 +1,4 @@
-package com.github.jayteealao.crumbs.components
+package com.github.jayteealao.crumbs.designsystem.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
@@ -9,7 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.github.jayteealao.crumbs.ui.theme.DudsColors
+import com.github.jayteealao.crumbs.designsystem.theme.DudsColors
 
 /**
  * DudsLoadingIndicator - Circular loading indicator

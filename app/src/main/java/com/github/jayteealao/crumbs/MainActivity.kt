@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.ui.Modifier
-import com.github.jayteealao.crumbs.ui.theme.CrumbTheme
+import com.github.jayteealao.crumbs.designsystem.theme.CrumbTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
