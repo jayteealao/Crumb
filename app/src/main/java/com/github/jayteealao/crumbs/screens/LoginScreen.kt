@@ -1,18 +1,17 @@
 package com.github.jayteealao.crumbs.screens.login
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.Button
-import androidx.compose.material.ButtonDefaults
-import androidx.compose.material.CircularProgressIndicator
-import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -33,6 +32,10 @@ import coil.size.Scale
 import coil.size.Size
 import com.github.jayteealao.crumbs.R
 import com.github.jayteealao.crumbs.Screens
+import com.github.jayteealao.crumbs.components.DudsLoadingIndicator
+import com.github.jayteealao.crumbs.components.DudsPrimaryButton
+import com.github.jayteealao.crumbs.ui.theme.DudsColors
+import com.github.jayteealao.crumbs.ui.theme.DudsTypography
 import com.github.jayteealao.twitter.screens.LoginViewModel
 import kotlinx.coroutines.delay
 import timber.log.Timber
@@ -68,7 +71,8 @@ fun LoginScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 32.dp),
+            .background(DudsColors.backgroundGradient)
+            .padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -100,73 +104,63 @@ fun LoginScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "Welcome back",
-                    style = MaterialTheme.typography.subtitle1,
-                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+                    text = "welcome back",
+                    style = DudsTypography.bodySecondary,
+                    color = DudsColors.textSecondary
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
                     text = user?.name ?: "",
-                    style = MaterialTheme.typography.h6
+                    style = DudsTypography.h2CardTitle
                 )
 
                 Text(
                     text = "@${user?.username ?: ""}",
-                    style = MaterialTheme.typography.body2,
-                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+                    style = DudsTypography.bodySecondary,
+                    color = DudsColors.textSecondary
                 )
             }
 
             // Loading state - processing authorization
             authorizationCode != null -> {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(48.dp),
-                    strokeWidth = 4.dp
-                )
+                DudsLoadingIndicator()
 
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Text(
-                    text = "Connecting to X...",
-                    style = MaterialTheme.typography.body1,
-                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+                    text = "connecting to x...",
+                    style = DudsTypography.bodyPrimary,
+                    color = DudsColors.textSecondary
                 )
             }
 
             // Initial state - prompt to login
             else -> {
                 Text(
-                    text = "Crumbs",
-                    style = MaterialTheme.typography.h4
+                    text = "CRUMBS",
+                    style = DudsTypography.h1Section
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Save your bookmarks",
-                    style = MaterialTheme.typography.body1,
-                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
+                    text = "your daily dose of saved bookmarks",
+                    style = DudsTypography.bodyPrimary,
+                    color = DudsColors.textSecondary,
                     textAlign = TextAlign.Center
                 )
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                Button(
+                DudsPrimaryButton(
+                    text = "connect with x",
                     onClick = {
                         context.startActivity(viewModel.authIntent())
                     },
-                    modifier = Modifier.height(48.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        backgroundColor = MaterialTheme.colors.primary
-                    )
-                ) {
-                    Text(
-                        text = "Connect with X",
-                        modifier = Modifier.padding(horizontal = 24.dp)
-                    )
-                }
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }

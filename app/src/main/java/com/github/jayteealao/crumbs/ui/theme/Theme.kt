@@ -7,35 +7,33 @@ import androidx.compose.material.lightColors
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-private val DarkColorPalette = darkColors(
-    primary = Purple200,
-    primaryVariant = Purple700,
-    secondary = Teal200
+// Duds Design System Color Palette
+private val DudsLightColorPalette = lightColors(
+    primary = DudsColors.primaryAccent,        // Yellow accent
+    primaryVariant = DudsColors.secondaryAccent, // Black
+    secondary = DudsColors.secondaryAccent,    // Black
+    secondaryVariant = DudsColors.primaryAccent,
+    background = DudsColors.surface,           // White (gradient applied separately)
+    surface = DudsColors.surface,              // White
+    error = DudsColors.destructive,            // Red
+    onPrimary = DudsColors.textOnAccent,       // Black on yellow
+    onSecondary = DudsColors.textOnDark,       // White on black
+    onBackground = DudsColors.textPrimary,     // Black
+    onSurface = DudsColors.textPrimary,        // Black
+    onError = Color.White
 )
 
-private val LightColorPalette = lightColors(
-    primary = Color.White,
-    primaryVariant = Color.White,
-    onPrimary = Color.Black,
-    secondary = Teal200
-
-    /* Other default colors to override
-    background = Color.White,
-    surface = Color.White,
-    onPrimary = Color.White,
-    onSecondary = Color.Black,
-    onBackground = Color.Black,
-    onSurface = Color.Black,
-    */
+// Dark mode (same as light for now - Duds is primarily light)
+private val DudsDarkColorPalette = darkColors(
+    primary = DudsColors.primaryAccent,
+    primaryVariant = DudsColors.secondaryAccent,
+    secondary = DudsColors.secondaryAccent
 )
 
 @Composable
 fun CrumbTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    val colors = if (darkTheme) {
-        DarkColorPalette
-    } else {
-        LightColorPalette
-    }
+    // For now, always use light theme (Duds design is light-mode focused)
+    val colors = DudsLightColorPalette
 
     MaterialTheme(
         colors = colors,

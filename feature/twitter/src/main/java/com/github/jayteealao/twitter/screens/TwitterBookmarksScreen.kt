@@ -4,28 +4,30 @@ import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.ButtonDefaults
-import androidx.compose.material.Divider
 import androidx.compose.material.Text
-import androidx.compose.material.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.items
+import com.github.jayteealao.crumbs.components.DudsPrimaryButton
+import com.github.jayteealao.crumbs.ui.theme.DudsColors
+import com.github.jayteealao.crumbs.ui.theme.DudsSpacing
+import com.github.jayteealao.crumbs.ui.theme.DudsTypography
 import com.github.jayteealao.twitter.components.TwitterCard
 import timber.log.Timber
 
@@ -58,32 +60,41 @@ fun TwitterBookmarksScreen(
 
         else -> {
             LazyColumn(
-                verticalArrangement = Arrangement.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .wrapContentHeight()
+                contentPadding = PaddingValues(
+                    horizontal = DudsSpacing.base,
+                    top = DudsSpacing.base,
+                    bottom = 96.dp // Extra bottom padding for bottom nav
+                ),
+                verticalArrangement = Arrangement.spacedBy(DudsSpacing.md),
+                modifier = Modifier.fillMaxSize()
             ) {
                 item {
-                    Text("Bookmarks")
+                    Column {
+                        Text(
+                            text = "NEW IN TODAY",
+                            style = DudsTypography.caption,
+                            color = DudsColors.textSecondary
+                        )
+                        Spacer(modifier = Modifier.height(DudsSpacing.xs))
+                        Text(
+                            text = "TWITTER BOOKMARKS",
+                            style = DudsTypography.h1Section
+                        )
+                        Spacer(modifier = Modifier.height(DudsSpacing.xs))
+                        Text(
+                            text = "your saved tweets and threads",
+                            style = DudsTypography.bodySecondary,
+                            color = DudsColors.textSecondary
+                        )
+                    }
                 }
-                item {
-                    Text(refreshed.toString())
-                }
+
                 items(
                     pagedBookmarks,
                     key = { it.tweet.id }
                 ) {
                     if (it != null) {
                         TwitterCard(it)
-                        Divider(
-                            thickness = 1.dp,
-                            modifier = Modifier
-                                .background(
-                                    brush = Brush.horizontalGradient(
-                                        listOf(Color(0x80F12711), Color(0x80F5AF19))
-                                    )
-                                )
-                        )
                     }
                 }
             }
@@ -96,23 +107,30 @@ fun LinkTwitter(intentFn: Intent) {
     val context = LocalContext.current
 
     Column(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DudsColors.backgroundGradient)
+            .padding(horizontal = DudsSpacing.base),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = "Sign in to twitter to enable app functionality")
-        TextButton(
+        Text(
+            text = "CONNECT TO X",
+            style = DudsTypography.h1Section
+        )
+        Spacer(modifier = Modifier.height(DudsSpacing.sm))
+        Text(
+            text = "sign in to twitter to enable app functionality",
+            style = DudsTypography.bodyPrimary,
+            color = DudsColors.textSecondary
+        )
+        Spacer(modifier = Modifier.height(DudsSpacing.xl))
+        DudsPrimaryButton(
+            text = "connect with x",
             onClick = {
-                context.startActivity(
-                    intentFn
-//                    viewModel.authIntent()
-                )
+                context.startActivity(intentFn)
             },
-            colors = ButtonDefaults.textButtonColors(
-                contentColor = Color.Blue
-            )
-        ) {
-            Text(text = "Login To Twitter")
-        }
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }

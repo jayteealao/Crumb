@@ -1,25 +1,33 @@
 package com.github.jayteealao.crumbs.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.material.Tab
-import androidx.compose.material.TabRow
-import androidx.compose.material.TabRowDefaults
-import androidx.compose.material.Text
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material.Scaffold
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.github.jayteealao.twitter.screens.LoginViewModel
+import com.github.jayteealao.crumbs.components.DudsBottomNav
+import com.github.jayteealao.crumbs.components.DudsChip
+import com.github.jayteealao.crumbs.components.DudsTopBar
+import com.github.jayteealao.crumbs.ui.theme.DudsColors
+import com.github.jayteealao.crumbs.ui.theme.DudsSpacing
 import com.github.jayteealao.twitter.screens.BookmarksViewModel
+import com.github.jayteealao.twitter.screens.LoginViewModel
 import com.github.jayteealao.twitter.screens.TwitterBookmarksScreen
 import com.google.accompanist.pager.ExperimentalPagerApi
 import com.google.accompanist.pager.HorizontalPager
-import com.google.accompanist.pager.pagerTabIndicatorOffset
 import com.google.accompanist.pager.rememberPagerState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -32,45 +40,72 @@ fun HomeScreen(
     loginViewModel: LoginViewModel,
     bookmarksViewModel: BookmarksViewModel,
     twitterAuthCode: String = ""
-){
+) {
     val pagerState = rememberPagerState()
     val pages: List<String> = remember {
-        mutableStateListOf("twitter", "reddit")
+        mutableStateListOf("for you", "twitter", "reddit", "following", "wishlist")
     }
-    TabRow(
-        selectedTabIndex = pagerState.currentPage,
-        indicator = { tabPositions ->
-            TabRowDefaults.Indicator(
-                Modifier.pagerTabIndicatorOffset(pagerState, tabPositions)
+
+    Scaffold(
+        topBar = {
+            DudsTopBar(
+                leftText = "crumbs",
+                centerIcon = Icons.Default.Star,
+                rightText = "search"
             )
-        }
-    ) {
-        pages.forEachIndexed { index, title ->
-            Tab(
-                selected = pagerState.currentPage == index,
-                onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
-                modifier = Modifier.height(32.dp)
+        },
+        bottomBar = {
+            DudsBottomNav(
+                selectedItem = 0,
+                onItemSelected = {},
+                onFabClick = {}
+            )
+        },
+        backgroundColor = DudsColors.surface
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(DudsColors.backgroundGradient)
+                .padding(paddingValues)
+        ) {
+            // Chip-based tab navigation
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = DudsSpacing.base, vertical = DudsSpacing.sm),
+                horizontalArrangement = Arrangement.spacedBy(DudsSpacing.sm)
             ) {
-                Text(text = title)
-            }
-        }
-    }
-    HorizontalPager(
-        count = pages.size,
-        state = pagerState,
-        contentPadding = PaddingValues(top = 32.dp)
-    ) { page ->
-        when (page) {
-            0 -> {
-                TwitterBookmarksScreen(
-                    navController,
-                    twitterAuthCode = twitterAuthCode,
-                    bookmarksViewModel = bookmarksViewModel,
-                    loginViewModel = loginViewModel
-                )
+                itemsIndexed(pages) { index, title ->
+                    DudsChip(
+                        text = title,
+                        selected = pagerState.currentPage == index,
+                        onClick = {
+                            scope.launch {
+                                pagerState.animateScrollToPage(index)
+                            }
+                        }
+                    )
+                }
             }
 
-            1 -> Box(modifier = Modifier.fillMaxSize())
+            // Page content
+            HorizontalPager(
+                count = pages.size,
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                when (page) {
+                    0, 1 -> {
+                        // For you and Twitter show bookmarks
+                        TwitterBookmarksScreen(
+                            navController,
+                            twitterAuthCode = twitterAuthCode,
+                            bookmarksViewModel = bookmarksViewModel,
+                            loginViewModel = loginViewModel
+                        )
+                    }
+                    else -> Box(modifier = Modifier.fillMaxSize())
+                }
+            }
         }
     }
 }

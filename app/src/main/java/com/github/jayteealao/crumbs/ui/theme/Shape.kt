@@ -4,8 +4,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Shapes
 import androidx.compose.ui.unit.dp
 
+// Duds Design System Shapes
 val Shapes = Shapes(
-    small = RoundedCornerShape(4.dp),
-    medium = RoundedCornerShape(4.dp),
-    large = RoundedCornerShape(0.dp)
+    small = RoundedCornerShape(DudsRadius.sm),   // 12dp
+    medium = RoundedCornerShape(DudsRadius.md),  // 16dp
+    large = RoundedCornerShape(DudsRadius.lg)    // 20dp
 )

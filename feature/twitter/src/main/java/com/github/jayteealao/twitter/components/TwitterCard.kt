@@ -114,31 +114,46 @@ fun TwitterCard(tweet: TweetData) {
         modifier = Modifier
             .wrapContentHeight()
             .fillMaxWidth(),
-        elevation = 0.dp
+        elevation = 0.dp,
+        shape = RoundedCornerShape(16.dp),
+        backgroundColor = Color.White
     ) {
         Column(
             modifier = Modifier
-                .padding(8.dp)
+                .padding(16.dp)
                 .wrapContentHeight(),
-            verticalArrangement = Arrangement.SpaceEvenly
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             TwitterUserDisplaySmall(user = user, profileImageUrl = profileImageUrl ?: "")
             Text(
                 text = tweet.toAnnotatedString(),
-                style = MaterialTheme.typography.body1
+                style = MaterialTheme.typography.body1,
+                maxLines = 4
             )
             if (video.isNotEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(video[0].width / video[0].height.toFloat(), true)
+                        .clip(RoundedCornerShape(12.dp))
                 ) {
                     VideoPlayer(uriString = video[0].url ?: "")
                 }
-            } else if (mediaPhotos.isEmpty()) {
-                {}
-            } else {
-                TweetMediaViewer(mediaPhotos)
+            } else if (mediaPhotos.isNotEmpty()) {
+                // Show only first image in feed view
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(mediaPhotos[0].url)
+                        .size(Size.ORIGINAL)
+                        .scale(Scale.FIT)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = "",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(mediaPhotos[0].width / mediaPhotos[0].height.toFloat(), true)
+                        .clip(RoundedCornerShape(12.dp))
+                )
             }
             TweetPublicMetricsDisplay(publicMetrics = tweet.publicMetrics ?: tweetPublicMetrics())
         }
@@ -279,22 +294,22 @@ fun TweetPublicMetricsDisplay(publicMetrics: TweetPublicMetrics) {
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
         IconButtonWithNumber(
-            Modifier.size(24.dp),
+            Modifier.size(16.dp),
             painterResource(id = R.drawable.fa6solidheart),
             publicMetrics.likeCount ?: 0
         )
         IconButtonWithNumber(
-            Modifier.size(24.dp),
+            Modifier.size(16.dp),
             painterResource(id = R.drawable.fa6solidcomments),
             publicMetrics.replyCount ?: 0
         )
         IconButtonWithNumber(
-            Modifier.size(24.dp),
+            Modifier.size(16.dp),
             painterResource(id = R.drawable.fa6solidretweet),
             publicMetrics.retweetCount ?: 0
         )
         IconButtonWithNumber(
-            Modifier.size(24.dp),
+            Modifier.size(16.dp),
             painterResource(id = R.drawable.fa6solidquoteright),
             publicMetrics.quoteCount ?: 0
         )
@@ -311,16 +326,17 @@ fun IconButtonWithNumber(
         Modifier.padding(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        ImagewithGradient(
+        Image(
             painter = painter,
-            modifier = modifier.padding(end = 4.dp)
+            contentDescription = null,
+            modifier = modifier.padding(end = 4.dp),
+            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(Color(0xFF666666))
         )
-//        if (number != 0) {
         Text(
-            text = number.toString()
-
+            text = number.toString(),
+            style = MaterialTheme.typography.caption,
+            color = Color(0xFF666666)
         )
-//        }
     }
 }
 
