@@ -41,8 +41,13 @@ fun TwitterBookmarksScreen(
     val loggedIn by loginViewModel.isAccessTokenAvailable.collectAsState()
     val hasTwitterAuthCode = !twitterAuthCode.isNullOrBlank()
 
-    LaunchedEffect(refreshed, loggedIn, hasTwitterAuthCode) {
+    LaunchedEffect(loggedIn) {
         Timber.d("refreshed:$refreshed, loggedIn:$loggedIn, hasTwitterAuthCode:$hasTwitterAuthCode" )
+        // Trigger bookmark sync when user successfully logs in
+        if (loggedIn) {
+            Timber.d("Triggering buildDatabase after login")
+            bookmarksViewModel.buildDatabase()
+        }
     }
 
     LaunchedEffect(true) {

@@ -25,6 +25,8 @@ class BookmarksViewModel @Inject constructor(
 
     fun pagingFlowData(order: String = "default"): Flow<PagingData<TweetData>> = sortOrder[order]!!()
 
+    fun buildDatabase() = repository.buildDatabase()
+
     fun saveThreads(tweetAuthorId: String, conversationId: String) = repository.saveTweetThreads(tweetAuthorId, conversationId)
 
     fun saveThreadsAppOnly(tweetAuthorId: String, conversationId: String) = repository.saveTweetThreadsAppOnly(tweetAuthorId, conversationId)
