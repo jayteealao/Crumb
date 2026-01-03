@@ -15,6 +15,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
 
+import androidx.compose.ui.Modifier
+
 /**
  * Bottom navigation for Crumbs
  * Source-first organization: Twitter, Reddit, All, Map
@@ -22,6 +24,10 @@ import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
  * Component variants for testing:
  * - Each tab selected state
  * - Light/dark theme
+ *
+ * @param selectedTab The currently selected tab
+ * @param onTabSelected Callback invoked when a tab is selected
+ * @param modifier Modifier to be applied to the navigation bar
  */
 
 enum class BottomNavTab(
@@ -37,11 +43,13 @@ enum class BottomNavTab(
 @Composable
 fun CrumbsBottomNav(
     selectedTab: BottomNavTab,
-    onTabSelected: (BottomNavTab) -> Unit
+    onTabSelected: (BottomNavTab) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val colors = LocalCrumbsColors.current
 
     NavigationBar(
+        modifier = modifier,
         containerColor = colors.surface
     ) {
         BottomNavTab.entries.forEach { tab ->
@@ -90,12 +98,34 @@ private fun PreviewBottomNavTwitterDark() {
     }
 }
 
-@Preview(name = "Reddit Selected", showBackground = true)
+@Preview(name = "Reddit Selected Light", showBackground = true)
 @Composable
 private fun PreviewBottomNavReddit() {
     CrumbsTheme(darkTheme = false) {
         CrumbsBottomNav(
             selectedTab = BottomNavTab.REDDIT,
+            onTabSelected = {}
+        )
+    }
+}
+
+@Preview(name = "All Selected Light", showBackground = true)
+@Composable
+private fun PreviewBottomNavAllLight() {
+    CrumbsTheme(darkTheme = false) {
+        CrumbsBottomNav(
+            selectedTab = BottomNavTab.ALL,
+            onTabSelected = {}
+        )
+    }
+}
+
+@Preview(name = "Map Selected Light", showBackground = true)
+@Composable
+private fun PreviewBottomNavMapLight() {
+    CrumbsTheme(darkTheme = false) {
+        CrumbsBottomNav(
+            selectedTab = BottomNavTab.MAP,
             onTabSelected = {}
         )
     }
