@@ -44,6 +44,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.navigation.navDeepLink
@@ -72,11 +73,18 @@ fun CrumbsNavHost(
     val snackbarHostState = SnackbarHostState()
     val scaffoldState = rememberBackdropScaffoldState(snackbarHostState = snackbarHostState, initialValue = BackdropValue.Concealed)
     val scope = rememberCoroutineScope()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+
+    // Determine if app bar should be shown based on current route
+    val showAppBar = currentRoute?.startsWith(Screens.HOMESCREEN.name) == true
+
     BackdropScaffold(
         scaffoldState = scaffoldState,
         frontLayerShape = RectangleShape,
         appBar = {
-            TopAppBar(
+            if (showAppBar) {
+                TopAppBar(
                 modifier = Modifier
                     .fillMaxWidth(),
                 elevation = 0.dp
@@ -98,6 +106,7 @@ fun CrumbsNavHost(
                         )
                     )
                 }
+            }
             }
         },
         backLayerContent = { Box(modifier = Modifier.fillMaxSize()) },
