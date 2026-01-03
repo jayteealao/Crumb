@@ -9,6 +9,7 @@ import androidx.compose.ui.graphics.Color
  * - #f1ffe7: Pale cream
  * - #1a1b41: Dark navy-purple
  * - #baff29: Neon lime
+ * - #00d9ff: Electric cyan (navigation indicator)
  */
 data class CrumbsColors(
     val background: Color,
@@ -19,6 +20,7 @@ data class CrumbsColors(
     val textSecondary: Color,
     val accentAlpha: Color,
     val surfaceVariant: Color,
+    val navIndicator: Color,
     val error: Color = Color(0xFFFF5555)
 )
 
@@ -30,7 +32,8 @@ val LightColors = CrumbsColors(
     textPrimary = Color(0xFF1A1B41),   // Dark navy
     textSecondary = Color(0xFF28666E).copy(alpha = 0.7f),
     accentAlpha = Color(0xFFBAFF29).copy(alpha = 0.2f),
-    surfaceVariant = Color(0xFFC2E7DA).copy(alpha = 0.5f)
+    surfaceVariant = Color(0xFFC2E7DA).copy(alpha = 0.5f),
+    navIndicator = Color(0xFF00D9FF)   // Electric cyan
 )
 
 val DarkColors = CrumbsColors(
@@ -41,5 +44,6 @@ val DarkColors = CrumbsColors(
     textPrimary = Color(0xFFF1FFE7),   // Cream
     textSecondary = Color(0xFFC2E7DA).copy(alpha = 0.7f),
     accentAlpha = Color(0xFFBAFF29).copy(alpha = 0.2f),
-    surfaceVariant = Color(0xFF28666E).copy(alpha = 0.5f)
+    surfaceVariant = Color(0xFF28666E).copy(alpha = 0.5f),
+    navIndicator = Color(0xFF00D9FF)   // Electric cyan
 )

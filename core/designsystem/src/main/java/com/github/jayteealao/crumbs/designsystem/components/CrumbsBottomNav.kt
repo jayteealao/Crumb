@@ -120,7 +120,7 @@ private fun RowScope.CrumbsNavigationBarItem(
                         modifier = Modifier
                             .size(64.dp, 32.dp)
                             .clip(CrumbsShapes.navigationBar)
-                            .background(colors.accentAlpha)
+                            .background(colors.navIndicator)
                     )
                 }
 
