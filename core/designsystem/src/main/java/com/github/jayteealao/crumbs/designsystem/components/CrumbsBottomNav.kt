@@ -1,21 +1,36 @@
 package com.github.jayteealao.crumbs.designsystem.components
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import com.github.jayteealao.crumbs.designsystem.theme.CrumbsShapes
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
-
-import androidx.compose.ui.Modifier
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsTypography
 
 /**
  * Bottom navigation for Crumbs
@@ -53,23 +68,75 @@ fun CrumbsBottomNav(
         containerColor = colors.surface
     ) {
         BottomNavTab.entries.forEach { tab ->
-            NavigationBarItem(
+            CrumbsNavigationBarItem(
                 selected = selectedTab == tab,
                 onClick = { onTabSelected(tab) },
-                icon = {
-                    Icon(
-                        imageVector = tab.icon,
-                        contentDescription = tab.label
+                icon = tab.icon,
+                label = tab.label
+            )
+        }
+    }
+}
+
+/**
+ * Custom navigation bar item with cut-corner selection indicator
+ */
+@Composable
+private fun RowScope.CrumbsNavigationBarItem(
+    selected: Boolean,
+    onClick: () -> Unit,
+    icon: ImageVector,
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    val colors = LocalCrumbsColors.current
+    val typography = LocalCrumbsTypography.current
+    val interactionSource = remember { MutableInteractionSource() }
+
+    Box(
+        modifier = modifier
+            .weight(1f)
+            .clickable(
+                onClick = onClick,
+                enabled = true,
+                role = Role.Tab,
+                interactionSource = interactionSource,
+                indication = rememberRipple(bounded = true, color = colors.accent)
+            )
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            // Icon with background indicator when selected
+            Box(
+                contentAlignment = Alignment.Center
+            ) {
+                // Selection indicator with cut-corner shape
+                if (selected) {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp, 32.dp)
+                            .clip(CrumbsShapes.navigationBar)
+                            .background(colors.accentAlpha)
                     )
-                },
-                label = { Text(tab.label) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = colors.textPrimary,
-                    selectedTextColor = colors.textPrimary,
-                    indicatorColor = colors.accentAlpha,
-                    unselectedIconColor = colors.textSecondary,
-                    unselectedTextColor = colors.textSecondary
+                }
+
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = if (selected) colors.textPrimary else colors.textSecondary,
+                    modifier = Modifier.size(24.dp)
                 )
+            }
+
+            // Label
+            Text(
+                text = label,
+                style = typography.labelMedium,
+                color = if (selected) colors.textPrimary else colors.textSecondary
             )
         }
     }
