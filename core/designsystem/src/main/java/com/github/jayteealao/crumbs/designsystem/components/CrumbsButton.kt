@@ -49,7 +49,7 @@ fun CrumbsButton(
     }
 
     val (containerColor, contentColor) = when (style) {
-        ButtonStyle.Primary -> colors.primary to colors.textPrimary
+        ButtonStyle.Primary -> colors.primary to colors.surface // White text on cyan for WCAG AA
         ButtonStyle.Secondary -> colors.surface to colors.textPrimary
     }
 
@@ -73,8 +73,8 @@ fun CrumbsButton(
         colors = ButtonDefaults.buttonColors(
             containerColor = containerColor,
             contentColor = contentColor,
-            disabledContainerColor = containerColor.copy(alpha = 0.5f),
-            disabledContentColor = contentColor.copy(alpha = 0.5f)
+            disabledContainerColor = containerColor.copy(alpha = 0.38f), // Material Design disabled alpha
+            disabledContentColor = contentColor.copy(alpha = 0.6f) // Better contrast for WCAG AA
         ),
         contentPadding = contentPadding
     ) {
