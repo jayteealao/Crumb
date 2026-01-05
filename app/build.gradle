@@ -76,6 +76,7 @@ dependencies {
 
     implementation(project(":feature:twitter"))
     implementation(project(":core:pref"))
+    implementation(project(":core:models"))
     implementation(libs.bundles.androidx)
     implementation(libs.bundles.composeInterop)
     implementation(libs.bundles.compose)

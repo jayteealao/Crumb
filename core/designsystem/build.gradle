@@ -47,11 +47,21 @@ dependencies {
     implementation 'androidx.compose.ui:ui-text-google-fonts'
     debugImplementation 'androidx.compose.ui:ui-tooling'
 
+    // Core modules
+    implementation project(':core:models')
+
+    // Image loading
+    implementation 'io.coil-kt:coil-compose:2.5.0'
+
+    // Video playback
+    implementation 'androidx.media3:media3-exoplayer:1.2.0'
+    implementation 'androidx.media3:media3-ui:1.2.0'
+
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'io.github.takahirom.roborazzi:roborazzi:1.7.0'
     testImplementation 'io.github.takahirom.roborazzi:roborazzi-compose:1.7.0'
     testImplementation 'io.github.takahirom.roborazzi:roborazzi-junit-rule:1.7.0'
-    testImplementation 'org.robolectric:robolectric:4.12.2'
+    testImplementation 'org.robolectric:robolectric:4.14.1'
     testImplementation 'androidx.compose.ui:ui-test-junit4'
     testImplementation 'androidx.activity:activity-compose:1.8.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.4'
