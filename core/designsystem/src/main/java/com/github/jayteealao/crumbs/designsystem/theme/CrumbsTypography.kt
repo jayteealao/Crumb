@@ -1,8 +1,10 @@
 package com.github.jayteealao.crumbs.designsystem.theme
 
+import android.os.Build
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontLoadingStrategy
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.github.jayteealao.crumbs.designsystem.R
@@ -13,11 +15,30 @@ import com.github.jayteealao.crumbs.designsystem.R
  * Uses system default for body text (optimal readability)
  */
 
+/**
+ * Detects if running in Robolectric test environment.
+ * Robolectric sets Build.FINGERPRINT to "robolectric".
+ */
+private fun isRobolectric() = Build.FINGERPRINT == "robolectric"
+
+/**
+ * Font loading strategy that gracefully handles test environments.
+ * - OptionalLocal in Robolectric: Falls back to system fonts if custom fonts fail to load
+ * - Blocking in production: Ensures custom fonts are always loaded
+ */
+private val screenshotSafeFontStrategy =
+    if (isRobolectric()) FontLoadingStrategy.OptionalLocal
+    else FontLoadingStrategy.Blocking
+
+/**
+ * Funnel Display font family with test-safe loading strategy.
+ * In Robolectric tests, fonts gracefully fall back to system defaults if TTF files can't load.
+ */
 private val FunnelDisplay = FontFamily(
-    Font(R.font.funnel_display_regular, FontWeight.Normal),
-    Font(R.font.funnel_display_medium, FontWeight.Medium),
-    Font(R.font.funnel_display_semibold, FontWeight.SemiBold),
-    Font(R.font.funnel_display_bold, FontWeight.Bold)
+    Font(R.font.funnel_display_regular, FontWeight.Normal, loadingStrategy = screenshotSafeFontStrategy),
+    Font(R.font.funnel_display_medium, FontWeight.Medium, loadingStrategy = screenshotSafeFontStrategy),
+    Font(R.font.funnel_display_semibold, FontWeight.SemiBold, loadingStrategy = screenshotSafeFontStrategy),
+    Font(R.font.funnel_display_bold, FontWeight.Bold, loadingStrategy = screenshotSafeFontStrategy)
 )
 
 object CrumbsTypography {

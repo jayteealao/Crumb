@@ -43,6 +43,9 @@ object CrumbsShapes {
     // Navigation - bottom-start (anchored)
     val navigationBar: Shape = CutCornerShape(bottomStart = mediumCut)
 
+    // Video player - bottom-end (matches card aesthetic)
+    val videoPlayer: Shape = CutCornerShape(bottomEnd = mediumCut)
+
     // Fully rectangular when needed
     val rectangle: Shape = RectangleShape
 }
