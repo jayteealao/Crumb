@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.library'
     id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.compose'
 }
 
 android {
@@ -23,5 +24,7 @@ android {
 }
 
 dependencies {
-    // No dependencies needed for models
+    // Compose runtime for compiler plugin stability
+    implementation platform('androidx.compose:compose-bom:2024.02.00')
+    implementation 'androidx.compose.runtime:runtime'
 }
