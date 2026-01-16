@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<incidents format="6" by="lint 8.0.2" type="incidents">
+
+    <incident
+        id="OldTargetApi"
+        severity="warning"
+        message="Not targeting the latest versions of Android; compatibility modes apply. Consider testing and updating this version. Consult the android.os.Build.VERSION_CODES javadoc for details.">
+        <fix-replace
+            description="Update targetSdkVersion to 36"
+            oldString="34"
+            replacement="36"/>
+        <location
+            file="${:core:models*projectDir}/build.gradle"
+            line="13"
+            column="9"
+            startOffset="264"
+            endLine="13"
+            endColumn="21"
+            endOffset="276"/>
+    </incident>
+
+    <incident
+        id="GradleDependency"
+        severity="warning"
+        message="A newer version of androidx.compose:compose-bom than 2024.02.00 is available: 2026.01.00">
+        <fix-replace
+            description="Change to 2026.01.00"
+            family="Update versions"
+            oldString="2024.02.00"
+            replacement="2026.01.00"/>
+        <location
+            file="${:core:models*projectDir}/build.gradle"
+            line="28"
+            column="29"
+            startOffset="579"
+            endLine="28"
+            endColumn="70"
+            endOffset="620"/>
+    </incident>
+
+</incidents>

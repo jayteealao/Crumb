@@ -39,7 +39,7 @@ class RedditAuthClientImpl @Inject constructor(
     companion object {
         // TODO: Move these to BuildConfig or gradle.properties for security
         private const val CLIENT_ID = "YOUR_REDDIT_CLIENT_ID" // User needs to replace this
-        private const val REDIRECT_URI = "crumbs://reddit_callback"
+        private const val REDIRECT_URI = "crumbs://graphitenerd.xyz"
 
         private const val AUTH_URL = "https://www.reddit.com/api/v1/authorize.compact"
         private const val SCOPE = "identity,history,read,save" // Scopes needed

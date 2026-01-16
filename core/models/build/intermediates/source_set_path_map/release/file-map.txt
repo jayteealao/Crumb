@@ -1,0 +1,8 @@
+com.github.jayteealao.crumbs.models-runtime-release-0 C:\Users\jayte\.gradle\caches\transforms-3\ad3e6d2d068abcac174131a6f418464f\transformed\runtime-release\res
+com.github.jayteealao.crumbs.models-pngs-1 C:\Users\jayte\Documents\dev\Crumb\core\models\build\generated\res\pngs\release
+com.github.jayteealao.crumbs.models-resValues-2 C:\Users\jayte\Documents\dev\Crumb\core\models\build\generated\res\resValues\release
+com.github.jayteealao.crumbs.models-mergeReleaseResources-3 C:\Users\jayte\Documents\dev\Crumb\core\models\build\intermediates\incremental\release\mergeReleaseResources\merged.dir
+com.github.jayteealao.crumbs.models-mergeReleaseResources-4 C:\Users\jayte\Documents\dev\Crumb\core\models\build\intermediates\incremental\release\mergeReleaseResources\stripped.dir
+com.github.jayteealao.crumbs.models-merged_res-5 C:\Users\jayte\Documents\dev\Crumb\core\models\build\intermediates\merged_res\release
+com.github.jayteealao.crumbs.models-main-6 C:\Users\jayte\Documents\dev\Crumb\core\models\src\main\res
+com.github.jayteealao.crumbs.models-release-7 C:\Users\jayte\Documents\dev\Crumb\core\models\src\release\res

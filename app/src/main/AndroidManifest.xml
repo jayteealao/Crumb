@@ -25,11 +25,11 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <intent-filter android:label="Crumbs">
+            <intent-filter android:label="Crumbs OAuth">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <!-- Accepts URIs that begin with "example://gizmos” -->
+                <!-- Unified redirect URI for Twitter and Reddit OAuth -->
                 <data android:scheme="crumbs"
                     android:host="graphitenerd.xyz" />
             </intent-filter>
