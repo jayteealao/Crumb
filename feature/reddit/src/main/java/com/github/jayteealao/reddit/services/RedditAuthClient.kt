@@ -41,7 +41,7 @@ class RedditAuthClientImpl @Inject constructor(
         private const val CLIENT_ID = "Rd5c1NB5wOxJcPF5ihKDw"
         private const val REDIRECT_URI = "crumbs://graphitenerd.xyz"
 
-        private const val AUTH_URL = "https://www.reddit.com/api/v1/authorize.compact"
+        private const val AUTH_URL = "https://www.reddit.com/api/v1/authorize"
         private const val SCOPE = "identity,history,read,save" // Scopes needed
 
         private const val STATE_LENGTH = 32
