@@ -9,6 +9,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import com.github.jayteealao.twitter.models.MediaKeys
 import com.github.jayteealao.twitter.models.PollIds
+import com.github.jayteealao.twitter.models.TagEntity
 import com.github.jayteealao.twitter.models.TweetContextAnnotationEntity
 import com.github.jayteealao.twitter.models.TweetData
 import com.github.jayteealao.twitter.models.TweetEntity
@@ -16,6 +17,7 @@ import com.github.jayteealao.twitter.models.TweetIncludesEntity
 import com.github.jayteealao.twitter.models.TweetMediaEntity
 import com.github.jayteealao.twitter.models.TweetPublicMetrics
 import com.github.jayteealao.twitter.models.TweetReferencedTweets
+import com.github.jayteealao.twitter.models.TweetTagCrossRef
 import com.github.jayteealao.twitter.models.TweetTextEntityAnnotation
 import com.github.jayteealao.twitter.models.TwitterUserEntity
 
@@ -75,6 +77,25 @@ interface TweetDao {
 
     @Query("SELECT author_id, conversation_id FROM tweetEntity WHERE referenced = false ORDER BY `order` DESC")
     fun getLatestThreadId(): List<IdForThread>
+
+    // Tag operations
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertTag(tag: TagEntity)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertTweetTag(tweetTag: TweetTagCrossRef)
+
+    @Query("SELECT tags.name FROM tags INNER JOIN tweet_tags ON tags.name = tweet_tags.tagName WHERE tweet_tags.tweetId = :tweetId")
+    suspend fun getTagsForTweet(tweetId: String): List<String>
+
+    @Query("SELECT * FROM tags ORDER BY name ASC")
+    suspend fun getAllTags(): List<TagEntity>
+
+    @Query("DELETE FROM tweet_tags WHERE tweetId = :tweetId AND tagName = :tagName")
+    suspend fun deleteTweetTag(tweetId: String, tagName: String)
+
+    @Query("DELETE FROM tags WHERE name = :tagName")
+    suspend fun deleteTag(tagName: String)
 }
 
 data class IdForThread(

@@ -1,6 +1,5 @@
 package com.github.jayteealao.crumbs.designsystem.components
 
-import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
@@ -29,7 +28,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -46,7 +44,6 @@ import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsTypography
  * - **Normal state**: Logo + app name + search icon
  * - **Collapsed state**: Compact logo + search icon (when scrolled down)
  * - **Search active**: Back arrow + search field + clear button
- * - Glassmorphic blur background (Android 12+ only)
  * - Bottom-start cut corner (8dp, anchored aesthetic)
  * - Search suggestions shown below when active
  *
@@ -97,18 +94,10 @@ fun CrumbsTopBar(
         label = "logoSize"
     )
 
-    val isRobolectric = Build.FINGERPRINT == "robolectric"
-
     Surface(
-        modifier = modifier
-            .then(
-                // Glassmorphic blur on Android 12+ (skip in tests for clarity)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !isRobolectric) {
-                    Modifier.blur(16.dp)
-                } else Modifier
-            ),
+        modifier = modifier,
         shape = CutCornerShape(bottomStart = cornerCut),
-        color = if (isRobolectric) colors.surface else colors.surface.copy(alpha = 0.85f)
+        color = colors.surface
     ) {
         TopAppBar(
             title = {

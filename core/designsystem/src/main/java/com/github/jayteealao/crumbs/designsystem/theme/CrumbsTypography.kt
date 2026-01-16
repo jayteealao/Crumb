@@ -1,6 +1,5 @@
 package com.github.jayteealao.crumbs.designsystem.theme
 
-import android.os.Build
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -13,32 +12,39 @@ import com.github.jayteealao.crumbs.designsystem.R
  * Crumbs typography scale
  * Uses Funnel Display for display/heading text (bold, geometric)
  * Uses system default for body text (optimal readability)
+ *
+ * Font Loading Strategy: Async
+ * - Loads fonts asynchronously in the background
+ * - Falls back to system fonts if loading fails
+ * - Non-blocking, doesn't crash the app
  */
 
 /**
- * Detects if running in Robolectric test environment.
- * Robolectric sets Build.FINGERPRINT to "robolectric".
- */
-private fun isRobolectric() = Build.FINGERPRINT == "robolectric"
-
-/**
- * Font loading strategy that gracefully handles test environments.
- * - OptionalLocal in Robolectric: Falls back to system fonts if custom fonts fail to load
- * - Blocking in production: Ensures custom fonts are always loaded
- */
-private val screenshotSafeFontStrategy =
-    if (isRobolectric()) FontLoadingStrategy.OptionalLocal
-    else FontLoadingStrategy.Blocking
-
-/**
- * Funnel Display font family with test-safe loading strategy.
- * In Robolectric tests, fonts gracefully fall back to system defaults if TTF files can't load.
+ * Funnel Display font family with async loading strategy.
+ * Async strategy loads fonts in background and gracefully falls back to system fonts on failure.
+ * This prevents crashes while still attempting to load custom fonts.
  */
 private val FunnelDisplay = FontFamily(
-    Font(R.font.funnel_display_regular, FontWeight.Normal, loadingStrategy = screenshotSafeFontStrategy),
-    Font(R.font.funnel_display_medium, FontWeight.Medium, loadingStrategy = screenshotSafeFontStrategy),
-    Font(R.font.funnel_display_semibold, FontWeight.SemiBold, loadingStrategy = screenshotSafeFontStrategy),
-    Font(R.font.funnel_display_bold, FontWeight.Bold, loadingStrategy = screenshotSafeFontStrategy)
+    Font(
+        resId = R.font.funnel_display_regular,
+        weight = FontWeight.Normal,
+        loadingStrategy = FontLoadingStrategy.Async
+    ),
+    Font(
+        resId = R.font.funnel_display_medium,
+        weight = FontWeight.Medium,
+        loadingStrategy = FontLoadingStrategy.Async
+    ),
+    Font(
+        resId = R.font.funnel_display_semibold,
+        weight = FontWeight.SemiBold,
+        loadingStrategy = FontLoadingStrategy.Async
+    ),
+    Font(
+        resId = R.font.funnel_display_bold,
+        weight = FontWeight.Bold,
+        loadingStrategy = FontLoadingStrategy.Async
+    )
 )
 
 object CrumbsTypography {
@@ -85,30 +91,35 @@ object CrumbsTypography {
     )
 
     val bodyLarge = TextStyle(
+        fontFamily = FunnelDisplay,
         fontSize = 16.sp,
         lineHeight = 24.sp,
         fontWeight = FontWeight.Normal
     )
 
     val bodyMedium = TextStyle(
+        fontFamily = FunnelDisplay,
         fontSize = 14.sp,
         lineHeight = 20.sp,
         fontWeight = FontWeight.Normal
     )
 
     val labelLarge = TextStyle(
+        fontFamily = FunnelDisplay,
         fontSize = 14.sp,
         lineHeight = 20.sp,
         fontWeight = FontWeight.Medium
     )
 
     val labelMedium = TextStyle(
+        fontFamily = FunnelDisplay,
         fontSize = 12.sp,
         lineHeight = 16.sp,
         fontWeight = FontWeight.Medium
     )
 
     val caption = TextStyle(
+        fontFamily = FunnelDisplay,
         fontSize = 11.sp,
         lineHeight = 16.sp,
         fontWeight = FontWeight.Normal

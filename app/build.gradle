@@ -11,7 +11,7 @@ plugins {
 
 android {
     namespace 'com.github.jayteealao.crumbs'
-    compileSdk 33
+    compileSdk 34
 
     signingConfigs {
         release {
@@ -28,7 +28,7 @@ android {
     defaultConfig {
         applicationId "com.github.jayteealao.crumbs"
         minSdk 24
-        targetSdk 33
+        targetSdk 34
         versionCode 1
         versionName "1.0"
 
@@ -75,11 +75,14 @@ android {
 dependencies {
 
     implementation(project(":feature:twitter"))
+    implementation(project(":feature:reddit"))
     implementation(project(":core:pref"))
     implementation(project(":core:models"))
+    implementation(project(":core:designsystem"))
     implementation(libs.bundles.androidx)
     implementation(libs.bundles.composeInterop)
     implementation(libs.bundles.compose)
+    implementation "androidx.compose.material3:material3:1.2.0"
 //    room
     implementation(libs.bundles.room)
     ksp(libs.room.compiler)

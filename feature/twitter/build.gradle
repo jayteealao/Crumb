@@ -8,12 +8,12 @@ plugins {
 
 android {
     namespace 'com.github.jayteealao.twitter'
-    compileSdk 33
+    compileSdk 34
 
     defaultConfig {
 //        applicationId "com.github.jayteealao.twitter"
         minSdk 24
-        targetSdk 33
+        targetSdk 34
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -48,7 +48,8 @@ android {
 dependencies {
 
     implementation(project(":core:pref"))
-//    implementation(project(":core:database"))
+    implementation(project(":core:models"))
+    implementation(project(":core:designsystem"))
 
     implementation(libs.bundles.androidx)
     implementation(libs.bundles.composeInterop)

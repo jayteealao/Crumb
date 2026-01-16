@@ -1,76 +1,88 @@
 package com.github.jayteealao.crumbs.screens
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.material.Tab
-import androidx.compose.material.TabRow
-import androidx.compose.material.TabRowDefaults
-import androidx.compose.material.Text
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.github.jayteealao.crumbs.designsystem.components.BottomNavTab
+import com.github.jayteealao.crumbs.designsystem.components.CrumbsBottomNav
+import com.github.jayteealao.crumbs.designsystem.components.CrumbsScaffold
+import com.github.jayteealao.crumbs.designsystem.components.CrumbsTopBar
+import com.github.jayteealao.reddit.screens.RedditBookmarksScreen
 import com.github.jayteealao.twitter.screens.LoginViewModel
 import com.github.jayteealao.twitter.screens.BookmarksViewModel
 import com.github.jayteealao.twitter.screens.TwitterBookmarksScreen
-import com.google.accompanist.pager.ExperimentalPagerApi
-import com.google.accompanist.pager.HorizontalPager
-import com.google.accompanist.pager.pagerTabIndicatorOffset
-import com.google.accompanist.pager.rememberPagerState
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalPagerApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    scope: CoroutineScope,
     navController: NavController,
     loginViewModel: LoginViewModel,
     bookmarksViewModel: BookmarksViewModel,
     twitterAuthCode: String = ""
 ){
-    val pagerState = rememberPagerState()
-    val pages: List<String> = remember {
-        mutableStateListOf("twitter", "reddit")
-    }
-    TabRow(
-        selectedTabIndex = pagerState.currentPage,
-        indicator = { tabPositions ->
-            TabRowDefaults.Indicator(
-                Modifier.pagerTabIndicatorOffset(pagerState, tabPositions)
+    var selectedTab by remember { mutableStateOf(BottomNavTab.TWITTER) }
+    var isSearchActive by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    CrumbsScaffold(
+        topBar = {
+            CrumbsTopBar(
+                isSearchActive = isSearchActive,
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it },
+                onSearchActiveChange = { isSearchActive = it }
+            )
+        },
+        bottomBar = {
+            CrumbsBottomNav(
+                selectedTab = selectedTab,
+                onTabSelected = { selectedTab = it }
             )
         }
-    ) {
-        pages.forEachIndexed { index, title ->
-            Tab(
-                selected = pagerState.currentPage == index,
-                onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
-                modifier = Modifier.height(32.dp)
-            ) {
-                Text(text = title)
-            }
-        }
-    }
-    HorizontalPager(
-        count = pages.size,
-        state = pagerState,
-        contentPadding = PaddingValues(top = 32.dp)
-    ) { page ->
-        when (page) {
-            0 -> {
-                TwitterBookmarksScreen(
-                    navController,
-                    twitterAuthCode = twitterAuthCode,
-                    bookmarksViewModel = bookmarksViewModel,
-                    loginViewModel = loginViewModel
-                )
-            }
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            when (selectedTab) {
+                BottomNavTab.TWITTER -> {
+                    TwitterBookmarksScreen(
+                        navController = navController,
+                        twitterAuthCode = twitterAuthCode,
+                        bookmarksViewModel = bookmarksViewModel,
+                        loginViewModel = loginViewModel
+                    )
+                }
 
-            1 -> Box(modifier = Modifier.fillMaxSize())
+                BottomNavTab.REDDIT -> {
+                    RedditBookmarksScreen(
+                        navController = navController,
+                        bookmarksViewModel = bookmarksViewModel
+                    )
+                }
+
+                BottomNavTab.ALL -> {
+                    AllBookmarksScreen(
+                        loginViewModel = loginViewModel,
+                        bookmarksViewModel = bookmarksViewModel
+                    )
+                }
+
+                BottomNavTab.MAP -> {
+                    MapViewScreen()
+                }
+            }
         }
     }
 }

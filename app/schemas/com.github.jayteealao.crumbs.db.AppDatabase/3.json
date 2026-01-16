@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 3,
-    "identityHash": "0ab3e242a4aebc1af287be7789ad787b",
+    "identityHash": "fb49df0b6d697518a5e5398541042bb8",
     "entities": [
       {
         "tableName": "tweetEntity",
@@ -705,17 +705,7 @@
           ],
           "autoGenerate": false
         },
-        "indices": [
-          {
-            "name": "index_pollIds_tweetId",
-            "unique": false,
-            "columnNames": [
-              "tweetId"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_pollIds_tweetId` ON `${TABLE_NAME}` (`tweetId`)"
-          }
-        ],
+        "indices": [],
         "foreignKeys": [
           {
             "table": "tweetEntity",
@@ -753,17 +743,7 @@
           ],
           "autoGenerate": false
         },
-        "indices": [
-          {
-            "name": "index_mediaKeys_tweet_id",
-            "unique": false,
-            "columnNames": [
-              "tweet_id"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_mediaKeys_tweet_id` ON `${TABLE_NAME}` (`tweet_id`)"
-          }
-        ],
+        "indices": [],
         "foreignKeys": [
           {
             "table": "tweetEntity",
@@ -777,12 +757,101 @@
             ]
           }
         ]
+      },
+      {
+        "tableName": "tags",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`name` TEXT NOT NULL, PRIMARY KEY(`name`))",
+        "fields": [
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "columnNames": [
+            "name"
+          ],
+          "autoGenerate": false
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "tweet_tags",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`tweetId` TEXT NOT NULL, `tagName` TEXT NOT NULL, PRIMARY KEY(`tweetId`, `tagName`), FOREIGN KEY(`tweetId`) REFERENCES `tweetEntity`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`tagName`) REFERENCES `tags`(`name`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "tweetId",
+            "columnName": "tweetId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tagName",
+            "columnName": "tagName",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "columnNames": [
+            "tweetId",
+            "tagName"
+          ],
+          "autoGenerate": false
+        },
+        "indices": [
+          {
+            "name": "index_tweet_tags_tweetId",
+            "unique": false,
+            "columnNames": [
+              "tweetId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_tweet_tags_tweetId` ON `${TABLE_NAME}` (`tweetId`)"
+          },
+          {
+            "name": "index_tweet_tags_tagName",
+            "unique": false,
+            "columnNames": [
+              "tagName"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_tweet_tags_tagName` ON `${TABLE_NAME}` (`tagName`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "tweetEntity",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "tweetId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "tags",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "tagName"
+            ],
+            "referencedColumns": [
+              "name"
+            ]
+          }
+        ]
       }
     ],
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '0ab3e242a4aebc1af287be7789ad787b')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fb49df0b6d697518a5e5398541042bb8')"
     ]
   }
 }

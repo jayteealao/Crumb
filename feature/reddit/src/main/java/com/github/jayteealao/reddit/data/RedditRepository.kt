@@ -19,9 +19,8 @@ import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 
-// TODO: Enable when RedditDao is implemented
-// @Singleton
-class RedditRepository /* @Inject */ constructor(
+@Singleton
+class RedditRepository @Inject constructor(
     private val redditDao: RedditDao,
     private val redditApiService: RedditApiService,
     private val redditAuthClient: RedditAuthClient,

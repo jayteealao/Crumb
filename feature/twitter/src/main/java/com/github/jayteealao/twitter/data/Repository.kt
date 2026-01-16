@@ -3,8 +3,10 @@ package com.github.jayteealao.twitter.data
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import com.github.jayteealao.crumbs.utils.produceTweetResponseEntities
+import com.github.jayteealao.twitter.models.TagEntity
 import com.github.jayteealao.twitter.models.TweetEntities
 import com.github.jayteealao.twitter.models.TweetEntity
+import com.github.jayteealao.twitter.models.TweetTagCrossRef
 import com.github.jayteealao.twitter.models.tweetEntitiesToOrderLens
 import com.github.jayteealao.twitter.services.TwitterApiClient
 import com.github.jayteealao.twitter.services.TwitterAuthClient
@@ -212,4 +214,43 @@ class Repository @Inject constructor(
     fun pagingTweetData() = pager.flow
 
     fun getThreadIds(): List<IdForThread> = tweetDao.getLatestThreadId()
+
+    // Tag operations
+    suspend fun addTagToTweet(tweetId: String, tagName: String) {
+        // Insert the tag if it doesn't exist
+        tweetDao.insertTag(TagEntity(tagName))
+        // Link the tag to the tweet
+        tweetDao.insertTweetTag(TweetTagCrossRef(tweetId, tagName))
+    }
+
+    suspend fun removeTagFromTweet(tweetId: String, tagName: String) {
+        tweetDao.deleteTweetTag(tweetId, tagName)
+    }
+
+    suspend fun getTagsForTweet(tweetId: String): List<String> {
+        return tweetDao.getTagsForTweet(tweetId)
+    }
+
+    suspend fun getAllTags(): List<String> {
+        return tweetDao.getAllTags().map { it.name }
+    }
+
+    suspend fun saveTags(tweetId: String, tags: List<String>) {
+        // Get current tags
+        val currentTags = getTagsForTweet(tweetId)
+
+        // Remove tags that are no longer selected
+        currentTags.forEach { tag ->
+            if (tag !in tags) {
+                removeTagFromTweet(tweetId, tag)
+            }
+        }
+
+        // Add new tags
+        tags.forEach { tag ->
+            if (tag !in currentTags) {
+                addTagToTweet(tweetId, tag)
+            }
+        }
+    }
 }

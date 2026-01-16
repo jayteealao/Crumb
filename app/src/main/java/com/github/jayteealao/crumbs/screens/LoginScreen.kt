@@ -1,38 +1,45 @@
 package com.github.jayteealao.crumbs.screens.login
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.Button
-import androidx.compose.material.ButtonDefaults
-import androidx.compose.material.CircularProgressIndicator
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import coil.size.Scale
-import coil.size.Size
-import com.github.jayteealao.crumbs.R
 import com.github.jayteealao.crumbs.Screens
+import com.github.jayteealao.crumbs.designsystem.components.CrumbsButton
+import com.github.jayteealao.crumbs.designsystem.components.CrumbsProgressIndicator
+import com.github.jayteealao.crumbs.designsystem.components.GradientImage
+import com.github.jayteealao.crumbs.designsystem.components.GradientDirection
+import com.github.jayteealao.crumbs.designsystem.components.GradientIntensity
+import com.github.jayteealao.crumbs.designsystem.components.ProgressSize
+import com.github.jayteealao.crumbs.designsystem.components.UserProfileDisplay
+import com.github.jayteealao.crumbs.designsystem.components.UserProfile
+import com.github.jayteealao.crumbs.designsystem.components.ProfileSize
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsSpacing
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsTypography
+import com.github.jayteealao.crumbs.models.BookmarkSource
+import com.github.jayteealao.reddit.screens.RedditViewModel
 import com.github.jayteealao.twitter.screens.LoginViewModel
 import kotlinx.coroutines.delay
 import timber.log.Timber
@@ -42,11 +49,18 @@ fun LoginScreen(
     navController: NavController,
     modifier: Modifier = Modifier,
     viewModel: LoginViewModel = hiltViewModel(),
+    redditViewModel: RedditViewModel = hiltViewModel(),
     authorizationCode: String? = null
 ) {
     val context = LocalContext.current
-    val access by viewModel.isAccessTokenAvailable.collectAsState()
+    val colors = LocalCrumbsColors.current
+    val spacing = LocalCrumbsSpacing.current
+    val typography = LocalCrumbsTypography.current
+
+    val twitterAccess by viewModel.isAccessTokenAvailable.collectAsState()
+    val redditAccess by redditViewModel.isAccessTokenAvailable.collectAsState()
     val user by viewModel.user.collectAsState()
+    val redditUsername by redditViewModel.username.collectAsState()
 
     LaunchedEffect(authorizationCode) {
         if (authorizationCode != null) {
@@ -54,10 +68,10 @@ fun LoginScreen(
         }
     }
 
-    LaunchedEffect(access) {
+    LaunchedEffect(twitterAccess, redditAccess) {
         delay(500)
-        if (access) {
-            Timber.d("access approved")
+        if (twitterAccess || redditAccess) {
+            Timber.d("access approved (Twitter: $twitterAccess, Reddit: $redditAccess)")
             delay(1500)
             navController.navigate(Screens.HOMESCREEN.screenRoute(true)) {
                 popUpTo(Screens.LOGINSCREEN.name) { inclusive = true }
@@ -65,107 +79,124 @@ fun LoginScreen(
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        // Logo - shown in all states
-        Image(
-            painter = painterResource(id = R.drawable.logo_2),
-            contentDescription = "Crumbs logo",
-            modifier = Modifier.size(120.dp)
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        when {
-            // Success state - user authenticated
-            user != null && access && authorizationCode?.isNotBlank() == true -> {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(user?.profileImageUrl)
-                        .size(Size.ORIGINAL)
-                        .scale(Scale.FILL)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = "Profile picture",
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(CircleShape)
+    Box(modifier = modifier.fillMaxSize()) {
+        // Background gradient
+        GradientImage(
+            imageUrl = "https://via.placeholder.com/800x1200/1F2937/1F2937", // Solid color placeholder
+            gradientDirection = GradientDirection.DiagonalTLBR,
+            gradientIntensity = GradientIntensity.Dark,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = spacing.xxl),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                // App branding
+                Icon(
+                    imageVector = Icons.Default.Bookmark,
+                    contentDescription = "Crumbs logo",
+                    modifier = Modifier.size(120.dp),
+                    tint = colors.accent
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(spacing.xl))
 
                 Text(
-                    text = "Welcome back",
-                    style = MaterialTheme.typography.subtitle1,
-                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
+                    text = "crumbs",
+                    style = typography.displayLarge,
+                    color = Color.White
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(spacing.sm))
 
                 Text(
-                    text = user?.name ?: "",
-                    style = MaterialTheme.typography.h6
-                )
-
-                Text(
-                    text = "@${user?.username ?: ""}",
-                    style = MaterialTheme.typography.body2,
-                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
-                )
-            }
-
-            // Loading state - processing authorization
-            authorizationCode != null -> {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(48.dp),
-                    strokeWidth = 4.dp
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Text(
-                    text = "Connecting to X...",
-                    style = MaterialTheme.typography.body1,
-                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f)
-                )
-            }
-
-            // Initial state - prompt to login
-            else -> {
-                Text(
-                    text = "Crumbs",
-                    style = MaterialTheme.typography.h4
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = "Save your bookmarks",
-                    style = MaterialTheme.typography.body1,
-                    color = MaterialTheme.colors.onSurface.copy(alpha = 0.6f),
+                    text = "Your social knowledge base",
+                    style = typography.bodyLarge,
+                    color = Color.White.copy(alpha = 0.8f),
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(spacing.xxl * 2))
 
-                Button(
-                    onClick = {
-                        context.startActivity(viewModel.authIntent())
-                    },
-                    modifier = Modifier.height(48.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        backgroundColor = MaterialTheme.colors.primary
-                    )
-                ) {
-                    Text(
-                        text = "Connect with X",
-                        modifier = Modifier.padding(horizontal = 24.dp)
-                    )
+                when {
+                    // Success state - user(s) authenticated
+                    (user != null && twitterAccess) || (redditUsername.isNotBlank() && redditAccess) -> {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            // Show Twitter profile if authenticated
+                            if (user != null && twitterAccess) {
+                                UserProfileDisplay(
+                                    profile = UserProfile(
+                                        username = user?.username ?: "",
+                                        displayName = user?.name ?: "",
+                                        avatarUrl = user?.profileImageUrl ?: "",
+                                        source = BookmarkSource.Twitter
+                                    ),
+                                    size = ProfileSize.Large
+                                )
+                                Spacer(modifier = Modifier.height(spacing.md))
+                            }
+
+                            // Show Reddit profile if authenticated
+                            if (redditUsername.isNotBlank() && redditAccess) {
+                                UserProfileDisplay(
+                                    profile = UserProfile(
+                                        username = redditUsername,
+                                        displayName = "u/$redditUsername",
+                                        avatarUrl = "",
+                                        source = BookmarkSource.Reddit
+                                    ),
+                                    size = ProfileSize.Large
+                                )
+                                Spacer(modifier = Modifier.height(spacing.md))
+                            }
+
+                            Text(
+                                text = "Welcome back!",
+                                style = typography.headingMedium,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    // Loading state - processing authorization
+                    authorizationCode != null -> {
+                        CrumbsProgressIndicator(
+                            size = ProgressSize.Large,
+                            color = colors.accent
+                        )
+
+                        Spacer(modifier = Modifier.height(spacing.xl))
+
+                        Text(
+                            text = "Connecting...",
+                            style = typography.bodyLarge,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                    }
+
+                    // Initial state - prompt to login
+                    else -> {
+                        CrumbsButton(
+                            onClick = {
+                                context.startActivity(viewModel.authIntent())
+                            },
+                            text = "Connect with X",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Spacer(modifier = Modifier.height(spacing.md))
+
+                        CrumbsButton(
+                            onClick = {
+                                context.startActivity(redditViewModel.authIntent())
+                            },
+                            text = "Connect with Reddit",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             }
         }
