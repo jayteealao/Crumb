@@ -8,10 +8,12 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,6 +46,7 @@ import timber.log.Timber
 import java.text.SimpleDateFormat
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TwitterBookmarksScreen(
     navController: NavController,
@@ -56,6 +59,7 @@ fun TwitterBookmarksScreen(
     val loggedIn by loginViewModel.isAccessTokenAvailable.collectAsState()
     val tagsMap by bookmarksViewModel.tagsForTweet.collectAsState()
     val allTags by bookmarksViewModel.allTags.collectAsState()
+    val isRefreshing by bookmarksViewModel.isRefreshing.collectAsState()
 
     // Quick actions state
     var showQuickActions by remember { mutableStateOf(false) }
@@ -82,7 +86,11 @@ fun TwitterBookmarksScreen(
         }
 
         else -> {
-            Box(modifier = Modifier.fillMaxSize()) {
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = { bookmarksViewModel.refresh() },
+                modifier = Modifier.fillMaxSize()
+            ) {
                 // Display bookmarks
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -103,7 +111,11 @@ fun TwitterBookmarksScreen(
                         item {
                             EmptyState(
                                 title = "Error loading bookmarks",
-                                message = "Something went wrong. Pull to refresh to try again.",
+                                message = "Something went wrong. Try logging out and back in if the issue persists.",
+                                actionText = "Logout & Re-login",
+                                onActionClick = {
+                                    bookmarksViewModel.logout()
+                                },
                                 modifier = Modifier.padding(16.dp)
                             )
                         }
@@ -204,6 +216,13 @@ fun TwitterBookmarksScreen(
                                 }
                                 context.startActivity(Intent.createChooser(shareIntent, "Share tweet"))
                             }
+                        },
+                        QuickAction(
+                            label = "Logout",
+                            icon = Icons.Default.Logout
+                        ) {
+                            bookmarksViewModel.logout()
+                            showQuickActions = false
                         }
                     )
                 )

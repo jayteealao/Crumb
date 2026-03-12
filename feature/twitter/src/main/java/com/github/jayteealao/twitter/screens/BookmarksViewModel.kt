@@ -5,14 +5,15 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
-import com.github.jayteealao.twitter.data.IdForThread
 import com.github.jayteealao.twitter.data.Repository
 import com.github.jayteealao.twitter.models.TweetData
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @HiltViewModel
@@ -27,15 +28,20 @@ class BookmarksViewModel @Inject constructor(
 
 //    val refreshed = checkNotNull(savedStateHandle.get<Boolean>("refreshed"))
 
+    val isRefreshing: StateFlow<Boolean> = repository.isRefreshing
+
     fun pagingFlowData(order: String = "default"): Flow<PagingData<TweetData>> = sortOrder[order]!!()
 
     fun buildDatabase() = repository.buildDatabase()
 
-    fun saveThreads(tweetAuthorId: String, conversationId: String) = repository.saveTweetThreads(tweetAuthorId, conversationId)
+    fun refresh() {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                repository.refreshBookmarks()
+            }
+        }
+    }
 
-    fun saveThreadsAppOnly(tweetAuthorId: String, conversationId: String) = repository.saveTweetThreadsAppOnly(tweetAuthorId, conversationId)
-
-    fun getThreadIds(): List<IdForThread> = repository.getThreadIds()
     private val sortOrder = mutableStateMapOf(
         "default" to { repository.pagingTweetData() }
     )
@@ -72,4 +78,9 @@ class BookmarksViewModel @Inject constructor(
         }
     }
 
+    fun logout() {
+        viewModelScope.launch {
+            repository.logout()
+        }
+    }
 }

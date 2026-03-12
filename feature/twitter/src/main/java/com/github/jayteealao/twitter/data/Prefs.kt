@@ -36,6 +36,14 @@ class Prefs @Inject constructor(@ApplicationContext val context: Context) {
 
     suspend fun setUserName(userName: String) {
         context.writeString(USERNAME, userName)
+    }
 
+    suspend fun clearAllTokens() {
+        context.writeString(ACCESS_CODE, "")
+        context.writeString(REFRESH_CODE, "")
+        context.writeString(APP_ACCESS_CODE, "")
+        context.writeString(APP_REFRESH_CODE, "")
+        context.writeString(USERID, "")
+        context.writeString(USERNAME, "")
     }
 }

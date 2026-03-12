@@ -3,6 +3,7 @@ package com.github.jayteealao.twitter.data
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import com.github.jayteealao.crumbs.utils.produceTweetResponseEntities
+import com.github.jayteealao.twitter.data.firestore.FirestoreRepository
 import com.github.jayteealao.twitter.models.TagEntity
 import com.github.jayteealao.twitter.models.TweetEntities
 import com.github.jayteealao.twitter.models.TweetEntity
@@ -16,6 +17,9 @@ import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
@@ -28,6 +32,7 @@ class Repository @Inject constructor(
     private val authPref: Prefs,
     private val twitterApiClient: TwitterApiClient,
     private val twitterAuthClient: TwitterAuthClient,
+    private val firestoreRepository: FirestoreRepository,
     private val scope: CoroutineScope
 ) {
     private var latestBookmarkInDatabase: TweetEntity? = null
@@ -35,106 +40,108 @@ class Repository @Inject constructor(
     private var needsRefresh = false
     private val fetchMutex = Mutex()
     private var isFetching = false
+
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
     companion object {
         const val BUFFER = 250
     }
 
     init {
         scope.launch(Dispatchers.IO) {
-            latestBookmarkInDatabase = tweetDao.getLatestBookmark()
-            Timber.tag("latest bookmark in database: $latestBookmarkInDatabase")
-            if (latestBookmarkInDatabase != null) {
-                orderOfLastBookmark = latestBookmarkInDatabase!!.order
-            }
-        }
-    }
-
-    fun saveTweetEntities(tweetEntities: TweetEntities) = tweetDao.insertTweetEntities(
-        tweetEntities.tweetEntity,
-        tweetEntities.tweetReferencedTweets.mapNotNull { it.tweet },
-        tweetEntities.twitterUserEntity,
-        tweetEntities.tweetPublicMetrics,
-        tweetEntities.tweetMediaEntity,
-        tweetEntities.tweetIncludesEntity,
-        tweetEntities.tweetReferencedTweets.map { it.referencedTweets },
-        tweetEntities.tweetContextAnnotationEntity,
-        tweetEntities.tweetTextEntity,
-        tweetEntities.mediaKeys,
-        tweetEntities.pollIds
-    )
-
-    fun buildDatabase() {
-        scope.launch(Dispatchers.IO) {
-            // Prevent concurrent fetches
-            fetchMutex.withLock {
-                if (isFetching) {
-                    Timber.d("buildDatabase: Already fetching, skipping")
-                    return@launch
-                }
-                isFetching = true
-            }
-
             try {
-                var saveThreads = true
-
                 latestBookmarkInDatabase = tweetDao.getLatestBookmark()
                 Timber.d("latest bookmark in database: $latestBookmarkInDatabase")
                 if (latestBookmarkInDatabase != null) {
                     orderOfLastBookmark = latestBookmarkInDatabase!!.order
                 }
-
-                // Get current values once instead of continuously collecting
-                val (accessCode, userId, refreshToken) = combine(
-                    authPref.accessCode,
-                    authPref.userId,
-                    authPref.refreshCode
-                ) { access, user, refresh -> Triple(access, user, refresh) }
-                    .first()
-
-                if (refreshToken.isNotBlank() && userId.isNotBlank()) {
-                    Timber.d("building database: fetching all bookmarks (up to 800)")
-                    val tweetEntitiesChannel =
-                        produceTweetResponseEntities(
-                            refreshToken,
-                            latestIdInDb = null, // Fetch all bookmarks, don't stop early
-                            onError = { twitterAuthClient.refreshAccessToken(refreshToken) }
-                        ) {
-                            twitterApiClient.getBookmarks(
-                                "Bearer $accessCode",
-                                userId,
-                                it
-                            )
-                        }
-                    var orderStart = orderOfLastBookmark + BUFFER
-                    val existingLatestId = latestBookmarkInDatabase?.id
-                    tweetEntitiesChannel.consumeEach {
-                        it.data.forEach {
-                            val order = orderStart
-                            launch(Dispatchers.IO) {
-                                saveTweetEntities(tweetEntitiesToOrderLens.modify(it) { order })
-                                // Only save threads for new bookmarks (not already in database)
-                                if (saveThreads) {
-                                    saveTweetThreads(it.tweetEntity.authorId, it.tweetEntity.conversationId)
-                                    // Stop saving threads once we reach existing bookmarks
-                                    if (existingLatestId == it.tweetEntity.id) {
-                                        saveThreads = false
-                                    }
-                                }
-                            }
-                            orderStart--
-                        }
-                    }
-                }
-            } finally {
-                fetchMutex.withLock {
-                    isFetching = false
-                }
+                // Sync from Firestore on startup
+                syncFromFirestore()
+            } catch (e: Exception) {
+                Timber.e(e, "Error in Repository init")
             }
         }
     }
 
-    fun saveTweetThreads(tweetAuthorId: String, conversationId: String) {
+    /**
+     * Sync bookmarks from Firestore that are not in the local database
+     */
+    suspend fun syncFromFirestore() {
+        try {
+            Timber.d("Starting Firestore sync...")
+            val localIds = tweetDao.getAllTweetIds().toSet()
+            Timber.d("Local database has ${localIds.size} tweets")
+
+            val firestoreTweets = firestoreRepository.fetchTweetsNotInLocal(localIds)
+            Timber.d("Fetched ${firestoreTweets.size} tweets from Firestore")
+
+            if (firestoreTweets.isNotEmpty()) {
+                // Get the current max order to assign new orders
+                var currentOrder = tweetDao.getMaxOrder() ?: 1000
+
+                firestoreTweets.forEach { tweetEntities ->
+                    currentOrder++
+                    val orderedEntities = tweetEntitiesToOrderLens.modify(tweetEntities) { currentOrder }
+                    saveTweetEntities(orderedEntities, uploadToFirestore = false)
+                }
+                Timber.d("Synced ${firestoreTweets.size} tweets from Firestore to local database")
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Error syncing from Firestore")
+        }
+    }
+
+    fun saveTweetEntities(tweetEntities: TweetEntities, uploadToFirestore: Boolean = true) {
+        tweetDao.insertTweetEntities(
+            tweetEntities.tweetEntity,
+            tweetEntities.tweetReferencedTweets.mapNotNull { it.tweet },
+            tweetEntities.twitterUserEntity,
+            tweetEntities.tweetPublicMetrics,
+            tweetEntities.tweetMediaEntity,
+            tweetEntities.tweetIncludesEntity,
+            tweetEntities.tweetReferencedTweets.map { it.referencedTweets },
+            tweetEntities.tweetContextAnnotationEntity,
+            tweetEntities.tweetTextEntity,
+            tweetEntities.mediaKeys,
+            tweetEntities.pollIds
+        )
+        // Also upload to Firestore for backup
+        if (uploadToFirestore) {
+            scope.launch(Dispatchers.IO) {
+                firestoreRepository.uploadTweet(tweetEntities)
+            }
+        }
+    }
+
+    fun buildDatabase() {
         scope.launch(Dispatchers.IO) {
+            refreshBookmarksInternal()
+        }
+    }
+
+    suspend fun refreshBookmarks() {
+        refreshBookmarksInternal()
+    }
+
+    private suspend fun refreshBookmarksInternal() {
+        // Prevent concurrent fetches
+        fetchMutex.withLock {
+            if (isFetching) {
+                Timber.d("buildDatabase: Already fetching, skipping")
+                return
+            }
+            isFetching = true
+            _isRefreshing.value = true
+        }
+
+        try {
+            latestBookmarkInDatabase = tweetDao.getLatestBookmark()
+            Timber.d("latest bookmark in database: $latestBookmarkInDatabase")
+            if (latestBookmarkInDatabase != null) {
+                orderOfLastBookmark = latestBookmarkInDatabase!!.order
+            }
+
+            // Get current values once instead of continuously collecting
             val (accessCode, userId, refreshToken) = combine(
                 authPref.accessCode,
                 authPref.userId,
@@ -143,62 +150,34 @@ class Repository @Inject constructor(
                 .first()
 
             if (refreshToken.isNotBlank() && userId.isNotBlank()) {
+                Timber.d("building database: fetching new bookmarks incrementally")
                 val tweetEntitiesChannel =
-                    produceTweetResponseEntities(
+                    scope.produceTweetResponseEntities(
                         refreshToken,
-                        latestIdInDb = "",
-                        onError = { }
+                        latestIdInDb = latestBookmarkInDatabase?.id,
+                        onError = { twitterAuthClient.refreshAccessToken(refreshToken) }
                     ) {
-                        twitterApiClient.getTweetThread(
+                        twitterApiClient.getBookmarks(
                             "Bearer $accessCode",
-                            tweetAuthorId,
-                            conversationId,
+                            userId,
                             it
                         )
                     }
+                var orderStart = orderOfLastBookmark + BUFFER
                 tweetEntitiesChannel.consumeEach {
                     it.data.forEach {
-                        launch(Dispatchers.IO) {
-                            Timber.d("saving entity ${it.tweetEntity}")
-                            saveTweetEntities(it)
+                        val order = orderStart
+                        scope.launch(Dispatchers.IO) {
+                            saveTweetEntities(tweetEntitiesToOrderLens.modify(it) { order })
                         }
+                        orderStart--
                     }
                 }
             }
-        }
-    }
-
-    fun saveTweetThreadsAppOnly(tweetAuthorId: String, conversationId: String) {
-        scope.launch(Dispatchers.IO) {
-            val (accessCode, userId, refreshToken) = combine(
-                authPref.appAccessCode,
-                authPref.userId,
-                authPref.refreshCode
-            ) { access, user, refresh -> Triple(access, user, refresh) }
-                .first()
-
-            if (refreshToken.isNotBlank() && userId.isNotBlank()) {
-                val tweetEntitiesChannel =
-                    produceTweetResponseEntities(
-                        refreshToken,
-                        latestIdInDb = "",
-                        onError = { twitterAuthClient.refreshAccessToken(refreshToken) }
-                    ) {
-                        twitterApiClient.getTweetThread2(
-                            "Bearer $accessCode",
-                            tweetAuthorId,
-                            conversationId,
-                            it
-                        )
-                    }
-                tweetEntitiesChannel.consumeEach {
-                    it.data.forEach {
-                        launch(Dispatchers.IO) {
-                            Timber.d("saving entity ${it.tweetEntity}")
-                            saveTweetEntities(it)
-                        }
-                    }
-                }
+        } finally {
+            fetchMutex.withLock {
+                isFetching = false
+                _isRefreshing.value = false
             }
         }
     }
@@ -212,8 +191,6 @@ class Repository @Inject constructor(
     }
 
     fun pagingTweetData() = pager.flow
-
-    fun getThreadIds(): List<IdForThread> = tweetDao.getLatestThreadId()
 
     // Tag operations
     suspend fun addTagToTweet(tweetId: String, tagName: String) {
@@ -252,5 +229,13 @@ class Repository @Inject constructor(
                 addTagToTweet(tweetId, tag)
             }
         }
+    }
+
+    /**
+     * Clear all Twitter tokens to force re-authentication
+     */
+    suspend fun logout() {
+        authPref.clearAllTokens()
+        Timber.d("Twitter tokens cleared")
     }
 }

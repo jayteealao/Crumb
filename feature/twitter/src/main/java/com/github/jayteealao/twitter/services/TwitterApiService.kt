@@ -23,19 +23,6 @@ interface TwitterApiClient {
         paginationToken: String? = null
     ): ApiResponse<TweetResponse>
 
-    suspend fun getTweetThread(
-        authorization: String,
-        userId: String,
-        conversationId: String,
-        paginationToken: String? = null
-    ): ApiResponse<TweetResponse>
-
-    suspend fun getTweetThread2(
-        authorization: String,
-        userId: String,
-        conversationId: String,
-        paginationToken: String? = null
-    ): ApiResponse<TweetResponse>
 }
 
 interface TwitterApiService {
@@ -54,42 +41,9 @@ interface TwitterApiService {
         @Query("expansions") expansions: String = EXPANSIONS,
         @Query("media.fields") mediaFields: String = MEDIAFIELDS,
         @Query("user.fields") userFields: String = USERFIELDS,
-        @Query("max_results") maxResults: Int = 100,
+        @Query("max_results") maxResults: Int = 25,
         @Query("pagination_token") paginationToken: String? = null
     ): ApiResponse<TweetResponse>
-
-    @GET("2/tweets/search/recent")
-    suspend fun getTweetThread(
-        @Header("Authorization") authorization: String,
-        @Query("query") query: String,
-        @Query("tweet.fields") tweetFields: String = TWEETFIELDS,
-        @Query("expansions") expansions: String = EXPANSIONS,
-        @Query("media.fields") mediaFields: String = MEDIAFIELDS,
-        @Query("user.fields") userFields: String = USERFIELDS,
-        @Query("max_results") maxResults: Int = 100,
-        @Query("pagination_token") paginationToken: String? = null
-    ): ApiResponse<TweetResponse>
-
-    @GET("2/users/{userId}/tweets")
-    suspend fun getTweetThread2(
-        @Header("Authorization") authorization: String,
-        @Path("userId") userId: String,
-        @Query("tweet.fields") tweetFields: String = TWEETFIELDS,
-        @Query("expansions") expansions: String = EXPANSIONS,
-        @Query("media.fields") mediaFields: String = MEDIAFIELDS,
-        @Query("user.fields") userFields: String = USERFIELDS,
-        @Query("max_results") maxResults: Int = 100,
-        @Query("pagination_token") paginationToken: String? = null
-    ): ApiResponse<TweetResponse>
-
-//    @Headers("Content-Type: application/x-www-form-urlencoded")
-//    @FormUrlEncoded
-//    @POST("2/oauth2/token")
-//    suspend fun refreshToken(
-//        @Field("refresh_token") refreshToken: String,
-//        @Field("grant_type") grantType: String = "refresh_token",
-//        @Field("client_id") clientId: String = CLIENT_ID
-//    ): ApiResponse<TokenResponse>
 }
 
 const val TWEETFIELDS = "id,in_reply_to_user_id,lang,entities," +

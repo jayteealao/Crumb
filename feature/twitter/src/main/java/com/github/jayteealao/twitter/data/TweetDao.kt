@@ -1,7 +1,6 @@
 package com.github.jayteealao.twitter.data
 
 import androidx.paging.PagingSource
-import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -72,11 +71,14 @@ interface TweetDao {
     @Query("SELECT * FROM tweetEntity WHERE referenced = false ORDER BY `order` DESC")
     fun getTweets(): PagingSource<Int, TweetData>
 
-    @Query("SELECT * FROM tweetEntity WHERE referenced = false ORDER BY `order` DESC")
+    @Query("SELECT * FROM tweetEntity WHERE referenced = false ORDER BY `order` DESC LIMIT 1")
     fun getLatestBookmark(): TweetEntity
 
-    @Query("SELECT author_id, conversation_id FROM tweetEntity WHERE referenced = false ORDER BY `order` DESC")
-    fun getLatestThreadId(): List<IdForThread>
+    @Query("SELECT id FROM tweetEntity WHERE referenced = false")
+    suspend fun getAllTweetIds(): List<String>
+
+    @Query("SELECT MAX(`order`) FROM tweetEntity")
+    suspend fun getMaxOrder(): Int?
 
     // Tag operations
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -97,8 +99,3 @@ interface TweetDao {
     @Query("DELETE FROM tags WHERE name = :tagName")
     suspend fun deleteTag(tagName: String)
 }
-
-data class IdForThread(
-    @ColumnInfo(name = "author_id") val authorId: String,
-    @ColumnInfo(name = "conversation_id") val conversationId: String
-)

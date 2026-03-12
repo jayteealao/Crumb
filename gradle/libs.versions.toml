@@ -7,6 +7,7 @@ arrow = "1.1.4-alpha.10"
 lifecycle = "2.6.0-alpha01"
 retrofit = "2.9.0"
 room = "2.4.3"
+firebase-bom = "32.7.0"
 
 [libraries]
 #androidx
@@ -38,6 +39,9 @@ room-ktx = {module = "androidx.room:room-ktx", version.ref = "room"}
 room-paging = {module = "androidx.room:room-paging", version.ref = "room"}
 #timber
 timber = {module = "com.jakewharton.timber:timber", version = "5.0.1"}
+#firebase
+firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
+firebase-firestore = { module = "com.google.firebase:firebase-firestore-ktx" }
 [bundles]
 androidx = ['androidx-core', 'androidx-lifecycle']
 compose = ['compose-ui', 'compose-uiTooling', 'compose-foundation', 'compose-material', 'compose-materialIcons', 'compose-materialIconsExt', 'compose-runtime']
