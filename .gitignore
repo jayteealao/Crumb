@@ -9,10 +9,12 @@
 /.idea/assetWizardSettings.xml
 .DS_Store
 /build
+**/build/
+**/.transforms/
+.kotlin/
 /captures
 .externalNativeBuild
 .cxx
 local.properties
 .worktrees/
 *.db
-core/designsystem/build/
