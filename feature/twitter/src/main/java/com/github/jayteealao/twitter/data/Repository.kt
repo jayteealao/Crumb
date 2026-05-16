@@ -102,9 +102,9 @@ class Repository @Inject constructor(
             tweetEntities.tweetReferencedTweets.map { it.referencedTweets },
             tweetEntities.tweetContextAnnotationEntity,
             tweetEntities.tweetTextEntity,
-            tweetEntities.mediaKeys,
-            tweetEntities.pollIds
+            tweetEntities.mediaKeys
         )
+        tweetEntities.pollIds?.let { tweetDao.insertPollId(it) }
         // Also upload to Firestore for backup
         if (uploadToFirestore) {
             scope.launch(Dispatchers.IO) {

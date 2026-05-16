@@ -63,8 +63,7 @@ interface TweetDao {
         tweetReferencedTweets: List<TweetReferencedTweets>,
         tweetContextAnnotationEntity: List<TweetContextAnnotationEntity>,
         tweetTextEntity: List<TweetTextEntityAnnotation>,
-        mediaKeys: List<MediaKeys>,
-        pollIds: PollIds?
+        mediaKeys: List<MediaKeys>
     )
 
     @Transaction
