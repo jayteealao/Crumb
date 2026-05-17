@@ -13,7 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.ViewList
-import androidx.compose.material.ripple.rememberRipple
+import androidx.compose.material3.ripple
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.Text
@@ -101,7 +101,7 @@ private fun RowScope.CrumbsNavigationBarItem(
                 enabled = true,
                 role = Role.Tab,
                 interactionSource = interactionSource,
-                indication = rememberRipple(bounded = true, color = colors.accent)
+                indication = ripple(bounded = true, color = colors.accent)
             )
             .padding(vertical = 8.dp),
         contentAlignment = Alignment.Center

@@ -7,11 +7,11 @@ plugins {
 
 android {
     namespace 'com.github.jayteealao.reddit'
-    compileSdk 34
+    compileSdk 35
 
     defaultConfig {
         minSdk 24
-        targetSdk 34
+        targetSdk 35
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -51,9 +51,10 @@ dependencies {
     ksp(libs.room.compiler)
 
     // Compose
+    implementation(platform(libs.compose.bom))
     implementation(libs.bundles.compose)
     implementation(libs.bundles.composeInterop)
-    implementation "androidx.compose.material3:material3:1.2.0"
+    implementation(libs.compose.material3)
     implementation "androidx.hilt:hilt-navigation-compose:1.1.0"
 
 //    hilt

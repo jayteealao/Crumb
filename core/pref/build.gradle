@@ -6,11 +6,11 @@ plugins {
 
 android {
     namespace 'com.github.jayteealao.pref'
-    compileSdk 33
+    compileSdk 35
 
     defaultConfig {
         minSdk 24
-        targetSdk 33
+        targetSdk 35
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles "consumer-rules.pro"

@@ -5,11 +5,11 @@ plugins {
 
 android {
     namespace 'com.github.jayteealao.crumbs.models'
-    compileSdk 34
+    compileSdk 35
 
     defaultConfig {
         minSdk 24
-        targetSdk 34
+        targetSdk 35
     }
 
     compileOptions {
@@ -26,6 +26,6 @@ kotlin {
 
 dependencies {
     // Compose runtime for compiler plugin stability
-    implementation platform('androidx.compose:compose-bom:2024.02.00')
+    implementation(platform(libs.compose.bom))
     implementation 'androidx.compose.runtime:runtime'
 }
