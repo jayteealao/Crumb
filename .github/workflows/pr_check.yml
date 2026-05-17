@@ -28,7 +28,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: "17"
 
       - name: Gradle cache
         uses: gradle/actions/setup-gradle@v3
@@ -41,7 +41,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: platform-tools platforms;android-33 build-tools;33.0.2
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
 
       - name: check for signing secrets
         id: has_signing
@@ -68,12 +68,12 @@ jobs:
             echo "SIGNING_KEY_PASSWORD=${{ secrets.SIGNING_KEY_PASSWORD }}"
           } >> $GITHUB_ENV
 
-      - name: Build debug APK
+      - name: Build, lint, and verify screenshot goldens
         id: build
         continue-on-error: true
         run: |
           set -o pipefail
-          ./gradlew --no-daemon clean assembleDebug 2>&1 | tee build-log.txt
+          ./gradlew --no-daemon clean assembleDebug lintDebug :core:designsystem:verifyRoborazziDebug 2>&1 | tee build-log.txt
           status=${PIPESTATUS[0]}
           echo "build_status=$status" >> "$GITHUB_OUTPUT"
           exit "$status"

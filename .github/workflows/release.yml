@@ -23,7 +23,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: "17"
 
       - name: Gradle cache
         uses: gradle/actions/setup-gradle@v3
@@ -37,7 +37,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: platform-tools platforms;android-33 build-tools;33.0.2
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
 
       - name: check for signing secrets
         id: has_signing
