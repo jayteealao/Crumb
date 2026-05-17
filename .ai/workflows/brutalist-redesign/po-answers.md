@@ -108,3 +108,16 @@ A cumulative log of product-owner answers across stages. Newest at the bottom. E
 ### Plan-deviation decisions raised mid-implementation
 - **AGP-Gradle-Kotlin coupling vs bisectable per-step commits:** Combine the coupled bumps into 2 commits, keep the rest sequential. (Ended up needing six commits total to hit green; commits 1 and 2 each bundle a coordination knot, commits 3–6 are one concern each.)
 - **Kotlin 2.3.21 (planned) is incompatible with AGP 9.1.1's bundled KGP 2.2.10:** Accept AGP 9.1.1 + Kotlin 2.2.10 (downgrade locked Kotlin). The audits confirmed no Kotlin-2.3-specific language features in use, so the downgrade is lossless.
+
+## verify — toolchain — 2026-05-17T01:17:12Z
+
+### Interactive AC triage
+- **AC5 (emulator smoke):** I drive partial automation, user confirms visuals. Visual confirmation evidence: `verify-evidence/toolchain/02-home.png` (Crumbs Login/Connect screen rendered with v1.1 cyan accent + cut-corner dark navy buttons).
+- **AC4 (Maestro testTag round-trip):** User confirmed Maestro CLI is installed; ran `maestro hierarchy` dump showing Maestro can address the running app. Full testTag round-trip deferred to maestro slice (no testTag values exist in current codebase to exercise the scaffolding).
+- **AC6 (manual visual diff of regenerated goldens vs pre-bump):** User will run the diff and report back. Recorded as `runtime-evidence-deferrals[1]` in 00-index.md.
+
+### Verify-owned fix
+- **ROOM-NULL-1:** `TweetDao.getLatestBookmark()` widened from `TweetEntity` to `TweetEntity?` (Room 2.8.4 enforces non-null query return contracts where 2.4.3 silently returned null; the app crashed on first launch on a fresh emulator). Both callers in Repository.kt already null-checked the field, so the widening is safe. Committed at `6148b61`.
+
+### Plan deviations noted in verify
+- Runtime smoke ran on `Pixel_9_Pro` (Android 16 / API 36) instead of plan-canonical `Pixel_6_API_34` because the canonical AVD isn't installed on this machine. Runtime smoke purpose unaffected by AVD substitution; goldens still used the Pixel 6 spec via Robolectric (no emulator).

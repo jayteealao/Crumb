@@ -1,0 +1,1 @@
+05-17 02:14:29.158 11057 11091 W Firestore: (24.10.0) [WatchStream]: (aa000db) Stream closed with status: Status{code=CANCELLED, description=Disconnecting idle stream. Timed out waiting for new targets., cause=null}.

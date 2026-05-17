@@ -4,10 +4,10 @@ type: index
 slug: brutalist-redesign
 title: "Replace Crumbs app design with the Brutalist Mono (Option D) handoff, pixel-for-pixel"
 status: active
-current-stage: implement
-stage-number: 5
+current-stage: verify
+stage-number: 6
 created-at: "2026-05-16T21:44:39Z"
-updated-at: "2026-05-17T00:38:34Z"
+updated-at: "2026-05-17T01:17:12Z"
 selected-slice: toolchain
 branch-strategy: dedicated
 branch: "feat/brutalist-redesign"
@@ -82,8 +82,19 @@ stack:
     - {name: "pencil", hint: ".pen design files (handoff is HTML not .pen — n/a)"}
     - {name: "zai-mcp-server", hint: "Image/diagram analysis (could validate against verify-*.jpg references)"}
   user-confirmed: true
-next-command: wf-verify
-next-invocation: "/wf verify brutalist-redesign toolchain"
+next-command: wf-review
+next-invocation: "/wf review brutalist-redesign"
+runtime-evidence-deferrals:
+  - slice: toolchain
+    ac: AC4
+    reason: "Maestro testTag round-trip needs a Modifier.testTag(...) in the codebase; testTags are introduced systematically in the maestro slice. Scaffolding (testTagsAsResourceId at CrumbsTheme:42) is in place; Maestro can already address the running app."
+    deferred-at: "2026-05-17T01:17:12Z"
+    cleared-by: null
+  - slice: toolchain
+    ac: AC6
+    reason: "Manual visual diff of 133 regenerated goldens against pre-bump tree pending maintainer review. Acceptable drift: anti-alias/hinting/banding/material3-ripple. Unacceptable: missing strokes, repositioned elements, color shifts."
+    deferred-at: "2026-05-17T01:17:12Z"
+    cleared-by: null
 workflow-files:
   - 00-index.md
   - 01-intake.md
@@ -100,10 +111,12 @@ workflow-files:
   - 04-plan-toolchain.md
   - 05-implement.md
   - 05-implement-toolchain.md
+  - 06-verify.md
+  - 06-verify-toolchain.md
   - po-answers.md
 slices:
   - slug: toolchain
-    status: implemented
+    status: verified-partial
     complexity: l
     depends-on: []
   - slug: tokens
@@ -136,7 +149,7 @@ progress:
   slice: complete
   plan: in-progress   # toolchain planned + implemented; 6 remaining plans deferred (rolling plans)
   implement: in-progress   # 1/7 slices implemented (toolchain); see 05-implement-toolchain.md
-  verify: not-started
+  verify: in-progress      # 1/7 slices verified-partial (toolchain); 2 runtime-evidence-deferrals
   review: not-started
   handoff: not-started
   ship: not-started
