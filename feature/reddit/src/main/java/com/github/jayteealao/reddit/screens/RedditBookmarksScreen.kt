@@ -248,7 +248,9 @@ fun RedditBookmarksRoute(
                     icon = Icons.Default.Delete,
                     isDanger = true,
                     onClick = {
-                        Timber.d("Reddit long-press: DELETE ${bookmark.id} (TODO behaviors)")
+                        Timber.d("Reddit long-press: DELETE ${bookmark.id}")
+                        redditViewModel.softDelete(bookmark.id)
+                        popupBookmark = null
                     },
                 ),
             ),

@@ -1,18 +1,25 @@
 package com.github.jayteealao.crumbs.screens
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
+import com.github.jayteealao.crumbs.data.BannerState
 import com.github.jayteealao.crumbs.designsystem.components.BottomNavTab
+import com.github.jayteealao.crumbs.designsystem.components.CrumbsBanner
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsBottomNav
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsFilterBar
+import com.github.jayteealao.crumbs.designsystem.components.CrumbsSnackbar
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsTopBar
 import com.github.jayteealao.crumbs.designsystem.components.FilterChipItem
 import com.github.jayteealao.crumbs.designsystem.components.FilterMode
 import com.github.jayteealao.crumbs.designsystem.layouts.HomeScaffold
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 
 @androidx.compose.runtime.Immutable
@@ -21,12 +28,17 @@ data class HomeUiState(
     val isSearchActive: Boolean = false,
     val searchQuery: String = "",
     val filterCount: Int = 0,
+    val selectedFilterChipIds: Set<String> = emptySet(),
+    val bannerState: BannerState? = null,
 )
 
-private val HomeFilterChips = persistentListOf(
+internal val HomeFilterChips: ImmutableList<FilterChipItem> = persistentListOf(
     FilterChipItem("all", "ALL"),
-    FilterChipItem("articles", "ARTICLES"),
-    FilterChipItem("videos", "VIDEOS"),
+    FilterChipItem("article", "ARTICLES"),
+    FilterChipItem("video", "VIDEOS"),
+    FilterChipItem("image", "IMAGES"),
+    FilterChipItem("thread", "THREADS"),
+    FilterChipItem("text", "TEXT"),
 )
 
 @Composable
@@ -35,6 +47,10 @@ fun HomeScreen(
     onTabSelected: (BottomNavTab) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onSearchActiveChange: (Boolean) -> Unit,
+    onChipToggled: (String) -> Unit,
+    onSortClick: () -> Unit,
+    onBannerCta: () -> Unit,
+    snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
     tabContent: @Composable (BottomNavTab, PaddingValues) -> Unit,
 ) {
@@ -50,16 +66,38 @@ fun HomeScreen(
                 onSearchActiveChange = onSearchActiveChange,
             )
         },
+        banner = uiState.bannerState?.let { state ->
+            {
+                AnimatedVisibility(visible = true) {
+                    CrumbsBanner(
+                        kickerLine = state.kicker,
+                        detail = state.detail,
+                        ctaLabel = state.ctaLabel,
+                        onCta = onBannerCta,
+                    )
+                }
+            }
+        },
         filterBar = {
             CrumbsFilterBar(
                 count = uiState.filterCount,
                 chips = HomeFilterChips,
-                selectedChipIds = emptySet(),
-                onChipToggled = { /* TODO behaviors slice */ },
+                selectedChipIds = uiState.selectedFilterChipIds,
+                onChipToggled = onChipToggled,
                 sortLabel = "RECENT",
-                onSortClick = { /* TODO behaviors slice */ },
+                onSortClick = onSortClick,
                 mode = FilterMode.Single,
             )
+        },
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState) { data ->
+                CrumbsSnackbar(
+                    message = data.visuals.message,
+                    actionLabel = data.visuals.actionLabel,
+                    onAction = { data.performAction() },
+                    modifier = Modifier.testTag("snackbar"),
+                )
+            }
         },
         bottomBar = {
             CrumbsBottomNav(
@@ -81,6 +119,10 @@ private fun PreviewHomeLight() {
             onTabSelected = {},
             onSearchQueryChange = {},
             onSearchActiveChange = {},
+            onChipToggled = {},
+            onSortClick = {},
+            onBannerCta = {},
+            snackbarHostState = SnackbarHostState(),
         ) { _, _ -> }
     }
 }
@@ -94,6 +136,35 @@ private fun PreviewHomeDark() {
             onTabSelected = {},
             onSearchQueryChange = {},
             onSearchActiveChange = {},
+            onChipToggled = {},
+            onSortClick = {},
+            onBannerCta = {},
+            snackbarHostState = SnackbarHostState(),
+        ) { _, _ -> }
+    }
+}
+
+@Preview(name = "Home With Banner Light", showBackground = true)
+@Composable
+private fun PreviewHomeBannerLight() {
+    CrumbsTheme(darkTheme = false) {
+        HomeScreen(
+            uiState = HomeUiState(
+                selectedTab = BottomNavTab.TWITTER,
+                bannerState = BannerState(
+                    source = "twitter",
+                    kicker = "ERR · RECONNECT TWITTER",
+                    detail = "Twitter session expired. Tap to reconnect.",
+                    ctaLabel = "RECONNECT",
+                ),
+            ),
+            onTabSelected = {},
+            onSearchQueryChange = {},
+            onSearchActiveChange = {},
+            onChipToggled = {},
+            onSortClick = {},
+            onBannerCta = {},
+            snackbarHostState = SnackbarHostState(),
         ) { _, _ -> }
     }
 }

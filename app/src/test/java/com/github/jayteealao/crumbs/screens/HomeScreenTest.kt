@@ -4,13 +4,16 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
+import com.dropbox.differ.SimpleImageComparator
+import com.github.jayteealao.crumbs.data.BannerState
+import com.github.jayteealao.crumbs.data.BookmarkSource
 import com.github.jayteealao.crumbs.designsystem.components.BottomNavTab
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
-import com.dropbox.differ.SimpleImageComparator
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Rule
@@ -44,6 +47,10 @@ class HomeScreenTest {
                     onTabSelected = {},
                     onSearchQueryChange = {},
                     onSearchActiveChange = {},
+                    onChipToggled = {},
+                    onSortClick = {},
+                    onBannerCta = {},
+                    snackbarHostState = SnackbarHostState(),
                 ) { _, _ ->
                     Box(
                         Modifier
@@ -68,6 +75,10 @@ class HomeScreenTest {
                     onTabSelected = {},
                     onSearchQueryChange = {},
                     onSearchActiveChange = {},
+                    onChipToggled = {},
+                    onSortClick = {},
+                    onBannerCta = {},
+                    snackbarHostState = SnackbarHostState(),
                 ) { _, _ ->
                     Box(
                         Modifier
@@ -80,5 +91,77 @@ class HomeScreenTest {
         composeTestRule.waitForIdle()
         composeTestRule.onRoot()
             .captureRoboImage("src/test/screenshots/HomeScreen_all_dark.png", options)
+    }
+
+    @Test
+    fun homeScreen_withSyncErrorBanner_light() {
+        composeTestRule.mainClock.autoAdvance = false
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = false) {
+                HomeScreen(
+                    uiState = HomeUiState(
+                        selectedTab = BottomNavTab.TWITTER,
+                        bannerState = BannerState(
+                            source = BookmarkSource.TWITTER,
+                            kicker = "ERR · RECONNECT TWITTER",
+                            detail = "Twitter session expired. Tap to reconnect.",
+                            ctaLabel = "RECONNECT",
+                        ),
+                    ),
+                    onTabSelected = {},
+                    onSearchQueryChange = {},
+                    onSearchActiveChange = {},
+                    onChipToggled = {},
+                    onSortClick = {},
+                    onBannerCta = {},
+                    snackbarHostState = SnackbarHostState(),
+                ) { _, _ ->
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(LocalCrumbsColors.current.surface),
+                    )
+                }
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/HomeScreen_withSyncErrorBanner_light.png", options)
+    }
+
+    @Test
+    fun homeScreen_withSyncErrorBanner_dark() {
+        composeTestRule.mainClock.autoAdvance = false
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = true) {
+                HomeScreen(
+                    uiState = HomeUiState(
+                        selectedTab = BottomNavTab.REDDIT,
+                        bannerState = BannerState(
+                            source = BookmarkSource.REDDIT,
+                            kicker = "ERR · RECONNECT REDDIT",
+                            detail = "Reddit session expired. Tap to reconnect.",
+                            ctaLabel = "RECONNECT",
+                        ),
+                    ),
+                    onTabSelected = {},
+                    onSearchQueryChange = {},
+                    onSearchActiveChange = {},
+                    onChipToggled = {},
+                    onSortClick = {},
+                    onBannerCta = {},
+                    snackbarHostState = SnackbarHostState(),
+                ) { _, _ ->
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(LocalCrumbsColors.current.surface),
+                    )
+                }
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/HomeScreen_withSyncErrorBanner_dark.png", options)
     }
 }

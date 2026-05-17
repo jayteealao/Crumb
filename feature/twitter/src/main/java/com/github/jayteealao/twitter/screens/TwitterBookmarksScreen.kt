@@ -253,14 +253,15 @@ fun TwitterBookmarksRoute(
                     },
                 ),
                 PopupAction(
-                    id = "logout",
-                    label = "LOGOUT",
-                    hint = "Exit",
-                    icon = Icons.Default.Logout,
+                    id = "delete",
+                    label = "DELETE",
+                    hint = "Remove",
+                    icon = Icons.Default.Delete,
                     isDanger = true,
                     onClick = {
-                        Timber.d("Twitter long-press: LOGOUT")
-                        bookmarksViewModel.logout()
+                        Timber.d("Twitter long-press: DELETE ${bookmark.id}")
+                        bookmarksViewModel.softDelete(bookmark.id)
+                        popupBookmark = null
                     },
                 ),
             ),

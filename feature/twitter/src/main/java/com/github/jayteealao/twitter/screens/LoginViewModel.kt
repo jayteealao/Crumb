@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.jayteealao.twitter.data.AuthRepository
+import com.github.jayteealao.twitter.data.Prefs
 import com.github.jayteealao.twitter.models.TokenResponse
 import com.github.jayteealao.twitter.models.TwitterUser
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -14,7 +15,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class LoginViewModel @Inject constructor(
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val authPref: Prefs,
 ) : ViewModel() {
 
     private var _isAccessTokenAvailable: MutableStateFlow<Boolean> = MutableStateFlow(false)
@@ -52,5 +54,12 @@ class LoginViewModel @Inject constructor(
 
     fun authIntent(): Intent {
         return authRepository.getAuthorizationCodeIntent()
+    }
+
+    fun logout() {
+        viewModelScope.launch {
+            authPref.clearAllTokens()
+            _isAccessTokenAvailable.value = false
+        }
     }
 }

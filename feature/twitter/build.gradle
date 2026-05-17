@@ -56,6 +56,7 @@ dependencies {
     implementation(project(":core:pref"))
     implementation(project(":core:models"))
     implementation(project(":core:designsystem"))
+    implementation(project(":core:data"))
 
     implementation(platform(libs.compose.bom))
     implementation(libs.bundles.androidx)

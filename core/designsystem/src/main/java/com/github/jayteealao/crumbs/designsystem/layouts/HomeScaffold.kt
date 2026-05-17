@@ -36,7 +36,9 @@ fun HomeScaffold(
     topBar: @Composable () -> Unit,
     bottomBar: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    banner: (@Composable () -> Unit)? = null,
     filterBar: (@Composable () -> Unit)? = null,
+    snackbarHost: @Composable () -> Unit = {},
     contentWindowInsets: WindowInsets = ScaffoldDefaults.contentWindowInsets,
     content: @Composable (PaddingValues) -> Unit,
 ) {
@@ -46,6 +48,7 @@ fun HomeScaffold(
         containerColor = colors.background,
         contentColor = colors.ink,
         contentWindowInsets = contentWindowInsets,
+        snackbarHost = snackbarHost,
         topBar = {
             Column(
                 Modifier
@@ -53,6 +56,11 @@ fun HomeScaffold(
                     .testTag("home-scaffold-topbar")
             ) {
                 topBar()
+                if (banner != null) {
+                    Box(Modifier.testTag("home-scaffold-banner")) {
+                        banner()
+                    }
+                }
                 if (filterBar != null) {
                     Box(Modifier.testTag("home-scaffold-filterbar")) {
                         filterBar()

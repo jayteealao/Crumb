@@ -5,18 +5,18 @@ slug: brutalist-redesign
 status: in-progress
 stage-number: 5
 created-at: "2026-05-17T00:38:34Z"
-updated-at: "2026-05-17T17:36:42Z"
-slices-implemented: 6
+updated-at: "2026-05-17T23:22:26Z"
+slices-implemented: 7
 slices-total: 8
-metric-total-files-changed: 244
-metric-total-lines-added: 5346
-metric-total-lines-removed: 9581
-tags: [redesign, toolchain, tokens, quick-skip-auth-page, components, layouts, screens]
+metric-total-files-changed: 278
+metric-total-lines-added: 6115
+metric-total-lines-removed: 9659
+tags: [redesign, toolchain, tokens, quick-skip-auth-page, components, layouts, screens, behaviors]
 refs:
   index: 00-index.md
   plan-index: 04-plan.md
 next-command: wf-verify
-next-invocation: "/wf verify brutalist-redesign screens"
+next-invocation: "/wf verify brutalist-redesign behaviors"
 ---
 
 # Implement Index
@@ -89,18 +89,22 @@ next-invocation: "/wf verify brutalist-redesign screens"
 - Verify-stage owns: AC-S1 (≥95% maintainer manual diff against Option D mocks — runtime deferral), AC-S2 (Maestro happy-path — collapses onto `maestro` slice), AC line 70 (long-press popup 4 actions — popup component already covered by components slice, end-to-end is Maestro).
 - `LoginViewModel` and `RedditViewModel` byte-stable across this slice. AC line 71 (OAuth flows unchanged) closed at diff-level + by two callback assertions in `LoginScreenTest`.
 
-### `behaviors`, `maestro` — not yet planned
+### `behaviors` — complete
 
-Per the rolling-plan strategy in [04-plan.md](04-plan.md). The `behaviors` slice owns:
-- Real fingertip Offset routing from `CrumbsBookmarkCard.onLongPress(bookmark, offsetPx)` into `CrumbsLongPressPopup.anchorOffsetPx`.
-- ARCHIVE action behavioral semantics (hide-from-feed, retrievable via settings).
-- `Modifier.dropShadow` follow-up (BookmarkCard pressed-state + LongPressPopup container).
-- Snackbar timer + soft-delete tombstone state machine.
-- Banner trigger (sync-error 401).
-- Reconciling the Twitter screen's 4th `Logout` popup action against the canonical handoff Screen 5 layout.
+- One atomic commit on `feat/brutalist-redesign`. See [05-implement-behaviors.md](05-implement-behaviors.md).
+- 34 files changed (10 new in new `core/data` module + 6 build/settings + 4 database + 6 Twitter feature + 4 Reddit feature + 2 design system + 5 app screens/routes + 1 instrumentation test + 8 PNG goldens); +769/-78 in source/build.
+- New `core/data` shared module unblocks cross-module DAO access (depended on by `app`, `feature/twitter`, `feature/reddit`).
+- AppDatabase v4 → v5 migration with new `deleted_bookmarks` tombstone table + `MigrationTestHelper`-driven instrumentation test (`MigrationTest.kt`).
+- Build + lint + `recordRoborazziDebug` + `verifyRoborazziDebug` + `assembleDebug` + `aapt dump badging` (versionCode=3 versionName=2.0) all green across 4 modules.
+- 6 plan deviations: (1) `AllBookmarksViewModel` not introduced (existing per-tab VMs cover), (2) `TypeFilter` enum wired but DAO predicate is tombstone-only since `tweetEntity.type` doesn't exist, (3) `MIGRATION_4_5` lives as top-level val so test can reference it, (4) `SyncErrorBus` + `DeletedBookmarkRepository` bundled into a `HomeServicesViewModel` for hilt-compose injection, (5) per-tab banner state without per-VM `lastError` replay, (6) chip set expanded 3→6 to match TypeFilter enum (existing goldens re-recorded).
+- Verify-stage owns: 6 new runtime-evidence-deferrals for interactive ACs (lines 92, 93, 95, 96, 97, 98 — all collapse onto maestro), plus follow-up tracking for the `tweetEntity.type` derivation and the OverlayShell tag-filter UI (not delivered in-stage).
+
+### `maestro` — not yet planned
+
+Per the rolling-plan strategy in [04-plan.md](04-plan.md). Consumes behaviors' testTag inventory + sync-error trigger pathway + popup-DELETE wiring + LOGOUT relocation + snackbar event flow.
 
 ## Recommended Next Stage
 
-- **Option A (default):** `/wf verify brutalist-redesign screens` — automated gates already green (compile + assembleDebug + recordRoborazziDebug + verifyRoborazziDebug + lintDebug); verify stage owns AC adjudication, AC-S1 maintainer-diff deferral registration, AC-S2 + AC line 70 collapse onto Maestro slice. **Compact recommended** — implementation context is noise for verification.
-- **Option B:** `/wf plan brutalist-redesign behaviors` — start the next slice's plan; behaviors slice consumes this slice's testTag scaffolding + popup-action `TODO()` stubs + filter-chip empty state.
-- **Option C:** `/wf review brutalist-redesign screens` — skip verify; less recommended since AC-S1 manual diff benefits from explicit deferral bookkeeping at verify-stage before review.
+- **Option A (default):** `/wf verify brutalist-redesign behaviors` — automated gates already green (`assembleDebug` ✓, `recordRoborazziDebug` ✓ across 4 modules, `verifyRoborazziDebug` ✓ across 4 modules, `lintDebug` ✓ across 4 modules, `aapt dump badging` ✓ versionCode 3 versionName 2.0). Verify stage owns AC adjudication, 6 new runtime-evidence-deferrals (lines 92, 93, 95, 96, 97, 98), and registers `tweetEntity.type` derivation as a follow-up. **Compact recommended** — implementation context is noise for verification.
+- **Option B:** `/wf plan brutalist-redesign maestro` — start the final slice's plan; maestro slice now has everything it needs (every wired behavior + 11 prior + 6 new runtime-evidence-deferrals).
+- **Option C:** `/wf review brutalist-redesign` — slug-wide review now possible since the full feature surface is implemented; less recommended than Option A since verify-behaviors adjudication should land first.

@@ -75,6 +75,52 @@ class HomeScaffoldTest {
         composeTestRule.onRoot()
             .captureRoboImage("src/test/screenshots/HomeScaffold_default_dark.png")
     }
+
+    @Test
+    fun homeScaffold_withBanner_light() {
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = false) {
+                HomeScaffold(
+                    topBar = { StubBlock(label = "topBar", heightDp = 88) },
+                    banner = { StubBlock(label = "ERR · RECONNECT TWITTER", heightDp = 56) },
+                    filterBar = { StubBlock(label = "filterBar", heightDp = 34) },
+                    bottomBar = { StubBlock(label = "bottomBar", heightDp = 52) },
+                ) { padding ->
+                    Box(
+                        Modifier
+                            .padding(padding)
+                            .fillMaxSize()
+                            .background(LocalCrumbsColors.current.surface),
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/HomeScaffold_withBanner_light.png")
+    }
+
+    @Test
+    fun homeScaffold_withBanner_dark() {
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = true) {
+                HomeScaffold(
+                    topBar = { StubBlock(label = "topBar", heightDp = 88) },
+                    banner = { StubBlock(label = "ERR · RECONNECT TWITTER", heightDp = 56) },
+                    filterBar = { StubBlock(label = "filterBar", heightDp = 34) },
+                    bottomBar = { StubBlock(label = "bottomBar", heightDp = 52) },
+                ) { padding ->
+                    Box(
+                        Modifier
+                            .padding(padding)
+                            .fillMaxSize()
+                            .background(LocalCrumbsColors.current.surface),
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/HomeScaffold_withBanner_dark.png")
+    }
 }
 
 @Composable

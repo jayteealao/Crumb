@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.github.jayteealao.crumbs.data.DeletedBookmarkDao
 import com.github.jayteealao.crumbs.db.AppDatabase
 import com.github.jayteealao.reddit.data.RedditDao
 import com.github.jayteealao.twitter.data.TweetDao
@@ -122,7 +123,7 @@ class DatabaseModule {
         AppDatabase::class.java,
         "AppDatabase"
     )
-        .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+        .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
         .build()
 
     @Singleton
@@ -132,4 +133,21 @@ class DatabaseModule {
     @Singleton
     @Provides
     fun providesRedditDao(appDatabase: AppDatabase): RedditDao = appDatabase.redditDao()
+
+    @Singleton
+    @Provides
+    fun providesDeletedBookmarkDao(appDatabase: AppDatabase): DeletedBookmarkDao = appDatabase.deletedBookmarkDao()
+}
+
+val MIGRATION_4_5: Migration = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS `deleted_bookmarks` (
+                `bookmarkId` TEXT NOT NULL,
+                `source` TEXT NOT NULL,
+                `deletedAt` INTEGER NOT NULL,
+                PRIMARY KEY(`bookmarkId`)
+            )
+        """.trimIndent())
+    }
 }

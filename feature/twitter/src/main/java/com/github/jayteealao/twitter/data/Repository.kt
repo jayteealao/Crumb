@@ -2,9 +2,16 @@ package com.github.jayteealao.twitter.data
 
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
+import androidx.paging.PagingData
+import com.github.jayteealao.crumbs.data.BookmarkSource
+import com.github.jayteealao.crumbs.data.DeletedBookmarkRepository
+import com.github.jayteealao.crumbs.data.FilterState
+import com.github.jayteealao.crumbs.data.SyncErrorBus
+import com.github.jayteealao.crumbs.data.SyncErrorEvent
 import com.github.jayteealao.crumbs.utils.produceTweetResponseEntities
 import com.github.jayteealao.twitter.data.firestore.FirestoreRepository
 import com.github.jayteealao.twitter.models.TagEntity
+import com.github.jayteealao.twitter.models.TweetData
 import com.github.jayteealao.twitter.models.TweetEntities
 import com.github.jayteealao.twitter.models.TweetEntity
 import com.github.jayteealao.twitter.models.TweetTagCrossRef
@@ -14,6 +21,7 @@ import com.github.jayteealao.twitter.services.TwitterAuthClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.consumeEach
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -33,6 +41,8 @@ class Repository @Inject constructor(
     private val twitterApiClient: TwitterApiClient,
     private val twitterAuthClient: TwitterAuthClient,
     private val firestoreRepository: FirestoreRepository,
+    private val deletedBookmarkRepository: DeletedBookmarkRepository,
+    private val syncErrorBus: SyncErrorBus,
     private val scope: CoroutineScope
 ) {
     private var latestBookmarkInDatabase: TweetEntity? = null
@@ -82,7 +92,9 @@ class Repository @Inject constructor(
                 firestoreTweets.forEach { tweetEntities ->
                     currentOrder++
                     val orderedEntities = tweetEntitiesToOrderLens.modify(tweetEntities) { currentOrder }
-                    saveTweetEntities(orderedEntities, uploadToFirestore = false)
+                    if (!deletedBookmarkRepository.isDeleted(orderedEntities.tweetEntity.id)) {
+                        saveTweetEntities(orderedEntities, uploadToFirestore = false)
+                    }
                 }
                 Timber.d("Synced ${firestoreTweets.size} tweets from Firestore to local database")
             }
@@ -155,7 +167,10 @@ class Repository @Inject constructor(
                     scope.produceTweetResponseEntities(
                         refreshToken,
                         latestIdInDb = latestBookmarkInDatabase?.id,
-                        onError = { twitterAuthClient.refreshAccessToken(refreshToken) }
+                        onError = {
+                            syncErrorBus.emit(SyncErrorEvent.TwitterAuth401())
+                            twitterAuthClient.refreshAccessToken(refreshToken)
+                        }
                     ) {
                         twitterApiClient.getBookmarks(
                             "Bearer $accessCode",
@@ -168,7 +183,9 @@ class Repository @Inject constructor(
                     it.data.forEach {
                         val order = orderStart
                         scope.launch(Dispatchers.IO) {
-                            saveTweetEntities(tweetEntitiesToOrderLens.modify(it) { order })
+                            if (!deletedBookmarkRepository.isDeleted(it.tweetEntity.id)) {
+                                saveTweetEntities(tweetEntitiesToOrderLens.modify(it) { order })
+                            }
                         }
                         orderStart--
                     }
@@ -191,6 +208,26 @@ class Repository @Inject constructor(
     }
 
     fun pagingTweetData() = pager.flow
+
+    fun pagingTweetData(filter: FilterState): Flow<PagingData<TweetData>> {
+        val pagingSource = if (filter.selectedTags.isNotEmpty()) {
+            { tweetDao.getTweetsByTagsTombstoneAware(filter.selectedTags.toList()) }
+        } else {
+            { tweetDao.getTweetsTombstoneAware() }
+        }
+        return Pager(
+            config = PagingConfig(pageSize = 20),
+            pagingSourceFactory = pagingSource,
+        ).flow
+    }
+
+    suspend fun softDelete(id: String) {
+        deletedBookmarkRepository.softDelete(id, BookmarkSource.TWITTER)
+    }
+
+    suspend fun undoDelete(id: String) {
+        deletedBookmarkRepository.undoDelete(id)
+    }
 
     // Tag operations
     suspend fun addTagToTweet(tweetId: String, tagName: String) {

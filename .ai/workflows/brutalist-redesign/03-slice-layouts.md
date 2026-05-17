@@ -3,10 +3,10 @@ schema: sdlc/v1
 type: slice
 slug: brutalist-redesign
 slice-slug: layouts
-status: implemented
+status: verified-partial
 stage-number: 3
 created-at: "2026-05-16T22:37:59Z"
-updated-at: "2026-05-17T15:24:46Z"
+updated-at: "2026-05-17T16:05:31Z"
 complexity: s
 depends-on: [components]
 tags: [layouts, scaffolds, brutalist]

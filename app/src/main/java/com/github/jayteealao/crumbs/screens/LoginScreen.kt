@@ -47,6 +47,8 @@ fun LoginScreen(
     onConnectTwitter: () -> Unit,
     onConnectReddit: () -> Unit,
     onSkipAuth: () -> Unit,
+    onLogoutTwitter: () -> Unit = {},
+    onLogoutReddit: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalCrumbsColors.current
@@ -97,6 +99,15 @@ fun LoginScreen(
                 size = ProfileSize.Medium,
                 modifier = Modifier.testTag("login-twitter-profile"),
             )
+            Spacer(modifier = Modifier.height(spacing.sm))
+            CrumbsButton(
+                onClick = onLogoutTwitter,
+                text = "LOGOUT TWITTER",
+                style = ButtonStyle.Secondary,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("login-twitter-logout"),
+            )
         } else {
             CrumbsButton(
                 onClick = onConnectTwitter,
@@ -120,6 +131,15 @@ fun LoginScreen(
                 ),
                 size = ProfileSize.Medium,
                 modifier = Modifier.testTag("login-reddit-profile"),
+            )
+            Spacer(modifier = Modifier.height(spacing.sm))
+            CrumbsButton(
+                onClick = onLogoutReddit,
+                text = "LOGOUT REDDIT",
+                style = ButtonStyle.Secondary,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("login-reddit-logout"),
             )
         } else {
             CrumbsButton(

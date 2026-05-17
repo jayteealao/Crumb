@@ -5,9 +5,9 @@ slug: brutalist-redesign
 status: complete
 stage-number: 4
 created-at: "2026-05-16T22:37:59Z"
-updated-at: "2026-05-17T16:15:10Z"
+updated-at: "2026-05-17T21:19:04Z"
 planning-mode: rolling
-slices-planned: 5
+slices-planned: 6
 slices-total: 7
 implementation-order: [toolchain, tokens, components, layouts, screens, behaviors, maestro]
 conflicts-found: 0
@@ -16,7 +16,7 @@ refs:
   index: 00-index.md
   slice-index: 03-slice.md
 next-command: wf-implement
-next-invocation: "/wf implement brutalist-redesign screens"
+next-invocation: "/wf implement brutalist-redesign behaviors"
 ---
 
 # Plan Index
@@ -67,9 +67,14 @@ This is a **rolling plan index**. The chain of slices is strictly linear (toolch
 - **Cross-slice impact:** NavHost route-call updates in `Crumbs.kt` (4 calls: Splash/Onboarding/Login/Home → XxxRoute). Roborazzi plugin enablement spreads to 3 new modules. Edge-to-edge inset issue from layouts slice closes here — every screen migrates to `HomeScaffold` or to `Modifier.windowInsetsPadding(WindowInsets.safeDrawing)`. AC-L2 (HomeScaffold inset measurement on a live system bar) from the layouts slice's `runtime-evidence-deferrals` discharges naturally during this slice's verify when a host screen first composes `HomeScaffold` on Medium_Phone_API_36. AC-S1 (≥95% mock fidelity, maintainer manual diff) + AC-S2 (Maestro happy-path) register as new deferrals at verify-stage.
 - **See:** [04-plan-screens.md](04-plan-screens.md).
 
-### `behaviors` *(deferred)*
+### `behaviors` *(planned)*
 
-Wire 4 implied behaviors + `deleted_bookmarks` Room table + tombstone-aware sync filter + version bump to 2.0/3. Plan after `screens` lands.
+- **Files to touch:** ~32 — new `core/data` module (5 source files: `DeletedBookmark`, `DeletedBookmarkDao`, `DeletedBookmarkRepository`, `SnackbarEvent`, `SyncErrorEvent` + `SyncErrorBus` + `TypeFilter` + `FilterState`), `AppDatabase` version bump 4→5, `DatabaseModule` new `MIGRATION_4_5` + DAO provider, app/feature build.gradles add `core/data` dep, `room-testing` libs alias, `app/build.gradle` `versionCode 3` / `versionName "2.0"` + androidTest assets srcDir, new `MigrationTest.kt` (first instrumentation test in the repo), `HomeScaffold` gains hoisted `banner` slot + 2 new goldens, feature/twitter `Repository` + `BookmarksViewModel` + feature/reddit `RedditRepository` + `RedditViewModel` gain tombstone filter + filter state + sync-error event emission (additive, OAuth-client untouched), new `AllBookmarksViewModel` in `app/` to own the All-tab filter state + combined paging, `HomeRoute` rewritten to lift filter + banner state from active tab's VM, popup DELETE stubs replaced with `softDelete()` in 3 Routes (Twitter's LOGOUT migrates to LoginScreen), `SnackbarHostState` consumes `DeletedBookmarkRepository.events` at HomeRoute scope, LoginScreen gains per-provider LOGOUT button when authed, 4-6 new Roborazzi goldens (HomeScaffold-with-banner ×2, HomeScreen-with-syncErrorBanner ×2, LoginScreen-loggedIn ×2), exported `5.json` schema.
+- **Strategy:** Single atomic commit. Order: scaffold `core/data` module → wire AppDatabase + Hilt + migration test → extend HomeScaffold banner slot → wire Twitter sync filter + filter state + banner emission → mirror on Reddit → introduce AllBookmarksViewModel → rewrite HomeRoute lifting → replace DELETE stubs (and Twitter's LOGOUT→DELETE swap) → add LoginScreen LOGOUT → wire SnackbarHostState → version bump → record + verify goldens → lint/assemble/test gates → commit. Migration validated on `Medium_Phone_API_36` AVD before any UI work proceeds.
+- **Key risk:** Cross-module DAO access (resolved by new `core/data` module — PO Round 1 Q1); `tweetEntity.type` column may not exist and the Type filter may need to derive from existing joins; AllBookmarks combined paging interleave is non-trivial (plan recommends two-section LazyColumn rather than `MediatorPagingSource`); `SnackbarDuration.Short` ≈ 4s vs spec's 5s (cosmetic; falls back to manual `delay(5000)` if strict).
+- **PO decisions captured (8 across 2 rounds):** tombstone module = new `core/data`; Collection filter = reinterpreted as tag-set facet (no schema for collections); banner slot = hoisted on HomeScaffold with call-site AnimatedVisibility; 4th popup action = uniform DELETE across all three Routes (Twitter's LOGOUT migrates to LoginScreen per-provider); LOGOUT placement = LoginScreen when authed; filter state ownership = per-tab VM (each tab independent); TypeFilter values = `ALL/ARTICLE/VIDEO/IMAGE/THREAD/TEXT`; migration AVD = `Medium_Phone_API_36` (continuity with prior slices; slice text "Pixel 6 API 34" updated at verify).
+- **Cross-slice impact:** First DB schema change in the workflow (v4 → v5 additive `deleted_bookmarks` table). First instrumentation test in the repo. First `core/data` module addition. New `HomeScaffold.banner` slot is additive — does not break the screens slice's existing `HomeScaffold` callers. Twitter's LOGOUT relocation requires LoginScreen to gain `twitterConnected`/`redditConnected` UI state. Reddit gains a small additive `RedditViewModel.logout()` method (clears local pref store; no OAuth-client touch). Maestro slice will own the 6 interactive ACs (lines 92, 93, 95, 96, 97, 98) that register as runtime-evidence-deferrals at verify-stage.
+- **See:** [04-plan-behaviors.md](04-plan-behaviors.md).
 
 ### `maestro` *(deferred)*
 
@@ -105,8 +110,8 @@ No parallel integration points exist unless the `screens` re-split clause fires 
 2. **`tokens`** *(implemented + verified-partial)* — type contract for all downstream. Included orphan-component deletion pulled forward from the components slice.
 3. **`components`** *(implemented + verified-partial)* — 12 active rebuilds + 4 new components + QuickActionMenu retirement + scan-line motion + Roborazzi tolerance config + kotlinx.immutable adoption.
 4. **`layouts`** *(implemented + verified-partial)* — HomeScaffold / OverlayShell / OnboardingShell + MainActivity edge-to-edge enablement.
-5. **`screens`** *(planned, ready to implement)* — 8 screen rewrites with Route/Screen split, 3-module Roborazzi enablement, hard-rewrite of feature screens, Accompanist Pager retired. Resplit ruled out at plan stage; single atomic commit.
-6. **`behaviors`** *(plan after screens ships)* — wiring + DB schema.
+5. **`screens`** *(implemented + verified-partial)* — 8 screen rewrites with Route/Screen split, 3-module Roborazzi enablement, hard-rewrite of feature screens, Accompanist Pager retired. Resplit ruled out at plan stage; single atomic commit.
+6. **`behaviors`** *(planned, ready to implement)* — wiring + DB schema. New `core/data` module hosts `DeletedBookmark` + DAO + tombstone repo + filter/event types. AppDatabase v4 → v5 with additive migration. Hoisted `banner` slot on HomeScaffold. Per-tab filter state ownership. Twitter LOGOUT migrates to LoginScreen. Six interactive ACs register as runtime-evidence-deferrals at verify-stage; `maestro` slice clears.
 7. **`maestro`** *(plan after behaviors ships)* — end-to-end coverage.
 
 ## Conflicts Found
@@ -131,7 +136,7 @@ Captured in detail in [04-plan-toolchain.md](04-plan-toolchain.md) `## Freshness
 
 ## Recommended Next Stage
 
-- **Option A (default):** `/wf implement brutalist-redesign screens` — execute the screens plan. 16-step atomic commit; clear scope; every upstream API at `verified-partial`. **Compact first** — planning research (4 sub-agent reports + 2 discovery rounds) is noise for the implement loop; PreCompact hook preserves workflow state on disk.
-- **Option B:** `/wf plan brutalist-redesign screens <feedback>` — revise this slice's plan if any of the 8 PO discovery answers feels wrong on second read (e.g. reconsider hard-rewrite for feature screens, or revisit Route/Screen split scope).
-- **Option C:** `/wf review brutalist-redesign layouts` — open a per-slice spot-review on layouts before extending the diff. `review-scope: slug-wide` means the load-bearing review runs at the end of the slice chain, but per-slice signal is still valid.
-- **Option D:** `/wf slice brutalist-redesign` — revisit slice boundaries. **Not recommended** — discovery resolved the resplit question explicitly (Round 2 Q5 → keep single slice). No boundary problem surfaced during planning.
+- **Option A (default):** `/wf implement brutalist-redesign behaviors` — execute the behaviors plan. 18-step atomic commit with 8 PO-locked decisions. **Compact first** — planning research (3 sub-agent reports + 2 discovery rounds) is noise for the implement loop; PreCompact hook preserves workflow state on disk.
+- **Option B:** `/wf review brutalist-redesign screens` — open the per-slice review on the screens slice before extending the diff. `review-scope: slug-wide` means the load-bearing review runs at the end of the slice chain, but per-slice signal is still valid.
+- **Option C:** `/wf plan brutalist-redesign maestro` — start the next slice's plan in parallel. Maestro slice depends on behaviors landing first to test against, but its plan can be drafted against this slice's testTag inventory + AC list now. Useful for unblocking maestro work as soon as behaviors implements.
+- **Option D:** `/wf-quick probe brutalist-redesign` — single emulator+Maestro probe run to discharge the 11 existing runtime-evidence-deferrals before behaviors ships. Not blocking, but consolidates prior verification debt.

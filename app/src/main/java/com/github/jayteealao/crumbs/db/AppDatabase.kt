@@ -2,6 +2,8 @@ package com.github.jayteealao.crumbs.db
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import com.github.jayteealao.crumbs.data.DeletedBookmark
+import com.github.jayteealao.crumbs.data.DeletedBookmarkDao
 import com.github.jayteealao.reddit.data.RedditDao
 import com.github.jayteealao.reddit.models.RedditPostEntity
 import com.github.jayteealao.twitter.data.TweetDao
@@ -32,12 +34,14 @@ import com.github.jayteealao.twitter.models.TwitterUserEntity
         MediaKeys::class,
         TagEntity::class,
         TweetTagCrossRef::class,
-        RedditPostEntity::class
+        RedditPostEntity::class,
+        DeletedBookmark::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun tweetDao(): TweetDao
     abstract fun redditDao(): RedditDao
+    abstract fun deletedBookmarkDao(): DeletedBookmarkDao
 }

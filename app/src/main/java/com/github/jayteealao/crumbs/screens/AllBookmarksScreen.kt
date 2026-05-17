@@ -303,8 +303,12 @@ fun AllBookmarksRoute(
                     icon = Icons.Default.Delete,
                     isDanger = true,
                     onClick = {
-                        // behaviors slice wires soft-delete + tombstone
-                        Timber.d("AllBookmarks long-press: DELETE ${bookmark.id} (TODO behaviors)")
+                        Timber.d("AllBookmarks long-press: DELETE ${bookmark.id}")
+                        when (bookmark.source) {
+                            BookmarkSource.Twitter -> bookmarksViewModel.softDelete(bookmark.id)
+                            BookmarkSource.Reddit -> redditViewModel.softDelete(bookmark.id)
+                        }
+                        popupBookmark = null
                     },
                 ),
             ),

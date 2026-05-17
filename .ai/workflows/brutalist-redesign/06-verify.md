@@ -5,15 +5,15 @@ slug: brutalist-redesign
 status: in-progress
 stage-number: 6
 created-at: "2026-05-17T01:17:12Z"
-updated-at: "2026-05-17T13:29:48Z"
-slices-verified: 3
+updated-at: "2026-05-17T19:13:28Z"
+slices-verified: 5
 slices-total: 7
-tags: [redesign, toolchain, tokens, components, verify-owned-fix, runtime-evidence-deferral]
+tags: [redesign, toolchain, tokens, components, layouts, screens, verify-owned-fix, runtime-evidence-deferral]
 refs:
   index: 00-index.md
   implement-index: 05-implement.md
 next-command: wf-review
-next-invocation: "/wf review brutalist-redesign components"
+next-invocation: "/wf review brutalist-redesign screens"
 ---
 
 # Verify Index
@@ -51,20 +51,43 @@ next-invocation: "/wf review brutalist-redesign components"
 - `bootstrap-failures: []`; `adapters-used: []` (no adapter bootstrap needed — both user-observable ACs satisfied via static evidence/deferral).
 - See: [06-verify-components.md](06-verify-components.md).
 
-### `layouts` through `maestro` — not yet verified
+### `layouts` — partial (not-needed)
+
+- `result: partial` — `interactive-verification: deferred` for two procedural transfers: AC-L2 precise-inset measurement (Robolectric `WindowInsets(0)` cannot expose 28/88/34/52+8dp gaps; first real HomeScaffold consumer in the screens slice will measure on a live system bar) and AC-L5 Maestro studio testTag round-trip (deferred to the dedicated maestro slice on the established pattern).
+- `convergence: not-needed` — zero failing checks and zero substantively-unmet user-observable ACs entered the fix loop. `metric-issues-found-initial: 0`.
+- `metric-acceptance-met: 3 / 5` (AC-L1 file existence, AC-L3 backdrop dismiss via Compose UI test, AC-L4 indicator + CTA via Roborazzi — all fully met; AC-L2 slot composition met + inset measurement deferred; AC-L5 deferred).
+- `metric-checks-passed: 5 / 5` — `testDebugUnitTest` (7 layout tests pass), `verifyRoborazziDebug`, `assembleDebug`, `lintDebug`, and the AC-L1 file-existence gate all green.
+- AC-L3 OverlayShell backdrop dismiss closed entirely in-slice via `OverlayShellTest.backdrop_tap_invokes_onDismiss` — Compose UI test performs `performClick()` on `overlay-shell-backdrop` testTag and asserts the dismiss callback fires.
+- AC-L4 OnboardingShell evidence confirms 3-pill indicator with accent on current page (`page0_light` shows accent at index 0; `page1_dark` shows accent migrates to index 1) and right-aligned NEXT CTA in brutalist Primary style.
+- `bootstrap-failures: []`; `adapters-used: []` (every user-observable AC satisfied via static UI test, Roborazzi capture, or explicit deferral — no live adapter bootstrap required).
+- See: [06-verify-layouts.md](06-verify-layouts.md).
+
+### `screens` — partial (not-needed)
+
+- `result: partial` — five `interactive-verification: deferred` annotations: AC-S1 + AC-S2 (subjective ≥95% mock-fidelity adjudication, maintainer-owned manual diff) and AC-S4 + AC-S6 nav half + AC-S7 (emulator/Maestro-shaped, collapses onto the dedicated maestro slice).
+- `convergence: not-needed` — zero failing checks and zero substantively-unmet user-observable ACs entered the fix loop. `metric-issues-found-initial: 0`.
+- `metric-acceptance-met: 3 / 8` — AC-S3 Accompanist source removal (grep clean + TwitterCard.kt orphan deleted), AC-S5 MapView placeholder (Roborazzi + map-SDK grep both clean), AC-S8 OAuth ViewModel byte-stability (`git log --diff-filter=M` empty + LoginScreen callback assertions in test) fully met. AC-S1/S2/S6 partially met (automated half met, runtime half deferred). AC-S4/S7 deferred outright.
+- `metric-checks-passed: 6 / 6` — `:app:lintDebug`, `:feature:twitter:lintDebug`, `:feature:reddit:lintDebug`, `:app:assembleDebug`, `:app:testDebugUnitTest` + `:feature:*:testDebugUnitTest` (19 tests, 0 failures across 8 new screen test classes), and `:app:verifyRoborazziDebug` + `:feature:*:verifyRoborazziDebug` (16 goldens). Plus AC-S3 grep gate and AC-S5 map-SDK grep gate.
+- Five deferrals collapse onto two clearing paths: maintainer manual mock-fidelity diff (AC-S1, AC-S2) shares the procedure with tokens AC-K4 + toolchain AC6; the three Maestro-shaped deferrals (AC-S4, AC-S6 nav, AC-S7) collapse onto the same emulator+Maestro evidence run that the maestro slice owns.
+- `bootstrap-failures: []`; `adapters-used: []` (every user-observable AC satisfied via Roborazzi capture, Compose UI test callback assertion, source-level grep, or explicit deferral — no live adapter bootstrap required).
+- Layouts AC-L2 (HomeScaffold inset measurement on a live system bar) — identified at layouts-verify as the natural moment for this slice to discharge — is **not cleared by this verify** because no emulator boot was performed. Deferral remains active; collapses onto maestro/probe sweep along with AC-S4.
+- See: [06-verify-screens.md](06-verify-screens.md).
+
+### `behaviors` through `maestro` — not yet verified
 
 Per the rolling-plan strategy — each slice verifies after its implement.
 
 ## Cross-Slice Observations
 
-- **`runtime-evidence-deferrals` is now 5 entries.** Toolchain contributed AC4 (maestro round-trip) + AC6 (maintainer goldens diff). Tokens contributed AC-K4 (maintainer handoff diff) + AC-K6 (HomeScreen paper — cleared by `quick-skip-auth-page` slice on 2026-05-17T10:23Z). Components now contributes AC-C6 (Maestro studio dry-run). Ship will hard-block until each is cleared. Toolchain AC4 + components AC-C6 collapse onto the same emulator+Maestro evidence — the `maestro` slice will discharge both in one shot. Maintainer can clear toolchain AC6 + tokens AC-K4 via the visual-diff procedure at any time.
+- **`runtime-evidence-deferrals` is now 12 entries (1 cleared, 11 active).** Toolchain contributed AC4 (maestro round-trip) + AC6 (maintainer goldens diff). Tokens contributed AC-K4 (maintainer handoff diff) + AC-K6 (HomeScreen paper — cleared by `quick-skip-auth-page` slice on 2026-05-17T10:23Z). Components contributed AC-C6 (Maestro studio dry-run). Layouts contributed AC-L2 (HomeScaffold inset measurement on a live system bar) + AC-L5 (Maestro studio testTags for shells). Screens adds five: AC-S1 + AC-S2 (≥95% mock fidelity, maintainer manual diff — same procedure as tokens AC-K4 + toolchain AC6), AC-S4 (Pixel 6 emulator nav walkthrough), AC-S6-nav (empty-state CTA → LoginScreen navigation half), AC-S7 (AllBookmarks long-press → 4-action popup integration). Ship will hard-block until each active entry is cleared. The seven Maestro-shaped deferrals (toolchain AC4, components AC-C6, layouts AC-L2 + AC-L5, screens AC-S4 + AC-S6-nav + AC-S7) collapse onto the same emulator+Maestro evidence run — the maestro slice (or a single probe sweep) will discharge them all at once. Maintainer can clear toolchain AC6 + tokens AC-K4 + screens AC-S1 + AC-S2 via the visual-diff procedure at any time.
 - **Room 2.8.4 strictness pattern continues to hold.** Tokens slice did not touch DAO surfaces; no new nullability bugs surfaced. Downstream DAO-touching slices (behaviors) should still watch for the family.
 - **Brutalist palette is structurally complete on the running app.** The token cutover landed cleanly enough that LoginScreen + dark-mode + airplane-mode all show the intended Option-D visual identity. Components/screens slices can now build against verified token reality instead of inferred token reality.
 - **AVD inventory drift.** Plan said Pixel 6 / API 34 was canonical; actually-provisioned AVDs are Medium_Phone_API_36 (used for tokens verify) and Pixel_9_Pro (boot reservation hit `INSUFFICIENT_STORAGE` on install). Plan-stage assumptions section accepted "Either works"; this is a noted-but-not-blocking deviation.
-- **Component slice landed without a fix loop.** Toolchain needed one (Room nullability); tokens needed none; components needed none. The implement-stage's rebuild-then-regenerate-goldens-in-one-atomic-commit cadence held — `verifyRoborazziDebug` was already green when verify took over because implement closed the loop with `recordRoborazziDebug` followed by `verifyRoborazziDebug` before committing.
+- **Component slice landed without a fix loop.** Toolchain needed one (Room nullability); tokens needed none; components needed none; layouts now also needed none. Three consecutive fix-loop-free slices is a signal that the implement-stage's rebuild-then-regenerate-goldens-in-one-atomic-commit cadence is paying off — every code-side gate is green at verify entry because implement already closes `recordRoborazziDebug` → `verifyRoborazziDebug` → `lintDebug` → `assembleDebug` before committing.
+- **Edge-to-edge wiring landed at MainActivity.** The layouts slice flipped on `enableEdgeToEdge()` for the first time. Pre-migration screens that have not yet adopted HomeScaffold will render with TopBar under the status bar until the screens slice migrates them — interim regression is by design and limited to the inter-slice window.
 
 ## Recommended Next Stage
 
-- **Option A (default):** `/wf review brutalist-redesign components` — every code-side gate is green; AC-C6 is a procedural deferral. `review-scope: slug-wide` means the canonical review runs against the whole branch diff once all slices land — but a per-slice spot review on components in isolation is still a valid intermediate signal. **`/compact` recommended.**
-- **Option B:** `/wf plan brutalist-redesign layouts` — start the next slice's planning in parallel with review.
-- **Option C:** `/wf-quick probe brutalist-redesign` — re-attempt deferred evidence sweep against the running artifact.
+- **Option A (default):** `/wf review brutalist-redesign screens` — every code-side gate green; all five new screens deferrals are procedural and collapse onto two known clearing paths. `review-scope: slug-wide` means the canonical review runs against the whole branch diff once all slices land, but a per-slice spot review on screens is a strong intermediate signal — this slice introduces the largest surface-area change (Route/Screen split + 8 screen rewrites + Accompanist→Compose-native migration + 3 modules gaining Roborazzi infra) and benefits from a focused review before behaviors starts wiring the popup actions.
+- **Option B:** `/wf plan brutalist-redesign behaviors` — start the next slice's planning in parallel with review. Behaviors consumes this slice's testTag scaffolding + popup-action `TODO()` stubs + filter-chip empty state + null banner slot.
+- **Option C:** `/wf-quick probe brutalist-redesign` — re-attempt deferred evidence sweep on an emulator. A single probe run would discharge AC-S4 + AC-S6 nav half + AC-S7 + carry-forward layouts AC-L2 + the four other Maestro-shaped deferrals (toolchain AC4, components AC-C6, layouts AC-L5) all at once — seven deferrals in one shot, if emulator + Maestro CLI are both on PATH.

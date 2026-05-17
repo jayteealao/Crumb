@@ -70,6 +70,29 @@ interface TweetDao {
     @Query("SELECT * FROM tweetEntity WHERE referenced = false ORDER BY `order` DESC")
     fun getTweets(): PagingSource<Int, TweetData>
 
+    @Transaction
+    @Query("""
+        SELECT t.* FROM tweetEntity t
+        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId
+        WHERE t.referenced = 0
+          AND d.bookmarkId IS NULL
+        ORDER BY t.`order` DESC
+    """)
+    fun getTweetsTombstoneAware(): PagingSource<Int, TweetData>
+
+    @Transaction
+    @Query("""
+        SELECT t.* FROM tweetEntity t
+        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId
+        INNER JOIN tweet_tags tt ON tt.tweetId = t.id
+        WHERE t.referenced = 0
+          AND d.bookmarkId IS NULL
+          AND tt.tagName IN (:tagNames)
+        GROUP BY t.id
+        ORDER BY t.`order` DESC
+    """)
+    fun getTweetsByTagsTombstoneAware(tagNames: List<String>): PagingSource<Int, TweetData>
+
     @Query("SELECT * FROM tweetEntity WHERE referenced = false ORDER BY `order` DESC LIMIT 1")
     fun getLatestBookmark(): TweetEntity?
 

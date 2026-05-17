@@ -2,7 +2,13 @@ package com.github.jayteealao.reddit.data
 
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
-import com.github.jayteealao.reddit.models.RedditListingResponse
+import androidx.paging.PagingData
+import com.github.jayteealao.crumbs.data.BookmarkSource
+import com.github.jayteealao.crumbs.data.DeletedBookmarkRepository
+import com.github.jayteealao.crumbs.data.FilterState
+import com.github.jayteealao.crumbs.data.SyncErrorBus
+import com.github.jayteealao.crumbs.data.SyncErrorEvent
+import com.github.jayteealao.reddit.models.RedditPostData
 import com.github.jayteealao.reddit.models.toEntity
 import com.github.jayteealao.reddit.services.RedditApiService
 import com.github.jayteealao.reddit.services.RedditAuthClient
@@ -11,6 +17,7 @@ import com.skydoves.sandwich.onError
 import com.skydoves.sandwich.onSuccess
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -25,6 +32,8 @@ class RedditRepository @Inject constructor(
     private val redditApiService: RedditApiService,
     private val redditAuthClient: RedditAuthClient,
     private val redditPrefs: RedditPrefs,
+    private val deletedBookmarkRepository: DeletedBookmarkRepository,
+    private val syncErrorBus: SyncErrorBus,
     private val scope: CoroutineScope
 ) {
     private var latestPostInDatabase: com.github.jayteealao.reddit.models.RedditPostEntity? = null
@@ -95,9 +104,10 @@ class RedditRepository @Inject constructor(
                         response.onSuccess {
                             Timber.d("Fetched ${data.data.children.size} Reddit posts")
 
-                            // Prepare posts for database
+                            // Prepare posts for database; gate on tombstone presence
                             entitiesToInsert = data.data.children
-                                .filter { it.kind == "t3" } // Only save link posts, not comments
+                                .filter { it.kind == "t3" }
+                                .filter { !deletedBookmarkRepository.isDeleted(it.data.name) }
                                 .map { thing ->
                                     val order = orderStart--
                                     thing.data.toEntity(order)
@@ -112,10 +122,12 @@ class RedditRepository @Inject constructor(
                         }.onError {
                             Timber.e("Error fetching Reddit posts: ${message()}")
 
-                            // Try to refresh token if unauthorized
-                            if (statusCode.code == 401 && refreshToken.isNotBlank()) {
-                                scope.launch {
-                                    redditAuthClient.refreshAccessToken(refreshToken)
+                            if (statusCode.code == 401) {
+                                syncErrorBus.emit(SyncErrorEvent.RedditAuth401())
+                                if (refreshToken.isNotBlank()) {
+                                    scope.launch {
+                                        redditAuthClient.refreshAccessToken(refreshToken)
+                                    }
                                 }
                             }
                         }
@@ -125,7 +137,7 @@ class RedditRepository @Inject constructor(
                             redditDao.insertPosts(entities)
                         }
 
-                    } while (hasMore && fetchedCount < 800) // Limit to 800 posts max
+                    } while (hasMore && fetchedCount < 800)
 
                     Timber.d("Finished fetching Reddit posts. Total: $fetchedCount")
                 }
@@ -142,7 +154,12 @@ class RedditRepository @Inject constructor(
      */
     fun getPagingPosts() = Pager(
         config = PagingConfig(pageSize = 20),
-        pagingSourceFactory = { redditDao.getPosts() }
+        pagingSourceFactory = { redditDao.getPostsTombstoneAware() }
+    ).flow
+
+    fun pagingPostsData(@Suppress("UNUSED_PARAMETER") filter: FilterState): Flow<PagingData<RedditPostData>> = Pager(
+        config = PagingConfig(pageSize = 20),
+        pagingSourceFactory = { redditDao.getPostsTombstoneAware() }
     ).flow
 
     /**
@@ -151,6 +168,14 @@ class RedditRepository @Inject constructor(
     suspend fun deletePost(postId: String) {
         redditDao.deletePost(postId)
         // TODO: Also unsave from Reddit API
+    }
+
+    suspend fun softDelete(id: String) {
+        deletedBookmarkRepository.softDelete(id, BookmarkSource.REDDIT)
+    }
+
+    suspend fun undoDelete(id: String) {
+        deletedBookmarkRepository.undoDelete(id)
     }
 
     /**
@@ -168,4 +193,12 @@ class RedditRepository @Inject constructor(
         config = PagingConfig(pageSize = 20),
         pagingSourceFactory = { redditDao.getPostsBySubreddit(subreddit) }
     ).flow
+
+    /**
+     * Clear stored Reddit auth state. Local-only — no Reddit revoke endpoint call.
+     */
+    suspend fun logout() {
+        redditPrefs.clearTokens()
+        Timber.d("Reddit tokens cleared")
+    }
 }

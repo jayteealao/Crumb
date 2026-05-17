@@ -35,6 +35,20 @@ interface RedditDao {
     fun getPosts(): PagingSource<Int, RedditPostData>
 
     /**
+     * Get all posts excluding tombstoned ids.
+     * LEFT JOIN ensures Room's InvalidationTracker watches both tables —
+     * tombstone writes auto-invalidate the paging source.
+     */
+    @Transaction
+    @Query("""
+        SELECT p.* FROM reddit_posts p
+        LEFT JOIN deleted_bookmarks d ON p.id = d.bookmarkId
+        WHERE d.bookmarkId IS NULL
+        ORDER BY p.`order` DESC
+    """)
+    fun getPostsTombstoneAware(): PagingSource<Int, RedditPostData>
+
+    /**
      * Get latest post (for pagination tracking)
      */
     @Query("SELECT * FROM reddit_posts ORDER BY `order` DESC LIMIT 1")

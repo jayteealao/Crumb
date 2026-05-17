@@ -4,10 +4,10 @@ type: index
 slug: brutalist-redesign
 title: "Replace Crumbs app design with the Brutalist Mono (Option D) handoff, pixel-for-pixel"
 status: active
-current-stage: verify
-stage-number: 6
+current-stage: review
+stage-number: 7
 created-at: "2026-05-16T21:44:39Z"
-updated-at: "2026-05-17T17:36:42Z"
+updated-at: "2026-05-17T23:22:26Z"
 selected-slice: tokens
 branch-strategy: dedicated
 branch: "feat/brutalist-redesign"
@@ -83,7 +83,7 @@ stack:
     - {name: "zai-mcp-server", hint: "Image/diagram analysis (could validate against verify-*.jpg references)"}
   user-confirmed: true
 next-command: wf-verify
-next-invocation: "/wf verify brutalist-redesign screens"
+next-invocation: "/wf verify brutalist-redesign behaviors"
 runtime-evidence-deferrals:
   - slice: toolchain
     ac: AC4
@@ -122,6 +122,31 @@ runtime-evidence-deferrals:
     reason: "Maestro studio testTag round-trip for all shell + slot tags (home-scaffold, overlay-shell, onboarding-shell + nested tags) requires Maestro CLI not on confirmed PATH; the dedicated `maestro` slice owns the round-trip verification. Static evidence: 4 testTags wired in HomeScaffold.kt, 5 in OverlayShell.kt, 4 in OnboardingShell.kt; testTagsAsResourceId enabled at CrumbsTheme:40. This deferral collapses onto the same emulator+Maestro evidence run that clears toolchain AC4 + components AC-C6. Clears when /wf-quick probe runs Maestro studio against the running app, or when the maestro slice verifies the full testTag round-trip."
     deferred-at: "2026-05-17T16:05:31Z"
     cleared-by: null
+  - slice: screens
+    ac: AC-S1
+    reason: "≥95% mock-fidelity adjudication against the Option-D handoff for all 8 screens × light theme. Automated Roborazzi tolerance (5% changed-pixel + 1% RGB) is met for every light golden, but subjective fidelity scoring requires maintainer-owned side-by-side review against the Crumbs-handoff browser-rendered mocks. Same precedent as tokens AC-K4 + toolchain AC6. Clears when maintainer signs off per-screen in the verify artifact."
+    deferred-at: "2026-05-17T19:13:28Z"
+    cleared-by: null
+  - slice: screens
+    ac: AC-S2
+    reason: "Same as AC-S1, dark theme. 8 dark goldens captured and verified under the automated tolerance bands; maintainer manual diff against Option-D dark-mode references pending. Clears alongside AC-S1."
+    deferred-at: "2026-05-17T19:13:28Z"
+    cleared-by: null
+  - slice: screens
+    ac: AC-S4
+    reason: "Manual side-by-side review on a Pixel 6 (or Medium_Phone_API_36) emulator — boot app and walk Splash → Onboarding → Login → Home (all 4 tabs) → AllBookmarks → MapView confirming brutalist visuals match the mocks. testTags wired across all 8 screens + 4 dedicated Route files; testTagsAsResourceId enabled at CrumbsTheme:40. Collapses onto the same emulator+Maestro evidence run that clears toolchain AC4 + components AC-C6 + layouts AC-L2 + layouts AC-L5. Clears when /wf-quick probe runs the live nav walk against the running app, or when the maestro slice verifies the happy-path flow."
+    deferred-at: "2026-05-17T19:13:28Z"
+    cleared-by: null
+  - slice: screens
+    ac: AC-S6-nav
+    reason: "Empty-state CONNECT-AN-ACCOUNT button navigation half. Callback wiring closed in-process via AllBookmarksScreenTest.emptyState_connectAccountCta_invokesCallback (Compose UI test). Actual navController.navigate(LOGINSCREEN) reach requires emulator + the NavHost rendered in the same process. Collapses onto the maestro slice's happy-path flow which exercises tab → empty-state → CTA → LoginScreen as part of the standard onboarding traversal."
+    deferred-at: "2026-05-17T19:13:28Z"
+    cleared-by: null
+  - slice: screens
+    ac: AC-S7
+    reason: "Long-press on a CrumbsBookmarkCard in AllBookmarksScreen opens CrumbsLongPressPopup with 4 actions (TAG, OPEN, SHARE, DELETE) visible. Component-level coverage exists from components slice (LongPressPopupTest 4-action variants). AllBookmarks-level integration needs touch-input runtime + a populated LazyPagingItems feed; Robolectric's performTouchInput { longClick() } against a paging-driven LazyColumn is brittle and the integration belongs naturally to maestro's gesture-driven flow. Clears when /wf-quick probe runs the long-press flow against the running app, or when the maestro slice verifies the popup integration."
+    deferred-at: "2026-05-17T19:13:28Z"
+    cleared-by: null
 workflow-files:
   - 00-index.md
   - 01-intake.md
@@ -141,6 +166,7 @@ workflow-files:
   - 04-plan-components.md
   - 04-plan-layouts.md
   - 04-plan-screens.md
+  - 04-plan-behaviors.md
   - 05-implement.md
   - 05-implement-toolchain.md
   - 05-implement-tokens.md
@@ -148,11 +174,13 @@ workflow-files:
   - 05-implement-components.md
   - 05-implement-layouts.md
   - 05-implement-screens.md
+  - 05-implement-behaviors.md
   - 06-verify.md
   - 06-verify-toolchain.md
   - 06-verify-tokens.md
   - 06-verify-components.md
   - 06-verify-layouts.md
+  - 06-verify-screens.md
   - po-answers.md
 compressed-slices:
   - slug: quick-skip-auth-page
@@ -176,11 +204,11 @@ slices:
     complexity: s
     depends-on: [components]
   - slug: screens
-    status: implemented
+    status: verified-partial
     complexity: l
     depends-on: [layouts]
   - slug: behaviors
-    status: defined
+    status: implemented
     complexity: m
     depends-on: [screens]
   - slug: maestro
@@ -191,9 +219,9 @@ progress:
   intake: complete
   shape: complete
   slice: complete
-  plan: in-progress   # 5/7 slices planned (toolchain, tokens, components, layouts, screens); 2 remaining plans deferred (rolling plans)
-  implement: in-progress   # 5/7 slices implemented (toolchain, tokens, components, layouts, screens); see 05-implement-{toolchain,tokens,components,layouts,screens}.md
-  verify: in-progress      # 4/7 slices verified-partial (toolchain, tokens, components, layouts); 6 active runtime-evidence-deferrals; screens ready for verify
+  plan: in-progress   # 6/7 slices planned (toolchain, tokens, components, layouts, screens, behaviors); maestro plan deferred (rolling plan)
+  implement: in-progress   # 6/7 slices implemented (toolchain, tokens, components, layouts, screens, behaviors); see 05-implement-{toolchain,tokens,components,layouts,screens,behaviors}.md
+  verify: in-progress      # 5/7 slices verified-partial (toolchain, tokens, components, layouts, screens); 11 active runtime-evidence-deferrals; behaviors awaits verify; maestro remaining
   review: not-started
   handoff: not-started
   ship: not-started

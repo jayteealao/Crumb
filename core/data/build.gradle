@@ -1,0 +1,46 @@
+plugins {
+    id 'com.android.library'
+    id 'com.google.devtools.ksp'
+    id 'com.google.dagger.hilt.android'
+}
+
+android {
+    namespace 'com.github.jayteealao.crumbs.data'
+    compileSdk 35
+
+    defaultConfig {
+        minSdk 24
+        targetSdk 35
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles "consumer-rules.pro"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
+}
+
+dependencies {
+    implementation(libs.bundles.room)
+    ksp(libs.room.compiler)
+
+    implementation(libs.kotlinx.collections.immutable)
+
+    implementation "com.google.dagger:hilt-android:2.59.2"
+    ksp "com.google.dagger:hilt-compiler:2.59.2"
+
+    testImplementation 'junit:junit:4.13.2'
+}

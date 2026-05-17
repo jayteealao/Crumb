@@ -303,3 +303,45 @@ A cumulative log of product-owner answers across stages. Newest at the bottom. E
 - **MaterialTheme cleanup obligation:** `AllBookmarksScreen.kt` lines ~103, ~180 use `MaterialTheme.typography.titleMedium`; feature modules have a commented `Color(0xFF…)` literal in `TwitterCard.kt:419`. Plan must remove or actively-convert all `MaterialTheme.*` references in any screen file the slice touches.
 - **Twitter→Reddit cross-module VM coupling persists.** `RedditBookmarksScreen` will continue to inject Twitter's `BookmarksViewModel` for tag state. No change in this slice; the contract is a behaviors-slice consideration if it becomes load-bearing.
 - **PullToRefreshBox in TwitterBookmarksScreen** is functional behavior; it stays. Brutalist re-skin replaces card composables + tokens, not the pull-to-refresh affordance itself. Behaviors slice owns the refresh state machine.
+
+## plan — 2026-05-17T21:19:04Z — behaviors slice
+
+### Round 1 — structural decisions
+
+- **Q1 (DeletedBookmark + DAO module placement):** `feature/twitter` and `feature/reddit` need cross-module access to the tombstone DAO but cannot compile-depend on `app/db/`. Where do the entity + DAO live?
+  **A:** New `core/data` shared module. Hosts `DeletedBookmark.kt`, `DeletedBookmarkDao.kt`, `DeletedBookmarkRepository.kt`, plus the slice's other shared types (`SnackbarEvent`, `SyncErrorEvent`, `SyncErrorBus`, `TypeFilter`, `FilterState`). Wired as a dependency of `app`, `feature/twitter`, `feature/reddit`. AppDatabase still owns the DAO accessor; Hilt provider in `app/di/DatabaseModule.kt`. Cleanest module-graph resolution.
+
+- **Q2 (Collection chip filter — no Collection entity exists):** The slice spec calls for Type / Tags / Collection chip groups but the codebase has no `Collection` entity and spec forbids schema additions beyond `deleted_bookmarks`. How is the Collection chip handled?
+  **A:** Reinterpret Collection as a tag-set facet. Both Tags and Collection chips open the same OverlayShell over the existing `tags` table; Collection is semantically a curated multi-tag preset (no new schema). Visual UX preserved; data layer unchanged.
+
+- **Q3 (CrumbsBanner slot wiring on HomeScaffold):** Banner pins above the affected tab's feed between TopBar and FilterBar; HomeScaffold has no banner slot today. How is the slot added?
+  **A:** Hoist `banner: (@Composable () -> Unit)? = null` parameter on HomeScaffold between `topBar` and `filterBar`. Call site wraps content in `AnimatedVisibility(visible = errorState != null)` — slot stays in tree, compresses to zero height when no error. Matches freshness-research recommendation; cleanest testability.
+
+- **Q4 (long-press popup 4th action — Twitter divergence):** `TwitterBookmarksRoute` has TAG/OPEN/SHARE/LOGOUT; `AllBookmarksRoute` + `RedditBookmarksRoute` have TAG/OPEN/SHARE/DELETE. Slice spec lists 4 actions Open/Share/Edit-tags/Delete uniformly. Final shape?
+  **A:** Replace Twitter's LOGOUT with DELETE. All three Routes have identical action sets `[TAG, OPEN, SHARE, DELETE]`. LOGOUT migrates to LoginScreen as a per-provider button when authed. Uniform UX; matches slice spec.
+
+### Round 2 — placement + scope decisions
+
+- **Q5 (LOGOUT action relocation):** Twitter's LOGOUT is leaving the long-press popup; where does the logout affordance live in the brutalist redesign?
+  **A:** LoginScreen — when authed, render `CrumbsButton("LOGOUT TWITTER", Secondary)` per provider next to (or in place of) the existing CONNECT button. Discoverability inversion: same screen that connects accounts disconnects them. Reddit gets symmetric treatment via a small additive `RedditViewModel.logout()` method (local pref-store clear; no OAuth-client touch).
+
+- **Q6 (filter chip state ownership):** Where does `selectedChipIds` + `activeTypeFilter` live?
+  **A:** Per-tab ViewModel — independent state per tab. Each of `BookmarksViewModel` (Twitter), `RedditViewModel`, and a new `AllBookmarksViewModel` (introduced this slice) owns its own `MutableStateFlow<FilterState>`. HomeRoute observes the currently-selected tab's state and lifts it into `HomeScaffold.filterBar`. Switching tabs preserves each tab's filter independently.
+
+- **Q7 (canonical Type filter values):** The Type chip is single-select with values like "THREAD" per slice spec. Final enum?
+  **A:** `enum TypeFilter { ALL, ARTICLE, VIDEO, IMAGE, THREAD, TEXT }`. Six values covering Twitter (thread, text) + Reddit (link/article, video, image, text) + AllBookmarks union. ALL is the no-filter default. DAOs gain `getTweetsByType(filter)` / `getPostsByType(filter)` parameterized query variants; the existing `referenced` predicate stays.
+
+- **Q8 (AVD profile for migration instrumentation test):** Slice spec AC line 90 names "Pixel 6 emulator API 34" but prior slices have all verified on `Medium_Phone_API_36`. Which profile?
+  **A:** `Medium_Phone_API_36` — align with prior slices. Plan-stage update: surface as a documented update to slice text ("Pixel 6 API 34" → `Medium_Phone_API_36`). Consistency over slice-spec literalism.
+
+### Cross-slice impact captured
+
+- **First DB schema change in the workflow.** AppDatabase v4 → v5 with additive `deleted_bookmarks` table. Migration is the first instrumentation test in the repo.
+- **New `core/data` shared module** introduced. Hosts cross-cutting tombstone DAO + filter/event types. Both feature modules gain `implementation project(":core:data")`.
+- **HomeScaffold gains a `banner` slot** — additive API change. Existing screens-slice callers continue to compile (slot is nullable + defaults to null).
+- **Twitter's LOGOUT migrates to LoginScreen.** `BookmarksViewModel.logout()` already exists; LoginScreen gains 2 testTags + 2 callbacks. Reddit gains a small additive `RedditViewModel.logout()` method.
+- **Per-tab filter state ownership** introduces a new `AllBookmarksViewModel` in `app/`. HomeRoute is rewritten to inject all 3 tab VMs and lift the active tab's filter + banner state.
+- **Six interactive ACs (lines 92, 93, 95, 96, 97, 98) register as runtime-evidence-deferrals** at verify-stage; all `cleared-by: slice/maestro`. The 4 automated ACs (lines 90, 91, 94, 99) close in-stage via instrumentation + JVM unit test + APK badging gate.
+- **Repository unit-test pattern** (`DeletedBookmarkRepositoryTest`) is the first repository test in the codebase. Uses `runBlocking` (no `kotlinx-coroutines-test` introduction — current `coroutines = 1.5.2` stays).
+- **`SnackbarDuration.Short` ≈ 4s vs spec's 5s** documented as an acceptable approximation; falls back to `Indefinite` + manual `delay(5000)` if implement-stage finds the 4s window too tight.
+- **Reddit-tags FK bug** (pre-existing v1.1 issue: `tweet_tags.FK` to `tweetEntity` only) is **out of scope** — flagged for a follow-up workflow.

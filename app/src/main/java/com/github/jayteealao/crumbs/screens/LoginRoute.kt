@@ -63,5 +63,7 @@ fun LoginRoute(
                 popUpTo(Screens.LOGINSCREEN.name) { inclusive = true }
             }
         },
+        onLogoutTwitter = { loginViewModel.logout() },
+        onLogoutReddit = { redditViewModel.logout() },
     )
 }
