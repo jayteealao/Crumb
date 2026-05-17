@@ -1,9 +1,6 @@
 package com.github.jayteealao.crumbs
 
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
@@ -13,12 +10,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.navigation.navDeepLink
-import com.github.jayteealao.crumbs.screens.HomeScreen
-import com.github.jayteealao.crumbs.screens.OnboardingScreen
-import com.github.jayteealao.crumbs.screens.SplashScreen
-import com.github.jayteealao.crumbs.screens.login.LoginScreen
-import com.github.jayteealao.twitter.screens.LoginViewModel
+import com.github.jayteealao.crumbs.screens.HomeRoute
+import com.github.jayteealao.crumbs.screens.OnboardingRoute
+import com.github.jayteealao.crumbs.screens.SplashRoute
+import com.github.jayteealao.crumbs.screens.login.LoginRoute
 import com.github.jayteealao.twitter.screens.BookmarksViewModel
+import com.github.jayteealao.twitter.screens.LoginViewModel
 
 @Composable
 fun CrumbsNavHost(
@@ -26,51 +23,46 @@ fun CrumbsNavHost(
     navController: NavHostController = rememberNavController(),
     startDestination: String = Screens.SPLASHSCREEN.name,
     loginViewModel: LoginViewModel = hiltViewModel(),
-    bookmarksViewModel: BookmarksViewModel = hiltViewModel()
+    bookmarksViewModel: BookmarksViewModel = hiltViewModel(),
 ) {
-    val isAccessTokenAvailable by loginViewModel.isAccessTokenAvailable.collectAsState()
-
     NavHost(
         navController = navController,
         modifier = modifier,
-        startDestination = startDestination
+        startDestination = startDestination,
     ) {
         composable(Screens.ONBOARDING.name) {
-            OnboardingScreen(navController = navController)
+            OnboardingRoute(navController = navController)
         }
 
         composable(
             Screens.LOGINSCREEN.name,
-            deepLinks = listOf(navDeepLink { uriPattern = "crumbs://graphitenerd.xyz?code={code}" })
+            deepLinks = listOf(navDeepLink { uriPattern = "crumbs://graphitenerd.xyz?code={code}" }),
         ) {
-            LoginScreen(
-                viewModel = loginViewModel,
+            LoginRoute(
                 navController = navController,
                 authorizationCode = navController
-                    .currentBackStackEntry?.arguments?.getString("code")
+                    .currentBackStackEntry?.arguments?.getString("code"),
+                loginViewModel = loginViewModel,
             )
         }
 
         composable(
             "${Screens.HOMESCREEN.name}/{refreshed}",
-            arguments = listOf(navArgument(name = "refreshed") { type = NavType.BoolType })
+            arguments = listOf(navArgument(name = "refreshed") { type = NavType.BoolType }),
         ) {
-            HomeScreen(
+            HomeRoute(
                 navController = navController,
+                twitterAuthCode = navController
+                    .currentBackStackEntry?.arguments?.getString("code") ?: "",
                 loginViewModel = loginViewModel,
                 bookmarksViewModel = bookmarksViewModel,
-                twitterAuthCode = navController
-                    .currentBackStackEntry?.arguments?.getString("code") ?: ""
             )
         }
 
-        composable(
-            Screens.SPLASHSCREEN.name
-        ) {
-            SplashScreen(
-                isLoggedIn = isAccessTokenAvailable,
+        composable(Screens.SPLASHSCREEN.name) {
+            SplashRoute(
                 navController = navController,
-                loginViewModel = loginViewModel
+                loginViewModel = loginViewModel,
             )
         }
     }

@@ -7,7 +7,7 @@ status: active
 current-stage: verify
 stage-number: 6
 created-at: "2026-05-16T21:44:39Z"
-updated-at: "2026-05-17T15:24:46Z"
+updated-at: "2026-05-17T17:36:42Z"
 selected-slice: tokens
 branch-strategy: dedicated
 branch: "feat/brutalist-redesign"
@@ -83,7 +83,7 @@ stack:
     - {name: "zai-mcp-server", hint: "Image/diagram analysis (could validate against verify-*.jpg references)"}
   user-confirmed: true
 next-command: wf-verify
-next-invocation: "/wf verify brutalist-redesign layouts"
+next-invocation: "/wf verify brutalist-redesign screens"
 runtime-evidence-deferrals:
   - slice: toolchain
     ac: AC4
@@ -112,6 +112,16 @@ runtime-evidence-deferrals:
     reason: "Maestro studio interactive dry-run requires Maestro CLI not on confirmed PATH; the dedicated `maestro` slice owns the round-trip verification per the workflow's slice boundary. Static evidence (39 testTag call sites across 16 components + testTagsAsResourceId scaffold at CrumbsTheme:42) confirms the scaffolding is in place. Clears when /wf-quick probe runs Maestro studio against the running app, or when the maestro slice verifies the full testTag round-trip."
     deferred-at: "2026-05-17T13:29:48Z"
     cleared-by: null
+  - slice: layouts
+    ac: AC-L2
+    reason: "HomeScaffold precise inset measurement (28dp status / 88dp TopBar / 34dp FilterBar / 52dp BottomNav + 8dp pill) requires a live system bar; Robolectric defaults WindowInsets to zero, so the Roborazzi captures evidence slot composition correctness only. No host screen consumes HomeScaffold yet — the screens slice's verify on Medium_Phone_API_36 is the first natural moment to measure. Slot order (topBar → filterBar → content → bottomBar) is already evidenced by HomeScaffold_default_{light,dark}.png. Clears when the screens slice's verify captures HomeScaffold under a real status bar."
+    deferred-at: "2026-05-17T16:05:31Z"
+    cleared-by: null
+  - slice: layouts
+    ac: AC-L5
+    reason: "Maestro studio testTag round-trip for all shell + slot tags (home-scaffold, overlay-shell, onboarding-shell + nested tags) requires Maestro CLI not on confirmed PATH; the dedicated `maestro` slice owns the round-trip verification. Static evidence: 4 testTags wired in HomeScaffold.kt, 5 in OverlayShell.kt, 4 in OnboardingShell.kt; testTagsAsResourceId enabled at CrumbsTheme:40. This deferral collapses onto the same emulator+Maestro evidence run that clears toolchain AC4 + components AC-C6. Clears when /wf-quick probe runs Maestro studio against the running app, or when the maestro slice verifies the full testTag round-trip."
+    deferred-at: "2026-05-17T16:05:31Z"
+    cleared-by: null
 workflow-files:
   - 00-index.md
   - 01-intake.md
@@ -130,16 +140,19 @@ workflow-files:
   - 04-plan-tokens.md
   - 04-plan-components.md
   - 04-plan-layouts.md
+  - 04-plan-screens.md
   - 05-implement.md
   - 05-implement-toolchain.md
   - 05-implement-tokens.md
   - 05-implement-quick-skip-auth-page.md
   - 05-implement-components.md
   - 05-implement-layouts.md
+  - 05-implement-screens.md
   - 06-verify.md
   - 06-verify-toolchain.md
   - 06-verify-tokens.md
   - 06-verify-components.md
+  - 06-verify-layouts.md
   - po-answers.md
 compressed-slices:
   - slug: quick-skip-auth-page
@@ -159,11 +172,11 @@ slices:
     complexity: l
     depends-on: [tokens]
   - slug: layouts
-    status: implemented
+    status: verified-partial
     complexity: s
     depends-on: [components]
   - slug: screens
-    status: defined
+    status: implemented
     complexity: l
     depends-on: [layouts]
   - slug: behaviors
@@ -178,9 +191,9 @@ progress:
   intake: complete
   shape: complete
   slice: complete
-  plan: in-progress   # 4/7 slices planned (toolchain, tokens, components, layouts); 3 remaining plans deferred (rolling plans)
-  implement: in-progress   # 4/7 slices implemented (toolchain, tokens, components, layouts); see 05-implement-{toolchain,tokens,components,layouts}.md
-  verify: in-progress      # 3/7 slices verified-partial (toolchain, tokens, components); 4 active runtime-evidence-deferrals; layouts ready for verify
+  plan: in-progress   # 5/7 slices planned (toolchain, tokens, components, layouts, screens); 2 remaining plans deferred (rolling plans)
+  implement: in-progress   # 5/7 slices implemented (toolchain, tokens, components, layouts, screens); see 05-implement-{toolchain,tokens,components,layouts,screens}.md
+  verify: in-progress      # 4/7 slices verified-partial (toolchain, tokens, components, layouts); 6 active runtime-evidence-deferrals; screens ready for verify
   review: not-started
   handoff: not-started
   ship: not-started

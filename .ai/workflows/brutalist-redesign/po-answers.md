@@ -264,3 +264,42 @@ A cumulative log of product-owner answers across stages. Newest at the bottom. E
 - **Interim visual artifact** between layouts merge and screens slice migrations: with `enableEdgeToEdge()` active but no screens yet consuming insets, screens render TopBar partially under the status bar. Acknowledged interim state; verify must not flag as regression.
 - **AC-2 (inset-applied measurement) and AC-5 (Maestro testTag round-trip)** will register as runtime-evidence-deferrals at verify-stage, per workflow precedent.
 - **Compose-native `HorizontalPager` adoption begins this slice** (OnboardingShell only). Accompanist Pager removal from `OnboardingScreen` itself is screens-slice work.
+
+## plan — screens — 2026-05-17T16:15:10Z
+
+### Discovery (Round 1) — 4 questions
+
+- **Q1 (screen factoring for Hilt-free testing):** Route/Screen split, keep current with Hilt test infra, mixed, or VM-param at call site?
+  **A:** Route/Screen split for all 8 screens. Each screen becomes a stateless `XxxScreen(uiState, onEvent)` composable + a thin `XxxRoute(viewModel = hiltViewModel())` wrapper. NavHost wires the Route; tests call the stateless Screen with fake state. Zero Hilt test infra introduced.
+
+- **Q2 (screen-test location):** app/+features, app-only, or new core/screens-test?
+  **A:** Tests live in `app/src/test/` + `feature/twitter/src/test/` + `feature/reddit/src/test/`. Apply Roborazzi plugin + dep bundle to all 3 modules (one-line plugin id + dep bundle copy from `core/designsystem/build.gradle` template).
+
+- **Q3 (feature-screen rewrite depth):** light reskin, compose into HomeScaffold slot, or hard rewrite?
+  **A:** Hard rewrite to match brutalist mock 1:1 for both `TwitterBookmarksScreen` and `RedditBookmarksScreen`. Replace internal `LazyColumn` body + scroll behavior to match Option D. ViewModels untouched (cross-module `BookmarksViewModel` reuse from Reddit preserved).
+
+- **Q4 (LoginScreen layout):** full-bleed, OnboardingShell-wrapped, or HomeScaffold?
+  **A:** Full-bleed brutalist. Keep current full-bleed structure (Box + GradientImage→brutalist background); rebuild visuals: kicker + wordmark + UserProfileDisplay per provider + two CONNECT-* `CrumbsButton`s. No shell wrapper. Bottom-nav must not appear on auth-gated screens.
+
+### Discovery (Round 2) — 4 questions
+
+- **Q5 (resplit decision):** single slice, screens-feed + screens-shells, or screens-features split?
+  **A:** Keep as single slice. Route/Screen split + 16 goldens is mechanical, linear work; component set + layout shells are already done; this slice is composition only. Single atomic commit per implement-stage contract.
+
+- **Q6 (Roborazzi tolerance for screen goldens):** 5%/1% (match components), 7%/1.5% relaxed, or 1%/0.5% strict?
+  **A:** Match component goldens — `roborazzi.compare.changeThreshold=0.05` (5% changed-pixel; already in `gradle.properties`) + `SimpleImageComparator(maxDistance = 0.01f)` per test class (1% RGB). Consistent with components + layouts slices.
+
+- **Q7 (AC-S1 mock-fidelity method):** maintainer manual diff, render-mocks-to-PNG, or generated side-by-sides?
+  **A:** Maintainer-driven manual diff at verify time. AC-S1 ("≥95% match to Option D mock") registers as `interactive-verification: deferred` runtime-evidence-deferral, same precedent as tokens AC-K4 and toolchain AC6. Roborazzi captures the rendered screen; maintainer signs off against the handoff JSX/JPG.
+
+- **Q8 (HomeScaffold filterBar slot for this slice):** CrumbsFilterBar empty, null, or stub Box?
+  **A:** Wire `CrumbsFilterBar` with empty/inert chips (the 3 type chips visible but no selection state). Matches Option D mock visually; behaviors slice adds chip-state and filter logic without touching HomeScreen's layout.
+
+### Cross-slice impact captured
+
+- **Roborazzi plugin enablement spreads to 3 new modules** (`app`, `feature/twitter`, `feature/reddit`). Mechanical copy of `core/designsystem`'s plugin id + dep bundle. No catalog version changes.
+- **Route/Screen split touches NavHost wiring** at [Crumbs.kt](app/src/main/java/com/github/jayteealao/crumbs/Crumbs.kt). Routes call `XxxRoute(...)`; previously they called `XxxScreen(...)` directly. Net diff is name + one extra Composable wrapper per screen.
+- **AC-S1 fidelity diff is maintainer-driven** — registered as a runtime-evidence-deferral at verify. AC-S2 (Maestro happy-path) belongs to the maestro slice on the established pattern. AC-S3 (Accompanist Pager removal grep) is a one-line automated check within this slice.
+- **MaterialTheme cleanup obligation:** `AllBookmarksScreen.kt` lines ~103, ~180 use `MaterialTheme.typography.titleMedium`; feature modules have a commented `Color(0xFF…)` literal in `TwitterCard.kt:419`. Plan must remove or actively-convert all `MaterialTheme.*` references in any screen file the slice touches.
+- **Twitter→Reddit cross-module VM coupling persists.** `RedditBookmarksScreen` will continue to inject Twitter's `BookmarksViewModel` for tag state. No change in this slice; the contract is a behaviors-slice consideration if it becomes load-bearing.
+- **PullToRefreshBox in TwitterBookmarksScreen** is functional behavior; it stays. Brutalist re-skin replaces card composables + tokens, not the pull-to-refresh affordance itself. Behaviors slice owns the refresh state machine.

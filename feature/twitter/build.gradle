@@ -3,6 +3,7 @@ plugins {
     id 'org.jetbrains.kotlin.plugin.compose'
     id 'com.google.devtools.ksp'
     id 'com.google.dagger.hilt.android'
+    id 'io.github.takahirom.roborazzi' version '1.60.0'
 }
 
 android {
@@ -34,6 +35,12 @@ android {
     packagingOptions {
         resources {
             excludes += '/META-INF/{AL2.0,LGPL2.1}'
+        }
+    }
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+            returnDefaultValues = true
         }
     }
 }
@@ -84,10 +91,6 @@ dependencies {
 //    arrow-optics
     implementation "io.arrow-kt:arrow-optics:$arrowVersion"
 
-//    accompanist
-    implementation "com.google.accompanist:accompanist-pager:0.27.0"
-    implementation "com.google.accompanist:accompanist-pager-indicators:0.27.0"
-
 //    media3-exoplayer
     implementation("androidx.media3:media3-exoplayer:1.0.0-beta02")
     implementation("androidx.media3:media3-ui:1.0.0-beta02")
@@ -96,6 +99,13 @@ dependencies {
 //    implementation "androidx.browser:browser:1.4.0"
 
     testImplementation 'junit:junit:4.13.2'
+    testImplementation(libs.roborazzi.core)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.roborazzi.junit.rule)
+    testImplementation(libs.robolectric)
+    testImplementation(platform(libs.compose.bom))
+    testImplementation 'androidx.compose.ui:ui-test-junit4'
+    testImplementation 'androidx.activity:activity-compose:1.8.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.4'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.0'
     androidTestImplementation(platform(libs.compose.bom))

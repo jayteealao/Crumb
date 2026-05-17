@@ -3,10 +3,10 @@ schema: sdlc/v1
 type: slice
 slug: brutalist-redesign
 slice-slug: screens
-status: defined
+status: implemented
 stage-number: 3
 created-at: "2026-05-16T22:37:59Z"
-updated-at: "2026-05-16T22:37:59Z"
+updated-at: "2026-05-17T17:36:42Z"
 complexity: l
 depends-on: [layouts]
 tags: [screens, brutalist, pager-migration]

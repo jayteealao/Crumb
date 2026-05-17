@@ -5,9 +5,9 @@ slug: brutalist-redesign
 status: complete
 stage-number: 4
 created-at: "2026-05-16T22:37:59Z"
-updated-at: "2026-05-17T14:55:21Z"
+updated-at: "2026-05-17T16:15:10Z"
 planning-mode: rolling
-slices-planned: 4
+slices-planned: 5
 slices-total: 7
 implementation-order: [toolchain, tokens, components, layouts, screens, behaviors, maestro]
 conflicts-found: 0
@@ -16,7 +16,7 @@ refs:
   index: 00-index.md
   slice-index: 03-slice.md
 next-command: wf-implement
-next-invocation: "/wf implement brutalist-redesign layouts"
+next-invocation: "/wf implement brutalist-redesign screens"
 ---
 
 # Plan Index
@@ -58,9 +58,14 @@ This is a **rolling plan index**. The chain of slices is strictly linear (toolch
 - **Cross-slice impact:** MainActivity edit is a one-line touch in `app/` from a slice nominally scoped to `core/designsystem/`. Co-located deliberately so HomeScaffold's edge-to-edge assumption is satisfiable. AC-2's "28dp gap" measurement and AC-5's Maestro testTag round-trip will register as `runtime-evidence-deferrals` at verify-stage (per workflow precedent — emulator/Maestro evidence belongs to the maestro slice). AC-3 (backdrop dismissal callback) closes within the slice via an in-process Compose UI test.
 - **See:** [04-plan-layouts.md](04-plan-layouts.md).
 
-### `screens` *(deferred)*
+### `screens` *(planned)*
 
-Rewrite 6 app screens + 2 feature-module screens; migrate Accompanist Pager → Compose-native Pager. **Re-split clause** active: if estimate >2 dev-days at plan time, split into `screens-feed` and `screens-shells`. Plan after `layouts` lands.
+- **Files to touch:** ~26 — 8 screen rewrites (`SplashScreen`, `OnboardingScreen`, `LoginScreen`, `HomeScreen`, `AllBookmarksScreen`, `MapViewScreen` in `app/`; `TwitterBookmarksScreen` in `feature/twitter/`; `RedditBookmarksScreen` in `feature/reddit/`) + 8 new Route wrappers + 1 NavHost rewire (`Crumbs.kt`) + 3 module build.gradle edits (Roborazzi enablement on `app`/`feature/twitter`/`feature/reddit`) + 8 new Roborazzi test files + ≥18 new PNG goldens.
+- **Strategy:** Route/Screen split applied to all 8 screens — stateless `XxxScreen(uiState, onEvent)` + thin `XxxRoute(viewModel = hiltViewModel())` wrapper. Zero Hilt test infra introduced. Single atomic commit per implement-stage contract. Enable Roborazzi plugin + dep bundle on 3 new modules (`app`, `feature/twitter`, `feature/reddit`) by copying the `core/designsystem/build.gradle` template. Hard-rewrite TwitterBookmarksScreen + RedditBookmarksScreen to Option D mock 1:1 (ViewModels untouched; cross-module `BookmarksViewModel` injection in `RedditBookmarksRoute` preserved). LoginScreen full-bleed brutalist (no shell wrapper). HomeScreen composes `HomeScaffold` with `CrumbsFilterBar` empty/inert in filterBar slot. OnboardingScreen kills Accompanist Pager (AC-S3 grep gate). AllBookmarksScreen converts `MaterialTheme.typography.*` → `LocalCrumbsTypography.current.*`. Roborazzi tolerance matches component goldens (5% changed-pixel + 1% RGB via `SimpleImageComparator(maxDistance = 0.01f)`).
+- **Key risk:** `LazyPagingItems` recomposition in Roborazzi tests + `LazyPagingItems` as data-class field pattern (mitigated by passing items as separate Screen parameter, not inside UiState). Secondary: testTag name churn risk — testTag names introduced this slice are public-API-stable for the maestro slice's flows.
+- **PO decisions captured (8 across 2 rounds):** screen factoring = Route/Screen split for all 8; test location = `app/src/test/` + `feature/*/src/test/` (3 module Roborazzi enablement); feature-screens rewrite depth = hard rewrite to mock 1:1; LoginScreen layout = full-bleed brutalist; resplit = keep single slice; Roborazzi tolerance = match components (5%/1%); AC-S1 fidelity method = maintainer-driven manual diff (runtime-evidence-deferral); HomeScreen filterBar = `CrumbsFilterBar` empty/inert.
+- **Cross-slice impact:** NavHost route-call updates in `Crumbs.kt` (4 calls: Splash/Onboarding/Login/Home → XxxRoute). Roborazzi plugin enablement spreads to 3 new modules. Edge-to-edge inset issue from layouts slice closes here — every screen migrates to `HomeScaffold` or to `Modifier.windowInsetsPadding(WindowInsets.safeDrawing)`. AC-L2 (HomeScaffold inset measurement on a live system bar) from the layouts slice's `runtime-evidence-deferrals` discharges naturally during this slice's verify when a host screen first composes `HomeScaffold` on Medium_Phone_API_36. AC-S1 (≥95% mock fidelity, maintainer manual diff) + AC-S2 (Maestro happy-path) register as new deferrals at verify-stage.
+- **See:** [04-plan-screens.md](04-plan-screens.md).
 
 ### `behaviors` *(deferred)*
 
@@ -99,8 +104,8 @@ No parallel integration points exist unless the `screens` re-split clause fires 
 1. **`toolchain`** *(implemented + verified-partial)* — risk-first; everything else depends on the new chain.
 2. **`tokens`** *(implemented + verified-partial)* — type contract for all downstream. Included orphan-component deletion pulled forward from the components slice.
 3. **`components`** *(implemented + verified-partial)* — 12 active rebuilds + 4 new components + QuickActionMenu retirement + scan-line motion + Roborazzi tolerance config + kotlinx.immutable adoption.
-4. **`layouts`** *(planned, ready to implement)* — HomeScaffold / OverlayShell / OnboardingShell + MainActivity edge-to-edge enablement. 8 files, single atomic commit, additive.
-5. **`screens`** *(plan after layouts ships, may re-split)* — composition.
+4. **`layouts`** *(implemented + verified-partial)* — HomeScaffold / OverlayShell / OnboardingShell + MainActivity edge-to-edge enablement.
+5. **`screens`** *(planned, ready to implement)* — 8 screen rewrites with Route/Screen split, 3-module Roborazzi enablement, hard-rewrite of feature screens, Accompanist Pager retired. Resplit ruled out at plan stage; single atomic commit.
 6. **`behaviors`** *(plan after screens ships)* — wiring + DB schema.
 7. **`maestro`** *(plan after behaviors ships)* — end-to-end coverage.
 
@@ -126,7 +131,7 @@ Captured in detail in [04-plan-toolchain.md](04-plan-toolchain.md) `## Freshness
 
 ## Recommended Next Stage
 
-- **Option A (default):** `/wf implement brutalist-redesign layouts` — execute the layouts plan. Small, additive slice with clear single-commit shape. **Compact first** — planning research (sub-agent reports, web searches, discovery rounds) is noise for the implement loop; PreCompact hook preserves workflow state on disk.
-- **Option B:** `/wf plan brutalist-redesign layouts <feedback>` — revise this slice's plan if any of the 8 PO discovery answers feels wrong on second read (e.g., reconsider Popup vs in-tree, or revisit `enableEdgeToEdge()` placement).
-- **Option C:** `/wf review brutalist-redesign components` — open the canonical review on components before extending the diff. `review-scope: slug-wide` means the load-bearing review runs at the end of the slice chain, but a per-slice spot review is still a valid signal.
-- **Option D:** `/wf slice brutalist-redesign` — revisit slice boundaries. **Not recommended** — layouts-plan surfaced no boundary problem; the MainActivity one-line touch is the only cross-package step and is co-located deliberately.
+- **Option A (default):** `/wf implement brutalist-redesign screens` — execute the screens plan. 16-step atomic commit; clear scope; every upstream API at `verified-partial`. **Compact first** — planning research (4 sub-agent reports + 2 discovery rounds) is noise for the implement loop; PreCompact hook preserves workflow state on disk.
+- **Option B:** `/wf plan brutalist-redesign screens <feedback>` — revise this slice's plan if any of the 8 PO discovery answers feels wrong on second read (e.g. reconsider hard-rewrite for feature screens, or revisit Route/Screen split scope).
+- **Option C:** `/wf review brutalist-redesign layouts` — open a per-slice spot-review on layouts before extending the diff. `review-scope: slug-wide` means the load-bearing review runs at the end of the slice chain, but per-slice signal is still valid.
+- **Option D:** `/wf slice brutalist-redesign` — revisit slice boundaries. **Not recommended** — discovery resolved the resplit question explicitly (Round 2 Q5 → keep single slice). No boundary problem surfaced during planning.

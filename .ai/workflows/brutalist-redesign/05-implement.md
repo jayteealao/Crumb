@@ -5,18 +5,18 @@ slug: brutalist-redesign
 status: in-progress
 stage-number: 5
 created-at: "2026-05-17T00:38:34Z"
-updated-at: "2026-05-17T15:24:46Z"
-slices-implemented: 5
+updated-at: "2026-05-17T17:36:42Z"
+slices-implemented: 6
 slices-total: 8
-metric-total-files-changed: 206
-metric-total-lines-added: 2446
-metric-total-lines-removed: 7908
-tags: [redesign, toolchain, tokens, quick-skip-auth-page, components, layouts]
+metric-total-files-changed: 244
+metric-total-lines-added: 5346
+metric-total-lines-removed: 9581
+tags: [redesign, toolchain, tokens, quick-skip-auth-page, components, layouts, screens]
 refs:
   index: 00-index.md
   plan-index: 04-plan.md
 next-command: wf-verify
-next-invocation: "/wf verify brutalist-redesign layouts"
+next-invocation: "/wf verify brutalist-redesign screens"
 ---
 
 # Implement Index
@@ -77,7 +77,19 @@ next-invocation: "/wf verify brutalist-redesign layouts"
 - Verify-stage owns: AC-2 (inset-applied measurement on a real device — Roborazzi insets are 0 by Robolectric default; runtime deferral), AC-3 (closed in-slice by `backdrop_tap_invokes_onDismiss` UI test), AC-5 (Maestro studio testTag round-trip — defer to `maestro` slice).
 - **Interim visual artifact**: `enableEdgeToEdge()` is now active in MainActivity. Screens not yet migrated to `HomeScaffold` render with TopBar partially under the status bar until the `screens` slice migrates them. Acknowledged; not a regression.
 
-### `screens`, `behaviors`, `maestro` — not yet planned
+### `screens` — complete
+
+- One atomic commit on `feat/brutalist-redesign`. See [05-implement-screens.md](05-implement-screens.md).
+- ~38 files changed (8 modified screens + 4 new Route files + modified NavHost + 3 build-gradle edits + 1 deleted orphan + 8 test files + 3 test manifests + 16 PNG goldens); +2900/-1673 in source/build.
+- Build + lint + `recordRoborazziDebug` + `verifyRoborazziDebug` + `assembleDebug` all green.
+- AC-S3 grep guard (`com.google.accompanist.pager` source-level): zero matches. Achieved by `OnboardingScreen` rewrite + `TwitterCard.kt` orphan deletion + gradle dep removal from `:app` + `:feature:twitter`.
+- `MaterialTheme.*` grep guard in `screens/`: zero matches.
+- 4 plan deviations: (1) `SimpleImageComparator` package corrected to `com.dropbox.differ` (Roborazzi 1.60.0 re-exports Dropbox differ), (2) `ButtonStyle.Ghost` substituted with `ButtonStyle.Secondary` (enum has only Primary/Secondary), (3) `testOptions.unitTests.includeAndroidResources = true` + per-module test `AndroidManifest.xml` added so Robolectric can resolve `ComponentActivity` (mirrors `core/designsystem`), (4) `TwitterCard.kt` orphan deleted to close AC-S3 source-level.
+- 16 goldens recorded (plan said 18 floor — relaxed because `LazyPagingItems` populated-state mocking adds noise to Roborazzi captures; populated-state visual coverage handled by maintainer manual diff at verify).
+- Verify-stage owns: AC-S1 (≥95% maintainer manual diff against Option D mocks — runtime deferral), AC-S2 (Maestro happy-path — collapses onto `maestro` slice), AC line 70 (long-press popup 4 actions — popup component already covered by components slice, end-to-end is Maestro).
+- `LoginViewModel` and `RedditViewModel` byte-stable across this slice. AC line 71 (OAuth flows unchanged) closed at diff-level + by two callback assertions in `LoginScreenTest`.
+
+### `behaviors`, `maestro` — not yet planned
 
 Per the rolling-plan strategy in [04-plan.md](04-plan.md). The `behaviors` slice owns:
 - Real fingertip Offset routing from `CrumbsBookmarkCard.onLongPress(bookmark, offsetPx)` into `CrumbsLongPressPopup.anchorOffsetPx`.
@@ -89,7 +101,6 @@ Per the rolling-plan strategy in [04-plan.md](04-plan.md). The `behaviors` slice
 
 ## Recommended Next Stage
 
-- **Option A (default):** `/wf verify brutalist-redesign layouts` — automated gates already green (compile + assembleDebug + recordRoborazziDebug + verifyRoborazziDebug + lintDebug); verify stage owns AC adjudication, AC-2 inset measurement deferral registration, AC-5 Maestro deferral registration. **Compact recommended** — implementation context is noise for verification.
-- **Option B:** `/wf plan brutalist-redesign screens` — start the next slice's plan; can run in parallel with layouts verify.
-- **Option C:** `/wf review brutalist-redesign layouts` — skip verify; less recommended since AC-2 + AC-5 carry runtime claims that benefit from explicit deferral bookkeeping.
-- **Option D:** `/wf verify brutalist-redesign components` — finish the still-open components verify-partial gate (AC-C5 reconciled to static, AC-C6 deferred to maestro). If you want to land components fully before opening more verify scope, this clears the books first.
+- **Option A (default):** `/wf verify brutalist-redesign screens` — automated gates already green (compile + assembleDebug + recordRoborazziDebug + verifyRoborazziDebug + lintDebug); verify stage owns AC adjudication, AC-S1 maintainer-diff deferral registration, AC-S2 + AC line 70 collapse onto Maestro slice. **Compact recommended** — implementation context is noise for verification.
+- **Option B:** `/wf plan brutalist-redesign behaviors` — start the next slice's plan; behaviors slice consumes this slice's testTag scaffolding + popup-action `TODO()` stubs + filter-chip empty state.
+- **Option C:** `/wf review brutalist-redesign screens` — skip verify; less recommended since AC-S1 manual diff benefits from explicit deferral bookkeeping at verify-stage before review.
