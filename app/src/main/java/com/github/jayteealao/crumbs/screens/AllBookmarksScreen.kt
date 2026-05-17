@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
-import androidx.paging.compose.items
+import androidx.paging.compose.itemKey
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsBookmarkCard
 import com.github.jayteealao.crumbs.designsystem.components.EmptyState
 import com.github.jayteealao.crumbs.designsystem.components.LoadingCard
@@ -129,9 +129,10 @@ fun AllBookmarksScreen(
 
                     // Twitter posts
                     items(
-                        twitterPosts,
-                        key = { "twitter_${it.tweet.id}" }
-                    ) { tweetData ->
+                        count = twitterPosts.itemCount,
+                        key = twitterPosts.itemKey { "twitter_${it.tweet.id}" }
+                    ) { index ->
+                        val tweetData = twitterPosts[index]
                         if (tweetData != null) {
                             LaunchedEffect(tweetData.tweet.id) {
                                 bookmarksViewModel.loadTagsForTweet(tweetData.tweet.id)
@@ -205,9 +206,10 @@ fun AllBookmarksScreen(
 
                     // Reddit posts
                     items(
-                        redditPosts,
-                        key = { "reddit_${it.post.id}" }
-                    ) { postData ->
+                        count = redditPosts.itemCount,
+                        key = redditPosts.itemKey { "reddit_${it.post.id}" }
+                    ) { index ->
+                        val postData = redditPosts[index]
                         if (postData != null) {
                             LaunchedEffect(postData.post.id) {
                                 bookmarksViewModel.loadTagsForTweet(postData.post.id)

@@ -34,7 +34,7 @@ lifecycleViewmodelCompose = { module = "androidx.lifecycle:lifecycle-viewmodel-c
 lifecycleRuntimeCompose = {module = "androidx.lifecycle:lifecycle-runtime-compose", version = "2.6.0-alpha03"}
 hiltNavigationCompose = {module = "androidx.hilt:hilt-navigation-compose", version = "1.0.0"}
 navigationCompose = {module = "androidx.navigation:navigation-compose", version = "2.5.3"}
-pagingCompose = {module = "androidx.paging:paging-compose", version = "1.0.0-alpha17"}
+pagingCompose = {module = "androidx.paging:paging-compose", version = "3.3.6"}
 #retrofit
 retrofit-core = { module = "com.squareup.retrofit2:retrofit", version.ref = "retrofit" }
 retrofit-gson = { module = "com.squareup.retrofit2:converter-gson", version.ref = "retrofit" }

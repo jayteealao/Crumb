@@ -25,6 +25,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.github.jayteealao.crumbs.BuildConfig
 import com.github.jayteealao.crumbs.Screens
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsButton
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsProgressIndicator
@@ -196,6 +197,19 @@ fun LoginScreen(
                             text = "Connect with Reddit",
                             modifier = Modifier.fillMaxWidth()
                         )
+
+                        if (BuildConfig.DEBUG) {
+                            Spacer(modifier = Modifier.height(spacing.md))
+                            CrumbsButton(
+                                onClick = {
+                                    navController.navigate(Screens.HOMESCREEN.screenRoute(false)) {
+                                        popUpTo(Screens.LOGINSCREEN.name) { inclusive = true }
+                                    }
+                                },
+                                text = "Skip Auth (Debug)",
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
             }

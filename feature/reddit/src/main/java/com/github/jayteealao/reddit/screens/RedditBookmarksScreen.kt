@@ -25,7 +25,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
-import androidx.paging.compose.items
+import androidx.paging.compose.itemKey
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsBookmarkCard
 import com.github.jayteealao.crumbs.designsystem.components.EmptyState
 import com.github.jayteealao.crumbs.designsystem.components.LoadingCard
@@ -109,9 +109,10 @@ fun RedditBookmarksScreen(
 
                     // Posts
                     items(
-                        pagedPosts,
-                        key = { it.post.id }
-                    ) { postData ->
+                        count = pagedPosts.itemCount,
+                        key = pagedPosts.itemKey { it.post.id }
+                    ) { index ->
+                        val postData = pagedPosts[index]
                         if (postData != null) {
                             // Load tags for this post
                             LaunchedEffect(postData.post.id) {

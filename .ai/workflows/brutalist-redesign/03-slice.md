@@ -5,8 +5,8 @@ slug: brutalist-redesign
 status: complete
 stage-number: 3
 created-at: "2026-05-16T22:37:59Z"
-updated-at: "2026-05-16T22:37:59Z"
-total-slices: 7
+updated-at: "2026-05-17T09:35:13Z"
+total-slices: 8
 best-first-slice: toolchain
 tags: [redesign, ui, compose, design-system, brutalist, roborazzi, maestro]
 slices:
@@ -38,6 +38,10 @@ slices:
     status: defined
     complexity: s
     depends-on: [behaviors]
+  - slug: quick-skip-auth-page
+    status: implemented
+    slice-type: quick
+    compressed: true
 refs:
   index: 00-index.md
   shape: 02-shape.md

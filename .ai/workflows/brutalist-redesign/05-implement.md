@@ -5,13 +5,13 @@ slug: brutalist-redesign
 status: in-progress
 stage-number: 5
 created-at: "2026-05-17T00:38:34Z"
-updated-at: "2026-05-17T08:20:13Z"
-slices-implemented: 2
-slices-total: 7
-metric-total-files-changed: 158
-metric-total-lines-added: 582
-metric-total-lines-removed: 6063
-tags: [redesign, toolchain, tokens]
+updated-at: "2026-05-17T10:23:06Z"
+slices-implemented: 3
+slices-total: 8
+metric-total-files-changed: 164
+metric-total-lines-added: 649
+metric-total-lines-removed: 6074
+tags: [redesign, toolchain, tokens, quick-skip-auth-page]
 refs:
   index: 00-index.md
   plan-index: 04-plan.md
@@ -52,6 +52,13 @@ next-invocation: "/wf verify brutalist-redesign tokens"
   4. `buttonSmall`/`cardSmall`/`videoPlayer` shape fields deleted entirely (call sites rewired to `button`/`card`/`rectangle`).
 - Interactive emulator verification (Pixel 6 API 34) deferred to verify stage.
 - AC-K5 (handoff manual diff) deferred per plan; will register as `runtime-evidence-deferral` at verify.
+
+### `quick-skip-auth-page` — complete (compressed slice)
+
+- One slice file at [05-implement-quick-skip-auth-page.md](05-implement-quick-skip-auth-page.md); attached to the workflow via slug-mode (`/wf-quick quick`) to unblock `runtime-evidence-deferrals[3]` (tokens AC-K6) and the broader screens-level evidence pipeline.
+- Six files changed, +67/-11 lines. Original 2-file plan expanded to 6 files because the AC-Q3 emulator check exposed pre-existing `paging-compose:1.0.0-alpha17` ABI rot against the post-`toolchain` `paging-common:3.3.x` graph. Bumped to `paging-compose:3.3.6` and migrated three `LazyListScope.items(LazyPagingItems)` call sites to the count-based API (`TwitterBookmarksScreen`, `RedditBookmarksScreen`, `AllBookmarksScreen`).
+- `HomeScreen` reachable from debug builds via a `BuildConfig.DEBUG`-gated "Skip Auth (Debug)" button on `LoginScreen`. Light- and dark-mode `HomeScreen` evidence captured.
+- Newly-visible defect surfaced for later slices: duplicate `Twitter / Reddit / All / Map` tab labels at the top of `HomeScreen` content area in addition to the legitimate bottom navigation. Not introduced by this slice; belongs in `screens` or `layouts`.
 
 ### `components`, `layouts`, `screens`, `behaviors`, `maestro` — not yet planned
 

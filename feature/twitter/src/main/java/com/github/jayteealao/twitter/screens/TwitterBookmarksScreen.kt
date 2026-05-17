@@ -31,7 +31,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
-import androidx.paging.compose.items
+import androidx.paging.compose.itemKey
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsBookmarkCard
 import com.github.jayteealao.crumbs.designsystem.components.EmptyState
 import com.github.jayteealao.crumbs.designsystem.components.LoadingCard
@@ -125,9 +125,10 @@ fun TwitterBookmarksScreen(
 
                 // Bookmarks
                 items(
-                    pagedBookmarks,
-                    key = { it.tweet.id }
-                ) { tweetData ->
+                    count = pagedBookmarks.itemCount,
+                    key = pagedBookmarks.itemKey { it.tweet.id }
+                ) { index ->
+                    val tweetData = pagedBookmarks[index]
                     if (tweetData != null) {
                         // Load tags for this tweet
                         LaunchedEffect(tweetData.tweet.id) {

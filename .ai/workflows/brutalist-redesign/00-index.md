@@ -4,10 +4,10 @@ type: index
 slug: brutalist-redesign
 title: "Replace Crumbs app design with the Brutalist Mono (Option D) handoff, pixel-for-pixel"
 status: active
-current-stage: implement
-stage-number: 5
+current-stage: verify
+stage-number: 6
 created-at: "2026-05-16T21:44:39Z"
-updated-at: "2026-05-17T08:20:13Z"
+updated-at: "2026-05-17T10:23:06Z"
 selected-slice: tokens
 branch-strategy: dedicated
 branch: "feat/brutalist-redesign"
@@ -82,8 +82,8 @@ stack:
     - {name: "pencil", hint: ".pen design files (handoff is HTML not .pen — n/a)"}
     - {name: "zai-mcp-server", hint: "Image/diagram analysis (could validate against verify-*.jpg references)"}
   user-confirmed: true
-next-command: wf-verify
-next-invocation: "/wf verify brutalist-redesign tokens"
+next-command: wf-review
+next-invocation: "/wf review brutalist-redesign tokens"
 runtime-evidence-deferrals:
   - slice: toolchain
     ac: AC4
@@ -95,6 +95,18 @@ runtime-evidence-deferrals:
     reason: "Manual visual diff of 133 regenerated goldens against pre-bump tree pending maintainer review. Acceptable drift: anti-alias/hinting/banding/material3-ripple. Unacceptable: missing strokes, repositioned elements, color shifts."
     deferred-at: "2026-05-17T01:17:12Z"
     cleared-by: null
+  - slice: tokens
+    ac: AC-K4
+    reason: "Maintainer-driven manual handoff diff against Crumbs-handoff/crumbs/project/handoff-tokens.jsx. Registered as maintainer-owned at plan-round-1; no automated path intended. Acceptable drift: anti-aliasing, monitor color gamut. Unacceptable: wrong hex, wrong type family."
+    deferred-at: "2026-05-17T08:56:40Z"
+    cleared-by: null
+  - slice: tokens
+    ac: AC-K6
+    reason: "HomeScreen-paper-background pixel check requires advancing past LoginScreen, which is auth-gated (Twitter/Reddit OAuth credentials not provisioned in verify env). Orange accent + dark-mode #0B0B0B background + Funnel Display + IBM Plex Mono all confirmed reaching the running app via LoginScreen evidence on Medium_Phone_API_36 (light, dark, airplane mode). Clears when /wf-quick probe runs with OAuth credentials or after the behaviors slice lands a debug data injector."
+    deferred-at: "2026-05-17T08:56:40Z"
+    cleared-by: "slice/quick-skip-auth-page"
+    cleared-at: "2026-05-17T10:23:06Z"
+    cleared-evidence: ".ai/workflows/brutalist-redesign/verify-evidence/quick-skip-auth-page/04-homescreen-via-skip-rerun.png + 05-homescreen-dark-via-skip.png"
 workflow-files:
   - 00-index.md
   - 01-intake.md
@@ -107,22 +119,29 @@ workflow-files:
   - 03-slice-screens.md
   - 03-slice-behaviors.md
   - 03-slice-maestro.md
+  - 03-slice-quick-skip-auth-page.md
   - 04-plan.md
   - 04-plan-toolchain.md
   - 04-plan-tokens.md
   - 05-implement.md
   - 05-implement-toolchain.md
   - 05-implement-tokens.md
+  - 05-implement-quick-skip-auth-page.md
   - 06-verify.md
   - 06-verify-toolchain.md
+  - 06-verify-tokens.md
   - po-answers.md
+compressed-slices:
+  - slug: quick-skip-auth-page
+    slice-type: quick
+    created-at: "2026-05-17T09:35:13Z"
 slices:
   - slug: toolchain
     status: verified-partial
     complexity: l
     depends-on: []
   - slug: tokens
-    status: implemented
+    status: verified-partial
     complexity: m
     depends-on: [toolchain]
   - slug: components
@@ -151,7 +170,7 @@ progress:
   slice: complete
   plan: in-progress   # 2/7 slices planned (toolchain, tokens); 5 remaining plans deferred (rolling plans)
   implement: in-progress   # 2/7 slices implemented (toolchain, tokens); see 05-implement-{toolchain,tokens}.md
-  verify: in-progress      # 1/7 slices verified-partial (toolchain); tokens awaits verify; 2 runtime-evidence-deferrals
+  verify: in-progress      # 2/7 slices verified-partial (toolchain, tokens); 4 runtime-evidence-deferrals
   review: not-started
   handoff: not-started
   ship: not-started
