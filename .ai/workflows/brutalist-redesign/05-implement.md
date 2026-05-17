@@ -5,18 +5,18 @@ slug: brutalist-redesign
 status: in-progress
 stage-number: 5
 created-at: "2026-05-17T00:38:34Z"
-updated-at: "2026-05-17T13:16:45Z"
-slices-implemented: 4
+updated-at: "2026-05-17T15:24:46Z"
+slices-implemented: 5
 slices-total: 8
-metric-total-files-changed: 191
-metric-total-lines-added: 1715
-metric-total-lines-removed: 7907
-tags: [redesign, toolchain, tokens, quick-skip-auth-page, components]
+metric-total-files-changed: 206
+metric-total-lines-added: 2446
+metric-total-lines-removed: 7908
+tags: [redesign, toolchain, tokens, quick-skip-auth-page, components, layouts]
 refs:
   index: 00-index.md
   plan-index: 04-plan.md
 next-command: wf-verify
-next-invocation: "/wf verify brutalist-redesign components"
+next-invocation: "/wf verify brutalist-redesign layouts"
 ---
 
 # Implement Index
@@ -66,7 +66,18 @@ next-invocation: "/wf verify brutalist-redesign components"
 - 3 plan deviations: (a) `Modifier.dropShadow` deferred, (b) caller distribution wider than plan assumed (3 modules vs 1), (c) commit cadence collapsed from 7 to 1 per implement-stage contract.
 - Verify-stage owns: AC-C2 (Roborazzi golden match — fresh regeneration is exact, manual subjective ≥95% review deferred), AC-C5 (LoadingCard scan-line interactive review), AC-C6 (Maestro studio dry-run testTag inspection).
 
-### `layouts`, `screens`, `behaviors`, `maestro` — not yet planned
+### `layouts` — complete
+
+- One atomic commit on `feat/brutalist-redesign`. See [05-implement-layouts.md](05-implement-layouts.md).
+- 15 files changed (3 new shells + 3 new tests + MainActivity edit + 2 build-script edits + 6 new goldens); +731/-1 in source/build.
+- Build + lint + `recordRoborazziDebug` + `verifyRoborazziDebug` all green.
+- `Color(0xFF…)` + `MaterialTheme.*` leak scan in `layouts/`: zero matches.
+- testTag inventory: 11 distinct tags across 3 shells, all spec-required tags present (+ 4 bonus tags for Maestro flow ergonomics).
+- 5 plan deviations: (1) `LocalCrumbsColors.current` over `CrumbsTheme.colors`, (2) `ButtonStyle` over `CrumbsButtonStyle`, (3) `CrumbsTheme` direct wrap over `TestCrumbsTheme` (codebase convention), (4) `activityCompose` catalog bump 1.6.1 → 1.8.2 + added to `core/designsystem` main classpath (BackHandler + enableEdgeToEdge require activity ≥1.8.0), (5) 4 bonus testTags beyond slice spec.
+- Verify-stage owns: AC-2 (inset-applied measurement on a real device — Roborazzi insets are 0 by Robolectric default; runtime deferral), AC-3 (closed in-slice by `backdrop_tap_invokes_onDismiss` UI test), AC-5 (Maestro studio testTag round-trip — defer to `maestro` slice).
+- **Interim visual artifact**: `enableEdgeToEdge()` is now active in MainActivity. Screens not yet migrated to `HomeScaffold` render with TopBar partially under the status bar until the `screens` slice migrates them. Acknowledged; not a regression.
+
+### `screens`, `behaviors`, `maestro` — not yet planned
 
 Per the rolling-plan strategy in [04-plan.md](04-plan.md). The `behaviors` slice owns:
 - Real fingertip Offset routing from `CrumbsBookmarkCard.onLongPress(bookmark, offsetPx)` into `CrumbsLongPressPopup.anchorOffsetPx`.
@@ -78,6 +89,7 @@ Per the rolling-plan strategy in [04-plan.md](04-plan.md). The `behaviors` slice
 
 ## Recommended Next Stage
 
-- **Option A (default):** `/wf verify brutalist-redesign components` — Roborazzi gate is green; verify stage owns the maintainer-subjective AC-C2 diff, interactive AC-C5 scan-line check, and Maestro studio AC-C6 dry-run on Pixel 6 API 34. **Compact recommended** — implementation context is noise for verification.
-- **Option B:** `/wf plan brutalist-redesign layouts` — start the next slice's planning in parallel with verify.
-- **Option C:** `/wf review brutalist-redesign components` — skip verify; less recommended since AC-C5 and AC-C6 are interactive.
+- **Option A (default):** `/wf verify brutalist-redesign layouts` — automated gates already green (compile + assembleDebug + recordRoborazziDebug + verifyRoborazziDebug + lintDebug); verify stage owns AC adjudication, AC-2 inset measurement deferral registration, AC-5 Maestro deferral registration. **Compact recommended** — implementation context is noise for verification.
+- **Option B:** `/wf plan brutalist-redesign screens` — start the next slice's plan; can run in parallel with layouts verify.
+- **Option C:** `/wf review brutalist-redesign layouts` — skip verify; less recommended since AC-2 + AC-5 carry runtime claims that benefit from explicit deferral bookkeeping.
+- **Option D:** `/wf verify brutalist-redesign components` — finish the still-open components verify-partial gate (AC-C5 reconciled to static, AC-C6 deferred to maestro). If you want to land components fully before opening more verify scope, this clears the books first.

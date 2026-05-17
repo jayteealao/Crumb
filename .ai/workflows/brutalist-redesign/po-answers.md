@@ -225,3 +225,42 @@ A cumulative log of product-owner answers across stages. Newest at the bottom. E
 - **BookmarkCard onLongPress API widens** from `(Bookmark) -> Unit` to `(Bookmark, Offset) -> Unit`. Internal API; call sites updated in same commit. No feature-module ripple (zero feature/* imports of CrumbsBookmarkCard).
 - **`kotlinx.collections.immutable` adoption** is workflow-wide once introduced. Downstream slices should default to ImmutableList for new component parameters.
 - **`Modifier.dropShadow` becomes the brutalist offset-shadow primitive** for the rest of the workflow. Layouts/screens slices should reuse the pattern.
+
+---
+
+## 2026-05-17T14:55:21Z — stage: plan, slice: layouts (Round 1 + 2, 8 answers)
+
+### Round 1 — Scope and architecture
+
+- **Q1 (EdgeToEdge):** Where should the `enableEdgeToEdge()` call land?
+  **A:** MainActivity in this slice. Co-locate with HomeScaffold's edge-to-edge assumption. One-line `app/` touch is acceptable.
+
+- **Q2 (OverlayShell technique):** in-tree composition or Popup wrapper?
+  **A:** In-tree `Box` + `AnimatedVisibility(slideInVertically + fadeIn)` + `BackHandler`. Better IME + a11y story; rejects Material3 ModalBottomSheet.
+
+- **Q3 (OnboardingShell pager slot shape):** Three API shapes considered.
+  **A:** `pages: ImmutableList<@Composable () -> Unit>` + `pagerState: PagerState = rememberPagerState(pageCount = { pages.size })`. Shell internally renders Compose-native `HorizontalPager`. Caller passes pre-built page composables.
+
+- **Q4 (filterBar slot shape):** required-with-default vs nullable?
+  **A:** Nullable — `filterBar: (@Composable () -> Unit)? = null`. Cleaner call sites for screens without filters.
+
+### Round 2 — Implementation and testing
+
+- **Q5 (Backdrop dismiss mechanism):** `Modifier.clickable(indication = null)` or `pointerInput { detectTapGestures }`?
+  **A:** `Modifier.clickable(remember { MutableInteractionSource() }, indication = null) { onDismiss() }` with `Modifier.semantics { contentDescription = "Dismiss overlay" }`. Better TalkBack semantics.
+
+- **Q6 (Roborazzi WindowInsets strategy):** stub via test rule, accept 0, or hoist as test param?
+  **A:** Hoist as test parameter; accept `WindowInsets(0)` default in goldens. Deterministic. AC-2's "28dp gap" measurement transfers to a runtime-evidence-deferral at verify, cleared by maestro slice or `/wf-quick probe`.
+
+- **Q7 (AC-3 backdrop dismiss test):** ship in layouts slice or defer to maestro?
+  **A:** Ship in layouts slice. `OverlayShellTest.kt` gains a non-Roborazzi Compose UI test that performs `onNodeWithTag("overlay-shell-backdrop").performClick()` and asserts the `onDismiss` lambda fired. Closes AC-3 within the slice.
+
+- **Q8 (OnboardingShell footer layout):** single internally-composed Row or fully caller-supplied slot?
+  **A:** Single internally-composed Row(SpaceBetween) with shell-owned `OnboardingPageIndicator` (3 RectangleShape pills, accent on `currentPage`) + optional `CrumbsButton(footerCtaText, onFooterCtaClick)`. Shell owns the indicator pattern; lowest call-site burden.
+
+### Cross-slice impact captured
+
+- **MainActivity edit is a one-line app-module touch from a slice nominally scoped to `core/designsystem/`.** Deliberate co-location so HomeScaffold's edge-to-edge assumption is satisfiable. Implement record + verify report must both surface this.
+- **Interim visual artifact** between layouts merge and screens slice migrations: with `enableEdgeToEdge()` active but no screens yet consuming insets, screens render TopBar partially under the status bar. Acknowledged interim state; verify must not flag as regression.
+- **AC-2 (inset-applied measurement) and AC-5 (Maestro testTag round-trip)** will register as runtime-evidence-deferrals at verify-stage, per workflow precedent.
+- **Compose-native `HorizontalPager` adoption begins this slice** (OnboardingShell only). Accompanist Pager removal from `OnboardingScreen` itself is screens-slice work.

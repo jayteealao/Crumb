@@ -7,7 +7,7 @@ status: active
 current-stage: verify
 stage-number: 6
 created-at: "2026-05-16T21:44:39Z"
-updated-at: "2026-05-17T13:16:45Z"
+updated-at: "2026-05-17T15:24:46Z"
 selected-slice: tokens
 branch-strategy: dedicated
 branch: "feat/brutalist-redesign"
@@ -83,7 +83,7 @@ stack:
     - {name: "zai-mcp-server", hint: "Image/diagram analysis (could validate against verify-*.jpg references)"}
   user-confirmed: true
 next-command: wf-verify
-next-invocation: "/wf verify brutalist-redesign components"
+next-invocation: "/wf verify brutalist-redesign layouts"
 runtime-evidence-deferrals:
   - slice: toolchain
     ac: AC4
@@ -107,6 +107,11 @@ runtime-evidence-deferrals:
     cleared-by: "slice/quick-skip-auth-page"
     cleared-at: "2026-05-17T10:23:06Z"
     cleared-evidence: ".ai/workflows/brutalist-redesign/verify-evidence/quick-skip-auth-page/04-homescreen-via-skip-rerun.png + 05-homescreen-dark-via-skip.png"
+  - slice: components
+    ac: AC-C6
+    reason: "Maestro studio interactive dry-run requires Maestro CLI not on confirmed PATH; the dedicated `maestro` slice owns the round-trip verification per the workflow's slice boundary. Static evidence (39 testTag call sites across 16 components + testTagsAsResourceId scaffold at CrumbsTheme:42) confirms the scaffolding is in place. Clears when /wf-quick probe runs Maestro studio against the running app, or when the maestro slice verifies the full testTag round-trip."
+    deferred-at: "2026-05-17T13:29:48Z"
+    cleared-by: null
 workflow-files:
   - 00-index.md
   - 01-intake.md
@@ -124,14 +129,17 @@ workflow-files:
   - 04-plan-toolchain.md
   - 04-plan-tokens.md
   - 04-plan-components.md
+  - 04-plan-layouts.md
   - 05-implement.md
   - 05-implement-toolchain.md
   - 05-implement-tokens.md
   - 05-implement-quick-skip-auth-page.md
   - 05-implement-components.md
+  - 05-implement-layouts.md
   - 06-verify.md
   - 06-verify-toolchain.md
   - 06-verify-tokens.md
+  - 06-verify-components.md
   - po-answers.md
 compressed-slices:
   - slug: quick-skip-auth-page
@@ -147,11 +155,11 @@ slices:
     complexity: m
     depends-on: [toolchain]
   - slug: components
-    status: implemented
+    status: verified-partial
     complexity: l
     depends-on: [tokens]
   - slug: layouts
-    status: defined
+    status: implemented
     complexity: s
     depends-on: [components]
   - slug: screens
@@ -170,9 +178,9 @@ progress:
   intake: complete
   shape: complete
   slice: complete
-  plan: in-progress   # 3/7 slices planned (toolchain, tokens, components); 4 remaining plans deferred (rolling plans)
-  implement: in-progress   # 3/7 slices implemented (toolchain, tokens, components); see 05-implement-{toolchain,tokens,components}.md
-  verify: in-progress      # 2/7 slices verified-partial (toolchain, tokens); 4 runtime-evidence-deferrals; components ready for verify
+  plan: in-progress   # 4/7 slices planned (toolchain, tokens, components, layouts); 3 remaining plans deferred (rolling plans)
+  implement: in-progress   # 4/7 slices implemented (toolchain, tokens, components, layouts); see 05-implement-{toolchain,tokens,components,layouts}.md
+  verify: in-progress      # 3/7 slices verified-partial (toolchain, tokens, components); 4 active runtime-evidence-deferrals; layouts ready for verify
   review: not-started
   handoff: not-started
   ship: not-started

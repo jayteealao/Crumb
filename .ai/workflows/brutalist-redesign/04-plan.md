@@ -5,9 +5,9 @@ slug: brutalist-redesign
 status: complete
 stage-number: 4
 created-at: "2026-05-16T22:37:59Z"
-updated-at: "2026-05-17T11:11:14Z"
+updated-at: "2026-05-17T14:55:21Z"
 planning-mode: rolling
-slices-planned: 3
+slices-planned: 4
 slices-total: 7
 implementation-order: [toolchain, tokens, components, layouts, screens, behaviors, maestro]
 conflicts-found: 0
@@ -16,7 +16,7 @@ refs:
   index: 00-index.md
   slice-index: 03-slice.md
 next-command: wf-implement
-next-invocation: "/wf implement brutalist-redesign tokens"
+next-invocation: "/wf implement brutalist-redesign layouts"
 ---
 
 # Plan Index
@@ -49,9 +49,14 @@ This is a **rolling plan index**. The chain of slices is strictly linear (toolch
 - **Cross-slice impact:** ARCHIVE action (new on the long-press popup, comes from handoff Screen 5) is a behavior introduced by the handoff but **wired** in the behaviors slice — components slice ships visual shell only.
 - **See:** [04-plan-components.md](04-plan-components.md).
 
-### `layouts` *(deferred)*
+### `layouts` *(planned)*
 
-HomeScaffold, OverlayShell, OnboardingShell in `core/designsystem/layouts/`. Plan after `components` since the shells compose against the final component API.
+- **Files to touch:** 8 — 3 new shells (`HomeScaffold.kt`, `OverlayShell.kt`, `OnboardingShell.kt`) + 3 new test files (`HomeScaffoldTest`, `OverlayShellTest`, `OnboardingShellTest`) + `MainActivity.kt` (add `enableEdgeToEdge()`) + 6 regenerated PNG goldens. Optional 4th source file (internal `OnboardingPageIndicator.kt`) if extracted; default inline in `OnboardingShell.kt`.
+- **Strategy:** Single atomic commit, additive only. New sub-package `core/designsystem/layouts/`. HomeScaffold composes Material3 Scaffold with `containerColor = CrumbsTheme.colors.background`, status-bar inset consumed once at the `Column { topBar(); filterBar() }` topBar slot, nav-bar inset on bottomBar slot. OverlayShell uses in-tree composition: `Box` + `AnimatedVisibility(fadeIn)` scrim + `AnimatedVisibility(slideInVertically + fadeIn)` sheet + `BackHandler`; backdrop tap via `Modifier.clickable(indication = null)`; brutalist Surface (RectangleShape + 1.5dp ink border). OnboardingShell renders Compose-native `HorizontalPager` with `pages: ImmutableList<@Composable () -> Unit>` + `rememberPagerState(pageCount = { pages.size })`; footer is a single `Row(SpaceBetween)` with shell-owned `OnboardingPageIndicator` (3 RectangleShape pills, accent on currentPage) + optional `CrumbsButton`. MainActivity gains `enableEdgeToEdge()` first thing in `onCreate()`.
+- **Key risk:** Interim-state visual artifact — between this slice's merge and the screens slice's screen migrations, screens that don't yet consume insets will render TopBar partially under the status bar (because MainActivity now calls `enableEdgeToEdge()`). Acknowledged; recorded as known interim state. Verify report should not treat this as a regression. Mitigation: implement record and verify-stage report both explicitly flag the interim render.
+- **PO decisions captured (8 across 2 rounds):** enableEdgeToEdge() placement = MainActivity in this slice; OverlayShell technique = in-tree Box + AnimatedVisibility; OnboardingShell pager slot = PagerState + ImmutableList<@Composable () -> Unit>; filterBar = nullable; backdrop dismiss = Modifier.clickable(indication = null); Roborazzi insets strategy = hoist as test param, accept 0 default; AC-3 dismissal test = ship in layouts slice (non-Roborazzi UI test); footer composition = single internally-composed Row with shell-owned indicator.
+- **Cross-slice impact:** MainActivity edit is a one-line touch in `app/` from a slice nominally scoped to `core/designsystem/`. Co-located deliberately so HomeScaffold's edge-to-edge assumption is satisfiable. AC-2's "28dp gap" measurement and AC-5's Maestro testTag round-trip will register as `runtime-evidence-deferrals` at verify-stage (per workflow precedent — emulator/Maestro evidence belongs to the maestro slice). AC-3 (backdrop dismissal callback) closes within the slice via an in-process Compose UI test.
+- **See:** [04-plan-layouts.md](04-plan-layouts.md).
 
 ### `screens` *(deferred)*
 
@@ -93,8 +98,8 @@ No parallel integration points exist unless the `screens` re-split clause fires 
 
 1. **`toolchain`** *(implemented + verified-partial)* — risk-first; everything else depends on the new chain.
 2. **`tokens`** *(implemented + verified-partial)* — type contract for all downstream. Included orphan-component deletion pulled forward from the components slice.
-3. **`components`** *(planned, ready to implement)* — 13 active rebuilds + 4 new components + QuickActionMenu retirement + scan-line motion + Roborazzi tolerance config + kotlinx.immutable adoption.
-4. **`layouts`** *(plan after components ships)* — reusable scaffolds.
+3. **`components`** *(implemented + verified-partial)* — 12 active rebuilds + 4 new components + QuickActionMenu retirement + scan-line motion + Roborazzi tolerance config + kotlinx.immutable adoption.
+4. **`layouts`** *(planned, ready to implement)* — HomeScaffold / OverlayShell / OnboardingShell + MainActivity edge-to-edge enablement. 8 files, single atomic commit, additive.
 5. **`screens`** *(plan after layouts ships, may re-split)* — composition.
 6. **`behaviors`** *(plan after screens ships)* — wiring + DB schema.
 7. **`maestro`** *(plan after behaviors ships)* — end-to-end coverage.
@@ -121,7 +126,7 @@ Captured in detail in [04-plan-toolchain.md](04-plan-toolchain.md) `## Freshness
 
 ## Recommended Next Stage
 
-- **Option A (default):** `/wf implement brutalist-redesign components` — execute the components plan. **Compact first** — planning research (sub-agent reports, web searches, discovery rounds) is noise for the implement loop; PreCompact hook preserves workflow state on disk.
-- **Option B:** `/wf plan brutalist-redesign components <feedback>` — revise this slice's plan if any of the 12 PO discovery answers feels wrong on second read.
-- **Option C:** `/wf verify brutalist-redesign tokens` — formally verify the tokens slice before starting components implement. Optional; the tokens slice already verified-partial.
-- **Option D:** `/wf slice brutalist-redesign` — revisit slice boundaries. **Not recommended** — components-plan surfaced no boundary problem; the per-family commit grouping and ARCHIVE-flagged-for-behaviors are within-slice scoping details.
+- **Option A (default):** `/wf implement brutalist-redesign layouts` — execute the layouts plan. Small, additive slice with clear single-commit shape. **Compact first** — planning research (sub-agent reports, web searches, discovery rounds) is noise for the implement loop; PreCompact hook preserves workflow state on disk.
+- **Option B:** `/wf plan brutalist-redesign layouts <feedback>` — revise this slice's plan if any of the 8 PO discovery answers feels wrong on second read (e.g., reconsider Popup vs in-tree, or revisit `enableEdgeToEdge()` placement).
+- **Option C:** `/wf review brutalist-redesign components` — open the canonical review on components before extending the diff. `review-scope: slug-wide` means the load-bearing review runs at the end of the slice chain, but a per-slice spot review is still a valid signal.
+- **Option D:** `/wf slice brutalist-redesign` — revisit slice boundaries. **Not recommended** — layouts-plan surfaced no boundary problem; the MainActivity one-line touch is the only cross-package step and is co-located deliberately.

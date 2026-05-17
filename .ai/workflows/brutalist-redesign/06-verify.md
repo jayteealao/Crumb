@@ -5,15 +5,15 @@ slug: brutalist-redesign
 status: in-progress
 stage-number: 6
 created-at: "2026-05-17T01:17:12Z"
-updated-at: "2026-05-17T08:56:40Z"
-slices-verified: 2
+updated-at: "2026-05-17T13:29:48Z"
+slices-verified: 3
 slices-total: 7
-tags: [redesign, toolchain, tokens, verify-owned-fix, runtime-evidence-deferral]
+tags: [redesign, toolchain, tokens, components, verify-owned-fix, runtime-evidence-deferral]
 refs:
   index: 00-index.md
   implement-index: 05-implement.md
 next-command: wf-review
-next-invocation: "/wf review brutalist-redesign tokens"
+next-invocation: "/wf review brutalist-redesign components"
 ---
 
 # Verify Index
@@ -40,19 +40,31 @@ next-invocation: "/wf review brutalist-redesign tokens"
 - `bootstrap-failures: []`; `adapters-used: [android]`.
 - See: [06-verify-tokens.md](06-verify-tokens.md).
 
-### `components` through `maestro` — not yet verified
+### `components` — partial (not-needed)
+
+- `result: partial` — single `interactive-verification: deferred` annotation on AC-C6 (Maestro studio dry-run deferred to the dedicated `maestro` slice).
+- `convergence: not-needed` — zero failing checks and zero substantively-unmet user-observable ACs entered the fix loop. `metric-issues-found-initial: 0`.
+- `metric-acceptance-met: 5 / 6` (AC-C1 reconciled count, AC-C2/C3/C4 automated green, AC-C5 met via static evidence; AC-C6 deferred).
+- `metric-checks-passed: 5 / 5` — `assembleDebug`, `verifyRoborazziDebug`, `lintDebug`, AC-C3 grep gate, AC-C4 dangling-import gate all green.
+- AC-C5 (LoadingCard scan-line) accepted via static source inspection: exactly one `rememberInfiniteTransition` in the file at `LoadingCard.kt:48`, its fraction applied only to the scan-line `drawLine` via `drawBehind` at lines 67–73; all 4 skeleton boxes are static. PO-accepted via AskUserQuestion 2026-05-17T13:29Z.
+- AC-C6 (Maestro studio dry-run) deferred — 39 testTag call sites confirm the scaffolding; Maestro CLI is not on the confirmed PATH and the dedicated `maestro` slice owns the round-trip per the workflow's slice boundary. PO-decided via the same AskUserQuestion.
+- `bootstrap-failures: []`; `adapters-used: []` (no adapter bootstrap needed — both user-observable ACs satisfied via static evidence/deferral).
+- See: [06-verify-components.md](06-verify-components.md).
+
+### `layouts` through `maestro` — not yet verified
 
 Per the rolling-plan strategy — each slice verifies after its implement.
 
 ## Cross-Slice Observations
 
-- **`runtime-evidence-deferrals` is now 4 entries.** Toolchain contributed AC4 (maestro round-trip) + AC6 (maintainer goldens diff). Tokens contributed AC-K4 (maintainer handoff diff) + AC-K6 (HomeScreen paper). Ship will hard-block until each is cleared. The toolchain AC4 + tokens AC-K6 both want emulator evidence that depends on later slices (`maestro` for round-trip, `behaviors` for a debug data injector that lets verify reach HomeScreen without OAuth). Maintainer can also clear AC6 (toolchain) + AC-K4 (tokens) via the visual-diff procedure at any time.
+- **`runtime-evidence-deferrals` is now 5 entries.** Toolchain contributed AC4 (maestro round-trip) + AC6 (maintainer goldens diff). Tokens contributed AC-K4 (maintainer handoff diff) + AC-K6 (HomeScreen paper — cleared by `quick-skip-auth-page` slice on 2026-05-17T10:23Z). Components now contributes AC-C6 (Maestro studio dry-run). Ship will hard-block until each is cleared. Toolchain AC4 + components AC-C6 collapse onto the same emulator+Maestro evidence — the `maestro` slice will discharge both in one shot. Maintainer can clear toolchain AC6 + tokens AC-K4 via the visual-diff procedure at any time.
 - **Room 2.8.4 strictness pattern continues to hold.** Tokens slice did not touch DAO surfaces; no new nullability bugs surfaced. Downstream DAO-touching slices (behaviors) should still watch for the family.
 - **Brutalist palette is structurally complete on the running app.** The token cutover landed cleanly enough that LoginScreen + dark-mode + airplane-mode all show the intended Option-D visual identity. Components/screens slices can now build against verified token reality instead of inferred token reality.
 - **AVD inventory drift.** Plan said Pixel 6 / API 34 was canonical; actually-provisioned AVDs are Medium_Phone_API_36 (used for tokens verify) and Pixel_9_Pro (boot reservation hit `INSUFFICIENT_STORAGE` on install). Plan-stage assumptions section accepted "Either works"; this is a noted-but-not-blocking deviation.
+- **Component slice landed without a fix loop.** Toolchain needed one (Room nullability); tokens needed none; components needed none. The implement-stage's rebuild-then-regenerate-goldens-in-one-atomic-commit cadence held — `verifyRoborazziDebug` was already green when verify took over because implement closed the loop with `recordRoborazziDebug` followed by `verifyRoborazziDebug` before committing.
 
 ## Recommended Next Stage
 
-- **Option A (default):** `/wf review brutalist-redesign tokens` — both completed slices have green code-side gates; deferrals are environmental, not code defects. **`/compact` recommended.**
-- **Option B:** `/wf-quick probe brutalist-redesign` — re-attempt deferred evidence with auth credentials, clears `runtime-evidence-deferrals` for AC-K6 and AC6.
-- **Option C:** `/wf plan brutalist-redesign components` — kick off next-slice planning in parallel.
+- **Option A (default):** `/wf review brutalist-redesign components` — every code-side gate is green; AC-C6 is a procedural deferral. `review-scope: slug-wide` means the canonical review runs against the whole branch diff once all slices land — but a per-slice spot review on components in isolation is still a valid intermediate signal. **`/compact` recommended.**
+- **Option B:** `/wf plan brutalist-redesign layouts` — start the next slice's planning in parallel with review.
+- **Option C:** `/wf-quick probe brutalist-redesign` — re-attempt deferred evidence sweep against the running artifact.
