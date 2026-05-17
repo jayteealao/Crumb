@@ -172,3 +172,56 @@ A cumulative log of product-owner answers across stages. Newest at the bottom. E
 
 - **components slice scope reduced.** 13 orphan deletions + 13 test deletions now done in tokens. Components-slice plan (when drafted) must reflect this. Master plan index updated to flag the shift.
 - **AC-K5 deferral risk.** Manual handoff-diff will register as a runtime-evidence-deferral on 00-index.md at verify if maintainer doesn't close it before ship. Same handling pattern as AC4 / AC6 from the toolchain slice.
+
+---
+
+## stage: plan — slice: components — 2026-05-17T11:11:14Z
+
+### Round 1 — architecture + scope
+
+- **Q: How should rebuilt components treat the existing Material3 wrappers (Button, Scaffold, TopAppBar, AlertDialog, DropdownMenu, NavigationBar, CircularProgressIndicator)?**
+  **A:** Mixed — case-by-case. Plan picks per-component: strip Button/IconButton/ProgressIndicator/TopBar/BottomNav/TagEditorDialog (rebuild from Box+Modifier primitives); keep Scaffold passthrough (purely structural, no chrome to leak). The mixed-stance posture is more pragmatic than a blanket "strip everything" rule.
+
+- **Q: QuickActionMenu disposition — retire, keep both, or defer?**
+  **A:** Retire — delete `QuickActionMenu.kt` + its golden PNGs + its @Test methods in `ActionComponentsTest.kt`. CrumbsLongPressPopup is the single long-press primitive. Slice spec line 90 already flagged this as "likely outcome"; PO confirms.
+
+- **Q: Long-press popup layout — handoff Screen 5 grid vs slice spec vertical list?**
+  **A:** Handoff wins — 2×2 grid with TAG/SHARE/ARCHIVE/DELETE (TAG = accent primary, DELETE = #a40000 text). Overrides slice spec line 59 verbatim. **Cross-slice impact:** ARCHIVE is a new behavior (hide-from-feed) that the handoff introduces; flagged for the behaviors slice to wire — components slice ships visual shell only.
+
+- **Q: Commit cadence?**
+  **A:** Grouped by family — ~6 commits (Phase A setup + 5 family commits + 1 goldens regen). Families: chrome primitives (Button/IconButton/ProgressIndicator), layout chrome (Scaffold/TopBar/BottomNav), cards & states (BookmarkCard/EmptyState/LoadingCard/GradientImage/UserProfileDisplay), dialog/menu (TagEditorDialog + QuickActionMenu retire), new components (FilterBar/Snackbar/Banner/LongPressPopup), goldens.
+
+### Round 2 — mechanics
+
+- **Q: LoadingCard scan-line determinism mechanism?**
+  **A:** Hoist time as parameter — add `scanLinePositionFraction: Float? = null` to LoadingCard. Composable uses `rememberInfiniteTransition` by default; tests pass a constant (e.g. 0.5f) to override. Simpler than `mainClock.advanceTimeBy()`; future-proof for screen-level tests.
+
+- **Q: List parameter type for FilterBar/Popup/Dialog?**
+  **A:** kotlinx.collections.immutable.ImmutableList. Adopt the dependency this slice. ImmutableList<T> is @Immutable; Compose treats it as stable. Twitter Compose lint rules verify this. Adds ~50KB dep.
+
+- **Q: CrumbsScaffold rebuild posture (with mixed Material3 stance)?**
+  **A:** Keep Material3 Scaffold passthrough — purely structural, no chrome to leak. Override containerColor / contentColor to CrumbsTheme; add testTag("scaffold-root"). Saves ~80 lines of Box/Column rewrite.
+
+- **Q: Snackbar + Banner visual contract (no handoff mocks)?**
+  **A:** Brutalist token defaults. Snackbar: black ink bg, 1.5dp accent border, mono uppercase text + action, bottom-anchored. Banner: surface bg, 1.5dp ink top+bottom border, kicker text + accent CTA, sticky. Document shapes in plan; no atomic mock review needed.
+
+### Round 3 — testing + edges
+
+- **Q: AC #6 testTag verify method when Maestro CLI isn't in this slice's stack?**
+  **A:** Maestro studio dry-run — use as read-only inspector. Already installed per toolchain verify. One-shot end-of-slice run: `maestro studio` → navigate via Skip Auth (Debug) → inspect HomeScreen hierarchy → confirm testTags queryable → screenshot the hierarchy panel as evidence. No flow files yet.
+
+- **Q: Roborazzi `compareOptions` tolerance location?**
+  **A:** Slice-local in core/designsystem/build.gradle. Add `roborazzi { compareOptions = ChangeThreshold(0.05f, PixelMatcher(0.01f)) }`. Scoped change matching the per-module Roborazzi plugin application. Future modules add per-module if needed.
+
+- **Q: Brutalist offset shadow — Modifier.dropShadow (Compose 1.11+ native) vs sibling Box trick?**
+  **A:** Modifier.dropShadow — Compose 1.11 native (Aug-25 release). Use `Modifier.dropShadow(DpOffset(6.dp, 6.dp), color=ink, blurRadius=0.dp, shape=RectangleShape)` on BookmarkCard pressed state, LongPressPopup container, TagEditorDialog. One line, no extra layout nodes. Phase-A scratch verifies API availability.
+
+- **Q: Golden coverage strategy?**
+  **A:** Per-component meaningful-state matrix × 2 themes (~24 new goldens). FilterBar gets {empty, single-selected, multi-selected, with-count} × {light, dark} = 8. Snackbar {default, with-action} × 2 = 4. Banner {sync-error, success} × 2 = 4. LongPressPopup {default, danger-pressed} × 2 = 4. LoadingCard {has-image, no-image} × 2 = 4 (with hoisted scanLinePositionFraction = 0.5f).
+
+### Cross-slice impact captured
+
+- **ARCHIVE action introduced this slice (visual only).** Per handoff Screen 5, the long-press popup has 4 actions TAG/SHARE/ARCHIVE/DELETE; ARCHIVE (hide-from-feed) is new. CrumbsLongPressPopup ships the visual button this slice; **behavioral wiring (tombstone-like soft-archive, retrievability) defers to behaviors slice.** Behaviors slice plan, when drafted, must include this scope.
+- **BookmarkCard onLongPress API widens** from `(Bookmark) -> Unit` to `(Bookmark, Offset) -> Unit`. Internal API; call sites updated in same commit. No feature-module ripple (zero feature/* imports of CrumbsBookmarkCard).
+- **`kotlinx.collections.immutable` adoption** is workflow-wide once introduced. Downstream slices should default to ImmutableList for new component parameters.
+- **`Modifier.dropShadow` becomes the brutalist offset-shadow primitive** for the rest of the workflow. Layouts/screens slices should reuse the pattern.

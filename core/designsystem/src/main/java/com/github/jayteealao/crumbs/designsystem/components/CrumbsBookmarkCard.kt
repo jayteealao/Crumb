@@ -1,245 +1,236 @@
 package com.github.jayteealao.crumbs.designsystem.components
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.github.jayteealao.crumbs.designsystem.theme.CrumbsShapes
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsSpacing
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsTypography
 import com.github.jayteealao.crumbs.models.Bookmark
 import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.models.ContentType
 import com.github.jayteealao.crumbs.models.toRelativeTime
 
-/**
- * Unified bookmark card component for Twitter and Reddit content
- *
- * Polymorphic card that adapts its display based on the bookmark's content type:
- * - Text: Text-only display
- * - Image: Full-width image at top
- * - Video: Full-width video player at top
- * - Link: Link icon indicator in metadata
- * - Thread: ThreadIndicator showing "+ N more"
- *
- * Supports tap to open and long-press for quick actions.
- *
- * @param bookmark The bookmark data to display
- * @param onCardClick Callback when card is tapped (receives sourceUrl)
- * @param onLongPress Callback when card is long-pressed (for quick actions)
- * @param isExpanded Whether thread is expanded (future feature)
- * @param modifier Modifier to be applied to the component
- */
-@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
+// Brutalist CrumbsBookmarkCard — Material3 Surface wrapper stripped. Sharp
+// 1.5dp ink border on paper-surface background. detectTapGestures replaces
+// combinedClickable so long-press surfaces the fingertip Offset (consumed by
+// CrumbsLongPressPopup in the behaviors slice). onLongPress signature widened
+// to `(Bookmark, Offset) -> Unit`.
+//
+// Caller migration: pass `Offset.Zero` if real popup wiring is deferred.
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CrumbsBookmarkCard(
     bookmark: Bookmark,
     onCardClick: (String) -> Unit,
-    onLongPress: (Bookmark) -> Unit = {},
+    onLongPress: (Bookmark, Offset) -> Unit = { _, _ -> },
     isExpanded: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val colors = LocalCrumbsColors.current
     val spacing = LocalCrumbsSpacing.current
+    val stroke = LocalCrumbsStroke.current
     val typography = LocalCrumbsTypography.current
 
-    Surface(
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .combinedClickable(
-                onClick = { onCardClick(bookmark.sourceUrl) },
-                onLongClick = { onLongPress(bookmark) }
-            ),
-        shape = CrumbsShapes.card, // bottom-end cut (12dp)
-        color = colors.surface,
-        border = BorderStroke(1.dp, colors.onSurfaceVariant.copy(alpha = 0.1f))
+            .background(colors.surface)
+            .border(stroke.regular, colors.ink, RectangleShape)
+            .testTag("bookmark-card")
+            .pointerInput(bookmark.id) {
+                detectTapGestures(
+                    onTap = { onCardClick(bookmark.sourceUrl) },
+                    onLongPress = { offsetPx -> onLongPress(bookmark, offsetPx) },
+                )
+            }
+            .semantics {
+                onClick(label = "Open bookmark") { onCardClick(bookmark.sourceUrl); true }
+                onLongClick(label = "Show actions") { onLongPress(bookmark, Offset.Zero); true }
+            },
     ) {
-        Box {
-            Column(
-                modifier = Modifier.fillMaxWidth()
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // Full-width media (image or video thumbnail) at top
+            val mediaUrl = bookmark.imageUrl
+            if (mediaUrl != null &&
+                (bookmark.contentType == ContentType.Image || bookmark.contentType == ContentType.Video)
             ) {
-                // Full-width media (image or video) at top
-                when {
-                    bookmark.contentType == ContentType.Image && bookmark.imageUrl != null -> {
-                        AsyncImage(
-                            model = bookmark.imageUrl,
-                            contentDescription = null,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(200.dp),
-                            contentScale = ContentScale.Crop
-                        )
-                    }
-                    bookmark.contentType == ContentType.Video && bookmark.imageUrl != null -> {
-                        // Video thumbnail only — full player rebuilt in components slice
-                        AsyncImage(
-                            model = bookmark.imageUrl,
-                            contentDescription = null,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(200.dp),
-                            contentScale = ContentScale.Crop
-                        )
-                    }
+                AsyncImage(
+                    model = mediaUrl,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    contentScale = ContentScale.Crop,
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(stroke.hairline)
+                        .background(colors.ink),
+                )
+            }
+
+            // Header row: source icon + author kicker + separator + age
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = spacing.md, vertical = spacing.sm),
+                horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    painter = painterResource(
+                        id = when (bookmark.source) {
+                            BookmarkSource.Twitter -> com.github.jayteealao.crumbs.designsystem.R.drawable.fatwitter
+                            BookmarkSource.Reddit -> com.github.jayteealao.crumbs.designsystem.R.drawable.fareddit
+                        },
+                    ),
+                    contentDescription = bookmark.source.displayName(),
+                    modifier = Modifier.size(16.dp),
+                    tint = colors.ink,
+                )
+                Text(
+                    text = bookmark.author.uppercase(),
+                    style = typography.captionMono,
+                    color = colors.ink,
+                    modifier = Modifier.testTag("card-source"),
+                )
+                Box(
+                    modifier = Modifier
+                        .width(stroke.hairline)
+                        .height(12.dp)
+                        .background(colors.ink),
+                )
+                Text(
+                    text = bookmark.savedAt.toRelativeTime().uppercase(),
+                    style = typography.captionMono,
+                    color = colors.onSurfaceVariant,
+                )
+                if (bookmark.contentType == ContentType.Link) {
+                    Icon(
+                        imageVector = Icons.Default.Link,
+                        contentDescription = "Link",
+                        modifier = Modifier.size(14.dp),
+                        tint = colors.onSurfaceVariant,
+                    )
                 }
+            }
 
-                // Content column
-                Column(
-                    modifier = Modifier.padding(spacing.lg),
-                    verticalArrangement = Arrangement.spacedBy(spacing.md)
-                ) {
-                    // Metadata row: source icon + author + timestamp + content type
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-                        verticalAlignment = Alignment.CenterVertically
+            // 1.5dp hairline separator between header and body
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(stroke.hairline)
+                    .background(colors.ink),
+            )
+
+            // Body column — title, preview, optional thread, tags
+            Column(
+                modifier = Modifier.padding(spacing.md),
+                verticalArrangement = Arrangement.spacedBy(spacing.sm),
+            ) {
+                Text(
+                    text = bookmark.title,
+                    style = typography.displaySmall,
+                    color = colors.ink,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.testTag("card-title"),
+                )
+                Text(
+                    text = bookmark.previewText,
+                    style = typography.bodyMono,
+                    color = colors.ink,
+                    maxLines = 6,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (bookmark.isThread) {
+                    Text(
+                        text = "+ ${bookmark.threadCount} MORE",
+                        style = typography.captionMono,
+                        color = colors.accent,
+                    )
+                }
+                if (bookmark.tags.isNotEmpty()) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(spacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(spacing.xs),
+                        modifier = Modifier.testTag("card-actions"),
                     ) {
-                        // Source icon
-                        Icon(
-                            painter = painterResource(
-                                id = when (bookmark.source) {
-                                    BookmarkSource.Twitter -> com.github.jayteealao.crumbs.designsystem.R.drawable.fatwitter
-                                    BookmarkSource.Reddit -> com.github.jayteealao.crumbs.designsystem.R.drawable.fareddit
-                                }
-                            ),
-                            contentDescription = bookmark.source.displayName(),
-                            modifier = Modifier.size(20.dp),
-                            tint = colors.onSurfaceVariant
-                        )
-
-                        // Author
-                        Text(
-                            text = bookmark.author,
-                            style = typography.bodyMono,
-                            color = colors.onSurfaceVariant
-                        )
-
-                        // Separator
-                        Text(
-                            text = "•",
-                            style = typography.bodyMono,
-                            color = colors.onSurfaceVariant
-                        )
-
-                        // Timestamp
-                        Text(
-                            text = bookmark.savedAt.toRelativeTime(),
-                            style = typography.bodyMono,
-                            color = colors.onSurfaceVariant
-                        )
-
-                        // Content type indicator
-                        if (bookmark.contentType == ContentType.Link) {
-                            Icon(
-                                imageVector = Icons.Default.Link,
-                                contentDescription = "Link",
-                                modifier = Modifier.size(16.dp),
-                                tint = colors.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    // Title
-                    Text(
-                        text = bookmark.title,
-                        style = typography.displaySmall,
-                        color = colors.ink,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    // Preview text
-                    Text(
-                        text = bookmark.previewText,
-                        style = typography.bodyMono,
-                        color = colors.ink,
-                        maxLines = 6,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    // Thread indicator (if this is a thread) — proper component rebuilt in components slice
-                    if (bookmark.isThread) {
-                        Text(
-                            text = "+ ${bookmark.threadCount} more",
-                            style = typography.metaMono,
-                            color = colors.accent
-                        )
-                    }
-
-                    // Tags (if present)
-                    if (bookmark.tags.isNotEmpty()) {
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-                            verticalArrangement = Arrangement.spacedBy(spacing.sm)
-                        ) {
-                            bookmark.tags.forEach { tag ->
-                                // Inline tag — proper chip rebuilt in components slice
-                                Surface(
-                                    shape = CrumbsShapes.chip,
-                                    color = colors.surface,
-                                    border = BorderStroke(1.dp, colors.ink)
-                                ) {
-                                    Text(
-                                        text = "#$tag",
-                                        style = typography.tagMono,
-                                        color = colors.ink,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
+                        bookmark.tags.forEach { tag ->
+                            Box(
+                                modifier = Modifier
+                                    .border(stroke.hairline, colors.ink, RectangleShape)
+                                    .background(colors.surface)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                            ) {
+                                Text(
+                                    text = "#$tag",
+                                    style = typography.tagMono,
+                                    color = colors.ink,
+                                )
                             }
                         }
                     }
                 }
             }
+        }
 
-            // Deleted overlay (if content is deleted)
-            if (bookmark.isDeleted) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(colors.surface.copy(alpha = 0.97f)), // Increased opacity for better contrast
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Content unavailable",
-                        style = typography.bodyMono,
-                        color = colors.ink // Changed from onSurfaceVariant for WCAG AA compliance
-                    )
-                }
+        if (bookmark.isDeleted) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(colors.surface.copy(alpha = 0.97f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "CONTENT UNAVAILABLE",
+                    style = typography.captionMono,
+                    color = colors.ink,
+                )
             }
         }
     }
 }
 
-// Sample bookmark data for previews
+// Sample data for previews
 private val sampleTwitterText = Bookmark(
     id = "1",
     source = BookmarkSource.Twitter,
@@ -247,9 +238,9 @@ private val sampleTwitterText = Bookmark(
     title = "Understanding SOLID Principles",
     previewText = "Let me explain the five SOLID principles that every developer should know. These fundamental concepts will help you write better, more maintainable code.",
     contentType = ContentType.Text,
-    savedAt = System.currentTimeMillis() - 3600000, // 1 hour ago
+    savedAt = System.currentTimeMillis() - 3600000,
     tags = listOf("programming", "design"),
-    sourceUrl = "https://twitter.com/i/web/status/123"
+    sourceUrl = "https://twitter.com/i/web/status/123",
 )
 
 private val sampleTwitterImage = Bookmark(
@@ -260,9 +251,9 @@ private val sampleTwitterImage = Bookmark(
     previewText = "Excited to announce the stable release of Compose Multiplatform. Build beautiful UIs for Android, iOS, Desktop, and Web.",
     imageUrl = "https://example.com/image.jpg",
     contentType = ContentType.Image,
-    savedAt = System.currentTimeMillis() - 7200000, // 2 hours ago
+    savedAt = System.currentTimeMillis() - 7200000,
     tags = listOf("kotlin", "compose", "multiplatform"),
-    sourceUrl = "https://twitter.com/i/web/status/124"
+    sourceUrl = "https://twitter.com/i/web/status/124",
 )
 
 private val sampleTwitterThread = Bookmark(
@@ -272,11 +263,11 @@ private val sampleTwitterThread = Bookmark(
     title = "Clean Architecture Thread",
     previewText = "1/ Let's talk about Clean Architecture and why it matters for modern Android development...",
     contentType = ContentType.Thread,
-    savedAt = System.currentTimeMillis() - 86400000, // 1 day ago
+    savedAt = System.currentTimeMillis() - 86400000,
     tags = listOf("architecture", "android"),
     isThread = true,
     threadCount = 12,
-    sourceUrl = "https://twitter.com/i/web/status/125"
+    sourceUrl = "https://twitter.com/i/web/status/125",
 )
 
 private val sampleRedditPost = Bookmark(
@@ -286,9 +277,9 @@ private val sampleRedditPost = Bookmark(
     title = "Tips for optimizing RecyclerView performance",
     previewText = "Here are some lesser-known tips for getting better performance out of RecyclerView. These helped me reduce jank significantly in my production app.",
     contentType = ContentType.Text,
-    savedAt = System.currentTimeMillis() - 172800000, // 2 days ago
+    savedAt = System.currentTimeMillis() - 172800000,
     tags = listOf("android", "performance"),
-    sourceUrl = "https://reddit.com/r/androiddev/comments/abc123"
+    sourceUrl = "https://reddit.com/r/androiddev/comments/abc123",
 )
 
 private val sampleDeletedBookmark = Bookmark(
@@ -298,74 +289,55 @@ private val sampleDeletedBookmark = Bookmark(
     title = "This tweet has been deleted",
     previewText = "This content is no longer available.",
     contentType = ContentType.Text,
-    savedAt = System.currentTimeMillis() - 604800000, // 1 week ago
+    savedAt = System.currentTimeMillis() - 604800000,
     isDeleted = true,
-    sourceUrl = "https://twitter.com/i/web/status/126"
+    sourceUrl = "https://twitter.com/i/web/status/126",
 )
 
-// Previews
-@Preview(name = "Twitter Text - Light", showBackground = true)
+@Preview(name = "Twitter Text Light", showBackground = true)
 @Composable
 private fun PreviewTwitterTextLight() {
     CrumbsTheme(darkTheme = false) {
-        CrumbsBookmarkCard(
-            bookmark = sampleTwitterText,
-            onCardClick = {}
-        )
+        CrumbsBookmarkCard(bookmark = sampleTwitterText, onCardClick = {})
     }
 }
 
-@Preview(name = "Twitter Image - Light", showBackground = true)
-@Composable
-private fun PreviewTwitterImageLight() {
-    CrumbsTheme(darkTheme = false) {
-        CrumbsBookmarkCard(
-            bookmark = sampleTwitterImage,
-            onCardClick = {}
-        )
-    }
-}
-
-@Preview(name = "Twitter Thread - Light", showBackground = true)
-@Composable
-private fun PreviewTwitterThreadLight() {
-    CrumbsTheme(darkTheme = false) {
-        CrumbsBookmarkCard(
-            bookmark = sampleTwitterThread,
-            onCardClick = {}
-        )
-    }
-}
-
-@Preview(name = "Reddit Post - Light", showBackground = true)
-@Composable
-private fun PreviewRedditPostLight() {
-    CrumbsTheme(darkTheme = false) {
-        CrumbsBookmarkCard(
-            bookmark = sampleRedditPost,
-            onCardClick = {}
-        )
-    }
-}
-
-@Preview(name = "Deleted Content - Light", showBackground = true)
-@Composable
-private fun PreviewDeletedBookmarkLight() {
-    CrumbsTheme(darkTheme = false) {
-        CrumbsBookmarkCard(
-            bookmark = sampleDeletedBookmark,
-            onCardClick = {}
-        )
-    }
-}
-
-@Preview(name = "Twitter Text - Dark", showBackground = true)
+@Preview(name = "Twitter Text Dark", showBackground = true)
 @Composable
 private fun PreviewTwitterTextDark() {
     CrumbsTheme(darkTheme = true) {
-        CrumbsBookmarkCard(
-            bookmark = sampleTwitterText,
-            onCardClick = {}
-        )
+        CrumbsBookmarkCard(bookmark = sampleTwitterText, onCardClick = {})
+    }
+}
+
+@Preview(name = "Twitter Image Light", showBackground = true)
+@Composable
+private fun PreviewTwitterImageLight() {
+    CrumbsTheme(darkTheme = false) {
+        CrumbsBookmarkCard(bookmark = sampleTwitterImage, onCardClick = {})
+    }
+}
+
+@Preview(name = "Twitter Thread Light", showBackground = true)
+@Composable
+private fun PreviewTwitterThreadLight() {
+    CrumbsTheme(darkTheme = false) {
+        CrumbsBookmarkCard(bookmark = sampleTwitterThread, onCardClick = {})
+    }
+}
+
+@Preview(name = "Reddit Post Light", showBackground = true)
+@Composable
+private fun PreviewRedditPostLight() {
+    CrumbsTheme(darkTheme = false) {
+        CrumbsBookmarkCard(bookmark = sampleRedditPost, onCardClick = {})
+    }
+}
+
+@Preview(name = "Deleted Content Light", showBackground = true)
+@Composable
+private fun PreviewDeletedBookmarkLight() {
+    CrumbsTheme(darkTheme = false) {
+        CrumbsBookmarkCard(bookmark = sampleDeletedBookmark, onCardClick = {})
     }
 }

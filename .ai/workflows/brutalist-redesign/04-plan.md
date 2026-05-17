@@ -5,9 +5,9 @@ slug: brutalist-redesign
 status: complete
 stage-number: 4
 created-at: "2026-05-16T22:37:59Z"
-updated-at: "2026-05-17T02:03:08Z"
+updated-at: "2026-05-17T11:11:14Z"
 planning-mode: rolling
-slices-planned: 2
+slices-planned: 3
 slices-total: 7
 implementation-order: [toolchain, tokens, components, layouts, screens, behaviors, maestro]
 conflicts-found: 0
@@ -40,9 +40,14 @@ This is a **rolling plan index**. The chain of slices is strictly linear (toolch
 - **Cross-slice impact:** the orphan-component deletion is **pulled forward** from the components slice (round-3 PO decision). AC-C1 in components becomes a verification-only criterion (the 13 deletions are already done).
 - **See:** [04-plan-tokens.md](04-plan-tokens.md).
 
-### `components` *(deferred — scope reduced)*
+### `components` *(planned)*
 
-8 active rebuilds + 4 new (CrumbsFilterBar, CrumbsSnackbar, CrumbsBanner, CrumbsLongPressPopup). **The 13 orphan deletions are already done by the tokens slice** — components slice now starts focused on rebuilds + new components, not on cleanup. Roborazzi goldens at light + dark for every meaningful state. Plan is written after `tokens` lands so the rebuilt components can be planned against the final brutalist token surface and the post-tokens repo reality (including the new `CrumbsStroke` object and the `app_root` testTag).
+- **Files to touch:** ~38 (13 active component rewrites + 4 new component files + 4 new test files + 8 existing test-file regens + QuickActionMenu.kt deletion + ActionComponentsTest partial-delete + libs.versions.toml + core/designsystem/build.gradle + 2 app-screen call-site updates for the BookmarkCard onLongPress signature widening + ~60 Roborazzi PNG regenerations).
+- **Strategy:** Mixed Material3 stance — case-by-case per component (strip vs keep+override). Six commits grouped by visual family (chrome primitives, layout chrome, cards & states, dialog/menu + QuickActionMenu retire, new components, goldens regen). New `Modifier.dropShadow` (Compose 1.11 native) replaces sibling-Box trick for brutalist offset shadows. Adds `kotlinx.collections.immutable` dependency for `ImmutableList` parameters. LoadingCard scan-line motion uses hoist-time-as-parameter for Roborazzi determinism. `CrumbsBookmarkCard` switches from `combinedClickable` to `detectTapGestures(onLongPress = { offset -> ... })` — public API widens `onLongPress` to include the fingertip Offset.
+- **Key risk:** Material3 wrapper drift on future BOM bump (`CrumbsButton`/`CrumbsScaffold` keep wrappers with chrome aggressively overridden — a new shape/color default could regress). Mitigated by Roborazzi regression goldens. Secondary: BookmarkCard `onLongPress` API change ripples to HomeScreen + AllBookmarksScreen — co-located in same commit.
+- **PO decisions captured (12 across 3 rounds):** Material3 stance = mixed; QuickActionMenu = retire; long-press popup follows handoff Screen 5 (2×2 grid TAG/SHARE/ARCHIVE/DELETE — overrides slice spec line 59); commit cadence = grouped by family; scan-line determinism = hoist time as parameter; lists = `kotlinx.collections.immutable.ImmutableList`; CrumbsScaffold = keep Material3 passthrough; Snackbar/Banner = brutalist token defaults; testTag verification = Maestro studio dry-run; Roborazzi tolerance = slice-local in `core/designsystem/build.gradle`; offset shadow = `Modifier.dropShadow`; goldens coverage = meaningful-state matrix × 2 themes (~24 new).
+- **Cross-slice impact:** ARCHIVE action (new on the long-press popup, comes from handoff Screen 5) is a behavior introduced by the handoff but **wired** in the behaviors slice — components slice ships visual shell only.
+- **See:** [04-plan-components.md](04-plan-components.md).
 
 ### `layouts` *(deferred)*
 
@@ -87,8 +92,8 @@ No parallel integration points exist unless the `screens` re-split clause fires 
 ## Recommended Implementation Order
 
 1. **`toolchain`** *(implemented + verified-partial)* — risk-first; everything else depends on the new chain.
-2. **`tokens`** *(planned, ready to implement)* — type contract for all downstream. Includes orphan-component deletion pulled forward from the components slice.
-3. **`components`** *(plan after tokens ships, scope reduced — orphan cleanup already done)* — 8 active rebuilds + 4 new components.
+2. **`tokens`** *(implemented + verified-partial)* — type contract for all downstream. Included orphan-component deletion pulled forward from the components slice.
+3. **`components`** *(planned, ready to implement)* — 13 active rebuilds + 4 new components + QuickActionMenu retirement + scan-line motion + Roborazzi tolerance config + kotlinx.immutable adoption.
 4. **`layouts`** *(plan after components ships)* — reusable scaffolds.
 5. **`screens`** *(plan after layouts ships, may re-split)* — composition.
 6. **`behaviors`** *(plan after screens ships)* — wiring + DB schema.
@@ -116,6 +121,7 @@ Captured in detail in [04-plan-toolchain.md](04-plan-toolchain.md) `## Freshness
 
 ## Recommended Next Stage
 
-- **Option A (default):** `/wf implement brutalist-redesign tokens` — execute the tokens plan. Pre-flight: run `/compact` to drop planning research from the conversation (the PreCompact hook preserves workflow state on disk).
-- **Option B:** `/wf plan brutalist-redesign tokens <feedback>` — revise the tokens plan if any of the round-1/2/3 PO decisions look wrong on second read.
-- **Option C:** `/wf slice brutalist-redesign` — revisit slice boundaries. **Not recommended.** Planning surfaced no missing scope; the orphan-deletion pull-forward is a scoping detail within the slice, not a boundary dispute.
+- **Option A (default):** `/wf implement brutalist-redesign components` — execute the components plan. **Compact first** — planning research (sub-agent reports, web searches, discovery rounds) is noise for the implement loop; PreCompact hook preserves workflow state on disk.
+- **Option B:** `/wf plan brutalist-redesign components <feedback>` — revise this slice's plan if any of the 12 PO discovery answers feels wrong on second read.
+- **Option C:** `/wf verify brutalist-redesign tokens` — formally verify the tokens slice before starting components implement. Optional; the tokens slice already verified-partial.
+- **Option D:** `/wf slice brutalist-redesign` — revisit slice boundaries. **Not recommended** — components-plan surfaced no boundary problem; the per-family commit grouping and ARCHIVE-flagged-for-behaviors are within-slice scoping details.

@@ -1,5 +1,6 @@
 package com.github.jayteealao.crumbs.designsystem.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.material3.Button
@@ -7,21 +8,19 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.github.jayteealao.crumbs.designsystem.theme.CrumbsShapes
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsTypography
 
-/**
- * Crumbs button with cut-corner styling
- *
- * Component variants for testing:
- * - Enabled/Disabled
- * - Small/Medium size
- * - Primary/Secondary style
- */
+// Brutalist CrumbsButton — keeps the Material3 Button wrapper for signature
+// stability (consumed by LoginScreen/OnboardingScreen) but overrides every
+// chrome default so the result reads brutalist: sharp corners, 1.5dp ink
+// border, zero elevation, accent fill for Primary, surface fill for Secondary.
 
 enum class ButtonSize {
     Small, Medium
@@ -41,43 +40,44 @@ fun CrumbsButton(
     style: ButtonStyle = ButtonStyle.Primary
 ) {
     val colors = LocalCrumbsColors.current
+    val stroke = LocalCrumbsStroke.current
     val typography = LocalCrumbsTypography.current
 
-    val shape = CrumbsShapes.button
-
-    val (containerColor, contentColor) = when (style) {
-        ButtonStyle.Primary -> colors.ink to colors.surface
-        ButtonStyle.Secondary -> colors.surface to colors.ink
+    val containerColor = when (style) {
+        ButtonStyle.Primary -> colors.accent
+        ButtonStyle.Secondary -> colors.surface
+    }
+    val contentColor = when (style) {
+        ButtonStyle.Primary -> colors.onAccent
+        ButtonStyle.Secondary -> colors.ink
     }
 
-    val textStyle = when (size) {
-        ButtonSize.Small -> typography.metaMono
-        ButtonSize.Medium -> typography.captionMono
-    }
-
-    val contentPadding = when (size) {
-        ButtonSize.Small -> PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-        ButtonSize.Medium -> PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+    val (minHeight, contentPadding) = when (size) {
+        ButtonSize.Small -> 36.dp to PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+        ButtonSize.Medium -> 48.dp to PaddingValues(horizontal = 24.dp, vertical = 12.dp)
     }
 
     Button(
         onClick = onClick,
-        modifier = modifier.defaultMinSize(
-            minHeight = if (size == ButtonSize.Small) 36.dp else 48.dp
-        ),
+        modifier = modifier
+            .defaultMinSize(minHeight = minHeight)
+            .testTag("btn-${style.name.lowercase()}-${size.name.lowercase()}"),
         enabled = enabled,
-        shape = shape,
+        shape = RectangleShape,
         colors = ButtonDefaults.buttonColors(
             containerColor = containerColor,
             contentColor = contentColor,
-            disabledContainerColor = containerColor.copy(alpha = 0.38f), // Material Design disabled alpha
-            disabledContentColor = contentColor.copy(alpha = 0.6f) // Better contrast for WCAG AA
+            disabledContainerColor = colors.surface,
+            disabledContentColor = colors.onSurfaceVariant,
         ),
-        contentPadding = contentPadding
+        elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp, 0.dp, 0.dp, 0.dp),
+        border = BorderStroke(stroke.regular, colors.ink),
+        contentPadding = contentPadding,
     ) {
         Text(
-            text = text,
-            style = textStyle
+            text = text.uppercase(),
+            style = typography.captionMono,
+            color = contentColor,
         )
     }
 }
@@ -87,10 +87,7 @@ fun CrumbsButton(
 @Composable
 private fun PreviewButtonPrimaryMediumLight() {
     CrumbsTheme(darkTheme = false) {
-        CrumbsButton(
-            onClick = {},
-            text = "Click Me"
-        )
+        CrumbsButton(onClick = {}, text = "Click Me")
     }
 }
 
@@ -98,10 +95,7 @@ private fun PreviewButtonPrimaryMediumLight() {
 @Composable
 private fun PreviewButtonPrimaryMediumDark() {
     CrumbsTheme(darkTheme = true) {
-        CrumbsButton(
-            onClick = {},
-            text = "Click Me"
-        )
+        CrumbsButton(onClick = {}, text = "Click Me")
     }
 }
 
@@ -109,11 +103,7 @@ private fun PreviewButtonPrimaryMediumDark() {
 @Composable
 private fun PreviewButtonDisabledLight() {
     CrumbsTheme(darkTheme = false) {
-        CrumbsButton(
-            onClick = {},
-            text = "Disabled",
-            enabled = false
-        )
+        CrumbsButton(onClick = {}, text = "Disabled", enabled = false)
     }
 }
 
@@ -125,7 +115,7 @@ private fun PreviewButtonSmallSecondary() {
             onClick = {},
             text = "Small",
             size = ButtonSize.Small,
-            style = ButtonStyle.Secondary
+            style = ButtonStyle.Secondary,
         )
     }
 }

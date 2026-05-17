@@ -3,6 +3,7 @@ composeBom = "2026.05.00"
 coroutines = "1.5.2"
 roborazzi = "1.60.0"
 robolectric = "4.16"
+kotlinxCollectionsImmutable = "0.3.8"
 accompanist = "0.22.0-rc"
 arrow = "1.1.4-alpha.10"
 lifecycle = "2.6.0-alpha01"
@@ -44,6 +45,8 @@ room-runtime = {module = "androidx.room:room-runtime", version.ref = "room"}
 room-compiler = {module = "androidx.room:room-compiler", version.ref = "room"}
 room-ktx = {module = "androidx.room:room-ktx", version.ref = "room"}
 room-paging = {module = "androidx.room:room-paging", version.ref = "room"}
+#kotlinx
+kotlinx-collections-immutable = { module = "org.jetbrains.kotlinx:kotlinx-collections-immutable", version.ref = "kotlinxCollectionsImmutable" }
 #timber
 timber = {module = "com.jakewharton.timber:timber", version = "5.0.1"}
 #roborazzi

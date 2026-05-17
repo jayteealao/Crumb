@@ -33,11 +33,13 @@ import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsBookmarkCard
+import com.github.jayteealao.crumbs.designsystem.components.CrumbsLongPressPopup
 import com.github.jayteealao.crumbs.designsystem.components.EmptyState
 import com.github.jayteealao.crumbs.designsystem.components.LoadingCard
-import com.github.jayteealao.crumbs.designsystem.components.QuickAction
-import com.github.jayteealao.crumbs.designsystem.components.QuickActionMenu
+import com.github.jayteealao.crumbs.designsystem.components.PopupAction
 import com.github.jayteealao.crumbs.designsystem.components.TagEditorDialog
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import com.github.jayteealao.crumbs.models.Bookmark
 import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.models.ContentType
@@ -145,7 +147,7 @@ fun TwitterBookmarksScreen(
                                 val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
                                 context.startActivity(intent)
                             },
-                            onLongPress = {
+                            onLongPress = { _, _ ->
                                 selectedTweetData = tweetData
                                 showQuickActions = true
                             },
@@ -179,70 +181,82 @@ fun TwitterBookmarksScreen(
                 }
             }
 
-            // Quick action menu
+            // Long-press contextual popup.
             if (showQuickActions && selectedTweetData != null) {
-                QuickActionMenu(
+                CrumbsLongPressPopup(
                     visible = showQuickActions,
                     onDismiss = { showQuickActions = false },
-                    actions = listOf(
-                        QuickAction(
-                            label = "Add Tags",
-                            icon = Icons.Default.LocalOffer
-                        ) {
-                            showTagEditor = true
-                        },
-                        QuickAction(
-                            label = "Open URL",
-                            icon = Icons.Default.Language
-                        ) {
-                            val url = selectedTweetData?.let {
-                                "https://twitter.com/${it.user.username}/status/${it.tweet.id}"
-                            }
-                            if (url != null) {
-                                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
-                                context.startActivity(intent)
-                            }
-                        },
-                        QuickAction(
-                            label = "Share",
-                            icon = Icons.Default.Share
-                        ) {
-                            val url = selectedTweetData?.let {
-                                "https://twitter.com/${it.user.username}/status/${it.tweet.id}"
-                            }
-                            if (url != null) {
-                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, url)
+                    actions = persistentListOf(
+                        PopupAction(
+                            id = "tag",
+                            label = "Tag",
+                            hint = "Add",
+                            icon = Icons.Default.LocalOffer,
+                            isPrimary = true,
+                            onClick = { showTagEditor = true },
+                        ),
+                        PopupAction(
+                            id = "open",
+                            label = "Open",
+                            hint = "URL",
+                            icon = Icons.Default.Language,
+                            onClick = {
+                                val url = selectedTweetData?.let {
+                                    "https://twitter.com/${it.user.username}/status/${it.tweet.id}"
                                 }
-                                context.startActivity(Intent.createChooser(shareIntent, "Share tweet"))
-                            }
-                        },
-                        QuickAction(
+                                if (url != null) {
+                                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                                    context.startActivity(intent)
+                                }
+                            },
+                        ),
+                        PopupAction(
+                            id = "share",
+                            label = "Share",
+                            hint = "Link",
+                            icon = Icons.Default.Share,
+                            onClick = {
+                                val url = selectedTweetData?.let {
+                                    "https://twitter.com/${it.user.username}/status/${it.tweet.id}"
+                                }
+                                if (url != null) {
+                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT, url)
+                                    }
+                                    context.startActivity(Intent.createChooser(shareIntent, "Share tweet"))
+                                }
+                            },
+                        ),
+                        PopupAction(
+                            id = "logout",
                             label = "Logout",
-                            icon = Icons.Default.Logout
-                        ) {
-                            bookmarksViewModel.logout()
-                            showQuickActions = false
-                        }
-                    )
+                            hint = "Exit",
+                            icon = Icons.Default.Logout,
+                            isDanger = true,
+                            onClick = {
+                                bookmarksViewModel.logout()
+                                showQuickActions = false
+                            },
+                        ),
+                    ),
                 )
             }
 
             // Tag editor dialog
             if (showTagEditor && selectedTweetData != null) {
-                val currentTags = tagsMap[selectedTweetData!!.tweet.id] ?: emptyList()
+                val currentTags = (tagsMap[selectedTweetData!!.tweet.id] ?: emptyList()).toImmutableList()
 
                 TagEditorDialog(
                     isVisible = showTagEditor,
                     currentTags = currentTags,
-                    availableTags = allTags,
+                    availableTags = allTags.toImmutableList(),
                     onDismiss = {
                         showTagEditor = false
                         showQuickActions = false
                     },
                     onSave = { newTags ->
-                        bookmarksViewModel.saveTags(selectedTweetData!!.tweet.id, newTags)
+                        bookmarksViewModel.saveTags(selectedTweetData!!.tweet.id, newTags.toList())
                         showTagEditor = false
                         showQuickActions = false
                     }

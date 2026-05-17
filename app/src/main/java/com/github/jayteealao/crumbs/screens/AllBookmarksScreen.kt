@@ -29,11 +29,13 @@ import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsBookmarkCard
+import com.github.jayteealao.crumbs.designsystem.components.CrumbsLongPressPopup
 import com.github.jayteealao.crumbs.designsystem.components.EmptyState
 import com.github.jayteealao.crumbs.designsystem.components.LoadingCard
-import com.github.jayteealao.crumbs.designsystem.components.QuickAction
-import com.github.jayteealao.crumbs.designsystem.components.QuickActionMenu
+import com.github.jayteealao.crumbs.designsystem.components.PopupAction
 import com.github.jayteealao.crumbs.designsystem.components.TagEditorDialog
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import com.github.jayteealao.crumbs.models.Bookmark
 import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.models.ContentType
@@ -147,7 +149,7 @@ fun AllBookmarksScreen(
                                     val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
                                     context.startActivity(intent)
                                 },
-                                onLongPress = {
+                                onLongPress = { _, _ ->
                                     selectedBookmark = bookmark
                                     selectedBookmarkId = tweetData.tweet.id
                                     showQuickActions = true
@@ -224,7 +226,7 @@ fun AllBookmarksScreen(
                                     val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
                                     context.startActivity(intent)
                                 },
-                                onLongPress = {
+                                onLongPress = { _, _ ->
                                     selectedBookmark = bookmark
                                     selectedBookmarkId = postData.post.id
                                     showQuickActions = true
@@ -247,55 +249,63 @@ fun AllBookmarksScreen(
                 }
             }
 
-            // Quick action menu
+            // Long-press contextual popup. Behavioral wiring (anchor at fingertip Offset, ARCHIVE flow) is owned downstream.
             if (showQuickActions && selectedBookmark != null && selectedBookmarkId != null) {
-                QuickActionMenu(
+                CrumbsLongPressPopup(
                     visible = showQuickActions,
                     onDismiss = { showQuickActions = false },
-                    actions = listOf(
-                        QuickAction(
-                            label = "Add Tags",
-                            icon = Icons.Default.LocalOffer
-                        ) {
-                            showTagEditor = true
-                        },
-                        QuickAction(
-                            label = "Open URL",
-                            icon = Icons.Default.Language
-                        ) {
-                            val url = selectedBookmark!!.sourceUrl
-                            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
-                            context.startActivity(intent)
-                        },
-                        QuickAction(
+                    actions = persistentListOf(
+                        PopupAction(
+                            id = "tag",
+                            label = "Tag",
+                            hint = "Add",
+                            icon = Icons.Default.LocalOffer,
+                            isPrimary = true,
+                            onClick = { showTagEditor = true },
+                        ),
+                        PopupAction(
+                            id = "open",
+                            label = "Open",
+                            hint = "URL",
+                            icon = Icons.Default.Language,
+                            onClick = {
+                                val url = selectedBookmark!!.sourceUrl
+                                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                                context.startActivity(intent)
+                            },
+                        ),
+                        PopupAction(
+                            id = "share",
                             label = "Share",
-                            icon = Icons.Default.Share
-                        ) {
-                            val url = selectedBookmark!!.sourceUrl
-                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, url)
-                            }
-                            context.startActivity(Intent.createChooser(shareIntent, "Share bookmark"))
-                        }
-                    )
+                            hint = "Link",
+                            icon = Icons.Default.Share,
+                            onClick = {
+                                val url = selectedBookmark!!.sourceUrl
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, url)
+                                }
+                                context.startActivity(Intent.createChooser(shareIntent, "Share bookmark"))
+                            },
+                        ),
+                    ),
                 )
             }
 
             // Tag editor dialog
             if (showTagEditor && selectedBookmarkId != null) {
-                val currentTags = tagsMap[selectedBookmarkId!!] ?: emptyList()
+                val currentTags = (tagsMap[selectedBookmarkId!!] ?: emptyList()).toImmutableList()
 
                 TagEditorDialog(
                     isVisible = showTagEditor,
                     currentTags = currentTags,
-                    availableTags = allTags,
+                    availableTags = allTags.toImmutableList(),
                     onDismiss = {
                         showTagEditor = false
                         showQuickActions = false
                     },
                     onSave = { newTags ->
-                        bookmarksViewModel.saveTags(selectedBookmarkId!!, newTags)
+                        bookmarksViewModel.saveTags(selectedBookmarkId!!, newTags.toList())
                         showTagEditor = false
                         showQuickActions = false
                     }

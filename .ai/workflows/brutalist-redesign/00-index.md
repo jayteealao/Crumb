@@ -7,7 +7,7 @@ status: active
 current-stage: verify
 stage-number: 6
 created-at: "2026-05-16T21:44:39Z"
-updated-at: "2026-05-17T10:23:06Z"
+updated-at: "2026-05-17T13:16:45Z"
 selected-slice: tokens
 branch-strategy: dedicated
 branch: "feat/brutalist-redesign"
@@ -82,8 +82,8 @@ stack:
     - {name: "pencil", hint: ".pen design files (handoff is HTML not .pen — n/a)"}
     - {name: "zai-mcp-server", hint: "Image/diagram analysis (could validate against verify-*.jpg references)"}
   user-confirmed: true
-next-command: wf-review
-next-invocation: "/wf review brutalist-redesign tokens"
+next-command: wf-verify
+next-invocation: "/wf verify brutalist-redesign components"
 runtime-evidence-deferrals:
   - slice: toolchain
     ac: AC4
@@ -123,10 +123,12 @@ workflow-files:
   - 04-plan.md
   - 04-plan-toolchain.md
   - 04-plan-tokens.md
+  - 04-plan-components.md
   - 05-implement.md
   - 05-implement-toolchain.md
   - 05-implement-tokens.md
   - 05-implement-quick-skip-auth-page.md
+  - 05-implement-components.md
   - 06-verify.md
   - 06-verify-toolchain.md
   - 06-verify-tokens.md
@@ -145,7 +147,7 @@ slices:
     complexity: m
     depends-on: [toolchain]
   - slug: components
-    status: defined
+    status: implemented
     complexity: l
     depends-on: [tokens]
   - slug: layouts
@@ -168,9 +170,9 @@ progress:
   intake: complete
   shape: complete
   slice: complete
-  plan: in-progress   # 2/7 slices planned (toolchain, tokens); 5 remaining plans deferred (rolling plans)
-  implement: in-progress   # 2/7 slices implemented (toolchain, tokens); see 05-implement-{toolchain,tokens}.md
-  verify: in-progress      # 2/7 slices verified-partial (toolchain, tokens); 4 runtime-evidence-deferrals
+  plan: in-progress   # 3/7 slices planned (toolchain, tokens, components); 4 remaining plans deferred (rolling plans)
+  implement: in-progress   # 3/7 slices implemented (toolchain, tokens, components); see 05-implement-{toolchain,tokens,components}.md
+  verify: in-progress      # 2/7 slices verified-partial (toolchain, tokens); 4 runtime-evidence-deferrals; components ready for verify
   review: not-started
   handoff: not-started
   ship: not-started

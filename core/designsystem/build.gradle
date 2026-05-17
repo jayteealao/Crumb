@@ -51,6 +51,10 @@ dependencies {
     // Core modules
     implementation project(':core:models')
 
+    // Immutable collections for Compose stability (FilterBar, TagEditorDialog, LongPressPopup).
+    // `api` so call-site modules (app, feature/*) can read ImmutableList without re-declaring the dep.
+    api libs.kotlinx.collections.immutable
+
     // Image loading
     implementation 'io.coil-kt:coil-compose:2.5.0'
 

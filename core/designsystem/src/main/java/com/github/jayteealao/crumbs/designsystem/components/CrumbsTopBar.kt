@@ -1,277 +1,191 @@
 package com.github.jayteealao.crumbs.designsystem.components
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CutCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsSpacing
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsTypography
 
-/**
- * Crumbs top app bar with scroll-aware collapse and inline expanding search
- *
- * Features:
- * - **Normal state**: Logo + app name + search icon
- * - **Collapsed state**: Compact logo + search icon (when scrolled down)
- * - **Search active**: Back arrow + search field + clear button
- * - Bottom-start cut corner (8dp, anchored aesthetic)
- * - Search suggestions shown below when active
- *
- * Component variants for testing:
- * - Normal expanded (not scrolled)
- * - Collapsed (scrolled down)
- * - Search active with empty query
- * - Search active with text
- * - Light/dark theme
- *
- * @param scrollBehavior Material 3 scroll behavior for collapse/expand
- * @param searchQuery Current search query text
- * @param onSearchQueryChange Callback when search text changes
- * @param isSearchActive Whether search is currently active/expanded
- * @param onSearchActiveChange Callback when search state changes
- * @param logoResId Optional logo drawable resource (null uses placeholder)
- * @param modifier Modifier to be applied to the top bar
- */
-@OptIn(ExperimentalMaterial3Api::class)
+// Brutalist CrumbsTopBar — Material3 TopAppBar + TextField stripped.
+// Two-row layout: mono kicker (10sp uppercase) over 56dp wordmark/search row,
+// terminated by a 1.5dp ink bottom border. ~88dp total height. Search expands
+// in-place via AnimatedVisibility — no scrollBehavior collapsing (brutalist
+// chrome stays static).
+//
+// @param kickerText  Optional mono kicker row above wordmark (e.g. "↳ 2026-05-17").
+// @param wordmark    Brand wordmark text (default "crumbs•").
+// @param searchQuery Active search text.
+// @param onSearchQueryChange Search input callback.
+// @param isSearchActive Whether the search row is expanded.
+// @param onSearchActiveChange Callback toggling the active state.
+
 @Composable
 fun CrumbsTopBar(
     modifier: Modifier = Modifier,
-    scrollBehavior: TopAppBarScrollBehavior? = null,
+    kickerText: String? = null,
+    wordmark: String = "crumbs•",
     searchQuery: String = "",
     onSearchQueryChange: (String) -> Unit = {},
     isSearchActive: Boolean = false,
     onSearchActiveChange: (Boolean) -> Unit = {},
-    logoResId: Int? = null
 ) {
     val colors = LocalCrumbsColors.current
     val spacing = LocalCrumbsSpacing.current
+    val stroke = LocalCrumbsStroke.current
     val typography = LocalCrumbsTypography.current
 
-    // Determine if collapsed based on scroll behavior
-    val isCollapsed = scrollBehavior?.state?.collapsedFraction ?: 0f > 0.5f
-
-    // Animate corner cut size based on collapsed state
-    val cornerCut by animateDpAsState(
-        targetValue = if (isCollapsed) 6.dp else 8.dp,
-        animationSpec = spring(),
-        label = "cornerCut"
-    )
-
-    // Animate logo size based on collapsed state
-    val logoSize by animateDpAsState(
-        targetValue = if (isCollapsed) 24.dp else 28.dp,
-        animationSpec = spring(),
-        label = "logoSize"
-    )
-
-    Surface(
-        modifier = modifier,
-        shape = CutCornerShape(bottomStart = cornerCut),
-        color = colors.surface
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(colors.surface)
+            .testTag("top-bar"),
     ) {
-        TopAppBar(
-            title = {
-                AnimatedVisibility(
-                    visible = !isSearchActive,
-                    enter = fadeIn(),
-                    exit = fadeOut()
-                ) {
-                    // Normal state: Logo + App Name
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(start = spacing.sm)
-                    ) {
-                        // Logo icon (placeholder or provided)
-                        if (logoResId != null) {
-                            Icon(
-                                painter = painterResource(id = logoResId),
-                                contentDescription = "Crumbs logo",
-                                modifier = Modifier
-                                    .size(logoSize)
-                                    .padding(end = spacing.sm),
-                                tint = colors.accent
-                            )
-                        } else {
-                            // Placeholder: Search icon styled as logo
-                            Icon(
-                                imageVector = Icons.Default.Search,
-                                contentDescription = "Crumbs logo",
-                                modifier = Modifier
-                                    .size(logoSize)
-                                    .padding(end = spacing.sm),
-                                tint = colors.accent
-                            )
-                        }
+        if (kickerText != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = spacing.lg, end = spacing.lg, top = spacing.sm),
+            ) {
+                Text(
+                    text = kickerText.uppercase(),
+                    style = typography.captionMono,
+                    color = colors.onSurfaceVariant,
+                    modifier = Modifier.testTag("top-bar-kicker"),
+                )
+            }
+        }
 
-                        // App name (hide when collapsed)
-                        AnimatedVisibility(
-                            visible = !isCollapsed,
-                            enter = fadeIn(),
-                            exit = fadeOut()
-                        ) {
-                            Text(
-                                text = "crumbs",
-                                style = typography.displaySmall,
-                                color = colors.ink
-                            )
-                        }
-                    }
-                }
-
-                AnimatedVisibility(
-                    visible = isSearchActive,
-                    enter = fadeIn(),
-                    exit = fadeOut()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .padding(horizontal = spacing.lg),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            AnimatedVisibility(visible = !isSearchActive) {
+                Text(
+                    text = wordmark,
+                    style = typography.displayHeadline,
+                    color = colors.ink,
+                    modifier = Modifier
+                        .testTag("top-bar-wordmark")
+                        .clickable { /* no-op; wordmark is brand, not interactive */ },
+                )
+            }
+            AnimatedVisibility(visible = isSearchActive) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("top-bar-search"),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    // Search state: Text field
-                    TextField(
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Close search",
+                        tint = colors.ink,
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clickable {
+                                onSearchActiveChange(false)
+                                onSearchQueryChange("")
+                            },
+                    )
+                    Spacer(Modifier.size(spacing.sm))
+                    BasicTextField(
                         value = searchQuery,
                         onValueChange = onSearchQueryChange,
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = {
-                            Text(
-                                text = "Search crumbs...",
-                                style = typography.bodyMono,
-                                color = colors.onSurfaceVariant
-                            )
-                        },
                         textStyle = typography.bodyMono.copy(color = colors.ink),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            focusedTextColor = colors.ink,
-                            unfocusedTextColor = colors.ink,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                            cursorColor = colors.accent
-                        ),
-                        singleLine = true
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        singleLine = true,
+                        modifier = Modifier
+                            .testTag("top-bar-search-field"),
                     )
-                }
-            },
-            navigationIcon = {
-                AnimatedVisibility(
-                    visible = isSearchActive,
-                    enter = fadeIn(),
-                    exit = fadeOut()
-                ) {
-                    IconButton(onClick = {
-                        onSearchActiveChange(false)
-                        onSearchQueryChange("")
-                    }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Close search",
-                            tint = colors.ink
-                        )
-                    }
-                }
-            },
-            actions = {
-                if (isSearchActive && searchQuery.isNotEmpty()) {
-                    // Clear button when search has text
-                    IconButton(onClick = { onSearchQueryChange("") }) {
+                    if (searchQuery.isNotEmpty()) {
                         Icon(
                             imageVector = Icons.Default.Clear,
                             contentDescription = "Clear search",
-                            tint = colors.onSurfaceVariant
-                        )
-                    }
-                } else if (!isSearchActive) {
-                    // Search icon in normal state
-                    IconButton(onClick = { onSearchActiveChange(true) }) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "Search",
-                            tint = colors.ink
+                            tint = colors.onSurfaceVariant,
+                            modifier = Modifier
+                                .size(20.dp)
+                                .clickable { onSearchQueryChange("") },
                         )
                     }
                 }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = Color.Transparent,
-                scrolledContainerColor = Color.Transparent,
-                titleContentColor = colors.ink,
-                actionIconContentColor = colors.ink
-            ),
-            scrollBehavior = scrollBehavior
+            }
+            AnimatedVisibility(visible = !isSearchActive) {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Search",
+                    tint = colors.ink,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clickable { onSearchActiveChange(true) },
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(stroke.regular)
+                .background(colors.ink),
         )
     }
 }
 
 // Previews
-@OptIn(ExperimentalMaterial3Api::class)
 @Preview(name = "Normal Expanded Light", showBackground = true)
 @Composable
 private fun PreviewTopBarNormalLight() {
-    CrumbsTheme(darkTheme = false) {
-        CrumbsTopBar(
-            isSearchActive = false
-        )
-    }
+    CrumbsTheme(darkTheme = false) { CrumbsTopBar(kickerText = "↳ 2026-05-17") }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Preview(name = "Normal Expanded Dark", showBackground = true)
 @Composable
 private fun PreviewTopBarNormalDark() {
-    CrumbsTheme(darkTheme = true) {
-        CrumbsTopBar(
-            isSearchActive = false
-        )
-    }
+    CrumbsTheme(darkTheme = true) { CrumbsTopBar(kickerText = "↳ 2026-05-17") }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Preview(name = "Search Active Empty", showBackground = true)
 @Composable
 private fun PreviewTopBarSearchEmpty() {
     CrumbsTheme(darkTheme = false) {
-        CrumbsTopBar(
-            isSearchActive = true,
-            searchQuery = ""
-        )
+        CrumbsTopBar(isSearchActive = true, searchQuery = "")
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Preview(name = "Search Active With Query", showBackground = true)
 @Composable
 private fun PreviewTopBarSearchWithQuery() {
     CrumbsTheme(darkTheme = false) {
-        CrumbsTopBar(
-            isSearchActive = true,
-            searchQuery = "design patterns"
-        )
+        CrumbsTopBar(isSearchActive = true, searchQuery = "design patterns")
     }
 }

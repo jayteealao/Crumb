@@ -1,39 +1,30 @@
 package com.github.jayteealao.crumbs.designsystem.components
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.github.jayteealao.crumbs.designsystem.theme.CrumbsShapes
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 
-/**
- * Crumbs icon button with cut-corner styling
- *
- * Features:
- * - Four styles: Standard (transparent), Filled (solid background), FilledTonal (tonal background), Outlined (border)
- * - Three sizes: Small (36dp), Medium (40dp), Large (48dp)
- * - Cut-corner shape (top-end) matching button design
- * - Theme-aware colors and states
- *
- * Component variants for testing:
- * - Style: Standard/Filled/FilledTonal/Outlined
- * - Size: Small/Medium/Large
- * - State: Enabled/Disabled
- */
+// Brutalist CrumbsIconButton — Material3 wrappers stripped. Single Box-based
+// implementation handles all four variants via a style enum that toggles
+// background fill vs ink border. Sharp corners, no ripple.
 
 enum class IconButtonSize {
     Small,      // 36.dp
@@ -42,10 +33,10 @@ enum class IconButtonSize {
 }
 
 enum class IconButtonStyle {
-    Filled,
-    FilledTonal,
-    Outlined,
-    Standard
+    Filled,         // accent fill, no border
+    FilledTonal,    // surface fill, ink border (subdued)
+    Outlined,       // transparent, ink border
+    Standard        // transparent, no border
 }
 
 @Composable
@@ -60,80 +51,36 @@ fun CrumbsIconButton(
     tint: Color? = null
 ) {
     val colors = LocalCrumbsColors.current
+    val stroke = LocalCrumbsStroke.current
 
-    val buttonSize = when (size) {
+    val square = when (size) {
         IconButtonSize.Small -> 36.dp
         IconButtonSize.Medium -> 40.dp
         IconButtonSize.Large -> 48.dp
     }
 
-    val iconTint = tint ?: when (style) {
-        IconButtonStyle.Filled -> colors.surface
-        IconButtonStyle.FilledTonal -> colors.accent
-        IconButtonStyle.Outlined, IconButtonStyle.Standard -> colors.accent
+    val backgroundColor = when (style) {
+        IconButtonStyle.Filled -> if (enabled) colors.accent else colors.surface
+        IconButtonStyle.FilledTonal -> colors.surface
+        IconButtonStyle.Outlined, IconButtonStyle.Standard -> Color.Transparent
+    }
+    val showBorder = style == IconButtonStyle.Outlined || style == IconButtonStyle.FilledTonal
+    val resolvedTint = tint ?: when (style) {
+        IconButtonStyle.Filled -> colors.onAccent
+        IconButtonStyle.FilledTonal, IconButtonStyle.Outlined, IconButtonStyle.Standard -> colors.ink
     }
 
-    when (style) {
-        IconButtonStyle.Filled -> FilledIconButton(
-            onClick = onClick,
-            modifier = modifier.size(buttonSize),
-            enabled = enabled,
-            shape = CrumbsShapes.button,
-            colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = colors.accent,
-                contentColor = colors.surface,
-                disabledContainerColor = colors.accent.copy(alpha = 0.38f),
-                disabledContentColor = colors.surface.copy(alpha = 0.38f)
-            )
-        ) {
-            icon()
-        }
+    var inner: Modifier = modifier
+        .size(square)
+        .background(backgroundColor)
+    if (showBorder) inner = inner.border(stroke.regular, colors.ink, RectangleShape)
+    inner = inner
+        .clickable(enabled = enabled) { onClick() }
+        .testTag("icon-btn-${style.name.lowercase()}")
 
-        IconButtonStyle.FilledTonal -> FilledTonalIconButton(
-            onClick = onClick,
-            modifier = modifier.size(buttonSize),
-            enabled = enabled,
-            shape = CrumbsShapes.button,
-            colors = IconButtonDefaults.filledTonalIconButtonColors(
-                containerColor = colors.accent.copy(alpha = 0.1f),
-                contentColor = colors.accent,
-                disabledContainerColor = colors.accent.copy(alpha = 0.1f).copy(alpha = 0.38f),
-                disabledContentColor = colors.accent.copy(alpha = 0.38f)
-            )
-        ) {
-            icon()
-        }
-
-        IconButtonStyle.Outlined -> OutlinedIconButton(
-            onClick = onClick,
-            modifier = modifier.size(buttonSize),
-            enabled = enabled,
-            shape = CrumbsShapes.button,
-            colors = IconButtonDefaults.outlinedIconButtonColors(
-                containerColor = Color.Transparent,
-                contentColor = colors.accent,
-                disabledContainerColor = Color.Transparent,
-                disabledContentColor = colors.accent.copy(alpha = 0.38f)
-            ),
-            border = IconButtonDefaults.outlinedIconButtonBorder(enabled).copy(
-                brush = androidx.compose.ui.graphics.SolidColor(
-                    if (enabled) colors.accent else colors.accent.copy(alpha = 0.12f)
-                )
-            )
-        ) {
-            icon()
-        }
-
-        IconButtonStyle.Standard -> IconButton(
-            onClick = onClick,
-            modifier = modifier.size(buttonSize),
-            enabled = enabled,
-            colors = IconButtonDefaults.iconButtonColors(
-                containerColor = Color.Transparent,
-                contentColor = colors.accent,
-                disabledContainerColor = Color.Transparent,
-                disabledContentColor = colors.accent.copy(alpha = 0.38f)
-            )
+    Box(modifier = inner, contentAlignment = Alignment.Center) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            androidx.compose.material3.LocalContentColor provides resolvedTint
         ) {
             icon()
         }
@@ -149,7 +96,7 @@ private fun PreviewIconButtonFilledMediumLight() {
             onClick = {},
             icon = { Icon(Icons.Default.Add, "Add") },
             style = IconButtonStyle.Filled,
-            size = IconButtonSize.Medium
+            size = IconButtonSize.Medium,
         )
     }
 }
@@ -162,20 +109,7 @@ private fun PreviewIconButtonFilledMediumDark() {
             onClick = {},
             icon = { Icon(Icons.Default.Add, "Add") },
             style = IconButtonStyle.Filled,
-            size = IconButtonSize.Medium
-        )
-    }
-}
-
-@Preview(name = "FilledTonal Small Light", showBackground = true)
-@Composable
-private fun PreviewIconButtonFilledTonalSmallLight() {
-    CrumbsTheme(darkTheme = false) {
-        CrumbsIconButton(
-            onClick = {},
-            icon = { Icon(Icons.Default.Favorite, "Favorite") },
-            style = IconButtonStyle.FilledTonal,
-            size = IconButtonSize.Small
+            size = IconButtonSize.Medium,
         )
     }
 }
@@ -188,7 +122,20 @@ private fun PreviewIconButtonOutlinedLargeLight() {
             onClick = {},
             icon = { Icon(Icons.Default.Search, "Search") },
             style = IconButtonStyle.Outlined,
-            size = IconButtonSize.Large
+            size = IconButtonSize.Large,
+        )
+    }
+}
+
+@Preview(name = "FilledTonal Small Light", showBackground = true)
+@Composable
+private fun PreviewIconButtonFilledTonalSmallLight() {
+    CrumbsTheme(darkTheme = false) {
+        CrumbsIconButton(
+            onClick = {},
+            icon = { Icon(Icons.Default.Favorite, "Favorite") },
+            style = IconButtonStyle.FilledTonal,
+            size = IconButtonSize.Small,
         )
     }
 }
@@ -202,7 +149,7 @@ private fun PreviewIconButtonStandardDisabledLight() {
             icon = { Icon(Icons.Default.Add, "Add") },
             style = IconButtonStyle.Standard,
             size = IconButtonSize.Medium,
-            enabled = false
+            enabled = false,
         )
     }
 }
