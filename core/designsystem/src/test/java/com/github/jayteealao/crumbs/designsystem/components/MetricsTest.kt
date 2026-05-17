@@ -19,7 +19,7 @@ import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [33])
+@Config(sdk = [34])
 class MetricsTest {
 
     @get:Rule

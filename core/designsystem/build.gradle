@@ -1,7 +1,7 @@
 plugins {
     id 'com.android.library'
     id 'org.jetbrains.kotlin.plugin.compose'
-    id 'io.github.takahirom.roborazzi' version '1.7.0'
+    id 'io.github.takahirom.roborazzi' version '1.60.0'
 }
 
 android {
@@ -61,10 +61,10 @@ dependencies {
     implementation 'androidx.media3:media3-ui:1.2.0'
 
     testImplementation 'junit:junit:4.13.2'
-    testImplementation 'io.github.takahirom.roborazzi:roborazzi:1.7.0'
-    testImplementation 'io.github.takahirom.roborazzi:roborazzi-compose:1.7.0'
-    testImplementation 'io.github.takahirom.roborazzi:roborazzi-junit-rule:1.7.0'
-    testImplementation 'org.robolectric:robolectric:4.14.1'
+    testImplementation(libs.roborazzi.core)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.roborazzi.junit.rule)
+    testImplementation(libs.robolectric)
     testImplementation(platform(libs.compose.bom))
     testImplementation 'androidx.compose.ui:ui-test-junit4'
     testImplementation 'androidx.activity:activity-compose:1.8.2'

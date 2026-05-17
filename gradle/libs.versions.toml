@@ -1,6 +1,8 @@
 [versions]
 composeBom = "2026.05.00"
 coroutines = "1.5.2"
+roborazzi = "1.60.0"
+robolectric = "4.16"
 accompanist = "0.22.0-rc"
 arrow = "1.1.4-alpha.10"
 lifecycle = "2.6.0-alpha01"
@@ -44,6 +46,11 @@ room-ktx = {module = "androidx.room:room-ktx", version.ref = "room"}
 room-paging = {module = "androidx.room:room-paging", version.ref = "room"}
 #timber
 timber = {module = "com.jakewharton.timber:timber", version = "5.0.1"}
+#roborazzi
+roborazzi-core = { module = "io.github.takahirom.roborazzi:roborazzi", version.ref = "roborazzi" }
+roborazzi-compose = { module = "io.github.takahirom.roborazzi:roborazzi-compose", version.ref = "roborazzi" }
+roborazzi-junit-rule = { module = "io.github.takahirom.roborazzi:roborazzi-junit-rule", version.ref = "roborazzi" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 #firebase
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
 firebase-firestore = { module = "com.google.firebase:firebase-firestore-ktx" }

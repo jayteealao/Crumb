@@ -1,9 +1,14 @@
 package com.github.jayteealao.crumbs.designsystem.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 
 /**
  * Crumbs theme provider
@@ -13,20 +18,15 @@ import androidx.compose.runtime.compositionLocalOf
  * - Typography
  * - Spacing
  *
- * Usage:
- * ```
- * CrumbsTheme {
- *     val colors = LocalCrumbsColors.current
- *     val spacing = LocalCrumbsSpacing.current
- *     // Use tokens in components
- * }
- * ```
+ * The root container opts in to [testTagsAsResourceId] so Maestro flows
+ * (later slice) can address descendants by their Modifier.testTag(...) name.
  */
 
 val LocalCrumbsColors = compositionLocalOf { LightColors }
 val LocalCrumbsSpacing = compositionLocalOf { CrumbsSpacing }
 val LocalCrumbsTypography = compositionLocalOf { CrumbsTypography }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun CrumbsTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -39,6 +39,8 @@ fun CrumbsTheme(
         LocalCrumbsSpacing provides CrumbsSpacing,
         LocalCrumbsTypography provides CrumbsTypography
     ) {
-        content()
+        Box(Modifier.semantics { testTagsAsResourceId = true }) {
+            content()
+        }
     }
 }
