@@ -71,7 +71,7 @@ interface TweetDao {
     fun getTweets(): PagingSource<Int, TweetData>
 
     @Query("SELECT * FROM tweetEntity WHERE referenced = false ORDER BY `order` DESC LIMIT 1")
-    fun getLatestBookmark(): TweetEntity
+    fun getLatestBookmark(): TweetEntity?
 
     @Query("SELECT id FROM tweetEntity WHERE referenced = false")
     suspend fun getAllTweetIds(): List<String>
