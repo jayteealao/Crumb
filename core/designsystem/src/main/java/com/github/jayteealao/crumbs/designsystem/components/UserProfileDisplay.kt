@@ -84,7 +84,7 @@ fun UserProfileDisplay(
         Surface(
             modifier = Modifier.size(size.avatarSize),
             shape = CircleShape,
-            color = colors.surfaceVariant
+            color = colors.surface
         ) {
             AsyncImage(
                 model = profile.avatarUrl,
@@ -106,20 +106,20 @@ fun UserProfileDisplay(
             Text(
                 text = profile.displayName,
                 style = when (size) {
-                    ProfileSize.Small -> typography.bodyLarge
-                    ProfileSize.Medium, ProfileSize.Large -> typography.titleMedium
+                    ProfileSize.Small -> typography.bodyMono
+                    ProfileSize.Medium, ProfileSize.Large -> typography.displaySmall
                 },
-                color = colors.textPrimary
+                color = colors.ink
             )
 
             // Username
             Text(
                 text = "@${profile.username}",
                 style = when (size) {
-                    ProfileSize.Small -> typography.labelMedium
-                    ProfileSize.Medium, ProfileSize.Large -> typography.bodyMedium
+                    ProfileSize.Small -> typography.metaMono
+                    ProfileSize.Medium, ProfileSize.Large -> typography.bodyMono
                 },
-                color = colors.textSecondary
+                color = colors.onSurfaceVariant
             )
 
             // Stats
@@ -131,15 +131,15 @@ fun UserProfileDisplay(
                     profile.followerCount?.let { count ->
                         Text(
                             text = "${formatCount(count)} followers",
-                            style = typography.labelMedium,
-                            color = colors.textSecondary
+                            style = typography.metaMono,
+                            color = colors.onSurfaceVariant
                         )
                     }
                     profile.postCount?.let { count ->
                         Text(
                             text = "${formatCount(count)} posts",
-                            style = typography.labelMedium,
-                            color = colors.textSecondary
+                            style = typography.metaMono,
+                            color = colors.onSurfaceVariant
                         )
                     }
                 }

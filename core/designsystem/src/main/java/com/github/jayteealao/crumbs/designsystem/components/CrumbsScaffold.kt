@@ -38,7 +38,7 @@ fun CrumbsScaffold(
     snackbarHost: @Composable () -> Unit = {},
     floatingActionButton: @Composable () -> Unit = {},
     containerColor: Color = LocalCrumbsColors.current.background,
-    contentColor: Color = LocalCrumbsColors.current.textPrimary,
+    contentColor: Color = LocalCrumbsColors.current.ink,
     content: @Composable (PaddingValues) -> Unit
 ) {
     Scaffold(

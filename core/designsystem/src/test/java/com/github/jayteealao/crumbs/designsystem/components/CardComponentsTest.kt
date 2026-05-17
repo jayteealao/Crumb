@@ -1,16 +1,9 @@
 package com.github.jayteealao.crumbs.designsystem.components
 
 import androidx.activity.ComponentActivity
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.material3.Surface
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
-import androidx.compose.ui.unit.dp
 import com.github.jayteealao.crumbs.designsystem.TestCrumbsTheme
-import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
 import com.github.jayteealao.crumbs.models.Bookmark
 import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.models.ContentType
@@ -23,9 +16,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * Roborazzi screenshot tests for card components
- *
- * Tests CrumbsBookmarkCard variants and ThreadIndicator
+ * Roborazzi screenshot tests for CrumbsBookmarkCard variants.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -163,53 +154,4 @@ class CardComponentsTest {
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_deleted_light.png")
     }
 
-    // ThreadIndicator Tests
-
-    @Test
-    fun threadIndicator_small_light() {
-        composeTestRule.setContent {
-            TestCrumbsTheme(darkTheme = false) {
-                Surface(color = LocalCrumbsColors.current.background) {
-                    Box(modifier = Modifier.padding(16.dp).wrapContentSize()) {
-                        ThreadIndicator(threadCount = 2)
-                    }
-                }
-            }
-        }
-
-        composeTestRule.onRoot()
-            .captureRoboImage("src/test/screenshots/ThreadIndicator_small_light.png")
-    }
-
-    @Test
-    fun threadIndicator_medium_light() {
-        composeTestRule.setContent {
-            TestCrumbsTheme(darkTheme = false) {
-                Surface(color = LocalCrumbsColors.current.background) {
-                    Box(modifier = Modifier.padding(16.dp).wrapContentSize()) {
-                        ThreadIndicator(threadCount = 5)
-                    }
-                }
-            }
-        }
-
-        composeTestRule.onRoot()
-            .captureRoboImage("src/test/screenshots/ThreadIndicator_medium_light.png")
-    }
-
-    @Test
-    fun threadIndicator_large_dark() {
-        composeTestRule.setContent {
-            TestCrumbsTheme(darkTheme = true) {
-                Surface(color = LocalCrumbsColors.current.background) {
-                    Box(modifier = Modifier.padding(16.dp).wrapContentSize()) {
-                        ThreadIndicator(threadCount = 20)
-                    }
-                }
-            }
-        }
-
-        composeTestRule.onRoot()
-            .captureRoboImage("src/test/screenshots/ThreadIndicator_large_dark.png")
-    }
 }

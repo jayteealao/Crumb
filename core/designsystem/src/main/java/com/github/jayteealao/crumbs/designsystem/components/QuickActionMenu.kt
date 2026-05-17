@@ -74,14 +74,14 @@ fun QuickActionMenu(
                         Icon(
                             imageVector = action.icon,
                             contentDescription = null,
-                            tint = colors.textPrimary
+                            tint = colors.ink
                         )
 
                         // Action label
                         Text(
                             text = action.label,
-                            style = typography.bodyMedium,
-                            color = colors.textPrimary
+                            style = typography.bodyMono,
+                            color = colors.ink
                         )
                     }
                 },

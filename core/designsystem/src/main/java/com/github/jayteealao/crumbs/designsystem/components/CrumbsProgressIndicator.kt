@@ -69,14 +69,14 @@ fun CrumbsProgressIndicator(
                     modifier = modifier.size(diameter),
                     color = indicatorColor,
                     strokeWidth = strokeWidth,
-                    trackColor = colors.surfaceVariant
+                    trackColor = colors.onSurfaceVariant.copy(alpha = 0.2f)
                 )
             } else {
                 CircularProgressIndicator(
                     modifier = modifier.size(diameter),
                     color = indicatorColor,
                     strokeWidth = strokeWidth,
-                    trackColor = colors.surfaceVariant
+                    trackColor = colors.onSurfaceVariant.copy(alpha = 0.2f)
                 )
             }
         }
@@ -87,13 +87,13 @@ fun CrumbsProgressIndicator(
                     progress = { progress },
                     modifier = modifier.width(diameter * 4),
                     color = indicatorColor,
-                    trackColor = colors.surfaceVariant
+                    trackColor = colors.onSurfaceVariant.copy(alpha = 0.2f)
                 )
             } else {
                 LinearProgressIndicator(
                     modifier = modifier.width(diameter * 4),
                     color = indicatorColor,
-                    trackColor = colors.surfaceVariant
+                    trackColor = colors.onSurfaceVariant.copy(alpha = 0.2f)
                 )
             }
         }

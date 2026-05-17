@@ -120,14 +120,14 @@ private fun RowScope.CrumbsNavigationBarItem(
                         modifier = Modifier
                             .size(64.dp, 32.dp)
                             .clip(CrumbsShapes.navigationBar)
-                            .background(colors.navIndicator)
+                            .background(colors.accent)
                     )
                 }
 
                 Icon(
                     imageVector = icon,
                     contentDescription = label,
-                    tint = if (selected) colors.textPrimary else colors.textSecondary,
+                    tint = if (selected) colors.ink else colors.onSurfaceVariant,
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -135,8 +135,8 @@ private fun RowScope.CrumbsNavigationBarItem(
             // Label
             Text(
                 text = label,
-                style = typography.labelMedium,
-                color = if (selected) colors.textPrimary else colors.textSecondary
+                style = typography.metaMono,
+                color = if (selected) colors.ink else colors.onSurfaceVariant
             )
         }
     }

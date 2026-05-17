@@ -67,8 +67,8 @@ fun EmptyState(
 
         Text(
             text = title,
-            style = typography.headingMedium,
-            color = colors.textPrimary,
+            style = typography.displayHeadline,
+            color = colors.ink,
             textAlign = TextAlign.Center
         )
 
@@ -76,8 +76,8 @@ fun EmptyState(
 
         Text(
             text = message,
-            style = typography.bodyMedium,
-            color = colors.textSecondary,
+            style = typography.bodyMono,
+            color = colors.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
 

@@ -106,7 +106,7 @@ fun LoginScreen(
 
                 Text(
                     text = "crumbs",
-                    style = typography.displayLarge,
+                    style = typography.displayHeadline,
                     color = Color.White
                 )
 
@@ -114,7 +114,7 @@ fun LoginScreen(
 
                 Text(
                     text = "Your social knowledge base",
-                    style = typography.bodyLarge,
+                    style = typography.bodyMono,
                     color = Color.White.copy(alpha = 0.8f),
                     textAlign = TextAlign.Center
                 )
@@ -155,7 +155,7 @@ fun LoginScreen(
 
                             Text(
                                 text = "Welcome back!",
-                                style = typography.headingMedium,
+                                style = typography.displayHeadline,
                                 color = Color.White
                             )
                         }
@@ -172,7 +172,7 @@ fun LoginScreen(
 
                         Text(
                             text = "Connecting...",
-                            style = typography.bodyLarge,
+                            style = typography.bodyMono,
                             color = Color.White.copy(alpha = 0.8f)
                         )
                     }

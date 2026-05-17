@@ -132,7 +132,7 @@ fun OnboardingScreen(
                     HorizontalPagerIndicator(
                         pagerState = pagerState,
                         activeColor = colors.accent,
-                        inactiveColor = colors.textSecondary.copy(alpha = 0.3f),
+                        inactiveColor = colors.onSurfaceVariant.copy(alpha = 0.3f),
                         indicatorWidth = 8.dp,
                         indicatorHeight = 8.dp,
                         spacing = 8.dp
@@ -197,8 +197,8 @@ private fun OnboardingPageContent(page: OnboardingPage) {
 
         Text(
             text = page.title,
-            style = typography.displayMedium,
-            color = colors.textPrimary,
+            style = typography.displayHeadline,
+            color = colors.ink,
             textAlign = TextAlign.Center
         )
 
@@ -206,8 +206,8 @@ private fun OnboardingPageContent(page: OnboardingPage) {
 
         Text(
             text = page.description,
-            style = typography.bodyLarge,
-            color = colors.textSecondary,
+            style = typography.bodyMono,
+            color = colors.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
     }

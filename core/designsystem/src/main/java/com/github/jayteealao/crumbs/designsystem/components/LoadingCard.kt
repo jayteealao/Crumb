@@ -50,7 +50,7 @@ fun Modifier.shimmerEffect(): Modifier = composed {
         ),
         label = "shimmerAlpha"
     )
-    background(colors.surfaceVariant.copy(alpha = alpha))
+    background(colors.onSurfaceVariant.copy(alpha = alpha))
 }
 
 /**
@@ -74,7 +74,7 @@ fun LoadingCard(
         modifier = modifier,
         shape = CrumbsShapes.card, // bottom-end cut corner (12dp)
         color = colors.surface,
-        border = androidx.compose.foundation.BorderStroke(1.dp, colors.textSecondary.copy(alpha = 0.1f))
+        border = androidx.compose.foundation.BorderStroke(1.dp, colors.onSurfaceVariant.copy(alpha = 0.1f))
     ) {
         Column(
             modifier = Modifier.fillMaxWidth()

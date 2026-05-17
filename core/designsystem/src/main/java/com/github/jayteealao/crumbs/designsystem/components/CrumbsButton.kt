@@ -43,19 +43,16 @@ fun CrumbsButton(
     val colors = LocalCrumbsColors.current
     val typography = LocalCrumbsTypography.current
 
-    val shape = when (size) {
-        ButtonSize.Small -> CrumbsShapes.buttonSmall
-        ButtonSize.Medium -> CrumbsShapes.button
-    }
+    val shape = CrumbsShapes.button
 
     val (containerColor, contentColor) = when (style) {
-        ButtonStyle.Primary -> colors.primary to colors.surface // White text on cyan for WCAG AA
-        ButtonStyle.Secondary -> colors.surface to colors.textPrimary
+        ButtonStyle.Primary -> colors.ink to colors.surface
+        ButtonStyle.Secondary -> colors.surface to colors.ink
     }
 
     val textStyle = when (size) {
-        ButtonSize.Small -> typography.labelMedium
-        ButtonSize.Medium -> typography.labelLarge
+        ButtonSize.Small -> typography.metaMono
+        ButtonSize.Medium -> typography.captionMono
     }
 
     val contentPadding = when (size) {

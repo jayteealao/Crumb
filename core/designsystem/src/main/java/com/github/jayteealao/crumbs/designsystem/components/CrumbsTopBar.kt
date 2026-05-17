@@ -141,8 +141,8 @@ fun CrumbsTopBar(
                         ) {
                             Text(
                                 text = "crumbs",
-                                style = typography.titleLarge,
-                                color = colors.textPrimary
+                                style = typography.displaySmall,
+                                color = colors.ink
                             )
                         }
                     }
@@ -161,16 +161,16 @@ fun CrumbsTopBar(
                         placeholder = {
                             Text(
                                 text = "Search crumbs...",
-                                style = typography.bodyLarge,
-                                color = colors.textSecondary
+                                style = typography.bodyMono,
+                                color = colors.onSurfaceVariant
                             )
                         },
-                        textStyle = typography.bodyLarge.copy(color = colors.textPrimary),
+                        textStyle = typography.bodyMono.copy(color = colors.ink),
                         colors = TextFieldDefaults.colors(
                             focusedContainerColor = Color.Transparent,
                             unfocusedContainerColor = Color.Transparent,
-                            focusedTextColor = colors.textPrimary,
-                            unfocusedTextColor = colors.textPrimary,
+                            focusedTextColor = colors.ink,
+                            unfocusedTextColor = colors.ink,
                             focusedIndicatorColor = Color.Transparent,
                             unfocusedIndicatorColor = Color.Transparent,
                             cursorColor = colors.accent
@@ -192,7 +192,7 @@ fun CrumbsTopBar(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Close search",
-                            tint = colors.textPrimary
+                            tint = colors.ink
                         )
                     }
                 }
@@ -204,7 +204,7 @@ fun CrumbsTopBar(
                         Icon(
                             imageVector = Icons.Default.Clear,
                             contentDescription = "Clear search",
-                            tint = colors.textSecondary
+                            tint = colors.onSurfaceVariant
                         )
                     }
                 } else if (!isSearchActive) {
@@ -213,7 +213,7 @@ fun CrumbsTopBar(
                         Icon(
                             imageVector = Icons.Default.Search,
                             contentDescription = "Search",
-                            tint = colors.textPrimary
+                            tint = colors.ink
                         )
                     }
                 }
@@ -221,8 +221,8 @@ fun CrumbsTopBar(
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = Color.Transparent,
                 scrolledContainerColor = Color.Transparent,
-                titleContentColor = colors.textPrimary,
-                actionIconContentColor = colors.textPrimary
+                titleContentColor = colors.ink,
+                actionIconContentColor = colors.ink
             ),
             scrollBehavior = scrollBehavior
         )

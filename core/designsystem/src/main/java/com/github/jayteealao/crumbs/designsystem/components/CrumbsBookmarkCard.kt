@@ -80,7 +80,7 @@ fun CrumbsBookmarkCard(
             ),
         shape = CrumbsShapes.card, // bottom-end cut (12dp)
         color = colors.surface,
-        border = BorderStroke(1.dp, colors.textSecondary.copy(alpha = 0.1f))
+        border = BorderStroke(1.dp, colors.onSurfaceVariant.copy(alpha = 0.1f))
     ) {
         Box {
             Column(
@@ -98,15 +98,16 @@ fun CrumbsBookmarkCard(
                             contentScale = ContentScale.Crop
                         )
                     }
-                    bookmark.contentType == ContentType.Video -> {
-                        val videoUrl = bookmark.videoUrl
-                        if (videoUrl != null) {
-                            CrumbsVideoPlayer(
-                                videoUrl = videoUrl,
-                                thumbnailUrl = bookmark.imageUrl,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
+                    bookmark.contentType == ContentType.Video && bookmark.imageUrl != null -> {
+                        // Video thumbnail only — full player rebuilt in components slice
+                        AsyncImage(
+                            model = bookmark.imageUrl,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp),
+                            contentScale = ContentScale.Crop
+                        )
                     }
                 }
 
@@ -131,28 +132,28 @@ fun CrumbsBookmarkCard(
                             ),
                             contentDescription = bookmark.source.displayName(),
                             modifier = Modifier.size(20.dp),
-                            tint = colors.textSecondary
+                            tint = colors.onSurfaceVariant
                         )
 
                         // Author
                         Text(
                             text = bookmark.author,
-                            style = typography.bodyMedium,
-                            color = colors.textSecondary
+                            style = typography.bodyMono,
+                            color = colors.onSurfaceVariant
                         )
 
                         // Separator
                         Text(
                             text = "•",
-                            style = typography.bodyMedium,
-                            color = colors.textSecondary
+                            style = typography.bodyMono,
+                            color = colors.onSurfaceVariant
                         )
 
                         // Timestamp
                         Text(
                             text = bookmark.savedAt.toRelativeTime(),
-                            style = typography.bodyMedium,
-                            color = colors.textSecondary
+                            style = typography.bodyMono,
+                            color = colors.onSurfaceVariant
                         )
 
                         // Content type indicator
@@ -161,7 +162,7 @@ fun CrumbsBookmarkCard(
                                 imageVector = Icons.Default.Link,
                                 contentDescription = "Link",
                                 modifier = Modifier.size(16.dp),
-                                tint = colors.textSecondary
+                                tint = colors.onSurfaceVariant
                             )
                         }
                     }
@@ -169,8 +170,8 @@ fun CrumbsBookmarkCard(
                     // Title
                     Text(
                         text = bookmark.title,
-                        style = typography.titleLarge,
-                        color = colors.textPrimary,
+                        style = typography.displaySmall,
+                        color = colors.ink,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -178,17 +179,18 @@ fun CrumbsBookmarkCard(
                     // Preview text
                     Text(
                         text = bookmark.previewText,
-                        style = typography.bodyLarge,
-                        color = colors.textPrimary,
+                        style = typography.bodyMono,
+                        color = colors.ink,
                         maxLines = 6,
                         overflow = TextOverflow.Ellipsis
                     )
 
-                    // Thread indicator (if this is a thread)
+                    // Thread indicator (if this is a thread) — proper component rebuilt in components slice
                     if (bookmark.isThread) {
-                        ThreadIndicator(
-                            threadCount = bookmark.threadCount,
-                            onClick = { /* TODO: Expand thread inline */ }
+                        Text(
+                            text = "+ ${bookmark.threadCount} more",
+                            style = typography.metaMono,
+                            color = colors.accent
                         )
                     }
 
@@ -199,7 +201,19 @@ fun CrumbsBookmarkCard(
                             verticalArrangement = Arrangement.spacedBy(spacing.sm)
                         ) {
                             bookmark.tags.forEach { tag ->
-                                CrumbsTagChip(label = tag)
+                                // Inline tag — proper chip rebuilt in components slice
+                                Surface(
+                                    shape = CrumbsShapes.chip,
+                                    color = colors.surface,
+                                    border = BorderStroke(1.dp, colors.ink)
+                                ) {
+                                    Text(
+                                        text = "#$tag",
+                                        style = typography.tagMono,
+                                        color = colors.ink,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -216,8 +230,8 @@ fun CrumbsBookmarkCard(
                 ) {
                     Text(
                         text = "Content unavailable",
-                        style = typography.bodyMedium,
-                        color = colors.textPrimary // Changed from textSecondary for WCAG AA compliance
+                        style = typography.bodyMono,
+                        color = colors.ink // Changed from onSurfaceVariant for WCAG AA compliance
                     )
                 }
             }

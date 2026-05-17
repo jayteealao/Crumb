@@ -184,7 +184,7 @@ class ImageComponentsTest {
                         ) {
                             Text(
                                 text = "Overlay Text",
-                                style = typography.titleLarge,
+                                style = typography.displaySmall,
                                 color = Color.White
                             )
                         }
@@ -216,7 +216,7 @@ class ImageComponentsTest {
                         ) {
                             Text(
                                 text = "Overlay Text",
-                                style = typography.titleLarge,
+                                style = typography.displaySmall,
                                 color = Color.White
                             )
                         }

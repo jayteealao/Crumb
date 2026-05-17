@@ -75,7 +75,7 @@ fun GradientImage(
     Surface(
         modifier = modifier,
         shape = shape,
-        color = colors.surfaceVariant
+        color = colors.surface
     ) {
         Box {
             AsyncImage(
@@ -236,7 +236,7 @@ private fun PreviewGradientImageWithOverlayLight() {
                 ) {
                     Text(
                         text = "Overlay Text",
-                        style = typography.titleLarge,
+                        style = typography.displaySmall,
                         color = Color.White
                     )
                 }

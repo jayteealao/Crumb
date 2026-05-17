@@ -5,9 +5,9 @@ slug: brutalist-redesign
 status: complete
 stage-number: 4
 created-at: "2026-05-16T22:37:59Z"
-updated-at: "2026-05-17T00:00:00Z"
-planning-mode: single
-slices-planned: 1
+updated-at: "2026-05-17T02:03:08Z"
+planning-mode: rolling
+slices-planned: 2
 slices-total: 7
 implementation-order: [toolchain, tokens, components, layouts, screens, behaviors, maestro]
 conflicts-found: 0
@@ -16,7 +16,7 @@ refs:
   index: 00-index.md
   slice-index: 03-slice.md
 next-command: wf-implement
-next-invocation: "/wf implement brutalist-redesign toolchain"
+next-invocation: "/wf implement brutalist-redesign tokens"
 ---
 
 # Plan Index
@@ -32,13 +32,17 @@ This is a **rolling plan index**. The chain of slices is strictly linear (toolch
 - **Key risk:** KSP × Kotlin 2.3.21 compatibility (mitigated by Phase A spike). Secondary: Coil 3 import-path migration ripple.
 - **See:** [04-plan-toolchain.md](04-plan-toolchain.md).
 
-### `tokens` *(deferred)*
+### `tokens` *(planned)*
 
-CrumbsColors / CrumbsTypography / CrumbsShapes / CrumbsSpacing brutalist hard-cutover; bundle Funnel Display + IBM Plex Mono in `res/font/`; disable dynamic color. Plan is written after `toolchain` ships and the codebase is on Kotlin 2.3.21 + Compose 1.11.1 — call signatures for `Font(...)`, `MaterialTheme`, and `dynamic*ColorScheme` may have evolved on the new chain and the plan should be drafted against observed reality.
+- **Files to touch:** ~35 files — 5 theme files (CrumbsColors/Typography/Shapes/Theme rewritten, new CrumbsStroke), 7 surviving component files (mechanical token rename), 2 app screens (rename), 4 dead Material orphans deleted (app/ui/theme/*.kt), 13 orphan components deleted + their test files, IBM Plex Mono TTFs added (×3), funnel_display_semibold.ttf removed, ~90 PNG goldens regenerated.
+- **Strategy:** three-phase cutover. Phase A rewrites the token surface (compile-broken intermediate is fine on the feature branch). Phase B applies the rename lookup table to surviving consumers and deletes orphans — project compiles, components look intentionally wrong (mono body text on v1.1 layouts). Phase C regenerates Roborazzi goldens directly (no verify-first), runs the CI-equivalent gate, then installs on Pixel 6 API 34 to confirm paper background + orange accent. AC-K5 re-purposed from a goldens-based assertion to a maintainer-driven manual diff against `handoff-tokens.jsx`.
+- **Key risk:** the 11→7 typography rename is intentionally lossy — body text temporarily renders mono. Components slice fixes this. Reviewers of the tokens-vs-components diff must not flag the intermediate as regression.
+- **Cross-slice impact:** the orphan-component deletion is **pulled forward** from the components slice (round-3 PO decision). AC-C1 in components becomes a verification-only criterion (the 13 deletions are already done).
+- **See:** [04-plan-tokens.md](04-plan-tokens.md).
 
-### `components` *(deferred)*
+### `components` *(deferred — scope reduced)*
 
-13 orphan deletions + 13 active rebuilds + 4 new (CrumbsFilterBar, CrumbsSnackbar, CrumbsBanner, CrumbsLongPressPopup). Roborazzi goldens at light + dark for every meaningful state. Plan is written after `tokens` lands so the rebuilt components can be planned against the final brutalist token surface.
+8 active rebuilds + 4 new (CrumbsFilterBar, CrumbsSnackbar, CrumbsBanner, CrumbsLongPressPopup). **The 13 orphan deletions are already done by the tokens slice** — components slice now starts focused on rebuilds + new components, not on cleanup. Roborazzi goldens at light + dark for every meaningful state. Plan is written after `tokens` lands so the rebuilt components can be planned against the final brutalist token surface and the post-tokens repo reality (including the new `CrumbsStroke` object and the `app_root` testTag).
 
 ### `layouts` *(deferred)*
 
@@ -82,9 +86,9 @@ No parallel integration points exist unless the `screens` re-split clause fires 
 
 ## Recommended Implementation Order
 
-1. **`toolchain`** *(planned, ready to implement)* — risk-first; everything else depends on the new chain.
-2. **`tokens`** *(plan after toolchain ships)* — type contract for all downstream.
-3. **`components`** *(plan after tokens ships)* — atomic primitives.
+1. **`toolchain`** *(implemented + verified-partial)* — risk-first; everything else depends on the new chain.
+2. **`tokens`** *(planned, ready to implement)* — type contract for all downstream. Includes orphan-component deletion pulled forward from the components slice.
+3. **`components`** *(plan after tokens ships, scope reduced — orphan cleanup already done)* — 8 active rebuilds + 4 new components.
 4. **`layouts`** *(plan after components ships)* — reusable scaffolds.
 5. **`screens`** *(plan after layouts ships, may re-split)* — composition.
 6. **`behaviors`** *(plan after screens ships)* — wiring + DB schema.
@@ -92,7 +96,14 @@ No parallel integration points exist unless the `screens` re-split clause fires 
 
 ## Conflicts Found
 
-None. The toolchain plan is the first plan and has no sibling plans to conflict with. The slice manifest (`03-slice.md`) shows no cycle, no shared-file conflicts between defined slices, and no contradictory acceptance criteria.
+**Tokens plan — resolved cleanly:**
+
+- **Handoff JSX default accent (`#D6FF00` lime) vs. shape-locked accent (`#FF5A1F` orange).** Resolved at plan stage: PO confirmed orange holds. `LightColors.accent = #FF5A1F`. Handoff's `accent.orange` alt swatch becomes the default.
+- **Tokens-slice scope vs. handoff scope: `CrumbsStroke.kt`.** The handoff introduces a new file the slice spec didn't list. Resolved at plan stage: full `CrumbsStroke.kt` ships in tokens slice (PO choice).
+- **AC-K5 (tokens-preview Roborazzi golden) vs. nonexistent preview composable.** Resolved at plan stage: AC re-purposed as a maintainer-driven manual diff against `handoff-tokens.jsx`. No new preview composable or test introduced.
+- **Cross-slice scope shift: orphan deletion pulled forward.** 13 orphan components originally scheduled for the components slice now delete in the tokens slice (PO choice). Components slice plan, when drafted, must reflect this.
+
+No conflicts between sibling plans (toolchain ships shapes/colors that tokens replaces — that's correctness, not conflict). No cycle, no contradictory acceptance criteria.
 
 ## Freshness Research
 
@@ -105,6 +116,6 @@ Captured in detail in [04-plan-toolchain.md](04-plan-toolchain.md) `## Freshness
 
 ## Recommended Next Stage
 
-- **Option A (default):** `/wf implement brutalist-redesign toolchain` — execute the toolchain plan. Pre-flight: run `/compact` to drop planning research from the conversation (the PreCompact hook preserves workflow state on disk).
-- **Option B:** `/wf plan brutalist-redesign all` — plan all 7 slices in parallel. **Not recommended.** The chain is strictly linear; downstream plans would be drafted against assumed (not observed) post-toolchain state and almost certainly need rework.
-- **Option C:** `/wf slice brutalist-redesign` — revisit slice boundaries. Not recommended; planning surfaced no missing scope or boundary disputes.
+- **Option A (default):** `/wf implement brutalist-redesign tokens` — execute the tokens plan. Pre-flight: run `/compact` to drop planning research from the conversation (the PreCompact hook preserves workflow state on disk).
+- **Option B:** `/wf plan brutalist-redesign tokens <feedback>` — revise the tokens plan if any of the round-1/2/3 PO decisions look wrong on second read.
+- **Option C:** `/wf slice brutalist-redesign` — revisit slice boundaries. **Not recommended.** Planning surfaced no missing scope; the orphan-deletion pull-forward is a scoping detail within the slice, not a boundary dispute.

@@ -121,3 +121,54 @@ A cumulative log of product-owner answers across stages. Newest at the bottom. E
 
 ### Plan deviations noted in verify
 - Runtime smoke ran on `Pixel_9_Pro` (Android 16 / API 36) instead of plan-canonical `Pixel_6_API_34` because the canonical AVD isn't installed on this machine. Runtime smoke purpose unaffected by AVD substitution; goldens still used the Pixel 6 spec via Robolectric (no emulator).
+
+---
+
+## stage: plan — slice: tokens — 2026-05-17T02:03:08Z
+
+### Round 1 — token surface + cutover ambiguities
+
+- **Q: Accent color holds — locked orange (#FF5A1F) vs. handoff JSX default lime (#D6FF00)?**
+  **A:** Stick with locked orange (#FF5A1F). onAccent stays #0A0A0A (ink). Lime is documented as an alt in the handoff but the shape decision holds; no re-opening of the locked decision.
+
+- **Q: CrumbsStroke.kt (new) scope — full file, widths only, or defer to components?**
+  **A:** Yes, full CrumbsStroke.kt this slice. Includes hairline=1dp, regular=1.5dp, emphasis=2dp, offsetX=6dp, offsetY=6dp. LocalCrumbsStroke wired into CrumbsTheme. Downstream components can consume immediately.
+
+- **Q: AC-K5 tokens-preview Roborazzi golden — minimal/full/skip?**
+  **A:** Skip the preview composable; re-purpose AC-K5 as a maintainer-driven manual diff against `Crumbs-handoff/crumbs/project/handoff-tokens.jsx`. Will register as a runtime-evidence-deferral if not cleared before ship.
+
+- **Q: FontLoadingStrategy for bundled res/font fonts — Async/Blocking/OptionalLocal?**
+  **A:** Switch every Font(...) to default Blocking (omit the loadingStrategy parameter). Matches Google's bundled-resource guidance and the offline-rendering NFR. Current Async usage was an oversight.
+
+### Round 2 — font weights, typography mapping, dead-orphan timing
+
+- **Q: Funnel Display weights to bundle — match handoff (400/500/700), keep 600 for safety, or follow spec (400/500/700/800)?**
+  **A:** 400/500/700 only — match handoff exactly. Delete funnel_display_semibold.ttf. Don't add extrabold (no handoff style uses it). APK savings: ~80KB.
+
+- **Q: IBM Plex Mono weights — 400/500/700 vs. 400/700 only?**
+  **A:** 400/500/700 — match handoff. ~120KB total. Skipping medium would force synthetic font weight thickening which looks wrong.
+
+- **Q: Typography 11→7 rename approach — mechanical rename table / both scales / aliases?**
+  **A:** Mechanical rename via lookup table. Apply Edit replace_all per pair across surviving consumers. Components will look intentionally wrong (sans body → mono body) in the intermediate state; components slice rewrites every component anyway, so cost is zero.
+
+- **Q: app/src/main/java/com/github/jayteealao/crumbs/ui/theme/*.kt dead orphans — delete in tokens, components, or later?**
+  **A:** Delete in this slice (early step). Sub-agent confirmed zero imports, zero risk. Cleanest — no stale Material code visible in subsequent slice reviews.
+
+### Round 3 — cutover mechanics + scope pull-forward
+
+- **Q: 13 orphan components — rename-then-let-components-delete, delete-now, or suppress?**
+  **A:** Delete the 13 orphans NOW in tokens slice (and their test files). Pulled forward from the components slice. **Scope shift: AC-C1 in the components slice becomes verification-only (deletions already done); components slice now focuses purely on rebuilding 8 active brutalist composables + 4 new components.**
+
+- **Q: accentAlpha inline value at the 2 CrumbsIconButton sites — 0.1f / 0.0f / TODO?**
+  **A:** Keep 0.1f for both. `accent.copy(alpha = 0.1f)` for container and disabled-container. Preserves current visual at those v1.1-layout sites in Roborazzi goldens; components slice can make the proper brutalist choice during rebuild.
+
+- **Q: Goldens regeneration — verify-first (capture diff) or record directly?**
+  **A:** Record directly. No verify-first diff capture. Matches what the toolchain slice did. Lose the per-image change audit trail; gain ~10 min.
+
+- **Q: Maestro testTag — add `testTag("app_root")` to CrumbsTheme now, or defer?**
+  **A:** Yes — add a single `app_root` testTag. One-line change in CrumbsTheme alongside the existing semantics scaffolding. Gives Maestro a stable root target before per-element tags arrive in components/maestro slices. Partially clears the AC4 runtime-evidence-deferral.
+
+### Cross-slice impact captured
+
+- **components slice scope reduced.** 13 orphan deletions + 13 test deletions now done in tokens. Components-slice plan (when drafted) must reflect this. Master plan index updated to flag the shift.
+- **AC-K5 deferral risk.** Manual handoff-diff will register as a runtime-evidence-deferral on 00-index.md at verify if maintainer doesn't close it before ship. Same handling pattern as AC4 / AC6 from the toolchain slice.

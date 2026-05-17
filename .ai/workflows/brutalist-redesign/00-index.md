@@ -4,11 +4,11 @@ type: index
 slug: brutalist-redesign
 title: "Replace Crumbs app design with the Brutalist Mono (Option D) handoff, pixel-for-pixel"
 status: active
-current-stage: verify
-stage-number: 6
+current-stage: implement
+stage-number: 5
 created-at: "2026-05-16T21:44:39Z"
-updated-at: "2026-05-17T01:17:12Z"
-selected-slice: toolchain
+updated-at: "2026-05-17T08:20:13Z"
+selected-slice: tokens
 branch-strategy: dedicated
 branch: "feat/brutalist-redesign"
 base-branch: "main"
@@ -82,8 +82,8 @@ stack:
     - {name: "pencil", hint: ".pen design files (handoff is HTML not .pen — n/a)"}
     - {name: "zai-mcp-server", hint: "Image/diagram analysis (could validate against verify-*.jpg references)"}
   user-confirmed: true
-next-command: wf-review
-next-invocation: "/wf review brutalist-redesign"
+next-command: wf-verify
+next-invocation: "/wf verify brutalist-redesign tokens"
 runtime-evidence-deferrals:
   - slice: toolchain
     ac: AC4
@@ -109,8 +109,10 @@ workflow-files:
   - 03-slice-maestro.md
   - 04-plan.md
   - 04-plan-toolchain.md
+  - 04-plan-tokens.md
   - 05-implement.md
   - 05-implement-toolchain.md
+  - 05-implement-tokens.md
   - 06-verify.md
   - 06-verify-toolchain.md
   - po-answers.md
@@ -120,7 +122,7 @@ slices:
     complexity: l
     depends-on: []
   - slug: tokens
-    status: defined
+    status: implemented
     complexity: m
     depends-on: [toolchain]
   - slug: components
@@ -147,9 +149,9 @@ progress:
   intake: complete
   shape: complete
   slice: complete
-  plan: in-progress   # toolchain planned + implemented; 6 remaining plans deferred (rolling plans)
-  implement: in-progress   # 1/7 slices implemented (toolchain); see 05-implement-toolchain.md
-  verify: in-progress      # 1/7 slices verified-partial (toolchain); 2 runtime-evidence-deferrals
+  plan: in-progress   # 2/7 slices planned (toolchain, tokens); 5 remaining plans deferred (rolling plans)
+  implement: in-progress   # 2/7 slices implemented (toolchain, tokens); see 05-implement-{toolchain,tokens}.md
+  verify: in-progress      # 1/7 slices verified-partial (toolchain); tokens awaits verify; 2 runtime-evidence-deferrals
   review: not-started
   handoff: not-started
   ship: not-started

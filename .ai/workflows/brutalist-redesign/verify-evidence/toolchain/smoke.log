@@ -1,1 +1,80 @@
 05-17 02:14:29.158 11057 11091 W Firestore: (24.10.0) [WatchStream]: (aa000db) Stream closed with status: Status{code=CANCELLED, description=Disconnecting idle stream. Timed out waiting for new targets., cause=null}.
+05-17 02:58:25.056 11057 11057 D ActivityThread: Package [io.github.jayteealao.isometric.sample] reported as REPLACED, but missing application info. Assuming REMOVED.
+05-17 02:58:25.099 11057 11057 D ActivityThread: Package [io.github.jayteealao.isometric.sample] reported as REPLACED, but missing application info. Assuming REMOVED.
+05-17 02:59:31.210 11057 11057 D VRI[MainActivity]: visibilityChanged oldVisibility=true newVisibility=false
+05-17 02:59:32.074 11057 11063 W yteealao.crumbs: Reducing the number of considered missed Gc histogram windows from 278 to 100
+05-17 02:59:37.022 11057 11912 V NativeCrypto: Read error: ssl=0x73ada29ab8d8: I/O error during system call, Software caused connection abort
+05-17 02:59:37.024 11057 12144 V NativeCrypto: Write error: ssl=0x73ada29ab8d8: I/O error during system call, Broken pipe
+05-17 02:59:37.026 11057 12144 V NativeCrypto: SSL shutdown failed: ssl=0x73ada29ab8d8: I/O error during system call, Success
+05-17 02:59:37.036 11057 12142 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 02:59:38.105 11057 12143 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 02:59:39.744 11057 12143 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 02:59:42.003 11057 12143 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 02:59:46.035 11057 12143 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 02:59:53.462 11057 12143 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:00:06.026 11057 12143 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:00:24.825 11057 12143 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:00:59.030 11057 11057 D ViewRootImpl: Skipping stats log for color mode
+05-17 03:00:59.101 11057 11078 I EGL_emulation: Opening libGLESv1_CM_emulation.so
+05-17 03:00:59.101 11057 11078 I EGL_emulation: Opening libGLESv2_emulation.so
+05-17 03:00:59.179 11057 11078 W HWUI    : Failed to choose config with EGL_SWAP_BEHAVIOR_PRESERVED, retrying without...
+05-17 03:00:59.180 11057 11078 W HWUI    : Failed to initialize 101010-2 format, error = EGL_SUCCESS
+05-17 03:00:59.702 11057 11057 I Choreographer: Skipped 37 frames!  The application may be doing too much work on its main thread.
+05-17 03:00:59.757 11057 11057 D InsetsController: hide(ime(), fromIme=false)
+05-17 03:00:59.757 11057 11057 I ImeTracker: com.github.jayteealao.crumbs:f8227761: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+05-17 03:01:00.581 11057 11057 D VRI[MainActivity]: visibilityChanged oldVisibility=true newVisibility=false
+05-17 03:01:06.305 11057 12144 V NativeCrypto: Read error: ssl=0x73ada29ab8d8: I/O error during system call, Software caused connection abort
+05-17 03:01:06.308 11057 12369 V NativeCrypto: Write error: ssl=0x73ada29ab8d8: I/O error during system call, Broken pipe
+05-17 03:01:06.313 11057 12369 V NativeCrypto: SSL shutdown failed: ssl=0x73ada29ab8d8: I/O error during system call, Success
+05-17 03:01:06.316 11057 12371 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:01:07.314 11057 12143 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:01:08.965 11057 12143 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:01:11.741 11057 12143 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:01:15.244 11057 12143 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:01:21.782 11057 12143 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:01:31.032 11057 12143 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:01:49.440 11057 12143 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:02:32.215 11057 11057 D ViewRootImpl: Skipping stats log for color mode
+05-17 03:02:32.247 11057 11057 D VRI[MainActivity]: visibilityChanged oldVisibility=false newVisibility=true
+05-17 03:02:32.283 11057 11078 I EGL_emulation: Opening libGLESv1_CM_emulation.so
+05-17 03:02:32.285 11057 11078 I EGL_emulation: Opening libGLESv2_emulation.so
+05-17 03:02:32.330 11057 11078 W HWUI    : Failed to choose config with EGL_SWAP_BEHAVIOR_PRESERVED, retrying without...
+05-17 03:02:32.330 11057 11078 W HWUI    : Failed to initialize 101010-2 format, error = EGL_SUCCESS
+05-17 03:02:32.809 11057 11057 I Choreographer: Skipped 33 frames!  The application may be doing too much work on its main thread.
+05-17 03:02:32.827 11057 11057 D InsetsController: hide(ime(), fromIme=false)
+05-17 03:02:32.827 11057 11057 I ImeTracker: com.github.jayteealao.crumbs:732c7c0e: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+05-17 03:02:33.551 11057 11057 D VRI[MainActivity]: visibilityChanged oldVisibility=true newVisibility=false
+05-17 03:02:39.432 11057 12728 V NativeCrypto: Read error: ssl=0x73ada29a5698: I/O error during system call, Software caused connection abort
+05-17 03:02:39.433 11057 12144 V NativeCrypto: Write error: ssl=0x73ada29a5698: I/O error during system call, Broken pipe
+05-17 03:02:39.433 11057 12144 V NativeCrypto: SSL shutdown failed: ssl=0x73ada29a5698: I/O error during system call, Success
+05-17 03:02:39.438 11057 12721 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:02:40.364 11057 12143 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:02:41.890 11057 12143 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:02:44.883 11057 12143 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:02:48.448 11057 12143 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:02:54.385 11057 12143 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:03:04.971 11057 12143 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:03:21.432 11057 12143 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:03:44.315 11057 12143 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:11:11.709 11057 11057 D ViewRootImpl: Skipping stats log for color mode
+05-17 03:11:11.747 11057 11057 D VRI[MainActivity]: visibilityChanged oldVisibility=false newVisibility=true
+05-17 03:11:11.788 11057 11078 I EGL_emulation: Opening libGLESv1_CM_emulation.so
+05-17 03:11:11.795 11057 11078 I EGL_emulation: Opening libGLESv2_emulation.so
+05-17 03:11:11.848 11057 11078 W HWUI    : Failed to choose config with EGL_SWAP_BEHAVIOR_PRESERVED, retrying without...
+05-17 03:11:11.848 11057 11078 W HWUI    : Failed to initialize 101010-2 format, error = EGL_SUCCESS
+05-17 03:11:12.558 11057 11057 I Choreographer: Skipped 48 frames!  The application may be doing too much work on its main thread.
+05-17 03:11:12.586 11057 11057 D InsetsController: hide(ime(), fromIme=false)
+05-17 03:11:12.586 11057 11057 I ImeTracker: com.github.jayteealao.crumbs:fed5694a: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+05-17 03:11:13.567 11057 11057 D VRI[MainActivity]: visibilityChanged oldVisibility=true newVisibility=false
+05-17 03:11:19.486 11057 12144 V NativeCrypto: Read error: ssl=0x73ada29ab8d8: I/O error during system call, Software caused connection abort
+05-17 03:11:19.488 11057 13101 V NativeCrypto: Write error: ssl=0x73ada29ab8d8: I/O error during system call, Broken pipe
+05-17 03:11:19.489 11057 13101 V NativeCrypto: SSL shutdown failed: ssl=0x73ada29ab8d8: I/O error during system call, Success
+05-17 03:11:19.491 11057 11091 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:11:20.360 11057 13106 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:11:21.789 11057 13106 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:11:24.166 11057 13106 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:11:27.676 11057 13106 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:11:33.285 11057 13106 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:11:45.035 11057 13106 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:11:59.043 11057 13106 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}
+05-17 03:12:22.748 11057 13106 W ManagedChannelImpl: [{0}] Failed to resolve name. status={1}

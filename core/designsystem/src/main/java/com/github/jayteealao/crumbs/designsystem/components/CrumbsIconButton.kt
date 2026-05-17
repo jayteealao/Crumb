@@ -78,7 +78,7 @@ fun CrumbsIconButton(
             onClick = onClick,
             modifier = modifier.size(buttonSize),
             enabled = enabled,
-            shape = CrumbsShapes.buttonSmall,
+            shape = CrumbsShapes.button,
             colors = IconButtonDefaults.filledIconButtonColors(
                 containerColor = colors.accent,
                 contentColor = colors.surface,
@@ -93,11 +93,11 @@ fun CrumbsIconButton(
             onClick = onClick,
             modifier = modifier.size(buttonSize),
             enabled = enabled,
-            shape = CrumbsShapes.buttonSmall,
+            shape = CrumbsShapes.button,
             colors = IconButtonDefaults.filledTonalIconButtonColors(
-                containerColor = colors.accentAlpha,
+                containerColor = colors.accent.copy(alpha = 0.1f),
                 contentColor = colors.accent,
-                disabledContainerColor = colors.accentAlpha.copy(alpha = 0.38f),
+                disabledContainerColor = colors.accent.copy(alpha = 0.1f).copy(alpha = 0.38f),
                 disabledContentColor = colors.accent.copy(alpha = 0.38f)
             )
         ) {
@@ -108,7 +108,7 @@ fun CrumbsIconButton(
             onClick = onClick,
             modifier = modifier.size(buttonSize),
             enabled = enabled,
-            shape = CrumbsShapes.buttonSmall,
+            shape = CrumbsShapes.button,
             colors = IconButtonDefaults.outlinedIconButtonColors(
                 containerColor = Color.Transparent,
                 contentColor = colors.accent,
