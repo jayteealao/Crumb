@@ -1,0 +1,21 @@
+# Probe — confirms testTagsAsResourceId + kebab-case testTag round-trip works.
+# Run once before authoring the full flow suite. If this fails with
+# "element not found", the testTag dash audit fires (see plan Step 2).
+appId: com.github.jayteealao.crumbs
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: "splash-screen"
+    timeout: 5000
+- runFlow:
+    when:
+      visible:
+        id: "login-screen"
+    commands:
+      - tapOn:
+          id: "login-skip-auth"
+- extendedWaitUntil:
+    visible:
+      id: "home-scaffold"
+    timeout: 10000

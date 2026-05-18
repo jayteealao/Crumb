@@ -5,18 +5,18 @@ slug: brutalist-redesign
 status: in-progress
 stage-number: 5
 created-at: "2026-05-17T00:38:34Z"
-updated-at: "2026-05-17T23:22:26Z"
-slices-implemented: 7
+updated-at: "2026-05-18T07:25:46Z"
+slices-implemented: 8
 slices-total: 8
-metric-total-files-changed: 278
-metric-total-lines-added: 6115
-metric-total-lines-removed: 9659
-tags: [redesign, toolchain, tokens, quick-skip-auth-page, components, layouts, screens, behaviors]
+metric-total-files-changed: 292
+metric-total-lines-added: 7012
+metric-total-lines-removed: 9660
+tags: [redesign, toolchain, tokens, quick-skip-auth-page, components, layouts, screens, behaviors, maestro]
 refs:
   index: 00-index.md
   plan-index: 04-plan.md
 next-command: wf-verify
-next-invocation: "/wf verify brutalist-redesign behaviors"
+next-invocation: "/wf verify brutalist-redesign maestro"
 ---
 
 # Implement Index
@@ -99,12 +99,19 @@ next-invocation: "/wf verify brutalist-redesign behaviors"
 - 6 plan deviations: (1) `AllBookmarksViewModel` not introduced (existing per-tab VMs cover), (2) `TypeFilter` enum wired but DAO predicate is tombstone-only since `tweetEntity.type` doesn't exist, (3) `MIGRATION_4_5` lives as top-level val so test can reference it, (4) `SyncErrorBus` + `DeletedBookmarkRepository` bundled into a `HomeServicesViewModel` for hilt-compose injection, (5) per-tab banner state without per-VM `lastError` replay, (6) chip set expanded 3→6 to match TypeFilter enum (existing goldens re-recorded).
 - Verify-stage owns: 6 new runtime-evidence-deferrals for interactive ACs (lines 92, 93, 95, 96, 97, 98 — all collapse onto maestro), plus follow-up tracking for the `tweetEntity.type` derivation and the OverlayShell tag-filter UI (not delivered in-stage).
 
-### `maestro` — not yet planned
+### `maestro` — complete
 
-Per the rolling-plan strategy in [04-plan.md](04-plan.md). Consumes behaviors' testTag inventory + sync-error trigger pathway + popup-DELETE wiring + LOGOUT relocation + snackbar event flow.
+- One atomic commit on `feat/brutalist-redesign` (pending). See [05-implement-maestro.md](05-implement-maestro.md).
+- 14 files changed (12 new + 2 modified): 5 Maestro `.yaml` flows under `maestro/`, debug source set under `app/src/debug/` (manifest + `DebugDataInjector` + `DebugIntentHandler`), instrumentation test under `app/src/androidTest/.../debug/`, cross-platform orchestration under `scripts/`, new top-level `README.md`, modified `app/build.gradle` (release-cleanliness Gradle task) + `MainActivity.kt` (reflective debug-intent dispatch).
+- +897/-1 in source/build.
+- No feature-module code touched; the debug surface is wired exclusively through `app/src/debug/` and a 30-line reflective shim in `MainActivity`.
+- 4 plan deviations: (1) Gradle release-cleanliness task uses pure-JVM dex-string scan over `dexdump` (no PATH/build-tools-version coupling), (2) Step 1 probe execution deferred to verify-stage (cannot boot AVD from implement), (3) `DebugDataInjector` accepts `@ApplicationContext Context` directly (cleaner `corruptTwitterToken` path), (4) `sync_error.yaml` adopted Maestro 2.4 `swipe: { from: { id }, direction: DOWN }` for pull-to-refresh.
+- Verify-stage owns: AC-Maestro-1 (4 flows green), AC-Maestro-2 (instrumentation seed test), AC-Maestro-3 (release-APK absence gate), AC-Maestro-4 (log ERROR review), AC-Maestro-5 (banner screenshot). 17 prior-slice runtime-evidence-deferrals collapse onto these runs.
+- Blocker 1 (Tags overlay UI gap, behaviors AC-line-96) stays open for pre-handoff PO decision; `filter_overlay.yaml` hedges its Tags assertion to chip-toggle state only.
 
 ## Recommended Next Stage
 
-- **Option A (default):** `/wf verify brutalist-redesign behaviors` — automated gates already green (`assembleDebug` ✓, `recordRoborazziDebug` ✓ across 4 modules, `verifyRoborazziDebug` ✓ across 4 modules, `lintDebug` ✓ across 4 modules, `aapt dump badging` ✓ versionCode 3 versionName 2.0). Verify stage owns AC adjudication, 6 new runtime-evidence-deferrals (lines 92, 93, 95, 96, 97, 98), and registers `tweetEntity.type` derivation as a follow-up. **Compact recommended** — implementation context is noise for verification.
-- **Option B:** `/wf plan brutalist-redesign maestro` — start the final slice's plan; maestro slice now has everything it needs (every wired behavior + 11 prior + 6 new runtime-evidence-deferrals).
-- **Option C:** `/wf review brutalist-redesign` — slug-wide review now possible since the full feature surface is implemented; less recommended than Option A since verify-behaviors adjudication should land first.
+- **Option A (default):** `/wf verify brutalist-redesign maestro` — boots AVD, runs probe → 4 flows → instrumentation test → release-cleanliness gate, captures Maestro screenshots + `lazylogcat` log. Closes 17 of the 18 prior-slice runtime-evidence-deferrals. **Compact recommended** — implementation context is noise for verification.
+- **Option B:** `/wf-quick refactor brutalist-redesign add-tags-overlay` — close Blocker 1 Path B before verify (½-day compressed slice landing the OverlayShell tag picker). Recommended only if PO wants AC-line-96 fully resolved in v2.0.
+- **Option C:** `/wf review brutalist-redesign` — slug-wide review now possible (every slice landed). Less recommended than Option A — verify-maestro adjudication should land first so reviewer sees a known-passing state.
+- **Option D:** `/wf verify brutalist-redesign behaviors` — the verify-behaviors artifact from the prior cycle is still settled; revisit only if the behaviors slice surfaces new findings post-maestro.

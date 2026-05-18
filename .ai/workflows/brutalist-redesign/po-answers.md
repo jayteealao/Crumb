@@ -345,3 +345,54 @@ A cumulative log of product-owner answers across stages. Newest at the bottom. E
 - **Repository unit-test pattern** (`DeletedBookmarkRepositoryTest`) is the first repository test in the codebase. Uses `runBlocking` (no `kotlinx-coroutines-test` introduction — current `coroutines = 1.5.2` stays).
 - **`SnackbarDuration.Short` ≈ 4s vs spec's 5s** documented as an acceptable approximation; falls back to `Indefinite` + manual `delay(5000)` if implement-stage finds the 4s window too tight.
 - **Reddit-tags FK bug** (pre-existing v1.1 issue: `tweet_tags.FK` to `tweetEntity` only) is **out of scope** — flagged for a follow-up workflow.
+
+## plan / maestro — 2026-05-18T06:44:23Z
+
+Discovery round-1 + round-2 captured after parallel sub-agent research (testTag inventory, debug source-set surface, Maestro 2.4 best practices, lazylogcat tool discovery, GitHub Actions emulator-runner state).
+
+### Round 1 — structural decisions
+
+- **Q1 (testTag dash compatibility):** ~60 existing testTags use kebab-case (`home-scaffold`, `bookmark-card`, `popup-action-${id}`). Maestro's `testTagsAsResourceId = true` exposes them as Android resource IDs; resource-name rules historically forbid dashes. Rename all, or probe first?
+  **A:** **Probe first.** Plan step 1 writes a 5-line `maestro/_probe.yaml` that calls `tapOn: id: home-scaffold` against the running app on `Medium_Phone_API_36`. If green → keep dashes everywhere. If red → audit-and-rename across 16 files + their Roborazzi/unit tests becomes step 2. Probe artifact removed at end of slice (or kept as a smoke flow). Cheapest path; defers the cross-cutting decision until evidence exists.
+
+- **Q2 (LoginScreen skip mechanism):** Risk in the slice spec: OAuth flow on Maestro is brittle. The compressed `quick-skip-auth-page` slice already shipped a `login-skip-auth` testTag at `LoginScreen.kt:163` (debug-flavor button that flips the auth-available flag without OAuth). Tap that, or seed fake tokens?
+  **A:** **Tap `login-skip-auth` button.** Reuses existing in-app affordance; zero token-seeding code; release-safe because the button is debug-flavor-only (compiled out of release variants per AGP source-set rules). Happy_path flow uses `runFlow when: notVisible: id: home-scaffold` → tap `login-skip-auth` → assert `home-scaffold` visible.
+
+- **Q3 (CI integration):** Optional per slice spec. GitHub Actions emulator-runner `ubuntu-latest` has no KVM → 5–8min cold boots per PR. Add CI workflow now?
+  **A:** **Local-only, no CI.** Plan delivers `scripts/run-maestro.sh` (bash) + `scripts/run-maestro.ps1` (PowerShell, primary) + README section. No `.github/workflows/maestro.yml`. Rationale: solo-dev project, cost/benefit poor at this scale, easy to add later as a separate workflow. Recorded as a deferred slice in `03-slice.md` ("CI Maestro integration").
+
+- **Q4 (Docs target):** Repo has NO README.md (confirmed). Slice spec said "Document the script + manual fallback in README.md." Where do Maestro workflow docs land?
+  **A:** **Create README.md with a Maestro section.** Plan step adds a minimal new top-level `README.md` covering: project description (3–5 lines), build command (`./gradlew assembleDebug`), test command (`./gradlew test verifyRoborazziDebug`), Maestro section (`scripts/run-maestro.*` usage, manual fallback `adb install && maestro test maestro/`, `lazylogcat` capture, AVD profile `Medium_Phone_API_36`). Fills a gap the shape's docs plan already called for; no separate `docs/maestro.md` needed for this slice.
+
+### Round 2 — implementation mechanics
+
+- **Q5 (seed-trigger mechanism):** Maestro 2.4 supports `launchApp.arguments: { key: value }` which produces `intent.extras`. Use that, vs `adb shell am start --es debug_action seed`, vs unconditional seed in a debug `Application` subclass?
+  **A:** **`launchApp.arguments` in Maestro YAML.** Each flow opens with:
+  ```yaml
+  - launchApp:
+      appId: com.github.jayteealao.crumbs
+      arguments:
+        debug_action: "seed"
+        wipe: true
+  ```
+  `MainActivity.onCreate` reads `intent.getStringExtra("debug_action")` and `intent.getBooleanExtra("wipe", false)`. If `debug_action == "seed"`, invokes `DebugDataInjector.run(wipe)` via a debug-only `Application` plug point. Self-contained inside YAML; no external `adb shell am start` from scripts; aligns with Maestro 2026 best-practice. Application-onCreate-always-seeds rejected because it can't express "wipe-and-reseed between runs."
+
+- **Q6 (Maestro project layout):** Best practice is `.maestro/` (dotfile) with `config.yaml` + feature subdirs. Slice spec said flat `maestro/`. Which?
+  **A:** **`maestro/` flat, no config.yaml.** 4 YAMLs at `maestro/{_probe,happy_path,long_press,filter_overlay,sync_error}.yaml`. Matches slice-spec verbatim. For 4 flows, directory-per-feature overhead is not justified. Scripts pass `maestro/` as the test root: `maestro test maestro/`. `_probe.yaml` underscore-prefix marks it as a development helper (excluded from default `maestro test` run via explicit `maestro test maestro/happy_path.yaml maestro/long_press.yaml …` enumeration in scripts).
+
+- **Q7 (release APK content assertion):** AC4 requires asserting `DebugDataInjector` is NOT in `app-release.apk`. Gradle task vs aapt vs trust-AGP-source-set-guarantee?
+  **A:** **Gradle task scanning unzipped classes.** Add `verifyReleaseDebugInjectorAbsent` task to `app/build.gradle` that depends on `assembleRelease`, unzips `app/build/outputs/apk/release/app-release.apk` into a temp dir, runs `dexdump` (from `$ANDROID_HOME/build-tools/<latest>/`) on each `classes*.dex`, fails the build if any output line contains `DebugDataInjector`. CI-portable (no aapt-PATH assumption), Gradle-cacheable, runs as part of `./gradlew :app:verifyReleaseDebugInjectorAbsent` in the verify gate. Source-set-only assertion rejected because the verify report needs hard runtime evidence, not an AGP trust claim.
+
+- **Q8 (Studio companion script):** Maestro Studio is the interactive REPL for recording flows. Add a `scripts/run-maestro-studio.{sh,ps1}` companion?
+  **A:** **No Studio companion script.** Plan delivers only headless `scripts/run-maestro.{sh,ps1}`. Studio remains a manual `maestro studio` invocation, documented in README's troubleshooting section. Keeps slice scope tight; Studio is rarely scripted; the AVD-boot orchestration in the main script is reusable for Studio if needed.
+
+### Cross-slice impact captured
+
+- **First top-level `README.md`** in the repo. Fills a long-standing gap the shape's docs plan flagged. Slice scope keeps it minimal; richer docs (`docs/design-system.md`, `docs/design-decisions.md`) remain shape-promised follow-ups owned by `/wf docs` or future workflows.
+- **First debug-only source set** (`app/src/debug/`). Adds `DebugDataInjector.kt` + a debug-only `Application` subclass entry point (or a `MainActivity.onCreate` hook gated on the source-set-only `DebugDataInjector` reference). No release-variant impact (AGP source-set rule enforces).
+- **First Maestro flows** in the repo. Establishes `maestro/` directory convention + the testTag round-trip contract. Subsequent slices/features that add UI must keep their testTags Maestro-addressable (rename audit Q1 may landed at probe time).
+- **First cross-platform repo scripts**. `scripts/run-maestro.{sh,ps1}` establishes the directory convention. Future workflows may add sibling scripts (e.g., `scripts/run-roborazzi.{sh,ps1}` for golden regeneration).
+- **`lazylogcat` skill confirmed public** (`parfenovvs/lazylogcat` on GitHub, brew-installable). Documented as PO-confirmed installed via skill; plan invokes via `lazylogcat logs dump --pkg com.github.jayteealao.crumbs --tag crumbs` post-Maestro-run to write a per-run log to `build/maestro-logs/<timestamp>.log`.
+- **18 prior runtime-evidence-deferrals** clear during this slice's verify-stage probe runs. Specifically: AC4 (toolchain), AC-K6 (tokens, already partially cleared by quick-skip-auth-page), AC-C6 (components), AC-L2 + AC-L5 (layouts), AC-S1/S2/S4/S6-nav/S7 (screens), AC-line-{90,92,93,95,97,98} (behaviors). AC-line-96 (OverlayShell tag-filter picker UI) has a substantive code gap that this slice does NOT close — flagged as either a pre-handoff Q for the PO or a v2.0 follow-up.
+- **`Medium_Phone_API_36` AVD profile** continues from prior slices (overrides slice-spec literal "Pixel 6 API 34"). Plan's verify section pins this profile.
+

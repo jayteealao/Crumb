@@ -1,0 +1,55 @@
+# Force Twitter 401 → banner appears → tap banner-cta → OAuth intent fires.
+# Two launchApp calls: first seeds DB, second corrupts the access token.
+appId: com.github.jayteealao.crumbs
+---
+- launchApp:
+    arguments:
+      debug_action: "seed"
+      wipe: true
+- runFlow:
+    when:
+      visible:
+        id: "login-screen"
+    commands:
+      - tapOn:
+          id: "login-skip-auth"
+- extendedWaitUntil:
+    visible:
+      id: "home-scaffold"
+    timeout: 10000
+- tapOn:
+    id: "nav-tab-twitter"
+- extendedWaitUntil:
+    visible:
+      id: "twitter-bookmarks-screen"
+    timeout: 5000
+
+# --- Corrupt the access token then re-launch to trigger sync ---
+- launchApp:
+    arguments:
+      debug_action: "corrupt_token"
+- extendedWaitUntil:
+    visible:
+      id: "home-scaffold"
+    timeout: 10000
+- tapOn:
+    id: "nav-tab-twitter"
+
+# --- Pull to refresh to force a sync that will 401 ---
+- swipe:
+    from:
+      id: "twitter-bookmarks-feed"
+    direction: DOWN
+
+# --- Banner must surface within 2s (SLA is 1s; 2× allowance) ---
+- extendedWaitUntil:
+    visible:
+      id: "home-scaffold-banner"
+    timeout: 2000
+- assertVisible:
+    id: "banner-cta"
+- takeScreenshot: sync_error_banner
+
+# --- CTA fires OAuth intent ---
+- tapOn:
+    id: "banner-cta"

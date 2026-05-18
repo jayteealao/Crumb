@@ -5,9 +5,9 @@ slug: brutalist-redesign
 status: complete
 stage-number: 4
 created-at: "2026-05-16T22:37:59Z"
-updated-at: "2026-05-17T21:19:04Z"
+updated-at: "2026-05-18T06:44:23Z"
 planning-mode: rolling
-slices-planned: 6
+slices-planned: 7
 slices-total: 7
 implementation-order: [toolchain, tokens, components, layouts, screens, behaviors, maestro]
 conflicts-found: 0
@@ -16,7 +16,7 @@ refs:
   index: 00-index.md
   slice-index: 03-slice.md
 next-command: wf-implement
-next-invocation: "/wf implement brutalist-redesign behaviors"
+next-invocation: "/wf implement brutalist-redesign maestro"
 ---
 
 # Plan Index
@@ -76,9 +76,14 @@ This is a **rolling plan index**. The chain of slices is strictly linear (toolch
 - **Cross-slice impact:** First DB schema change in the workflow (v4 → v5 additive `deleted_bookmarks` table). First instrumentation test in the repo. First `core/data` module addition. New `HomeScaffold.banner` slot is additive — does not break the screens slice's existing `HomeScaffold` callers. Twitter's LOGOUT relocation requires LoginScreen to gain `twitterConnected`/`redditConnected` UI state. Reddit gains a small additive `RedditViewModel.logout()` method (clears local pref store; no OAuth-client touch). Maestro slice will own the 6 interactive ACs (lines 92, 93, 95, 96, 97, 98) that register as runtime-evidence-deferrals at verify-stage.
 - **See:** [04-plan-behaviors.md](04-plan-behaviors.md).
 
-### `maestro` *(deferred)*
+### `maestro` *(planned)*
 
-4 yaml flows + debug-only data injector + `scripts/run-maestro.sh` orchestrating `android` CLI + `lazylogcat`. Plan after `behaviors` lands.
+- **Files to touch:** 15 — 5 new `maestro/*.yaml` flows (`_probe`, `happy_path`, `long_press`, `filter_overlay`, `sync_error`) + 3 new debug-only Kotlin files (`DebugDataInjector.kt`, `DebugIntentHandler.kt`, `app/src/debug/AndroidManifest.xml`) + 1 new instrumentation test (`DebugDataInjectorTest.kt`) + 2 new cross-platform scripts (`scripts/run-maestro.ps1` PowerShell-primary, `scripts/run-maestro.sh` bash sibling) + 1 new top-level `README.md` + 3 modified files (`app/build.gradle` adds `verifyReleaseDebugInjectorAbsent` Gradle task, `MainActivity.kt` adds reflective debug-intent dispatch, `CHANGELOG.md` Maestro line at handoff).
+- **Strategy:** Four phases inside a single atomic commit. Phase A probes testTag dash compatibility (~60 testTags use kebab-case; Maestro `testTagsAsResourceId` may need snake_case — empirical probe Step 1 resolves before any other Maestro work). Phase B builds debug source set (DebugDataInjector seeds 4+4 bookmarks + 5 tags via existing DAOs; reflective dispatch from MainActivity keeps release bytecode stable; `verifyReleaseDebugInjectorAbsent` Gradle task unzips release APK + dexdump-greps to assert symbol absence). Phase C authors 4 Maestro flows using `launchApp.arguments: { debug_action: "seed", wipe: true }` for deterministic state; `runFlow when: notVisible: home-scaffold` skips Login via existing `login-skip-auth` testTag (from quick-skip-auth-page compressed slice). Phase D adds cross-platform orchestration scripts + a new top-level README. CI integration deferred per PO (local-only). `_probe.yaml` retained as a smoke flow but excluded from main run by explicit enumeration in scripts.
+- **Key risk:** testTag dash compatibility (Phase A probe). If dashes don't work under `testTagsAsResourceId`, a ~1hr mechanical rename audit across 16 testTag-bearing files + their tests becomes Phase A.5. Mitigation: rename lands as separate atomic commit before Maestro work. Secondary: `sync_error.yaml` 1s SLA on banner appearance — Step 12 spike validates `corrupt_token` debug action; fallback path via debug-only ContentProvider documented. Tertiary: Tags overlay UI gap from behaviors AC-line-96 — flow's Tags assertion hedged to chip-state-only; PO decision pre-handoff resolves whether to ship as-is or land a ½-day overlay-tag-picker compressed slice.
+- **PO decisions captured (8 across 2 rounds):** testTag handling = probe-first (defer rename decision until empirical evidence); Login skip = tap existing `login-skip-auth` testTag (no token seeding); CI = local-only, no GitHub Actions workflow (cost/benefit poor on `ubuntu-latest` without KVM); docs target = create top-level `README.md` with Maestro section (fills shape-docs-plan gap); seed trigger = `launchApp.arguments` with `intent.extras` dispatched via reflective `DebugIntentHandler` (self-contained YAML, no `adb shell am start` from scripts); project layout = flat `maestro/` (no dotfile, no config.yaml — 4 flows don't justify directory-per-feature); APK release-content assertion = Gradle task scanning unzipped classes (CI-portable, no aapt-PATH assumption); Maestro Studio companion script = no (rarely scripted, stays manual).
+- **Cross-slice impact:** First debug source set in the repo (`app/src/debug/`). First Maestro flows (`maestro/` directory convention). First cross-platform scripts (`scripts/` directory convention). First top-level `README.md` (fills shape-docs-plan gap; richer `docs/design-system.md` + `docs/design-decisions.md` remain follow-ups). 17 prior-slice runtime-evidence-deferrals collapse onto this slice's probe runs: toolchain AC4, tokens AC-K4 + AC-K6, components AC-C6, layouts AC-L2 + AC-L5, screens AC-S1/S2/S4/S6-nav/S7, behaviors AC-line-{90, 92, 93, 95, 97, 98}. AC-line-96 (Tags overlay UI gap) is a substantive code gap, NOT closed by this slice — flagged as pre-handoff PO decision (Blocker 1: ship as-is OR land ½-day overlay-tag-picker compressed slice). No `feature/*` or `core/*` files touched. No version bump (versionCode 3 / versionName 2.0 already locked in behaviors).
+- **See:** [04-plan-maestro.md](04-plan-maestro.md).
 
 ## Cross-Cutting Concerns
 
@@ -111,8 +116,8 @@ No parallel integration points exist unless the `screens` re-split clause fires 
 3. **`components`** *(implemented + verified-partial)* — 12 active rebuilds + 4 new components + QuickActionMenu retirement + scan-line motion + Roborazzi tolerance config + kotlinx.immutable adoption.
 4. **`layouts`** *(implemented + verified-partial)* — HomeScaffold / OverlayShell / OnboardingShell + MainActivity edge-to-edge enablement.
 5. **`screens`** *(implemented + verified-partial)* — 8 screen rewrites with Route/Screen split, 3-module Roborazzi enablement, hard-rewrite of feature screens, Accompanist Pager retired. Resplit ruled out at plan stage; single atomic commit.
-6. **`behaviors`** *(planned, ready to implement)* — wiring + DB schema. New `core/data` module hosts `DeletedBookmark` + DAO + tombstone repo + filter/event types. AppDatabase v4 → v5 with additive migration. Hoisted `banner` slot on HomeScaffold. Per-tab filter state ownership. Twitter LOGOUT migrates to LoginScreen. Six interactive ACs register as runtime-evidence-deferrals at verify-stage; `maestro` slice clears.
-7. **`maestro`** *(plan after behaviors ships)* — end-to-end coverage.
+6. **`behaviors`** *(implemented + verified-partial)* — wiring + DB schema. New `core/data` module hosts `DeletedBookmark` + DAO + tombstone repo + filter/event types. AppDatabase v4 → v5 with additive migration. Hoisted `banner` slot on HomeScaffold. Per-tab filter state ownership. Twitter LOGOUT migrates to LoginScreen. Seven interactive ACs registered as runtime-evidence-deferrals at verify-stage; the maestro slice clears 6 of them (AC-line-96 Tags-overlay UI gap is substantive code, not deferred — PO decision pre-handoff).
+7. **`maestro`** *(planned, ready to implement)* — 4 Maestro flows + debug source set + cross-platform scripts + new top-level README. Probe-first testTag dash compatibility resolution. `login-skip-auth` testTag reused as happy_path's LoginScreen bypass. CI deferred (local-only). 17 prior-slice deferrals collapse onto this slice's verify runs.
 
 ## Conflicts Found
 
@@ -136,7 +141,7 @@ Captured in detail in [04-plan-toolchain.md](04-plan-toolchain.md) `## Freshness
 
 ## Recommended Next Stage
 
-- **Option A (default):** `/wf implement brutalist-redesign behaviors` — execute the behaviors plan. 18-step atomic commit with 8 PO-locked decisions. **Compact first** — planning research (3 sub-agent reports + 2 discovery rounds) is noise for the implement loop; PreCompact hook preserves workflow state on disk.
-- **Option B:** `/wf review brutalist-redesign screens` — open the per-slice review on the screens slice before extending the diff. `review-scope: slug-wide` means the load-bearing review runs at the end of the slice chain, but per-slice signal is still valid.
-- **Option C:** `/wf plan brutalist-redesign maestro` — start the next slice's plan in parallel. Maestro slice depends on behaviors landing first to test against, but its plan can be drafted against this slice's testTag inventory + AC list now. Useful for unblocking maestro work as soon as behaviors implements.
-- **Option D:** `/wf-quick probe brutalist-redesign` — single emulator+Maestro probe run to discharge the 11 existing runtime-evidence-deferrals before behaviors ships. Not blocking, but consolidates prior verification debt.
+- **Option A (default):** `/wf implement brutalist-redesign maestro` — execute the maestro plan. 18-step atomic commit with 8 PO-locked decisions; 17 prior-slice runtime-evidence-deferrals collapse onto its verify run. **Compact first** — planning research (3 sub-agent reports + 2 discovery rounds) is noise for the implement loop; PreCompact hook preserves workflow state on disk.
+- **Option B:** `/wf-quick refactor brutalist-redesign add-tags-overlay` — close Blocker 1 (Tags overlay UI gap from behaviors AC-line-96) before maestro implements. ½-day compressed slice landing the OverlayShell-mounted tag picker; lifts `filter_overlay.yaml`'s Tags hedge. Recommended only if PO wants AC-line-96 fully closed in v2.0.
+- **Option C:** `/wf review brutalist-redesign` — invoke the slug-wide review against the cumulative branch diff before adding the maestro slice's changes. Earlier reviewer signal before the final slice lands.
+- **Option D:** `/wf-quick probe brutalist-redesign` — single emulator+Maestro probe run to discharge the 18 existing runtime-evidence-deferrals before maestro implements. Mostly redundant — the maestro slice's own verify-stage probe runs cover the same ground.

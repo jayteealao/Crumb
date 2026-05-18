@@ -5,15 +5,15 @@ slug: brutalist-redesign
 status: in-progress
 stage-number: 6
 created-at: "2026-05-17T01:17:12Z"
-updated-at: "2026-05-17T19:13:28Z"
-slices-verified: 5
+updated-at: "2026-05-17T23:48:00Z"
+slices-verified: 6
 slices-total: 7
-tags: [redesign, toolchain, tokens, components, layouts, screens, verify-owned-fix, runtime-evidence-deferral]
+tags: [redesign, toolchain, tokens, components, layouts, screens, behaviors, verify-owned-fix, runtime-evidence-deferral]
 refs:
   index: 00-index.md
   implement-index: 05-implement.md
 next-command: wf-review
-next-invocation: "/wf review brutalist-redesign screens"
+next-invocation: "/wf review brutalist-redesign behaviors"
 ---
 
 # Verify Index
@@ -73,13 +73,26 @@ next-invocation: "/wf review brutalist-redesign screens"
 - Layouts AC-L2 (HomeScaffold inset measurement on a live system bar) — identified at layouts-verify as the natural moment for this slice to discharge — is **not cleared by this verify** because no emulator boot was performed. Deferral remains active; collapses onto maestro/probe sweep along with AC-S4.
 - See: [06-verify-screens.md](06-verify-screens.md).
 
-### `behaviors` through `maestro` — not yet verified
+### `behaviors` — partial (converged)
+
+- `result: partial` — 7 `interactive-verification: deferred` annotations for the user-observable ACs (90 emulator migration, 92/93 long-press DELETE+UNDO, 95 type filter re-query, 96 tags overlay APPLY, 97 banner appears, 98 banner CTA OAuth). All collapse onto the maestro slice's emulator+Maestro evidence run.
+- `convergence: converged` — one fix round closed the only initial issue. `metric-issues-found-initial: 1`, `metric-issues-found-final: 0`.
+- Verify-owned fix: `47ee1b78` — added `DeletedBookmarkRepositoryTest.kt` (3 tests, all PASS) for AC 94's tombstone round-trip coverage. PO triage chose Fix over Skip/Defer.
+- `metric-acceptance-met: 3 / 10` fully met (AC 91 migration test exists, AC 94 sync filter unit test, AC 99 versionCode/Name); 6 ACs (92/93/95/97/98 + 90) met-with-runtime-deferral (callback wiring + static + golden evidence; runtime via maestro); AC 96 has a substantive gap — the OverlayShell-mounted tag-filter UI was not delivered in-stage.
+- `metric-checks-passed: 7 / 7` — `:app:assembleDebug`, `:app:assembleDebugAndroidTest`, lint × 4 modules, `verifyRoborazziDebug` × 4 modules, `aapt dump badging` (versionCode=3 versionName=2.0), `:app:testDebugUnitTest --tests "*DeletedBookmarkRepositoryTest"` (3/3).
+- `bootstrap-failures: []`; `adapters-used: []` (Maestro CLI still not on confirmed PATH; per workflow precedent, behaviors interactive evidence collapses onto the maestro slice).
+- **Carry-forward gaps to review/handoff**: (1) `tweetEntity.type` does not exist — `TypeFilter` enum wired but DAO predicate is tombstone-only (future cleanup: derive type via JOIN or add column with v6 migration); (2) OverlayShell-mounted tag-filter UI not delivered (AC 96 substantive gap — recommend pre-ship refinement decision).
+- See: [06-verify-behaviors.md](06-verify-behaviors.md).
+
+### `maestro` — not yet verified
 
 Per the rolling-plan strategy — each slice verifies after its implement.
 
 ## Cross-Slice Observations
 
-- **`runtime-evidence-deferrals` is now 12 entries (1 cleared, 11 active).** Toolchain contributed AC4 (maestro round-trip) + AC6 (maintainer goldens diff). Tokens contributed AC-K4 (maintainer handoff diff) + AC-K6 (HomeScreen paper — cleared by `quick-skip-auth-page` slice on 2026-05-17T10:23Z). Components contributed AC-C6 (Maestro studio dry-run). Layouts contributed AC-L2 (HomeScaffold inset measurement on a live system bar) + AC-L5 (Maestro studio testTags for shells). Screens adds five: AC-S1 + AC-S2 (≥95% mock fidelity, maintainer manual diff — same procedure as tokens AC-K4 + toolchain AC6), AC-S4 (Pixel 6 emulator nav walkthrough), AC-S6-nav (empty-state CTA → LoginScreen navigation half), AC-S7 (AllBookmarks long-press → 4-action popup integration). Ship will hard-block until each active entry is cleared. The seven Maestro-shaped deferrals (toolchain AC4, components AC-C6, layouts AC-L2 + AC-L5, screens AC-S4 + AC-S6-nav + AC-S7) collapse onto the same emulator+Maestro evidence run — the maestro slice (or a single probe sweep) will discharge them all at once. Maintainer can clear toolchain AC6 + tokens AC-K4 + screens AC-S1 + AC-S2 via the visual-diff procedure at any time.
+- **`runtime-evidence-deferrals` is now 19 entries (1 cleared, 18 active).** Behaviors adds 7: AC 90 (Room migration on real device), AC 92 (long-press DELETE 200ms + snackbar), AC 93 (UNDO restores), AC 95 (type filter 300ms re-query), AC 96 (tags OverlayShell APPLY), AC 97 (banner appears within 1s on 401), AC 98 (banner CTA → OAuth). All 7 collapse onto the same emulator+Maestro evidence run that clears the prior 11. Maestro slice (or a single probe sweep with both `android` and `maestro` on PATH) discharges the entire set at once. Maintainer-owned visual-diff deferrals (toolchain AC6, tokens AC-K4, screens AC-S1 + AC-S2) clear on a separate cadence.
+
+- **Prior cross-slice observation (preserved):** Toolchain contributed AC4 (maestro round-trip) + AC6 (maintainer goldens diff). Tokens contributed AC-K4 (maintainer handoff diff) + AC-K6 (HomeScreen paper — cleared by `quick-skip-auth-page` slice on 2026-05-17T10:23Z). Components contributed AC-C6 (Maestro studio dry-run). Layouts contributed AC-L2 (HomeScaffold inset measurement on a live system bar) + AC-L5 (Maestro studio testTags for shells). Screens adds five: AC-S1 + AC-S2 (≥95% mock fidelity, maintainer manual diff — same procedure as tokens AC-K4 + toolchain AC6), AC-S4 (Pixel 6 emulator nav walkthrough), AC-S6-nav (empty-state CTA → LoginScreen navigation half), AC-S7 (AllBookmarks long-press → 4-action popup integration). Ship will hard-block until each active entry is cleared. The seven Maestro-shaped deferrals (toolchain AC4, components AC-C6, layouts AC-L2 + AC-L5, screens AC-S4 + AC-S6-nav + AC-S7) collapse onto the same emulator+Maestro evidence run — the maestro slice (or a single probe sweep) will discharge them all at once. Maintainer can clear toolchain AC6 + tokens AC-K4 + screens AC-S1 + AC-S2 via the visual-diff procedure at any time.
 - **Room 2.8.4 strictness pattern continues to hold.** Tokens slice did not touch DAO surfaces; no new nullability bugs surfaced. Downstream DAO-touching slices (behaviors) should still watch for the family.
 - **Brutalist palette is structurally complete on the running app.** The token cutover landed cleanly enough that LoginScreen + dark-mode + airplane-mode all show the intended Option-D visual identity. Components/screens slices can now build against verified token reality instead of inferred token reality.
 - **AVD inventory drift.** Plan said Pixel 6 / API 34 was canonical; actually-provisioned AVDs are Medium_Phone_API_36 (used for tokens verify) and Pixel_9_Pro (boot reservation hit `INSUFFICIENT_STORAGE` on install). Plan-stage assumptions section accepted "Either works"; this is a noted-but-not-blocking deviation.
@@ -88,6 +101,6 @@ Per the rolling-plan strategy — each slice verifies after its implement.
 
 ## Recommended Next Stage
 
-- **Option A (default):** `/wf review brutalist-redesign screens` — every code-side gate green; all five new screens deferrals are procedural and collapse onto two known clearing paths. `review-scope: slug-wide` means the canonical review runs against the whole branch diff once all slices land, but a per-slice spot review on screens is a strong intermediate signal — this slice introduces the largest surface-area change (Route/Screen split + 8 screen rewrites + Accompanist→Compose-native migration + 3 modules gaining Roborazzi infra) and benefits from a focused review before behaviors starts wiring the popup actions.
-- **Option B:** `/wf plan brutalist-redesign behaviors` — start the next slice's planning in parallel with review. Behaviors consumes this slice's testTag scaffolding + popup-action `TODO()` stubs + filter-chip empty state + null banner slot.
-- **Option C:** `/wf-quick probe brutalist-redesign` — re-attempt deferred evidence sweep on an emulator. A single probe run would discharge AC-S4 + AC-S6 nav half + AC-S7 + carry-forward layouts AC-L2 + the four other Maestro-shaped deferrals (toolchain AC4, components AC-C6, layouts AC-L5) all at once — seven deferrals in one shot, if emulator + Maestro CLI are both on PATH.
+- **Option A (default):** `/wf review brutalist-redesign behaviors` — every code-side gate green; behaviors brings the largest cross-layer surface change (5 layers: DB schema + repo + VM + UI route + component slot) and benefits from a focused review before the workflow ships. `review-scope: slug-wide` means the canonical review runs against the whole branch diff, but a per-slice spot review on behaviors is a strong intermediate signal.
+- **Option B:** `/wf plan brutalist-redesign maestro` — start the final slice's plan. Maestro now has everything it needs: 18 active runtime-evidence-deferrals + complete testTag inventory + sync-error trigger pathway + tombstone event flow.
+- **Option C:** `/wf-quick probe brutalist-redesign` — re-attempt deferred evidence sweep on an emulator. A single probe run with both `android` and `maestro` on PATH would discharge most of the 18 deferrals in one shot, including all 7 new behaviors entries. Useful pre-handoff if the maintainer prefers to ship the workflow before authoring maestro flows.

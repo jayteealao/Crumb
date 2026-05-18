@@ -1,0 +1,79 @@
+# Happy path — splash → login skip → all 4 tabs → long-press → filter chip.
+# Cold-start seeds via launchApp.arguments (Maestro 2.4+).
+appId: com.github.jayteealao.crumbs
+---
+- launchApp:
+    arguments:
+      debug_action: "seed"
+      wipe: true
+- extendedWaitUntil:
+    visible:
+      id: "splash-screen"
+    timeout: 5000
+- runFlow:
+    when:
+      visible:
+        id: "login-screen"
+    commands:
+      - tapOn:
+          id: "login-skip-auth"
+- extendedWaitUntil:
+    visible:
+      id: "home-scaffold"
+    timeout: 10000
+
+# --- Tab traversal ---
+- tapOn:
+    id: "nav-tab-twitter"
+- extendedWaitUntil:
+    visible:
+      id: "twitter-bookmarks-screen"
+    timeout: 5000
+
+- tapOn:
+    id: "nav-tab-reddit"
+- extendedWaitUntil:
+    visible:
+      id: "reddit-bookmarks-screen"
+    timeout: 5000
+
+- tapOn:
+    id: "nav-tab-all"
+- extendedWaitUntil:
+    visible:
+      id: "all-bookmarks-screen"
+    timeout: 5000
+
+- tapOn:
+    id: "nav-tab-map"
+- assertVisible: "COMING SOON"
+
+- tapOn:
+    id: "nav-tab-all"
+- extendedWaitUntil:
+    visible:
+      id: "all-bookmarks-feed"
+    timeout: 5000
+
+# --- Long-press → popup → UNDO ---
+- longPressOn:
+    id: "bookmark-card"
+    index: 0
+- extendedWaitUntil:
+    visible:
+      id: "popup"
+    timeout: 3000
+- tapOn:
+    id: "popup-action-delete"
+- extendedWaitUntil:
+    visible:
+      id: "snackbar"
+    timeout: 3000
+- tapOn:
+    id: "snackbar-action"
+
+# --- Filter chip toggle ---
+- tapOn:
+    id: "filter-bar-chip-article"
+- assertVisible:
+    id: "filter-bar-chip-article"

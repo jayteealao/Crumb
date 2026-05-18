@@ -4,11 +4,11 @@ type: index
 slug: brutalist-redesign
 title: "Replace Crumbs app design with the Brutalist Mono (Option D) handoff, pixel-for-pixel"
 status: active
-current-stage: review
-stage-number: 7
+current-stage: implement
+stage-number: 5
 created-at: "2026-05-16T21:44:39Z"
-updated-at: "2026-05-17T23:22:26Z"
-selected-slice: tokens
+updated-at: "2026-05-18T07:25:46Z"
+selected-slice: maestro
 branch-strategy: dedicated
 branch: "feat/brutalist-redesign"
 base-branch: "main"
@@ -83,7 +83,7 @@ stack:
     - {name: "zai-mcp-server", hint: "Image/diagram analysis (could validate against verify-*.jpg references)"}
   user-confirmed: true
 next-command: wf-verify
-next-invocation: "/wf verify brutalist-redesign behaviors"
+next-invocation: "/wf verify brutalist-redesign maestro"
 runtime-evidence-deferrals:
   - slice: toolchain
     ac: AC4
@@ -147,6 +147,41 @@ runtime-evidence-deferrals:
     reason: "Long-press on a CrumbsBookmarkCard in AllBookmarksScreen opens CrumbsLongPressPopup with 4 actions (TAG, OPEN, SHARE, DELETE) visible. Component-level coverage exists from components slice (LongPressPopupTest 4-action variants). AllBookmarks-level integration needs touch-input runtime + a populated LazyPagingItems feed; Robolectric's performTouchInput { longClick() } against a paging-driven LazyColumn is brittle and the integration belongs naturally to maestro's gesture-driven flow. Clears when /wf-quick probe runs the long-press flow against the running app, or when the maestro slice verifies the popup integration."
     deferred-at: "2026-05-17T19:13:28Z"
     cleared-by: null
+  - slice: behaviors
+    ac: AC-line-90
+    reason: "Room migration 4→5 runs cleanly on Pixel 6 emulator after v1.1 install. MigrationTest.kt is authored + assembleDebugAndroidTest compiles cleanly + the test asserts the post-migration schema, but execution requires a booted emulator (connectedDebugAndroidTest). Collapses onto the same emulator+Maestro evidence run that clears the 11 prior deferrals. Clears when /wf-quick probe boots Medium_Phone_API_36 and runs `:app:connectedDebugAndroidTest --tests \"*MigrationTest\"`, or when the maestro slice runs the migration test as part of the install-from-v1.1 path."
+    deferred-at: "2026-05-17T23:48:00Z"
+    cleared-by: null
+  - slice: behaviors
+    ac: AC-line-92
+    reason: "Long-press → DELETE → card disappears 200ms + CrumbsSnackbar 'DELETED · UNDO' shows for 5s. Wiring closed end-to-end (popup softDelete dispatch at AllBookmarksScreen.kt:308 + Twitter/Reddit equivalents → DeletedBookmarkRepository.softDelete → events SharedFlow → HomeRoute SnackbarHostState collector). Runtime gesture-timing measurement needs Maestro on PATH; collapses onto the maestro slice."
+    deferred-at: "2026-05-17T23:48:00Z"
+    cleared-by: null
+  - slice: behaviors
+    ac: AC-line-93
+    reason: "UNDO before timer → tombstone removed + card reappears at original position. Closed at the data layer by DeletedBookmarkRepositoryTest (added at verify-owned fix 47ee1b78, 3/3 pass) + SnackbarResult.ActionPerformed → undoDelete(id) wired at HomeRoute.kt:111-117. Room InvalidationTracker auto-invalidates the paging source via LEFT JOIN deleted_bookmarks. Runtime gesture verification deferred to maestro."
+    deferred-at: "2026-05-17T23:48:00Z"
+    cleared-by: null
+  - slice: behaviors
+    ac: AC-line-95
+    reason: "Type filter chip 'THREAD' tap → feed re-queries within 300ms. Chip callback wired at HomeRoute.kt:135-140 dispatching to active VM's onTypeChipToggled; FilterState.type updates reactively. DAO predicate is tombstone-only (tweetEntity.type column does not exist); user-observable type filtering collapses onto maestro along with the future-cleanup type derivation. Clears via maestro slice."
+    deferred-at: "2026-05-17T23:48:00Z"
+    cleared-by: null
+  - slice: behaviors
+    ac: AC-line-96
+    reason: "Tags chip → OverlayShell opens with multi-select tag list → APPLY filters feed. Tag state plumbing wired in feature VMs (onTagToggled / onTagsApplied) but the OverlayShell-mounted multi-select picker UI was not delivered in-stage — substantive gap, not just runtime evidence. Recommend pre-handoff/pre-ship refinement decision: either add a small OverlayShell tag-filter sheet now or accept the chip-as-toggle behavior for v2.0 with tag filtering as a follow-up enhancement."
+    deferred-at: "2026-05-17T23:48:00Z"
+    cleared-by: null
+  - slice: behaviors
+    ac: AC-line-97
+    reason: "Forced Twitter 401 → CrumbsBanner appears above feed within 1s with kicker 'ERR · RECONNECT TWITTER'. Bus emit wired at Repository.kt:157-160 + RedditRepository.kt:115-117; HomeRoute collector at HomeRoute.kt:71-96 flips per-tab banner state; banner visual contract verified via 4 new Roborazzi goldens (HomeScreen_withSyncErrorBanner_{light,dark}.png + HomeScaffold_withBanner_{light,dark}.png). Live 401 trigger + 1s latency measurement needs Maestro flow + a forced expired token. Collapses onto maestro."
+    deferred-at: "2026-05-17T23:48:00Z"
+    cleared-by: null
+  - slice: behaviors
+    ac: AC-line-98
+    reason: "Banner CTA → OAuth flow initiates identically to LoginScreen CONNECT button. CTA at HomeRoute.kt:142-147 fires `context.startActivity(loginViewModel.authIntent())` / `redditViewModel.authIntent()` — byte-stable with the existing LoginRoute.kt:59-60 call. Live OAuth handoff verification deferred to maestro."
+    deferred-at: "2026-05-17T23:48:00Z"
+    cleared-by: null
 workflow-files:
   - 00-index.md
   - 01-intake.md
@@ -167,6 +202,7 @@ workflow-files:
   - 04-plan-layouts.md
   - 04-plan-screens.md
   - 04-plan-behaviors.md
+  - 04-plan-maestro.md
   - 05-implement.md
   - 05-implement-toolchain.md
   - 05-implement-tokens.md
@@ -175,7 +211,9 @@ workflow-files:
   - 05-implement-layouts.md
   - 05-implement-screens.md
   - 05-implement-behaviors.md
+  - 05-implement-maestro.md
   - 06-verify.md
+  - 06-verify-behaviors.md
   - 06-verify-toolchain.md
   - 06-verify-tokens.md
   - 06-verify-components.md
@@ -208,20 +246,20 @@ slices:
     complexity: l
     depends-on: [layouts]
   - slug: behaviors
-    status: implemented
+    status: verified-partial
     complexity: m
     depends-on: [screens]
   - slug: maestro
-    status: defined
+    status: implemented
     complexity: s
     depends-on: [behaviors]
 progress:
   intake: complete
   shape: complete
   slice: complete
-  plan: in-progress   # 6/7 slices planned (toolchain, tokens, components, layouts, screens, behaviors); maestro plan deferred (rolling plan)
-  implement: in-progress   # 6/7 slices implemented (toolchain, tokens, components, layouts, screens, behaviors); see 05-implement-{toolchain,tokens,components,layouts,screens,behaviors}.md
-  verify: in-progress      # 5/7 slices verified-partial (toolchain, tokens, components, layouts, screens); 11 active runtime-evidence-deferrals; behaviors awaits verify; maestro remaining
+  plan: complete   # 7/7 slices planned (toolchain, tokens, components, layouts, screens, behaviors, maestro)
+  implement: complete      # 7/7 slices implemented (toolchain, tokens, components, layouts, screens, behaviors, maestro); see 05-implement-*.md
+  verify: in-progress      # 6/7 slices verified-partial; maestro pending verify; 18 active runtime-evidence-deferrals expected to collapse 17 onto maestro verify run
   review: not-started
   handoff: not-started
   ship: not-started

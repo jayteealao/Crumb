@@ -153,3 +153,42 @@ dependencies {
 //kapt {
 //    correctErrorTypes true
 //}
+
+tasks.register("verifyReleaseDebugInjectorAbsent") {
+    dependsOn("assembleRelease")
+    doLast {
+        def releaseDir = file("$buildDir/outputs/apk/release")
+        if (!releaseDir.isDirectory()) {
+            throw new GradleException("Release output directory not found: $releaseDir")
+        }
+        def apk = releaseDir.listFiles()?.find { it.name.endsWith(".apk") }
+        if (apk == null) {
+            throw new GradleException("No release APK produced under $releaseDir")
+        }
+        def needle = "DebugDataInjector"
+        def hits = []
+        def zip = new java.util.zip.ZipFile(apk)
+        try {
+            zip.entries().each { entry ->
+                if (entry.name.endsWith(".dex")) {
+                    def text = new String(
+                        zip.getInputStream(entry).bytes,
+                        java.nio.charset.StandardCharsets.ISO_8859_1
+                    )
+                    if (text.contains(needle)) {
+                        hits << entry.name
+                    }
+                }
+            }
+        } finally {
+            zip.close()
+        }
+        if (!hits.isEmpty()) {
+            throw new GradleException(
+                "DebugDataInjector found in release APK ${apk.name} (dex: ${hits.join(', ')}). " +
+                "Debug-only code leaked into release variant."
+            )
+        }
+        logger.lifecycle("verifyReleaseDebugInjectorAbsent: PASS (${apk.name})")
+    }
+}
