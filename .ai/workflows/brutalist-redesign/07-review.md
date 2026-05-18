@@ -7,7 +7,7 @@ slice-slug: ""
 status: complete
 stage-number: 7
 created-at: "2026-05-18T11:35:48Z"
-updated-at: "2026-05-18T12:53:06Z"
+updated-at: "2026-05-18T13:02:51Z"
 verdict: dont-ship
 commands-run: [correctness, security, code-simplification, testing, maintainability, reliability, frontend-accessibility, backend-concurrency, architecture, performance, data-integrity, migrations, privacy, supply-chain]
 metric-commands-run: 14
@@ -19,12 +19,12 @@ metric-findings-med: 40
 metric-findings-low: 19
 metric-findings-nit: 10
 metric-issues-found-initial: 98
-metric-issues-found-final: 93   # 5 patched (B1/B2/B3/H1/H2); 52 Fix decisions remaining
+metric-issues-found-final: 90   # 8 patched (B1/B2/B3/H1/H2/H3/H4/H5); 49 Fix decisions remaining
 metric-fix-decisions: 57
-metric-fix-patched: 5
+metric-fix-patched: 8
 fix-rounds-run: 1
-convergence: in-progress   # 5/57 Fix decisions patched at checkpoint; verdict re-evaluated when all 57 land
-review-owned-fix-commit: "9dfb119,30def3f"
+convergence: in-progress   # 8/57 Fix decisions patched at checkpoint; verdict re-evaluated when all 57 land
+review-owned-fix-commit: "9dfb119,30def3f,5461075"
 tags: [redesign, slug-wide-review, escalated]
 refs:
   index: 00-index.md
@@ -223,8 +223,8 @@ The exhaustive per-finding writeups (evidence snippets, suggested fixes, severit
 Stage-5 review-fix mode in progress. Fixes land phase-by-phase rather than as a single mega-commit so each phase produces a reviewable diff.
 
 **Round count:** 1 (in-progress)
-**Convergence:** in-progress — 5/57 patched at this checkpoint
-**Initial findings:** 98 → **Current open:** 93 (5 patched)
+**Convergence:** in-progress — 8/57 patched at this checkpoint
+**Initial findings:** 98 → **Current open:** 90 (8 patched)
 
 | ID | Severity | Status | Commit | Notes |
 |----|----------|--------|--------|-------|
@@ -233,8 +233,11 @@ Stage-5 review-fix mode in progress. Fixes land phase-by-phase rather than as a 
 | B3 | BLOCKER | Fixed | 9dfb119 | LoginViewModel.refreshToken: `!!` → `?: false`. Removes latent NPE if AuthRepository return widens to nullable. |
 | H1 (SEC-01) | HIGH | Fixed | 30def3f | Twitter clientId + clientSecret moved to local.properties (gitignored) → buildConfigField on feature/twitter. constants.kt CLIENT_ID/CLIENT_SECRET removed; TwitterAuthService + TwitterAuthClientImpl reference BuildConfig. **User must rotate the previously-committed secret in the Twitter Developer Portal.** |
 | H2 (SEC-02) | HIGH | Fixed | 30def3f | Release workflow now runs `clean assembleDebug assembleRelease verifyReleaseDebugInjectorAbsent`. Both APKs ship to the GitHub Release. app/build.gradle applies signingConfigs.release to both debug + release buildTypes when SIGNING_STORE_FILE env is present, so both variants are signed with the same key. Local verification: `verifyReleaseDebugInjectorAbsent: PASS`. |
+| H3 (CR-1) | HIGH | Fixed | 5461075 | RedditRepository.kt:110 — `it.data.name` → `it.data.id`. Tombstone-filter key now matches the key stored by `softDelete(bookmark.id, …)`; deleted Reddit posts are correctly suppressed on the next sync. |
+| H4 (CR-3) | HIGH | Fixed | 5461075 | HomeRoute.kt — hoisted `twitterAccess` / `redditAccess` from the two ViewModels' `isAccessTokenAvailable` StateFlows; two `LaunchedEffect(access) { if (access) banner = null }` blocks clear the corresponding banner when the access token becomes available. |
+| H5 (CR-5+PERF-03) | HIGH | Fixed | 5461075 | RedditDao gains `getPostsByTagsTombstoneAware(tagNames)` mirroring the Twitter pattern. `pagingPostsData(filter)` branches to the tag-aware query when `filter.selectedTags` is non-empty; `@Suppress("UNUSED_PARAMETER")` removed. Reddit type chips remain visual-only — same parity as Twitter, which also does not wire `filter.type` today. |
 
-**Remaining 52 Fix decisions queued** — see triage tables above. Continuing phases (recommended order): Correctness (H3, H4, H5), Reliability (H6, H7, H8, H9, H10), Architecture/Data (H11, H12, H13, H14, H15), A11y (H16, H17), Privacy/Testing/Migrations/Supply (H18, H20, H21, H22), then the 8 MED bundles (31 findings).
+**Remaining 49 Fix decisions queued** — see triage tables above. Continuing phases (recommended order): Reliability (H6, H7, H8, H9, H10), Architecture/Data (H11, H12, H13, H14, H15), A11y (H16, H17), Privacy/Testing/Migrations/Supply (H18, H20, H21, H22), then the 8 MED bundles (31 findings).
 
 **Next invocation to continue:** `/wf implement brutalist-redesign reviews`
 
