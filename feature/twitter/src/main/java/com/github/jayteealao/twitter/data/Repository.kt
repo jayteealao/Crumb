@@ -30,7 +30,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -50,7 +49,6 @@ class Repository @Inject constructor(
     private var orderOfLastBookmark: Int = 1000
     private var needsRefresh = false
     private val fetchMutex = Mutex()
-    private var isFetching = false
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
@@ -89,11 +87,12 @@ class Repository @Inject constructor(
             if (firestoreTweets.isNotEmpty()) {
                 // Get the current max order to assign new orders
                 var currentOrder = tweetDao.getMaxOrder() ?: 1000
+                val tombstones = deletedBookmarkRepository.deletedIdsSnapshot()
 
                 firestoreTweets.forEach { tweetEntities ->
                     currentOrder++
                     val orderedEntities = tweetEntitiesToOrderLens.modify(tweetEntities) { currentOrder }
-                    if (!deletedBookmarkRepository.isDeleted(orderedEntities.tweetEntity.id)) {
+                    if (orderedEntities.tweetEntity.id !in tombstones) {
                         saveTweetEntities(orderedEntities, uploadToFirestore = false)
                     }
                 }
@@ -105,7 +104,7 @@ class Repository @Inject constructor(
     }
 
     fun saveTweetEntities(tweetEntities: TweetEntities, uploadToFirestore: Boolean = true) {
-        tweetDao.insertTweetEntities(
+        tweetDao.insertTweetEntitiesAtomic(
             tweetEntities.tweetEntity,
             tweetEntities.tweetReferencedTweets.mapNotNull { it.tweet },
             tweetEntities.twitterUserEntity,
@@ -115,9 +114,9 @@ class Repository @Inject constructor(
             tweetEntities.tweetReferencedTweets.map { it.referencedTweets },
             tweetEntities.tweetContextAnnotationEntity,
             tweetEntities.tweetTextEntity,
-            tweetEntities.mediaKeys
+            tweetEntities.mediaKeys,
+            tweetEntities.pollIds,
         )
-        tweetEntities.pollIds?.let { tweetDao.insertPollId(it) }
         // Also upload to Firestore for backup
         if (uploadToFirestore) {
             scope.launch(Dispatchers.IO) {
@@ -137,15 +136,14 @@ class Repository @Inject constructor(
     }
 
     private suspend fun refreshBookmarksInternal() {
-        // Prevent concurrent fetches
-        fetchMutex.withLock {
-            if (isFetching) {
-                Timber.d("buildDatabase: Already fetching, skipping")
-                return
-            }
-            isFetching = true
-            _isRefreshing.value = true
+        // Single-flight: tryLock fails fast if another fetch holds the mutex.
+        // Mutex + try/finally ensures the lock is released even on cancellation,
+        // unlike the prior split-lock pattern that could orphan an `isFetching=true`.
+        if (!fetchMutex.tryLock()) {
+            Timber.d("buildDatabase: Already fetching, skipping")
+            return
         }
+        _isRefreshing.value = true
 
         try {
             latestBookmarkInDatabase = tweetDao.getLatestBookmark()
@@ -164,6 +162,7 @@ class Repository @Inject constructor(
 
             if (refreshToken.isNotBlank() && userId.isNotBlank()) {
                 Timber.d("building database: fetching new bookmarks incrementally")
+                val tombstones = deletedBookmarkRepository.deletedIdsSnapshot()
                 val tweetEntitiesChannel =
                     scope.produceTweetResponseEntities(
                         refreshToken,
@@ -183,8 +182,8 @@ class Repository @Inject constructor(
                 tweetEntitiesChannel.consumeEach {
                     it.data.forEach {
                         val order = orderStart
-                        scope.launch(Dispatchers.IO) {
-                            if (!deletedBookmarkRepository.isDeleted(it.tweetEntity.id)) {
+                        if (it.tweetEntity.id !in tombstones) {
+                            scope.launch(Dispatchers.IO) {
                                 saveTweetEntities(tweetEntitiesToOrderLens.modify(it) { order })
                             }
                         }
@@ -193,10 +192,8 @@ class Repository @Inject constructor(
                 }
             }
         } finally {
-            fetchMutex.withLock {
-                isFetching = false
-                _isRefreshing.value = false
-            }
+            _isRefreshing.value = false
+            fetchMutex.unlock()
         }
     }
 

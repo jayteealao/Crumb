@@ -30,7 +30,14 @@ class DeletedBookmarkRepository @Inject constructor(
         dao.delete(id)
     }
 
-    fun isDeleted(id: String): Boolean = dao.existsBlocking(id)
+    suspend fun isDeleted(id: String): Boolean = dao.exists(id)
+
+    /**
+     * One-shot snapshot of all tombstoned bookmark ids. Sync paths fetch this once
+     * before iterating remote pages and gate inserts on `Set.contains` instead of
+     * issuing a per-row DAO query (N+1 elimination + dispatcher-safe).
+     */
+    suspend fun deletedIdsSnapshot(): Set<String> = dao.getAllIdsSnapshot().toSet()
 
     fun deletedIds(): Flow<List<String>> = dao.getAllIds()
 }

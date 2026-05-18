@@ -21,7 +21,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -39,7 +38,6 @@ class RedditRepository @Inject constructor(
     private var latestPostInDatabase: com.github.jayteealao.reddit.models.RedditPostEntity? = null
     private var orderOfLastPost: Int = 1000
     private val fetchMutex = Mutex()
-    private var isFetching = false
 
     companion object {
         const val BUFFER = 250
@@ -62,13 +60,12 @@ class RedditRepository @Inject constructor(
      */
     fun buildDatabase() {
         scope.launch(Dispatchers.IO) {
-            // Prevent concurrent fetches
-            fetchMutex.withLock {
-                if (isFetching) {
-                    Timber.d("buildDatabase: Already fetching, skipping")
-                    return@launch
-                }
-                isFetching = true
+            // Single-flight: tryLock fails fast if another fetch holds the mutex.
+            // Mutex + try/finally ensures the lock is released even on cancellation,
+            // unlike the prior split-lock pattern that could orphan an `isFetching=true`.
+            if (!fetchMutex.tryLock()) {
+                Timber.d("buildDatabase: Already fetching, skipping")
+                return@launch
             }
 
             try {
@@ -88,6 +85,7 @@ class RedditRepository @Inject constructor(
                     var after: String? = null
                     var orderStart = orderOfLastPost + BUFFER
                     var fetchedCount = 0
+                    val tombstones = deletedBookmarkRepository.deletedIdsSnapshot()
 
                     // Fetch all pages until no more results
                     var hasMore: Boolean
@@ -107,7 +105,7 @@ class RedditRepository @Inject constructor(
                             // Prepare posts for database; gate on tombstone presence
                             entitiesToInsert = data.data.children
                                 .filter { it.kind == "t3" }
-                                .filter { !deletedBookmarkRepository.isDeleted(it.data.id) }
+                                .filter { it.data.id !in tombstones }
                                 .map { thing ->
                                     val order = orderStart--
                                     thing.data.toEntity(order)
@@ -142,9 +140,7 @@ class RedditRepository @Inject constructor(
                     Timber.d("Finished fetching Reddit posts. Total: $fetchedCount")
                 }
             } finally {
-                fetchMutex.withLock {
-                    isFetching = false
-                }
+                fetchMutex.unlock()
             }
         }
     }

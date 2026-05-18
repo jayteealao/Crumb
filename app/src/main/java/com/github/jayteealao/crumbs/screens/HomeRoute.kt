@@ -1,5 +1,6 @@
 package com.github.jayteealao.crumbs.screens
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
@@ -10,6 +11,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -28,6 +30,8 @@ import com.github.jayteealao.twitter.screens.BookmarksViewModel
 import com.github.jayteealao.twitter.screens.LoginViewModel
 import com.github.jayteealao.twitter.screens.TwitterBookmarksRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.launch
+import timber.log.Timber
 import javax.inject.Inject
 
 /**
@@ -58,6 +62,7 @@ fun HomeRoute(
     var redditBanner by remember { mutableStateOf<BannerState?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarScope = rememberCoroutineScope()
 
     val twitterFilter by bookmarksViewModel.filter.collectAsState()
     val redditFilter by redditViewModel.filter.collectAsState()
@@ -143,10 +148,23 @@ fun HomeRoute(
         },
         onSortClick = { /* sort dialog deferred to a follow-up slice */ },
         onBannerCta = {
-            when (activeBanner?.source) {
-                BookmarkSource.TWITTER -> context.startActivity(loginViewModel.authIntent())
-                BookmarkSource.REDDIT -> context.startActivity(redditViewModel.authIntent())
-                else -> Unit
+            val intent: Intent? = when (activeBanner?.source) {
+                BookmarkSource.TWITTER -> loginViewModel.authIntent()
+                BookmarkSource.REDDIT -> redditViewModel.authIntent()
+                else -> null
+            }
+            intent?.let {
+                try {
+                    context.startActivity(it)
+                } catch (e: ActivityNotFoundException) {
+                    Timber.e(e, "No activity to handle OAuth intent")
+                    snackbarScope.launch {
+                        snackbarHostState.showSnackbar(
+                            message = "NO BROWSER FOUND",
+                            duration = SnackbarDuration.Short,
+                        )
+                    }
+                }
             }
         },
         snackbarHostState = snackbarHostState,

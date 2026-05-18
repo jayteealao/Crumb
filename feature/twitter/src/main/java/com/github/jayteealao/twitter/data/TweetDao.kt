@@ -52,6 +52,7 @@ interface TweetDao {
     @Insert
     fun insertMediaKeys(mediaKeys: MediaKeys)
 
+    @Transaction
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun insertTweetEntities(
         tweet: TweetEntity,
@@ -65,6 +66,41 @@ interface TweetDao {
         tweetTextEntity: List<TweetTextEntityAnnotation>,
         mediaKeys: List<MediaKeys>
     )
+
+    /**
+     * Atomic write of the full tweet aggregate. Wraps the multi-entity insert and
+     * the optional pollIds insert in one SQLite transaction so Paging3's
+     * InvalidationTracker emits exactly one invalidation and never observes a
+     * partially-hydrated row (orphaned pollIds, missing public-metrics, etc.).
+     */
+    @Transaction
+    fun insertTweetEntitiesAtomic(
+        tweet: TweetEntity,
+        tweetsReferenced: List<TweetEntity>,
+        twitterUserEntity: List<TwitterUserEntity>,
+        tweetPublicMetrics: TweetPublicMetrics,
+        tweetMediaEntity: List<TweetMediaEntity>,
+        tweetIncludesEntity: List<TweetIncludesEntity>,
+        tweetReferencedTweets: List<TweetReferencedTweets>,
+        tweetContextAnnotationEntity: List<TweetContextAnnotationEntity>,
+        tweetTextEntity: List<TweetTextEntityAnnotation>,
+        mediaKeys: List<MediaKeys>,
+        pollIds: PollIds?,
+    ) {
+        insertTweetEntities(
+            tweet,
+            tweetsReferenced,
+            twitterUserEntity,
+            tweetPublicMetrics,
+            tweetMediaEntity,
+            tweetIncludesEntity,
+            tweetReferencedTweets,
+            tweetContextAnnotationEntity,
+            tweetTextEntity,
+            mediaKeys,
+        )
+        pollIds?.let { insertPollId(it) }
+    }
 
     @Transaction
     @Query("SELECT * FROM tweetEntity WHERE referenced = false ORDER BY `order` DESC")

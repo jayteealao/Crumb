@@ -16,7 +16,10 @@ interface DeletedBookmarkDao {
     suspend fun delete(id: String)
 
     @Query("SELECT EXISTS(SELECT 1 FROM deleted_bookmarks WHERE bookmarkId = :id)")
-    fun existsBlocking(id: String): Boolean
+    suspend fun exists(id: String): Boolean
+
+    @Query("SELECT bookmarkId FROM deleted_bookmarks")
+    suspend fun getAllIdsSnapshot(): List<String>
 
     @Query("SELECT bookmarkId FROM deleted_bookmarks")
     fun getAllIds(): Flow<List<String>>
