@@ -223,7 +223,7 @@ class FirestoreRepository @Inject constructor() {
             val existingSnapshot = tweetRef.get().await()
             val isFirstWrite = !existingSnapshot.exists()
             if (!isFirstWrite) {
-                Timber.d("Tweet $tweetId already in Firestore — merging only")
+                Timber.d("Tweet already in Firestore — merging only")
             }
 
             // Use batch write for atomicity
@@ -268,7 +268,7 @@ class FirestoreRepository @Inject constructor() {
             }
 
             batch.commit().await()
-            Timber.d("Successfully uploaded tweet $tweetId to Firestore")
+            Timber.d("Successfully uploaded tweet to Firestore")
         } catch (e: Exception) {
             Timber.e(e, "Error uploading tweet to Firestore")
         }

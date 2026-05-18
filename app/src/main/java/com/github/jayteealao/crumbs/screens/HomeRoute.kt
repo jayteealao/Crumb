@@ -73,8 +73,20 @@ fun HomeRoute(
     val twitterAccess by loginViewModel.isAccessTokenAvailable.collectAsStateWithLifecycle()
     val redditAccess by redditViewModel.isAccessTokenAvailable.collectAsStateWithLifecycle()
 
-    LaunchedEffect(twitterAccess) { if (twitterAccess) twitterBanner = null }
-    LaunchedEffect(redditAccess) { if (redditAccess) redditBanner = null }
+    LaunchedEffect(twitterAccess) {
+        if (twitterAccess) {
+            twitterBanner = null
+            // Drop the replay slot so a warm-start subscription does not
+            // resurrect the stale auth event the next time the route mounts.
+            services.syncErrorBus.clear()
+        }
+    }
+    LaunchedEffect(redditAccess) {
+        if (redditAccess) {
+            redditBanner = null
+            services.syncErrorBus.clear()
+        }
+    }
 
     // derivedStateOf collapses transitive recompositions: callers reading
     // activeFilter/activeBanner only invalidate when the *resolved* value

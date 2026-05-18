@@ -20,21 +20,31 @@ class CrumbApplication : Application(), ImageLoaderFactory {
     // swap (PERF-07), and explicit memory/disk caches bound RAM/storage so
     // the brutalist feed does not balloon when scrolled aggressively.
     override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)
-        .crossfade(true)
-        .crossfade(180)
+        // The duration-overload already enables crossfade — the boolean
+        // overload above was redundant.
+        .crossfade(CROSSFADE_DURATION_MS)
         .memoryCache {
             MemoryCache.Builder(this)
-                .maxSizePercent(0.20)
+                .maxSizePercent(MEMORY_CACHE_FRACTION)
                 .build()
         }
         .diskCache {
             DiskCache.Builder()
                 .directory(cacheDir.resolve("image_cache"))
-                .maxSizePercent(0.02)
+                .maxSizePercent(DISK_CACHE_FRACTION)
                 .build()
         }
         .memoryCachePolicy(CachePolicy.ENABLED)
         .diskCachePolicy(CachePolicy.ENABLED)
+        // Brutalist UI swaps backgrounds and accents per theme — honoring
+        // upstream cache-control headers would force redownloads on every
+        // theme flip. We trust our cache keys instead.
         .respectCacheHeaders(false)
         .build()
+
+    private companion object {
+        const val CROSSFADE_DURATION_MS = 180
+        const val MEMORY_CACHE_FRACTION = 0.20
+        const val DISK_CACHE_FRACTION = 0.02
+    }
 }

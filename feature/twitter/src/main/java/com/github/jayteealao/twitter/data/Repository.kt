@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -155,12 +156,15 @@ class Repository @Inject constructor(
                 orderOfLastBookmark = latestBookmarkInDatabase!!.order
             }
 
-            // Get current values once instead of continuously collecting
-            val (accessCode, userId, refreshToken) = combine(
-                authPref.accessCode,
+            // Resolve userId + refreshToken once; accessCode must be re-read
+            // on every API call so the refresh-first auth recovery actually
+            // takes effect. Capturing accessCode once meant a successful
+            // silent refresh still left the loop using the stale token,
+            // producing an infinite 401 retry with no UI feedback.
+            val (userId, refreshToken) = combine(
                 authPref.userId,
                 authPref.refreshCode
-            ) { access, user, refresh -> Triple(access, user, refresh) }
+            ) { user, refresh -> user to refresh }
                 .first()
 
             if (refreshToken.isNotBlank() && userId.isNotBlank()) {
@@ -180,8 +184,11 @@ class Repository @Inject constructor(
                             }
                         }
                     ) {
+                        // Re-read accessCode on every call so a refresh that
+                        // landed via refreshTokenSingleFlight is actually used.
+                        val currentAccessCode = authPref.accessCode.first()
                         twitterApiClient.getBookmarks(
-                            "Bearer $accessCode",
+                            "Bearer $currentAccessCode",
                             userId,
                             it
                         )
@@ -281,37 +288,37 @@ class Repository @Inject constructor(
     }
 
     /**
-     * Single-flight access-token refresh. Returns true if the in-memory caller can
-     * assume a fresh access token has been persisted; false on hard failure.
+     * Single-flight access-token refresh. Returns true if a fresh access token
+     * has been persisted; false on hard failure.
      *
-     * tryLock semantics: if another caller is already refreshing, skip this attempt
-     * and return true — the concurrent refresh will populate Prefs and the next
-     * pagination loop iteration will pick up the new token via authPref.accessCode.
-     * twitterAuthClient.refreshAccessToken does NOT persist by itself, so we write
-     * back via authPref.setAccessAndRefreshToken before returning.
+     * Uses `withLock` (not tryLock) so a concurrent 401 from a sibling
+     * pagination call waits for the in-flight refresh to finish and observes
+     * the actual outcome, rather than skipping and falsely claiming success
+     * (which would suppress the banner while the loop kept 401-ing).
+     * twitterAuthClient.refreshAccessToken does NOT persist by itself, so we
+     * write back via authPref.setAccessAndRefreshToken before returning.
      */
     private suspend fun refreshTokenSingleFlight(currentRefreshToken: String): Boolean {
-        if (!refreshMutex.tryLock()) {
-            Timber.d("refreshTokenSingleFlight: another refresh in flight, deferring")
-            return true
-        }
-        return try {
-            val tokenResponse = twitterAuthClient.refreshAccessToken(currentRefreshToken)
-            val access = tokenResponse?.accessToken
-            val refresh = tokenResponse?.refreshToken
-            if (!access.isNullOrBlank() && !refresh.isNullOrBlank()) {
-                authPref.setAccessAndRefreshToken(access, refresh)
-                Timber.d("refreshTokenSingleFlight: token refreshed and persisted")
-                true
-            } else {
-                Timber.w("refreshTokenSingleFlight: refresh returned null/blank tokens")
+        return refreshMutex.withLock {
+            // Re-read once inside the lock; if a previous holder already
+            // refreshed, the persisted refreshToken may have rotated.
+            val tokenToUse = authPref.refreshCode.first().ifBlank { currentRefreshToken }
+            try {
+                val tokenResponse = twitterAuthClient.refreshAccessToken(tokenToUse)
+                val access = tokenResponse?.accessToken
+                val refresh = tokenResponse?.refreshToken
+                if (!access.isNullOrBlank() && !refresh.isNullOrBlank()) {
+                    authPref.setAccessAndRefreshToken(access, refresh)
+                    Timber.d("refreshTokenSingleFlight: token refreshed and persisted")
+                    true
+                } else {
+                    Timber.w("refreshTokenSingleFlight: refresh returned null/blank tokens")
+                    false
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "refreshTokenSingleFlight: exception during refresh")
                 false
             }
-        } catch (e: Exception) {
-            Timber.e(e, "refreshTokenSingleFlight: exception during refresh")
-            false
-        } finally {
-            refreshMutex.unlock()
         }
     }
 

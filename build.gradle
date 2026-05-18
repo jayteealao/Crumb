@@ -1,10 +1,6 @@
-buildscript {
-    ext {
-        kotlin_version = '2.2.10'
-        // All other versions (compose, room, hilt, retrofit, lifecycle, etc.)
-        // live in gradle/libs.versions.toml as the single source of truth.
-    }
-}// Top-level build file where you can add configuration options common to all sub-projects/modules.
+// Top-level build file. All version pins live in gradle/libs.versions.toml
+// (catalog) plus the plugin DSL block below; no `buildscript { ext { } }` —
+// `kotlin_version` above was unused after the catalog migration in dd4a169.
 plugins {
     id 'com.android.application' version '9.1.1' apply false
     id 'com.android.library' version '9.1.1' apply false

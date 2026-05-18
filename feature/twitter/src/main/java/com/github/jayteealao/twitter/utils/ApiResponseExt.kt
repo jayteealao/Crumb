@@ -51,12 +51,16 @@ fun CoroutineScope.produceTweetResponseEntities(
                     Timber.d("next token: $token")
                 }
             }.suspendOnError {
-                if (response.code() in 401..404) {
-                    Timber.d("refreshing token, old: $refreshToken")
+                // Narrowed from 401..404 — 403 (revoked grant) and 404
+                // (missing endpoint) do not benefit from a token refresh and
+                // would silently spin in the refresh-retry loop otherwise.
+                if (response.code() == 401) {
+                    Timber.d("refreshing token (401)")
                     onError()
                 }
-
-                if (response.code() == 429) {
+                if (response.code() == 429 || response.code() in 400..499) {
+                    // Any non-recoverable 4xx (including 403/404) must close
+                    // the producer so the do/while doesn't spin on stale token.
                     this@produce.close()
                 }
                 Timber.d(this.message())

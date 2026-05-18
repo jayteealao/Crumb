@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -78,11 +79,14 @@ class RedditRepository @Inject constructor(
                     orderOfLastPost = latestPostInDatabase!!.order
                 }
 
-                // Get access token from prefs
-                val accessToken = redditPrefs.accessToken.first()
+                // Resolve refreshToken once; accessToken is re-read on every
+                // page so refreshTokenSingleFlight actually takes effect.
+                // Capturing accessToken once meant a successful silent refresh
+                // left the loop using the stale token, infinitely 401-looping.
+                val initialAccessToken = redditPrefs.accessToken.first()
                 val refreshToken = redditPrefs.refreshToken.first()
 
-                if (accessToken.isNotBlank()) {
+                if (initialAccessToken.isNotBlank()) {
                     Timber.d("Building Reddit database: fetching saved posts")
 
                     var after: String? = null
@@ -93,8 +97,10 @@ class RedditRepository @Inject constructor(
                     // Fetch all pages until no more results
                     var hasMore: Boolean
                     do {
+                        // Re-read accessToken so a mid-pagination refresh wins.
+                        val currentAccessToken = redditPrefs.accessToken.first()
                         val response = redditApiService.getSavedPosts(
-                            authorization = "Bearer $accessToken",
+                            authorization = "Bearer $currentAccessToken",
                             limit = PAGE_SIZE,
                             after = after
                         )
@@ -208,33 +214,32 @@ class RedditRepository @Inject constructor(
     ).flow
 
     /**
-     * Single-flight access-token refresh. Returns true if a fresh access token has
-     * been persisted by [RedditAuthClient.refreshAccessToken] (it writes to Prefs
-     * internally), false on hard failure.
+     * Single-flight access-token refresh. Returns true if a fresh access
+     * token has been persisted by [RedditAuthClient.refreshAccessToken]
+     * (which writes to Prefs internally), false on hard failure.
      *
-     * tryLock semantics: if another caller is already refreshing, skip and return
-     * true — the concurrent refresh will populate Prefs and the next buildDatabase
-     * invocation will pick up the new token.
+     * Uses `withLock` (not tryLock) so a concurrent 401 from a sibling call
+     * waits for the in-flight refresh to finish and observes the actual
+     * outcome, rather than skipping and falsely claiming success.
      */
     private suspend fun refreshTokenSingleFlight(currentRefreshToken: String): Boolean {
-        if (!refreshMutex.tryLock()) {
-            Timber.d("refreshTokenSingleFlight: another refresh in flight, deferring")
-            return true
-        }
-        return try {
-            val newAccess = redditAuthClient.refreshAccessToken(currentRefreshToken)
-            if (!newAccess.isNullOrBlank()) {
-                Timber.d("refreshTokenSingleFlight: Reddit token refreshed")
-                true
-            } else {
-                Timber.w("refreshTokenSingleFlight: Reddit refresh returned null")
+        return refreshMutex.withLock {
+            // Re-read once inside the lock in case a previous holder rotated
+            // the refreshToken in Prefs.
+            val tokenToUse = redditPrefs.refreshToken.first().ifBlank { currentRefreshToken }
+            try {
+                val newAccess = redditAuthClient.refreshAccessToken(tokenToUse)
+                if (!newAccess.isNullOrBlank()) {
+                    Timber.d("refreshTokenSingleFlight: Reddit token refreshed")
+                    true
+                } else {
+                    Timber.w("refreshTokenSingleFlight: Reddit refresh returned null")
+                    false
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "refreshTokenSingleFlight: exception during Reddit refresh")
                 false
             }
-        } catch (e: Exception) {
-            Timber.e(e, "refreshTokenSingleFlight: exception during Reddit refresh")
-            false
-        } finally {
-            refreshMutex.unlock()
         }
     }
 
