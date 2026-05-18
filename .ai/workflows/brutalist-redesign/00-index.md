@@ -4,10 +4,10 @@ type: index
 slug: brutalist-redesign
 title: "Replace Crumbs app design with the Brutalist Mono (Option D) handoff, pixel-for-pixel"
 status: active
-current-stage: verify
-stage-number: 6
+current-stage: review
+stage-number: 7
 created-at: "2026-05-16T21:44:39Z"
-updated-at: "2026-05-18T08:16:21Z"
+updated-at: "2026-05-18T12:53:06Z"
 selected-slice: maestro
 branch-strategy: dedicated
 branch: "feat/brutalist-redesign"
@@ -82,8 +82,8 @@ stack:
     - {name: "pencil", hint: ".pen design files (handoff is HTML not .pen — n/a)"}
     - {name: "zai-mcp-server", hint: "Image/diagram analysis (could validate against verify-*.jpg references)"}
   user-confirmed: true
-next-command: wf-review
-next-invocation: "/wf review brutalist-redesign"
+next-command: wf-implement
+next-invocation: "/wf implement brutalist-redesign reviews"
 runtime-evidence-deferrals:
   - slice: toolchain
     ac: AC4
@@ -242,6 +242,21 @@ workflow-files:
   - 06-verify-layouts.md
   - 06-verify-screens.md
   - 06-verify-maestro.md
+  - 07-review.md
+  - 07-review-correctness.md
+  - 07-review-security.md
+  - 07-review-code-simplification.md
+  - 07-review-testing.md
+  - 07-review-maintainability.md
+  - 07-review-reliability.md
+  - 07-review-frontend-accessibility.md
+  - 07-review-backend-concurrency.md
+  - 07-review-architecture.md
+  - 07-review-performance.md
+  - 07-review-data-integrity.md
+  - 07-review-migrations.md
+  - 07-review-privacy.md
+  - 07-review-supply-chain.md
   - po-answers.md
 compressed-slices:
   - slug: quick-skip-auth-page
@@ -283,7 +298,8 @@ progress:
   plan: complete   # 7/7 slices planned (toolchain, tokens, components, layouts, screens, behaviors, maestro)
   implement: complete      # 7/7 slices implemented; see 05-implement-*.md
   verify: complete         # 7/7 slices verified (6 verified-partial + maestro pass); 11 of 17 active runtime-evidence-deferrals cleared by maestro verify run; 6 remaining (4 maintainer-owned + behaviors AC-line-90 infra + AC-line-96 substantive gap)
-  review: not-started
+  review: complete         # slug-wide review: 14 commands, 141 raw → 98 deduplicated findings (3 BLOCKER, 26 HIGH, 40 MED, 19 LOW, 10 NIT); verdict: dont-ship; convergence: escalated; 57 Fix decisions routed to /wf implement reviews
+  review-fixes: in-progress    # 5/57 patched at 2026-05-18T12:53:06Z — BLOCKERs B1/B2/B3 (commit 9dfb119) + SEC H1/H2 (commit 30def3f); 52 remaining queued, see 07-review.md ## Fix Status
   handoff: not-started
   ship: not-started
   retro: not-started
