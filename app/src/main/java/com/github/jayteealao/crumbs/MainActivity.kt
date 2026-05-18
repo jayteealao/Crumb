@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import dagger.hilt.android.AndroidEntryPoint
+import timber.log.Timber
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -48,8 +49,11 @@ class MainActivity : ComponentActivity() {
             method.invoke(null, this, intent)
         } catch (_: ClassNotFoundException) {
             // Release variant — DebugIntentHandler is excluded by AGP source-set rules.
-        } catch (_: Throwable) {
-            // Any reflective failure is debug-only noise; swallow.
+        } catch (e: ReflectiveOperationException) {
+            // Narrowed from Throwable: only swallow expected reflection failures
+            // (NoSuchMethodException, IllegalAccessException, InvocationTargetException).
+            // OOM, ThreadDeath, and other JVM-level errors must propagate.
+            Timber.w(e, "Debug intent dispatch failed")
         }
     }
 }

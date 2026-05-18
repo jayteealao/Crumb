@@ -30,20 +30,46 @@ class FirestoreRepository @Inject constructor() {
         private const val INCLUDES_COLLECTION = "includes"
         private const val TEXT_ANNOTATIONS_COLLECTION = "textAnnotations"
         private const val BATCH_SIZE = 500
+        // Hard ceiling on tweets read from Firestore per backfill. Keeps a
+        // pathological account from blowing past Firestore's free-tier
+        // 50k reads/day and protects against malicious upload abuse.
+        private const val MAX_BOOKMARK_READ = 10_000
+        private const val READ_PAGE_SIZE = 500
+        // Belt-and-suspenders bound on pagination loop iterations.
+        private const val MAX_PAGE_HOPS = 50
     }
 
     /**
-     * Fetch all tweet IDs from Firestore
+     * Fetch all tweet IDs from Firestore.
+     *
+     * Pages through the collection with a hard cap of [MAX_BOOKMARK_READ] so a
+     * runaway account (or a malicious push of millions of stub docs) cannot
+     * force the client to download — and pay for — an unbounded set of reads.
+     * Read costs are proportional to documents returned; the page cursor stops
+     * cleanly when we have either exhausted the collection or hit the cap.
      */
     suspend fun getAllTweetIds(): Set<String> = withContext(Dispatchers.IO) {
         try {
-            Timber.d("Fetching all tweet IDs from Firestore...")
-            val snapshot = db.collection(TWEETS_COLLECTION).get().await()
-            Timber.d("Firestore returned ${snapshot.documents.size} documents")
-            val ids = snapshot.documents.mapNotNull { doc ->
-                doc.getString("tweetId")
-            }.toSet()
-            Timber.d("Extracted ${ids.size} tweet IDs from Firestore")
+            Timber.d("Fetching tweet IDs from Firestore (max=$MAX_BOOKMARK_READ)")
+            val ids = mutableSetOf<String>()
+            var lastDoc: com.google.firebase.firestore.DocumentSnapshot? = null
+            var safetyHops = 0
+            while (ids.size < MAX_BOOKMARK_READ && safetyHops < MAX_PAGE_HOPS) {
+                val pageQuery = db.collection(TWEETS_COLLECTION)
+                    .orderBy(com.google.firebase.firestore.FieldPath.documentId())
+                    .let { q -> if (lastDoc != null) q.startAfter(lastDoc) else q }
+                    .limit(READ_PAGE_SIZE.toLong())
+
+                val snapshot = pageQuery.get().await()
+                if (snapshot.isEmpty) break
+                snapshot.documents.forEach { doc ->
+                    doc.getString("tweetId")?.let(ids::add)
+                }
+                lastDoc = snapshot.documents.last()
+                safetyHops++
+                if (snapshot.documents.size < READ_PAGE_SIZE) break
+            }
+            Timber.d("Extracted ${ids.size} tweet IDs (page-hops=$safetyHops)")
             ids
         } catch (e: Exception) {
             Timber.e(e, "Error fetching tweet IDs from Firestore")
