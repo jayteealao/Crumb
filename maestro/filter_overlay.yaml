@@ -15,7 +15,7 @@ appId: com.github.jayteealao.crumbs
           id: "login-skip-auth"
 - extendedWaitUntil:
     visible:
-      id: "home-scaffold"
+      id: "home-screen"
     timeout: 10000
 - tapOn:
     id: "nav-tab-all"
@@ -24,29 +24,26 @@ appId: com.github.jayteealao.crumbs
       id: "all-bookmarks-feed"
     timeout: 5000
 
-# --- Type filter chip is instant (no overlay) ---
+# --- Type filter chips render in main tree — testTag selectors work here ---
 - tapOn:
     id: "filter-bar-chip-article"
 - assertVisible:
     id: "filter-bar-chip-article"
 - tapOn:
-    id: "filter-bar-chip-article"
+    id: "filter-bar-chip-all"
+- assertVisible:
+    id: "filter-bar-chip-all"
 
-# --- Tags chip — Blocker 1: overlay UI deferred per behaviors AC-line-96.
-# Assert chip toggles state only. Expand to multi-select + APPLY once
-# the OverlayShell tag picker lands (Path B per plan).
+# --- Tags + Collection chips deferred per Blocker 1 (behaviors AC-line-96 OverlayShell tag picker gap).
+# When the Tags overlay UI lands, assertions expand to: tapOn tags-chip → assert overlay-shell visible
+# → tapOn tag list items → tapOn overlay-shell-apply → assert filter applied.
 - tapOn:
-    id: "filter-bar-chip-tags"
+    id: "filter-bar-chip-video"
 - assertVisible:
-    id: "filter-bar-chip-tags"
-
-# --- Collection chip — same hedge ---
-- tapOn:
-    id: "filter-bar-chip-collection"
-- assertVisible:
-    id: "filter-bar-chip-collection"
+    id: "filter-bar-chip-video"
 
 # --- Backdrop dismiss on overlay shell (when an overlay is open) ---
+# Overlay also uses Popup-style rendering; gated by future overlay UI delivery.
 - runFlow:
     when:
       visible:

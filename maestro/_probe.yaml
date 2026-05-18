@@ -17,5 +17,5 @@ appId: com.github.jayteealao.crumbs
           id: "login-skip-auth"
 - extendedWaitUntil:
     visible:
-      id: "home-scaffold"
+      id: "home-screen"
     timeout: 10000

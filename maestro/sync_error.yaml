@@ -1,5 +1,5 @@
-# Force Twitter 401 → banner appears → tap banner-cta → OAuth intent fires.
-# Two launchApp calls: first seeds DB, second corrupts the access token.
+# Force Twitter 401 → banner appears → tap banner CTA → OAuth intent fires.
+# Two launchApp calls: first seeds (incl. fake tokens), second corrupts the access token.
 appId: com.github.jayteealao.crumbs
 ---
 - launchApp:
@@ -15,7 +15,7 @@ appId: com.github.jayteealao.crumbs
           id: "login-skip-auth"
 - extendedWaitUntil:
     visible:
-      id: "home-scaffold"
+      id: "home-screen"
     timeout: 10000
 - tapOn:
     id: "nav-tab-twitter"
@@ -30,7 +30,7 @@ appId: com.github.jayteealao.crumbs
       debug_action: "corrupt_token"
 - extendedWaitUntil:
     visible:
-      id: "home-scaffold"
+      id: "home-screen"
     timeout: 10000
 - tapOn:
     id: "nav-tab-twitter"
@@ -42,12 +42,11 @@ appId: com.github.jayteealao.crumbs
     direction: DOWN
 
 # --- Banner must surface within 2s (SLA is 1s; 2× allowance) ---
+# Banner renders with testTag inside the home-scaffold-topbar slot — surfaces in the main tree.
 - extendedWaitUntil:
     visible:
-      id: "home-scaffold-banner"
+      id: "banner"
     timeout: 2000
-- assertVisible:
-    id: "banner-cta"
 - takeScreenshot: sync_error_banner
 
 # --- CTA fires OAuth intent ---

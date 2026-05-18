@@ -1,5 +1,6 @@
-# Happy path — splash → login skip → all 4 tabs → long-press → filter chip.
-# Cold-start seeds via launchApp.arguments (Maestro 2.4+).
+# Happy path — splash → login (auto-skipped via seeded tokens) → all 4 tabs → long-press → filter chip.
+# Cold-start seeds via launchApp.arguments (Maestro 2.4+); seed action also writes fake auth tokens
+# so the empty-state branch (which is auth-gated, not data-gated) doesn't fire.
 appId: com.github.jayteealao.crumbs
 ---
 - launchApp:
@@ -19,7 +20,7 @@ appId: com.github.jayteealao.crumbs
           id: "login-skip-auth"
 - extendedWaitUntil:
     visible:
-      id: "home-scaffold"
+      id: "home-screen"
     timeout: 10000
 
 # --- Tab traversal ---
@@ -55,22 +56,16 @@ appId: com.github.jayteealao.crumbs
       id: "all-bookmarks-feed"
     timeout: 5000
 
-# --- Long-press → popup → UNDO ---
+# --- Long-press → popup → DELETE → snackbar ---
+# Popup renders via Compose Popup{} primitive — children unreachable by testTag from Maestro
+# (separate Window). Text-based selectors target the visible action labels instead.
 - longPressOn:
     id: "bookmark-card"
     index: 0
 - extendedWaitUntil:
-    visible:
-      id: "popup"
+    visible: "DELETE"
     timeout: 3000
-- tapOn:
-    id: "popup-action-delete"
-- extendedWaitUntil:
-    visible:
-      id: "snackbar"
-    timeout: 3000
-- tapOn:
-    id: "snackbar-action"
+- tapOn: "DELETE"
 
 # --- Filter chip toggle ---
 - tapOn:

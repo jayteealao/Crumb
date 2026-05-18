@@ -35,6 +35,16 @@ class DebugDataInjector @Inject constructor(
         seedTwitter()
         seedReddit()
         seedTags()
+        seedAuthTokens()
+    }
+
+    private suspend fun seedAuthTokens() {
+        twitterPrefs.setAccessAndRefreshToken("DEBUG_TWITTER_ACCESS", "DEBUG_TWITTER_REFRESH")
+        twitterPrefs.setUserId("debug-user-twitter")
+        twitterPrefs.setUserName("crumbs_test")
+        redditPrefs.saveAccessToken("DEBUG_REDDIT_ACCESS")
+        redditPrefs.saveRefreshToken("DEBUG_REDDIT_REFRESH")
+        redditPrefs.saveUsername("crumbs_test")
     }
 
     /** Writes a malformed token to the Twitter ACCESS_CODE pref. Next sync emits 401. */

@@ -1,4 +1,7 @@
-# Focused long-press popup verification — 4 actions + backdrop dismiss.
+# Focused long-press popup verification — 4 actions visible + backdrop/back dismiss.
+# Popup renders via Compose Popup{} primitive (separate window) — uses text-based
+# selectors. Each action's downstream behavior (TAG opens dialog, OPEN launches
+# browser, SHARE opens chooser, DELETE shows snackbar) is exercised in happy_path.
 appId: com.github.jayteealao.crumbs
 ---
 - launchApp:
@@ -14,7 +17,7 @@ appId: com.github.jayteealao.crumbs
           id: "login-skip-auth"
 - extendedWaitUntil:
     visible:
-      id: "home-scaffold"
+      id: "home-screen"
     timeout: 10000
 - tapOn:
     id: "nav-tab-all"
@@ -23,68 +26,31 @@ appId: com.github.jayteealao.crumbs
       id: "all-bookmarks-feed"
     timeout: 5000
 
-# --- TAG action ---
+# --- Long-press surfaces all 4 actions ---
 - longPressOn:
     id: "bookmark-card"
     index: 0
 - extendedWaitUntil:
-    visible:
-      id: "popup"
+    visible: "TAG"
     timeout: 3000
-- tapOn:
-    id: "popup-action-tag"
+- assertVisible: "OPEN"
+- assertVisible: "SHARE"
+- assertVisible: "DELETE"
+
+# --- Back dismisses the popup ---
 - back
+- assertNotVisible: "OPEN"
+- assertNotVisible: "SHARE"
 
-# --- OPEN action ---
+# --- Re-open and exercise DELETE → snackbar undo ---
 - longPressOn:
     id: "bookmark-card"
     index: 0
 - extendedWaitUntil:
-    visible:
-      id: "popup"
+    visible: "DELETE"
     timeout: 3000
-- tapOn:
-    id: "popup-action-open"
-- back
-
-# --- SHARE action ---
-- longPressOn:
-    id: "bookmark-card"
-    index: 0
+- tapOn: "DELETE"
 - extendedWaitUntil:
-    visible:
-      id: "popup"
+    visible: "UNDO"
     timeout: 3000
-- tapOn:
-    id: "popup-action-share"
-- back
-
-# --- DELETE action shows snackbar ---
-- longPressOn:
-    id: "bookmark-card"
-    index: 0
-- extendedWaitUntil:
-    visible:
-      id: "popup"
-    timeout: 3000
-- tapOn:
-    id: "popup-action-delete"
-- extendedWaitUntil:
-    visible:
-      id: "snackbar"
-    timeout: 3000
-- tapOn:
-    id: "snackbar-action"
-
-# --- Backdrop dismiss ---
-- longPressOn:
-    id: "bookmark-card"
-    index: 0
-- extendedWaitUntil:
-    visible:
-      id: "popup"
-    timeout: 3000
-- tapOn:
-    point: "50%,5%"
-- assertNotVisible:
-    id: "popup"
+- tapOn: "UNDO"

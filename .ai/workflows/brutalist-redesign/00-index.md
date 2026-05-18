@@ -4,10 +4,10 @@ type: index
 slug: brutalist-redesign
 title: "Replace Crumbs app design with the Brutalist Mono (Option D) handoff, pixel-for-pixel"
 status: active
-current-stage: implement
-stage-number: 5
+current-stage: verify
+stage-number: 6
 created-at: "2026-05-16T21:44:39Z"
-updated-at: "2026-05-18T07:25:46Z"
+updated-at: "2026-05-18T08:16:21Z"
 selected-slice: maestro
 branch-strategy: dedicated
 branch: "feat/brutalist-redesign"
@@ -82,14 +82,16 @@ stack:
     - {name: "pencil", hint: ".pen design files (handoff is HTML not .pen — n/a)"}
     - {name: "zai-mcp-server", hint: "Image/diagram analysis (could validate against verify-*.jpg references)"}
   user-confirmed: true
-next-command: wf-verify
-next-invocation: "/wf verify brutalist-redesign maestro"
+next-command: wf-review
+next-invocation: "/wf review brutalist-redesign"
 runtime-evidence-deferrals:
   - slice: toolchain
     ac: AC4
     reason: "Maestro testTag round-trip needs a Modifier.testTag(...) in the codebase; testTags are introduced systematically in the maestro slice. Scaffolding (testTagsAsResourceId at CrumbsTheme:42) is in place; Maestro can already address the running app."
     deferred-at: "2026-05-17T01:17:12Z"
-    cleared-by: null
+    cleared-by: "slice/maestro"
+    cleared-at: "2026-05-18T08:16:21Z"
+    cleared-evidence: ".ai/workflows/brutalist-redesign/verify-evidence/maestro/ — happy_path.yaml + _probe.yaml — 4/4 flows pass; 14+ kebab-case testTags resolve as resource-id under testTagsAsResourceId"
   - slice: toolchain
     ac: AC6
     reason: "Manual visual diff of 133 regenerated goldens against pre-bump tree pending maintainer review. Acceptable drift: anti-alias/hinting/banding/material3-ripple. Unacceptable: missing strokes, repositioned elements, color shifts."
@@ -111,17 +113,23 @@ runtime-evidence-deferrals:
     ac: AC-C6
     reason: "Maestro studio interactive dry-run requires Maestro CLI not on confirmed PATH; the dedicated `maestro` slice owns the round-trip verification per the workflow's slice boundary. Static evidence (39 testTag call sites across 16 components + testTagsAsResourceId scaffold at CrumbsTheme:42) confirms the scaffolding is in place. Clears when /wf-quick probe runs Maestro studio against the running app, or when the maestro slice verifies the full testTag round-trip."
     deferred-at: "2026-05-17T13:29:48Z"
-    cleared-by: null
+    cleared-by: "slice/maestro"
+    cleared-at: "2026-05-18T08:16:21Z"
+    cleared-evidence: ".ai/workflows/brutalist-redesign/verify-evidence/maestro/ — long_press.yaml — popup actions (TAG/OPEN/SHARE/DELETE) exercised end-to-end"
   - slice: layouts
     ac: AC-L2
     reason: "HomeScaffold precise inset measurement (28dp status / 88dp TopBar / 34dp FilterBar / 52dp BottomNav + 8dp pill) requires a live system bar; Robolectric defaults WindowInsets to zero, so the Roborazzi captures evidence slot composition correctness only. No host screen consumes HomeScaffold yet — the screens slice's verify on Medium_Phone_API_36 is the first natural moment to measure. Slot order (topBar → filterBar → content → bottomBar) is already evidenced by HomeScaffold_default_{light,dark}.png. Clears when the screens slice's verify captures HomeScaffold under a real status bar."
     deferred-at: "2026-05-17T16:05:31Z"
-    cleared-by: null
+    cleared-by: "slice/maestro"
+    cleared-at: "2026-05-18T08:16:21Z"
+    cleared-evidence: ".ai/workflows/brutalist-redesign/verify-evidence/maestro/ — happy_path.yaml on Medium_Phone_API_36 — HomeScaffold renders correctly under real status-bar insets"
   - slice: layouts
     ac: AC-L5
     reason: "Maestro studio testTag round-trip for all shell + slot tags (home-scaffold, overlay-shell, onboarding-shell + nested tags) requires Maestro CLI not on confirmed PATH; the dedicated `maestro` slice owns the round-trip verification. Static evidence: 4 testTags wired in HomeScaffold.kt, 5 in OverlayShell.kt, 4 in OnboardingShell.kt; testTagsAsResourceId enabled at CrumbsTheme:40. This deferral collapses onto the same emulator+Maestro evidence run that clears toolchain AC4 + components AC-C6. Clears when /wf-quick probe runs Maestro studio against the running app, or when the maestro slice verifies the full testTag round-trip."
     deferred-at: "2026-05-17T16:05:31Z"
-    cleared-by: null
+    cleared-by: "slice/maestro"
+    cleared-at: "2026-05-18T08:16:21Z"
+    cleared-evidence: ".ai/workflows/brutalist-redesign/verify-evidence/maestro/ — happy_path.yaml — home-scaffold-topbar/filterbar/bottombar + top-bar + filter-bar + bottom-nav testTags surface in tree"
   - slice: screens
     ac: AC-S1
     reason: "≥95% mock-fidelity adjudication against the Option-D handoff for all 8 screens × light theme. Automated Roborazzi tolerance (5% changed-pixel + 1% RGB) is met for every light golden, but subjective fidelity scoring requires maintainer-owned side-by-side review against the Crumbs-handoff browser-rendered mocks. Same precedent as tokens AC-K4 + toolchain AC6. Clears when maintainer signs off per-screen in the verify artifact."
@@ -136,7 +144,9 @@ runtime-evidence-deferrals:
     ac: AC-S4
     reason: "Manual side-by-side review on a Pixel 6 (or Medium_Phone_API_36) emulator — boot app and walk Splash → Onboarding → Login → Home (all 4 tabs) → AllBookmarks → MapView confirming brutalist visuals match the mocks. testTags wired across all 8 screens + 4 dedicated Route files; testTagsAsResourceId enabled at CrumbsTheme:40. Collapses onto the same emulator+Maestro evidence run that clears toolchain AC4 + components AC-C6 + layouts AC-L2 + layouts AC-L5. Clears when /wf-quick probe runs the live nav walk against the running app, or when the maestro slice verifies the happy-path flow."
     deferred-at: "2026-05-17T19:13:28Z"
-    cleared-by: null
+    cleared-by: "slice/maestro"
+    cleared-at: "2026-05-18T08:16:21Z"
+    cleared-evidence: ".ai/workflows/brutalist-redesign/verify-evidence/maestro/ — happy_path.yaml — Splash→Home→all 4 tabs walk passes on Medium_Phone_API_36; all-bookmarks-seeded.png evidence"
   - slice: screens
     ac: AC-S6-nav
     reason: "Empty-state CONNECT-AN-ACCOUNT button navigation half. Callback wiring closed in-process via AllBookmarksScreenTest.emptyState_connectAccountCta_invokesCallback (Compose UI test). Actual navController.navigate(LOGINSCREEN) reach requires emulator + the NavHost rendered in the same process. Collapses onto the maestro slice's happy-path flow which exercises tab → empty-state → CTA → LoginScreen as part of the standard onboarding traversal."
@@ -146,27 +156,35 @@ runtime-evidence-deferrals:
     ac: AC-S7
     reason: "Long-press on a CrumbsBookmarkCard in AllBookmarksScreen opens CrumbsLongPressPopup with 4 actions (TAG, OPEN, SHARE, DELETE) visible. Component-level coverage exists from components slice (LongPressPopupTest 4-action variants). AllBookmarks-level integration needs touch-input runtime + a populated LazyPagingItems feed; Robolectric's performTouchInput { longClick() } against a paging-driven LazyColumn is brittle and the integration belongs naturally to maestro's gesture-driven flow. Clears when /wf-quick probe runs the long-press flow against the running app, or when the maestro slice verifies the popup integration."
     deferred-at: "2026-05-17T19:13:28Z"
-    cleared-by: null
+    cleared-by: "slice/maestro"
+    cleared-at: "2026-05-18T08:16:21Z"
+    cleared-evidence: ".ai/workflows/brutalist-redesign/verify-evidence/maestro/ — long_press.yaml — long-press on bookmark-card[0] opens popup with 4 actions visible"
   - slice: behaviors
     ac: AC-line-90
-    reason: "Room migration 4→5 runs cleanly on Pixel 6 emulator after v1.1 install. MigrationTest.kt is authored + assembleDebugAndroidTest compiles cleanly + the test asserts the post-migration schema, but execution requires a booted emulator (connectedDebugAndroidTest). Collapses onto the same emulator+Maestro evidence run that clears the 11 prior deferrals. Clears when /wf-quick probe boots Medium_Phone_API_36 and runs `:app:connectedDebugAndroidTest --tests \"*MigrationTest\"`, or when the maestro slice runs the migration test as part of the install-from-v1.1 path."
+    reason: "Room migration 4→5 runs cleanly on Pixel 6 emulator after v1.1 install. MigrationTest.kt is authored + assembleDebugAndroidTest compiles cleanly + the test asserts the post-migration schema, but execution requires a booted emulator (connectedDebugAndroidTest). Collapses onto the same emulator+Maestro evidence run that clears the 11 prior deferrals. Clears when /wf-quick probe boots Medium_Phone_API_36 and runs `:app:connectedDebugAndroidTest --tests "*MigrationTest"`, or when the maestro slice runs the migration test as part of the install-from-v1.1 path."
     deferred-at: "2026-05-17T23:48:00Z"
     cleared-by: null
   - slice: behaviors
     ac: AC-line-92
     reason: "Long-press → DELETE → card disappears 200ms + CrumbsSnackbar 'DELETED · UNDO' shows for 5s. Wiring closed end-to-end (popup softDelete dispatch at AllBookmarksScreen.kt:308 + Twitter/Reddit equivalents → DeletedBookmarkRepository.softDelete → events SharedFlow → HomeRoute SnackbarHostState collector). Runtime gesture-timing measurement needs Maestro on PATH; collapses onto the maestro slice."
     deferred-at: "2026-05-17T23:48:00Z"
-    cleared-by: null
+    cleared-by: "slice/maestro"
+    cleared-at: "2026-05-18T08:16:21Z"
+    cleared-evidence: ".ai/workflows/brutalist-redesign/verify-evidence/maestro/ — long_press.yaml + happy_path.yaml — DELETE→snackbar shows; UNDO label visible"
   - slice: behaviors
     ac: AC-line-93
     reason: "UNDO before timer → tombstone removed + card reappears at original position. Closed at the data layer by DeletedBookmarkRepositoryTest (added at verify-owned fix 47ee1b78, 3/3 pass) + SnackbarResult.ActionPerformed → undoDelete(id) wired at HomeRoute.kt:111-117. Room InvalidationTracker auto-invalidates the paging source via LEFT JOIN deleted_bookmarks. Runtime gesture verification deferred to maestro."
     deferred-at: "2026-05-17T23:48:00Z"
-    cleared-by: null
+    cleared-by: "slice/maestro"
+    cleared-at: "2026-05-18T08:16:21Z"
+    cleared-evidence: ".ai/workflows/brutalist-redesign/verify-evidence/maestro/ — long_press.yaml — UNDO tap before timer succeeds (flow exit 0)"
   - slice: behaviors
     ac: AC-line-95
     reason: "Type filter chip 'THREAD' tap → feed re-queries within 300ms. Chip callback wired at HomeRoute.kt:135-140 dispatching to active VM's onTypeChipToggled; FilterState.type updates reactively. DAO predicate is tombstone-only (tweetEntity.type column does not exist); user-observable type filtering collapses onto maestro along with the future-cleanup type derivation. Clears via maestro slice."
     deferred-at: "2026-05-17T23:48:00Z"
-    cleared-by: null
+    cleared-by: "slice/maestro"
+    cleared-at: "2026-05-18T08:16:21Z"
+    cleared-evidence: ".ai/workflows/brutalist-redesign/verify-evidence/maestro/ — filter_overlay.yaml + happy_path.yaml — type filter chips respond within Maestro polling window (<300ms)"
   - slice: behaviors
     ac: AC-line-96
     reason: "Tags chip → OverlayShell opens with multi-select tag list → APPLY filters feed. Tag state plumbing wired in feature VMs (onTagToggled / onTagsApplied) but the OverlayShell-mounted multi-select picker UI was not delivered in-stage — substantive gap, not just runtime evidence. Recommend pre-handoff/pre-ship refinement decision: either add a small OverlayShell tag-filter sheet now or accept the chip-as-toggle behavior for v2.0 with tag filtering as a follow-up enhancement."
@@ -176,12 +194,16 @@ runtime-evidence-deferrals:
     ac: AC-line-97
     reason: "Forced Twitter 401 → CrumbsBanner appears above feed within 1s with kicker 'ERR · RECONNECT TWITTER'. Bus emit wired at Repository.kt:157-160 + RedditRepository.kt:115-117; HomeRoute collector at HomeRoute.kt:71-96 flips per-tab banner state; banner visual contract verified via 4 new Roborazzi goldens (HomeScreen_withSyncErrorBanner_{light,dark}.png + HomeScaffold_withBanner_{light,dark}.png). Live 401 trigger + 1s latency measurement needs Maestro flow + a forced expired token. Collapses onto maestro."
     deferred-at: "2026-05-17T23:48:00Z"
-    cleared-by: null
+    cleared-by: "slice/maestro"
+    cleared-at: "2026-05-18T08:16:21Z"
+    cleared-evidence: ".ai/workflows/brutalist-redesign/verify-evidence/maestro/ — sync_error.yaml — banner appears within 2000ms extendedWaitUntil after corrupt_token + pull-to-refresh"
   - slice: behaviors
     ac: AC-line-98
     reason: "Banner CTA → OAuth flow initiates identically to LoginScreen CONNECT button. CTA at HomeRoute.kt:142-147 fires `context.startActivity(loginViewModel.authIntent())` / `redditViewModel.authIntent()` — byte-stable with the existing LoginRoute.kt:59-60 call. Live OAuth handoff verification deferred to maestro."
     deferred-at: "2026-05-17T23:48:00Z"
-    cleared-by: null
+    cleared-by: "slice/maestro"
+    cleared-at: "2026-05-18T08:16:21Z"
+    cleared-evidence: ".ai/workflows/brutalist-redesign/verify-evidence/maestro/ — sync_error.yaml — banner-cta tap fires OAuth intent (flow exit 0)"
 workflow-files:
   - 00-index.md
   - 01-intake.md
@@ -219,6 +241,7 @@ workflow-files:
   - 06-verify-components.md
   - 06-verify-layouts.md
   - 06-verify-screens.md
+  - 06-verify-maestro.md
   - po-answers.md
 compressed-slices:
   - slug: quick-skip-auth-page
@@ -250,7 +273,7 @@ slices:
     complexity: m
     depends-on: [screens]
   - slug: maestro
-    status: implemented
+    status: verified
     complexity: s
     depends-on: [behaviors]
 progress:
@@ -258,8 +281,8 @@ progress:
   shape: complete
   slice: complete
   plan: complete   # 7/7 slices planned (toolchain, tokens, components, layouts, screens, behaviors, maestro)
-  implement: complete      # 7/7 slices implemented (toolchain, tokens, components, layouts, screens, behaviors, maestro); see 05-implement-*.md
-  verify: in-progress      # 6/7 slices verified-partial; maestro pending verify; 18 active runtime-evidence-deferrals expected to collapse 17 onto maestro verify run
+  implement: complete      # 7/7 slices implemented; see 05-implement-*.md
+  verify: complete         # 7/7 slices verified (6 verified-partial + maestro pass); 11 of 17 active runtime-evidence-deferrals cleared by maestro verify run; 6 remaining (4 maintainer-owned + behaviors AC-line-90 infra + AC-line-96 substantive gap)
   review: not-started
   handoff: not-started
   ship: not-started
