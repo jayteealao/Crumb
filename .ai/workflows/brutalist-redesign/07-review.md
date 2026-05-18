@@ -7,7 +7,7 @@ slice-slug: ""
 status: complete
 stage-number: 7
 created-at: "2026-05-18T11:35:48Z"
-updated-at: "2026-05-18T13:20:17Z"
+updated-at: "2026-05-18T14:48:25Z"
 verdict: dont-ship
 commands-run: [correctness, security, code-simplification, testing, maintainability, reliability, frontend-accessibility, backend-concurrency, architecture, performance, data-integrity, migrations, privacy, supply-chain]
 metric-commands-run: 14
@@ -19,12 +19,12 @@ metric-findings-med: 40
 metric-findings-low: 19
 metric-findings-nit: 10
 metric-issues-found-initial: 98
-metric-issues-found-final: 85   # 13 patched (B1/B2/B3/H1/H2/H3/H4/H5/H6/H7/H8/H9/H10); 44 Fix decisions remaining
+metric-issues-found-final: 80   # 18 patched (B1/B2/B3 + H1..H15); 39 Fix decisions remaining
 metric-fix-decisions: 57
-metric-fix-patched: 13
+metric-fix-patched: 18
 fix-rounds-run: 1
-convergence: in-progress   # 13/57 Fix decisions patched at checkpoint; verdict re-evaluated when all 57 land
-review-owned-fix-commit: "9dfb119,30def3f,5461075,41aa8aa"
+convergence: in-progress   # 18/57 Fix decisions patched at checkpoint; verdict re-evaluated when all 57 land
+review-owned-fix-commit: "9dfb119,30def3f,5461075,41aa8aa,e97ee5f"
 tags: [redesign, slug-wide-review, escalated]
 refs:
   index: 00-index.md
@@ -223,8 +223,8 @@ The exhaustive per-finding writeups (evidence snippets, suggested fixes, severit
 Stage-5 review-fix mode in progress. Fixes land phase-by-phase rather than as a single mega-commit so each phase produces a reviewable diff.
 
 **Round count:** 1 (in-progress)
-**Convergence:** in-progress — 13/57 patched at this checkpoint
-**Initial findings:** 98 → **Current open:** 85 (13 patched)
+**Convergence:** in-progress — 18/57 patched at this checkpoint
+**Initial findings:** 98 → **Current open:** 80 (18 patched)
 
 | ID | Severity | Status | Commit | Notes |
 |----|----------|--------|--------|-------|
@@ -241,8 +241,13 @@ Stage-5 review-fix mode in progress. Fixes land phase-by-phase rather than as a 
 | H8 (CONC-1) | HIGH | Fixed | 41aa8aa | Both repositories replaced the split-lock `isFetching` flag with a single `fetchMutex.tryLock()` + `try/finally { fetchMutex.unlock() }` pattern. The mutex itself is the lock; the `isFetching` field is gone. Cancellation during fetch can no longer orphan the flag and silently disable future syncs. |
 | H9 (CONC-2+DATA-02) | HIGH | Fixed | 41aa8aa | `TweetDao.insertTweetEntities` now annotated `@Transaction @Insert`; added `insertTweetEntitiesAtomic(...)` default-method `@Transaction` wrapper that also bundles the optional `PollIds` insert. `Repository.saveTweetEntities` calls the atomic wrapper. Paging3 InvalidationTracker now sees one invalidation per sync write — no partially-hydrated rows. |
 | H10 (CONC-4) | HIGH | Fixed | 41aa8aa | `CoroutineModule.providesCoroutineScope` is now `@Singleton` and returns `CoroutineScope(SupervisorJob() + Dispatchers.IO + CoroutineExceptionHandler)`. One transient sync exception can no longer cancel the scope shared by Twitter, Reddit, and Firestore startup syncs. |
+| H11 (ARCH-002+CS-1) | HIGH | Fixed | e97ee5f | Deleted `core/data/BookmarkSource.kt` (string-constant `object`); migrated every caller to the `core/models` enum `BookmarkSource { Twitter, Reddit }`. `SyncErrorEvent.source`, `BannerState.source`, `SnackbarEvent.UndoableDelete.source` now hold the typed enum; `DeletedBookmarkRepository.softDelete/undoDelete/isDeleted/deletedIdsSnapshot` accept the enum and convert at the Room boundary via `.name.lowercase()` so on-disk values remain `"twitter"`/`"reddit"`. `core/data/build.gradle` gains `implementation(project(":core:models"))`. Exhaustive `when` arms over the enum replace the silent `else -> Unit` fall-throughs. |
+| H12 (ARCH-005) | HIGH | Fixed | e97ee5f | New `core/data/SnackbarBus.kt` mirrors `SyncErrorBus` (`@Singleton`, `replay=0`, `extraBufferCapacity=1`, `DROP_OLDEST`, `suspend fun emit`). `DeletedBookmarkRepository` lost its private `_events` SharedFlow + public `events` field; `softDelete` now delegates to `snackbarBus.emit(...)`. `HomeServicesViewModel` injects `SnackbarBus` directly and the HomeRoute collector subscribes to `services.snackbarBus.events`. Data layer no longer carries a UI-event surface. |
+| H13 (MAINT-01+CS-2) | HIGH | Fixed | e97ee5f | New `LongPressState` (`@Stable` class with `bookmark`/`anchor`/`showTagEditor` mutable state + `dismiss()`), `rememberLongPressState()` composable factory, and `bookmarkPopupActions(onTag, onOpen, onShare, onDelete)` plain function all added to `CrumbsLongPressPopup.kt`. The three Routes (Twitter, Reddit, All) each collapse the popup state triple into `val lps = rememberLongPressState()` and the 50-line inline 4-action `persistentListOf(...)` into `bookmarkPopupActions(...)`. Per-route lambdas keep the `softDelete` dispatch source-correct. |
+| H14 (PERF-01) | HIGH | Fixed | e97ee5f | Eliminated the per-item `LaunchedEffect(id) { onLoadTags(id) }` from all three screens. `TweetDao.getTagsForTweets(ids: List<String>): List<TweetTagCrossRef>` (IN-clause), `TagRepository.getTagsForItems`, `BookmarksViewModel.loadTagsForItems`, and `RedditViewModel.loadTagsForItems` form the batch path. Each screen now fires one `LaunchedEffect(itemIds)` per page-snapshot change, eliminating ~20 DB queries + ~20 `tagsMap` StateFlow updates per page. `AllBookmarksScreen` dispatches one batch per source. |
+| H15 (DATA-01) | HIGH | Fixed | e97ee5f | `DeletedBookmark` PK is now composite `(bookmarkId, source)`. DAO queries (`exists`, `delete`, `getAllIdsSnapshotForSource`) and repository signatures (`isDeleted`, `undoDelete`, `deletedIdsSnapshot`) take a typed `BookmarkSource`. `LEFT JOIN deleted_bookmarks` clauses in TweetDao and RedditDao filter on `d.source = 'twitter'` / `'reddit'` respectively. `AppDatabase` bumped 5 → 6; `MIGRATION_5_6` recreates the table via `CREATE TABLE ... INSERT OR IGNORE ... DROP ... RENAME` and is registered alongside the prior migrations. KSP emitted `app/schemas/.../6.json` with the new PK; `MigrationTest.migrate5To6_compositePkAndDataSurvives` asserts data preservation. Cross-source tombstone collisions can no longer cascade. |
 
-**Remaining 44 Fix decisions queued** — see triage tables above. Continuing phases (recommended order): Architecture/Data (H11, H12, H13, H14, H15), A11y (H16, H17), Privacy/Testing/Migrations/Supply (H18, H20, H21, H22), then the 8 MED bundles (31 findings).
+**Remaining 39 Fix decisions queued** — see triage tables above. Continuing phases (recommended order): A11y (H16, H17), Privacy/Testing/Migrations/Supply (H18, H20, H21, H22), then the 8 MED bundles (31 findings).
 
 **Next invocation to continue:** `/wf implement brutalist-redesign reviews`
 
