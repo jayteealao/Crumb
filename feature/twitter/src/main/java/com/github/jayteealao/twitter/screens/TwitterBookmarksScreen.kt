@@ -11,10 +11,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -170,10 +170,10 @@ fun TwitterBookmarksRoute(
 ) {
     val context = LocalContext.current
     val pagedBookmarks = bookmarksViewModel.pagingFlowData().collectAsLazyPagingItems()
-    val loggedIn by loginViewModel.isAccessTokenAvailable.collectAsState()
-    val tagsMap by bookmarksViewModel.tagsForTweet.collectAsState()
-    val allTags by bookmarksViewModel.allTags.collectAsState()
-    val isRefreshing by bookmarksViewModel.isRefreshing.collectAsState()
+    val loggedIn by loginViewModel.isAccessTokenAvailable.collectAsStateWithLifecycle()
+    val tagsMap by bookmarksViewModel.tagsForTweet.collectAsStateWithLifecycle()
+    val allTags by bookmarksViewModel.allTags.collectAsStateWithLifecycle()
+    val isRefreshing by bookmarksViewModel.isRefreshing.collectAsStateWithLifecycle()
 
     val lps = rememberLongPressState()
 

@@ -170,7 +170,9 @@ class RedditViewModel @Inject constructor(
     fun loadTagsForTweet(id: String) {
         viewModelScope.launch {
             val tags = tagRepository.getTagsForTweet(id)
-            _tagsForTweet.value = _tagsForTweet.value + (id to tags)
+            // .update is atomic CAS so concurrent loads cannot lose each
+            // other's writes (read-modify-write race fix).
+            _tagsForTweet.update { it + (id to tags) }
         }
     }
 
@@ -178,7 +180,7 @@ class RedditViewModel @Inject constructor(
         if (ids.isEmpty()) return
         viewModelScope.launch {
             val batch = tagRepository.getTagsForItems(ids)
-            _tagsForTweet.value = _tagsForTweet.value + batch
+            _tagsForTweet.update { it + batch }
         }
     }
 

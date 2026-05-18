@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -156,9 +156,9 @@ fun RedditBookmarksRoute(
 ) {
     val context = LocalContext.current
     val pagedPosts = redditViewModel.pagingFlowData().collectAsLazyPagingItems()
-    val loggedIn by redditViewModel.isAccessTokenAvailable.collectAsState()
-    val tagsMap by redditViewModel.tagsForTweet.collectAsState()
-    val allTags by redditViewModel.allTags.collectAsState()
+    val loggedIn by redditViewModel.isAccessTokenAvailable.collectAsStateWithLifecycle()
+    val tagsMap by redditViewModel.tagsForTweet.collectAsStateWithLifecycle()
+    val allTags by redditViewModel.allTags.collectAsStateWithLifecycle()
 
     val lps = rememberLongPressState()
 

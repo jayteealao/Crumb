@@ -10,7 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -228,12 +228,12 @@ fun AllBookmarksRoute(
     val context = LocalContext.current
 
     val twitterItems = bookmarksViewModel.pagingFlowData().collectAsLazyPagingItems()
-    val twitterLoggedIn by loginViewModel.isAccessTokenAvailable.collectAsState()
+    val twitterLoggedIn by loginViewModel.isAccessTokenAvailable.collectAsStateWithLifecycle()
     val redditItems = redditViewModel.pagingFlowData().collectAsLazyPagingItems()
-    val redditLoggedIn by redditViewModel.isAccessTokenAvailable.collectAsState()
+    val redditLoggedIn by redditViewModel.isAccessTokenAvailable.collectAsStateWithLifecycle()
 
-    val tagsMap by bookmarksViewModel.tagsForTweet.collectAsState()
-    val allTags by bookmarksViewModel.allTags.collectAsState()
+    val tagsMap by bookmarksViewModel.tagsForTweet.collectAsStateWithLifecycle()
+    val allTags by bookmarksViewModel.allTags.collectAsStateWithLifecycle()
 
     val lps = rememberLongPressState()
 

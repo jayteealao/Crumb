@@ -15,6 +15,7 @@ import kotlinx.collections.immutable.toPersistentSet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -98,7 +99,10 @@ class BookmarksViewModel @Inject constructor(
     fun loadTagsForTweet(tweetId: String) {
         viewModelScope.launch {
             val tags = repository.getTagsForTweet(tweetId)
-            _tagsForTweet.value = _tagsForTweet.value + (tweetId to tags)
+            // .update is an atomic CAS — two concurrent single-item loads
+            // can no longer lose each other's writes (the previous
+            // `value = value + pair` was a read-modify-write race).
+            _tagsForTweet.update { it + (tweetId to tags) }
         }
     }
 
@@ -106,9 +110,9 @@ class BookmarksViewModel @Inject constructor(
         if (ids.isEmpty()) return
         viewModelScope.launch {
             val batch = repository.getTagsForItems(ids)
-            // Merge: preserve existing entries not in the batch so single-item
-            // updates from saveTags() are not overwritten.
-            _tagsForTweet.value = _tagsForTweet.value + batch
+            // Same atomic merge — preserves existing entries not in the
+            // batch so single-item saveTags() updates are not overwritten.
+            _tagsForTweet.update { it + batch }
         }
     }
 
