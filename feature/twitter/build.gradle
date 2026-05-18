@@ -6,6 +6,14 @@ plugins {
     id 'io.github.takahirom.roborazzi' version '1.60.0'
 }
 
+def twitterLocalProps = new Properties()
+def twitterLocalFile = rootProject.file('local.properties')
+if (twitterLocalFile.exists()) {
+    twitterLocalProps.load(twitterLocalFile.newReader())
+}
+def twitterClientId = twitterLocalProps.getProperty('twitter.clientId', '')
+def twitterClientSecret = twitterLocalProps.getProperty('twitter.clientSecret', '')
+
 android {
     namespace 'com.github.jayteealao.twitter'
     compileSdk 35
@@ -16,6 +24,9 @@ android {
         targetSdk 35
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField "String", "TWITTER_CLIENT_ID", "\"${twitterClientId}\""
+        buildConfigField "String", "TWITTER_CLIENT_SECRET", "\"${twitterClientSecret}\""
     }
 
     buildTypes {
@@ -31,6 +42,7 @@ android {
 
     buildFeatures {
         compose true
+        buildConfig true
     }
     packagingOptions {
         resources {

@@ -3,6 +3,7 @@ package com.github.jayteealao.twitter.services
 import android.content.Intent
 import android.net.Uri
 import android.util.Base64
+import com.github.jayteealao.twitter.BuildConfig
 import com.github.jayteealao.twitter.models.TokenResponse
 import com.skydoves.sandwich.getOrNull
 import com.skydoves.sandwich.message
@@ -30,7 +31,7 @@ class TwitterAuthClientImpl @Inject constructor(
 
     private val authorizationUrl: String
         get() = "https://x.com/i/oauth2/authorize?response_type=code" +
-            "&client_id=QnFuclQ0SGZIS01zVlZsdm5jU0o6MTpjaQ" +
+            "&client_id=${BuildConfig.TWITTER_CLIENT_ID}" +
             "&redirect_uri=crumbs://graphitenerd.xyz" +
             "&scope=offline.access%20tweet.read%20users.read%20bookmark.read%20bookmark.write" +
             "&state=state&code_challenge=$codeChallenge&code_challenge_method=S256"
@@ -96,7 +97,7 @@ class TwitterAuthClientImpl @Inject constructor(
 //            credentials.twitterOauth2RefreshToken = result.refreshToken
             result = twitterAuthService.getAppOnlyAccessToken(
                     AppOnlyBody(),
-                    "Basic ${Base64.encodeToString("QnFuclQ0SGZIS01zVlZsdm5jU0o6MTpjaQ:r3KjJTwKRuhNrBDJgFI0SzkCQqYlf59H3CrgfBSDASda3Lc-MM".toByteArray(), Base64.NO_WRAP + Base64.URL_SAFE)}",
+                    "Basic ${Base64.encodeToString("${BuildConfig.TWITTER_CLIENT_ID}:${BuildConfig.TWITTER_CLIENT_SECRET}".toByteArray(), Base64.NO_WRAP + Base64.URL_SAFE)}",
                 ).onError {
                     Timber.d("$response")
                 }.onException {

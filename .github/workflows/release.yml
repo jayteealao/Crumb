@@ -64,13 +64,15 @@ jobs:
             echo "SIGNING_KEY_PASSWORD=${{ secrets.SIGNING_KEY_PASSWORD }}"
           } >> $GITHUB_ENV
 
-      # --- Build (adjust module & tasks as needed) ---
-      # If you have flavors, e.g., prod, replace with assembleProdRelease/bundleProdRelease
-      - name: Build APK (Debug)
+      # --- Build both variants. Release goes through the debug-injector
+      # absence gate; debug ships alongside for sideloaders who want the
+      # in-app debug surface. Same signing key applies to both when the
+      # keystore secrets are present.
+      - name: Build APKs (Debug + Release with gate)
         run: |
-          ./gradlew --no-daemon clean assembleDebug
+          ./gradlew --no-daemon clean assembleDebug assembleRelease verifyReleaseDebugInjectorAbsent
 
-      - name: List build outputs (debug)
+      - name: List build outputs
         if: always()
         run: |
           echo "=== APK outputs ==="
@@ -85,16 +87,18 @@ jobs:
           TAG="${GITHUB_REF_NAME}"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
-          # Find debug APK (automatically signed with debug keystore)
-          APK=$(find . -type f -path "*/app/build/outputs/apk/debug/*.apk" ! -name "*-unaligned.apk" | head -n1)
+          DEBUG_APK=$(find . -type f -path "*/app/build/outputs/apk/debug/*.apk" ! -name "*-unaligned.apk" | head -n1)
+          RELEASE_APK=$(find . -type f -path "*/app/build/outputs/apk/release/*.apk" ! -name "*-unaligned.apk" | head -n1)
           AAB=""
           MAP=""
 
-          echo "Found APK: ${APK}"
+          echo "Found Debug APK: ${DEBUG_APK}"
+          echo "Found Release APK: ${RELEASE_APK}"
           echo "Found AAB: ${AAB}"
           echo "Found Mapping: ${MAP}"
 
-          echo "apk=${APK}" >> "$GITHUB_OUTPUT"
+          echo "debug_apk=${DEBUG_APK}" >> "$GITHUB_OUTPUT"
+          echo "release_apk=${RELEASE_APK}" >> "$GITHUB_OUTPUT"
           echo "aab=${AAB}" >> "$GITHUB_OUTPUT"
           echo "mapping=${MAP}" >> "$GITHUB_OUTPUT"
 
@@ -152,14 +156,22 @@ jobs:
           body_path: ${{ steps.body.outputs.file }}
           generate_release_notes: ${{ !hashFiles(format('CHANGELOG-{0}.md', steps.find_outputs.outputs.tag)) }}
           files: |
-            ${{ steps.find_outputs.outputs.apk }}
+            ${{ steps.find_outputs.outputs.debug_apk }}
+            ${{ steps.find_outputs.outputs.release_apk }}
             ${{ steps.find_outputs.outputs.aab }}
             ${{ steps.find_outputs.outputs.mapping }}
             CHANGELOG-${{ steps.find_outputs.outputs.tag }}.md
 
-      - name: Upload APK artifact
-        if: ${{ env.ACT == 'true' && steps.find_outputs.outputs.apk != '' }}
+      - name: Upload Debug APK artifact
+        if: ${{ env.ACT == 'true' && steps.find_outputs.outputs.debug_apk != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Crumbs-${{ steps.find_outputs.outputs.tag }}.apk
-          path: ${{ steps.find_outputs.outputs.apk }}
+          name: Crumbs-${{ steps.find_outputs.outputs.tag }}-debug.apk
+          path: ${{ steps.find_outputs.outputs.debug_apk }}
+
+      - name: Upload Release APK artifact
+        if: ${{ env.ACT == 'true' && steps.find_outputs.outputs.release_apk != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Crumbs-${{ steps.find_outputs.outputs.tag }}-release.apk
+          path: ${{ steps.find_outputs.outputs.release_apk }}

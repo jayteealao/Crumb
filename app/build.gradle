@@ -58,6 +58,11 @@ android {
                 signingConfig signingConfigs.release
             }
         }
+        debug {
+            if (System.getenv("SIGNING_STORE_FILE") != null) {
+                signingConfig signingConfigs.release
+            }
+        }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17

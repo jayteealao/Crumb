@@ -1,7 +1,7 @@
 package com.github.jayteealao.twitter.services
 
+import com.github.jayteealao.twitter.BuildConfig
 import com.github.jayteealao.twitter.models.TokenResponse
-import com.github.jayteealao.twitter.utils.CLIENT_ID
 import com.google.gson.annotations.SerializedName
 import com.skydoves.sandwich.ApiResponse
 import retrofit2.http.Body
@@ -20,7 +20,7 @@ interface TwitterAuthService {
         @Field("code") code: String,
         @Field("code_verifier") codeVerifier: String,
         @Field("grant_type") grantType: String = "authorization_code",
-        @Field("client_id") clientId: String = CLIENT_ID,
+        @Field("client_id") clientId: String = BuildConfig.TWITTER_CLIENT_ID,
         @Field("redirect_uri") redirectUri: String = "crumbs://graphitenerd.xyz"
     ): ApiResponse<TokenResponse>
 
@@ -37,7 +37,7 @@ interface TwitterAuthService {
     suspend fun refreshAccessToken(
         @Field("refresh_token") refreshToken: String,
         @Field("grant_type") grantType: String = "refresh_token",
-        @Field("client_id") clientId: String = CLIENT_ID
+        @Field("client_id") clientId: String = BuildConfig.TWITTER_CLIENT_ID
     ): ApiResponse<TokenResponse>
 
     @Headers("Content-Type: application/x-www-form-urlencoded")
@@ -45,7 +45,7 @@ interface TwitterAuthService {
     @POST("2/oauth2/revoke")
     suspend fun revokeAccessToken(
         @Field("token") accessToken: String,
-        @Field("client_id") clientId: String = CLIENT_ID,
+        @Field("client_id") clientId: String = BuildConfig.TWITTER_CLIENT_ID,
         @Field("token_type_hint") tokenTypeHint: String = "access_token"
     ): ApiResponse<TokenResponse>
 }
