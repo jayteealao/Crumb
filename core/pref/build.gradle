@@ -38,8 +38,8 @@ dependencies {
 
     implementation 'androidx.datastore:datastore-preferences:1.0.0'
     //    hilt
-    implementation "com.google.dagger:hilt-android:2.59.2"
-    ksp "com.google.dagger:hilt-compiler:2.59.2"
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
 
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.4'

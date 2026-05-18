@@ -1,6 +1,5 @@
 package com.github.jayteealao.crumbs.screens
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -69,14 +68,12 @@ fun HomeScreen(
         },
         banner = uiState.bannerState?.let { state ->
             {
-                AnimatedVisibility(visible = true) {
-                    CrumbsBanner(
-                        kickerLine = state.kicker,
-                        detail = state.detail,
-                        ctaLabel = state.ctaLabel,
-                        onCta = onBannerCta,
-                    )
-                }
+                CrumbsBanner(
+                    kickerLine = state.kicker,
+                    detail = state.detail,
+                    ctaLabel = state.ctaLabel,
+                    onCta = onBannerCta,
+                )
             }
         },
         filterBar = {

@@ -80,8 +80,8 @@ dependencies {
     ksp(libs.room.compiler)
 
 //    hilt
-    implementation "com.google.dagger:hilt-android:2.59.2"
-    ksp "com.google.dagger:hilt-compiler:2.59.2"
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
 
 //    retrofit
     implementation(libs.bundles.retrofit)
@@ -102,7 +102,7 @@ dependencies {
     implementation libs.firebase.firestore
 
 //    arrow-optics
-    implementation "io.arrow-kt:arrow-optics:$arrowVersion"
+    implementation(libs.arrow.optics)
 
 //    media3-exoplayer
     implementation("androidx.media3:media3-exoplayer:1.0.0-beta02")

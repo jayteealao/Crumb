@@ -10,6 +10,7 @@ lifecycle = "2.6.0-alpha01"
 retrofit = "2.9.0"
 room = "2.8.4"
 firebase-bom = "32.7.0"
+hilt = "2.59.2"
 
 [libraries]
 #compose BOM (governs all androidx.compose.* artifacts below)
@@ -58,6 +59,11 @@ robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectr
 #firebase
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
 firebase-firestore = { module = "com.google.firebase:firebase-firestore-ktx" }
+#hilt
+hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
+hilt-compiler = { module = "com.google.dagger:hilt-compiler", version.ref = "hilt" }
+#arrow
+arrow-optics = { module = "io.arrow-kt:arrow-optics", version.ref = "arrow" }
 [bundles]
 androidx = ['androidx-core', 'androidx-lifecycle']
 compose = ['compose-ui', 'compose-uiTooling', 'compose-foundation', 'compose-material', 'compose-materialIcons', 'compose-materialIconsExt', 'compose-runtime']
