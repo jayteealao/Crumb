@@ -13,8 +13,8 @@ import com.github.jayteealao.reddit.models.toEntity
 import com.github.jayteealao.reddit.services.RedditApiService
 import com.github.jayteealao.reddit.services.RedditAuthClient
 import com.skydoves.sandwich.message
-import com.skydoves.sandwich.onError
-import com.skydoves.sandwich.onSuccess
+import com.skydoves.sandwich.suspendOnError
+import com.skydoves.sandwich.suspendOnSuccess
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -38,6 +38,9 @@ class RedditRepository @Inject constructor(
     private var latestPostInDatabase: com.github.jayteealao.reddit.models.RedditPostEntity? = null
     private var orderOfLastPost: Int = 1000
     private val fetchMutex = Mutex()
+    // Guards concurrent token refresh attempts; pairs with [refreshTokenSingleFlight]
+    // so a 401 storm from parallel paginations does not spawn duplicate refresh calls.
+    private val refreshMutex = Mutex()
 
     companion object {
         const val BUFFER = 250
@@ -99,7 +102,7 @@ class RedditRepository @Inject constructor(
                         var entitiesToInsert: List<com.github.jayteealao.reddit.models.RedditPostEntity>? = null
                         hasMore = false
 
-                        response.onSuccess {
+                        response.suspendOnSuccess {
                             Timber.d("Fetched ${data.data.children.size} Reddit posts")
 
                             // Prepare posts for database; gate on tombstone presence
@@ -117,17 +120,23 @@ class RedditRepository @Inject constructor(
                             after = data.data.after
                             hasMore = after != null
 
-                        }.onError {
+                        }.suspendOnError {
                             Timber.e("Error fetching Reddit posts: ${message()}")
 
                             if (statusCode.code == 401) {
-                                syncErrorBus.emit(SyncErrorEvent.RedditAuth401())
-                                if (refreshToken.isNotBlank()) {
-                                    scope.launch {
-                                        redditAuthClient.refreshAccessToken(refreshToken)
-                                    }
+                                // Refresh-first: try silent recovery before alarming the
+                                // user. Await the refresh (single-flight) so any retry
+                                // sees the persisted token; only banner on hard failure.
+                                val recovered = refreshToken.isNotBlank() &&
+                                    refreshTokenSingleFlight(refreshToken)
+                                if (!recovered) {
+                                    syncErrorBus.emit(SyncErrorEvent.RedditAuth401())
                                 }
                             }
+                            // Any error (401 or otherwise) breaks the pagination loop
+                            // — hasMore is already false here, but keeping the comment
+                            // pins the contract so future edits do not reintroduce a
+                            // runaway fetch on transient network errors.
                         }
 
                         // Insert entities outside the callback
@@ -197,6 +206,37 @@ class RedditRepository @Inject constructor(
         config = PagingConfig(pageSize = 20),
         pagingSourceFactory = { redditDao.getPostsBySubreddit(subreddit) }
     ).flow
+
+    /**
+     * Single-flight access-token refresh. Returns true if a fresh access token has
+     * been persisted by [RedditAuthClient.refreshAccessToken] (it writes to Prefs
+     * internally), false on hard failure.
+     *
+     * tryLock semantics: if another caller is already refreshing, skip and return
+     * true — the concurrent refresh will populate Prefs and the next buildDatabase
+     * invocation will pick up the new token.
+     */
+    private suspend fun refreshTokenSingleFlight(currentRefreshToken: String): Boolean {
+        if (!refreshMutex.tryLock()) {
+            Timber.d("refreshTokenSingleFlight: another refresh in flight, deferring")
+            return true
+        }
+        return try {
+            val newAccess = redditAuthClient.refreshAccessToken(currentRefreshToken)
+            if (!newAccess.isNullOrBlank()) {
+                Timber.d("refreshTokenSingleFlight: Reddit token refreshed")
+                true
+            } else {
+                Timber.w("refreshTokenSingleFlight: Reddit refresh returned null")
+                false
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "refreshTokenSingleFlight: exception during Reddit refresh")
+            false
+        } finally {
+            refreshMutex.unlock()
+        }
+    }
 
     /**
      * Clear stored Reddit auth state. Local-only — no Reddit revoke endpoint call.

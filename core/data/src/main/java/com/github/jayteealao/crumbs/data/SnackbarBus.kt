@@ -12,7 +12,9 @@ class SnackbarBus @Inject constructor() {
 
     private val _events = MutableSharedFlow<SnackbarEvent>(
         replay = 0,
-        extraBufferCapacity = 1,
+        // 16 slots absorb rapid multi-delete bursts without dropping undo affordances.
+        // DROP_OLDEST is retained as a safety net for pathological floods.
+        extraBufferCapacity = 16,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
 
