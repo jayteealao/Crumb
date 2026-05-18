@@ -6,6 +6,7 @@ import com.github.jayteealao.crumbs.data.DeletedBookmark
 import com.github.jayteealao.crumbs.data.DeletedBookmarkDao
 import com.github.jayteealao.reddit.data.RedditDao
 import com.github.jayteealao.reddit.models.RedditPostEntity
+import com.github.jayteealao.reddit.models.RedditTagCrossRef
 import com.github.jayteealao.twitter.data.TweetDao
 import com.github.jayteealao.twitter.models.MediaKeys
 import com.github.jayteealao.twitter.models.PollIds
@@ -35,9 +36,10 @@ import com.github.jayteealao.twitter.models.TwitterUserEntity
         TagEntity::class,
         TweetTagCrossRef::class,
         RedditPostEntity::class,
+        RedditTagCrossRef::class,
         DeletedBookmark::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {

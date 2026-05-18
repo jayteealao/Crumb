@@ -89,6 +89,25 @@ data class RedditPostEntity(
 )
 
 /**
+ * Reddit-side tag cross-reference. Distinct from `tweet_tags` because the
+ * Twitter cross-ref carries an FK to `tweetEntity.id` — wiring Reddit through
+ * that table would throw SQLITE_CONSTRAINT_FOREIGNKEY on every Reddit tag
+ * save. The `tags` table is reused for tag names; only the link table is
+ * source-scoped. No FK to `reddit_posts` here so a tag can survive a post
+ * being purged from the local cache (matches Twitter's behavior after the
+ * v8 FK changes).
+ */
+@Entity(
+    tableName = "reddit_tag_crossref",
+    primaryKeys = ["postId", "tagName"],
+    indices = [Index("postId"), Index("tagName")]
+)
+data class RedditTagCrossRef(
+    val postId: String,
+    val tagName: String,
+)
+
+/**
  * User profile response
  */
 data class RedditUserResponse(

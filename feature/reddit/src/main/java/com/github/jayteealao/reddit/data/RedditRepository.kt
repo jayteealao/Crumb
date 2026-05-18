@@ -8,7 +8,9 @@ import com.github.jayteealao.crumbs.data.DeletedBookmarkRepository
 import com.github.jayteealao.crumbs.data.FilterState
 import com.github.jayteealao.crumbs.data.SyncErrorBus
 import com.github.jayteealao.crumbs.data.SyncErrorEvent
+import com.github.jayteealao.crumbs.data.TagRepository
 import com.github.jayteealao.reddit.models.RedditPostData
+import com.github.jayteealao.reddit.models.RedditTagCrossRef
 import com.github.jayteealao.reddit.models.toEntity
 import com.github.jayteealao.reddit.services.RedditApiService
 import com.github.jayteealao.reddit.services.RedditAuthClient
@@ -35,7 +37,7 @@ class RedditRepository @Inject constructor(
     private val deletedBookmarkRepository: DeletedBookmarkRepository,
     private val syncErrorBus: SyncErrorBus,
     private val scope: CoroutineScope
-) {
+) : TagRepository {
     private var latestPostInDatabase: com.github.jayteealao.reddit.models.RedditPostEntity? = null
     private var orderOfLastPost: Int = 1000
     private val fetchMutex = Mutex()
@@ -240,6 +242,45 @@ class RedditRepository @Inject constructor(
                 Timber.e(e, "refreshTokenSingleFlight: exception during Reddit refresh")
                 false
             }
+        }
+    }
+
+    // --- TagRepository (source-scoped to Reddit) ---
+
+    override suspend fun addTagToTweet(id: String, tagName: String) {
+        // Param name is `tweetId` in the interface; we treat it as a Reddit
+        // post id and write to `reddit_tag_crossref` so the row is decoupled
+        // from `tweetEntity`'s FK (Round-1 H11 fix landed Reddit through
+        // Twitter's binding which then exploded with SQLITE_CONSTRAINT_FOREIGNKEY).
+        redditDao.insertSharedTag(tagName)
+        redditDao.insertRedditTagCrossRef(RedditTagCrossRef(id, tagName))
+    }
+
+    override suspend fun removeTagFromTweet(id: String, tagName: String) {
+        redditDao.deleteRedditTagCrossRef(id, tagName)
+    }
+
+    override suspend fun getTagsForTweet(id: String): List<String> {
+        return redditDao.getTagsForRedditPost(id)
+    }
+
+    override suspend fun getTagsForItems(ids: List<String>): Map<String, List<String>> {
+        if (ids.isEmpty()) return emptyMap()
+        return redditDao.getTagsForRedditPosts(ids)
+            .groupBy({ it.postId }, { it.tagName })
+    }
+
+    override suspend fun getAllTags(): List<String> {
+        return redditDao.getAllSharedTagNames()
+    }
+
+    override suspend fun saveTags(id: String, tags: List<String>) {
+        val currentTags = getTagsForTweet(id)
+        currentTags.forEach { tag ->
+            if (tag !in tags) removeTagFromTweet(id, tag)
+        }
+        tags.forEach { tag ->
+            if (tag !in currentTags) addTagToTweet(id, tag)
         }
     }
 

@@ -304,7 +304,12 @@ fun AllBookmarksRoute(
             availableTags = allTags.toImmutableList(),
             onDismiss = { lps.dismiss() },
             onSave = { tags ->
-                bookmarksViewModel.saveTags(lps.bookmark!!.id, tags.toList())
+                // Source-route the save so Reddit tags do not land in the
+                // Twitter cross-ref (whose FK to tweetEntity would crash).
+                when (lps.bookmark!!.source) {
+                    BookmarkSource.Twitter -> bookmarksViewModel.saveTags(lps.bookmark!!.id, tags.toList())
+                    BookmarkSource.Reddit -> redditViewModel.saveTags(lps.bookmark!!.id, tags.toList())
+                }
                 lps.dismiss()
             },
         )

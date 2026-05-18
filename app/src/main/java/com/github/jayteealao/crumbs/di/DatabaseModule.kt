@@ -123,7 +123,10 @@ class DatabaseModule {
         AppDatabase::class.java,
         "AppDatabase"
     )
-        .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+        .addMigrations(
+            MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
+            MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,
+        )
         .build()
 
     @Singleton
@@ -149,6 +152,29 @@ val MIGRATION_4_5: Migration = object : Migration(4, 5) {
                 PRIMARY KEY(`bookmarkId`)
             )
         """.trimIndent())
+    }
+}
+
+/**
+ * v8 → v9: add Reddit-side tag cross-reference table.
+ *
+ * The Twitter cross-ref (`tweet_tags`) carries an FK to `tweetEntity.id`,
+ * which made Reddit tag saves throw `SQLITE_CONSTRAINT_FOREIGNKEY` when
+ * tagRepository was bound through the Twitter Repository. The new
+ * `reddit_tag_crossref` table is source-scoped and has no parent FK so a
+ * tag survives a post being purged from the local cache (and so multi-
+ * source IDs cannot collide on insert).
+ */
+val MIGRATION_8_9: Migration = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `reddit_tag_crossref` (" +
+                "`postId` TEXT NOT NULL, " +
+                "`tagName` TEXT NOT NULL, " +
+                "PRIMARY KEY(`postId`, `tagName`))"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_reddit_tag_crossref_postId` ON `reddit_tag_crossref` (`postId`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_reddit_tag_crossref_tagName` ON `reddit_tag_crossref` (`tagName`)")
     }
 }
 

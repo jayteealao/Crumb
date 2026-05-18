@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.github.jayteealao.crumbs.data.FilterState
+import com.github.jayteealao.crumbs.data.RedditTags
 import com.github.jayteealao.crumbs.data.TagRepository
 import com.github.jayteealao.crumbs.data.TypeFilter
 import com.github.jayteealao.reddit.data.RedditPrefs
@@ -40,7 +41,7 @@ class RedditViewModel @Inject constructor(
     private val redditAuthClient: RedditAuthClient,
     private val redditApiService: RedditApiService,
     private val redditPrefs: RedditPrefs,
-    private val tagRepository: TagRepository
+    @RedditTags private val tagRepository: TagRepository
 ) : ViewModel() {
 
     private val _isAccessTokenAvailable = MutableStateFlow(false)
