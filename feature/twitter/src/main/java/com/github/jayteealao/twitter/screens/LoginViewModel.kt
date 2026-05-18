@@ -43,7 +43,7 @@ class LoginViewModel @Inject constructor(
     }
 
     suspend fun refreshToken(): Boolean {
-        val refreshed = authRepository.refreshAccessToken()!!
+        val refreshed = authRepository.refreshAccessToken() ?: false
         refreshedTokens = refreshed
         return refreshed
     }

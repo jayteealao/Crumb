@@ -157,7 +157,6 @@ fun HomeRoute(
             BottomNavTab.REDDIT -> RedditBookmarksRoute(
                 navController = navController,
                 contentPadding = padding,
-                bookmarksViewModel = bookmarksViewModel,
                 redditViewModel = redditViewModel,
             )
             BottomNavTab.ALL -> AllBookmarksRoute(

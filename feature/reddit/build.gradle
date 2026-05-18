@@ -54,7 +54,6 @@ dependencies {
     implementation(project(":core:models"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:data"))
-    implementation(project(":feature:twitter"))
     implementation(libs.bundles.room)
     ksp(libs.room.compiler)
 

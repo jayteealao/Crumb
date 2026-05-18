@@ -8,6 +8,7 @@ import com.github.jayteealao.crumbs.data.DeletedBookmarkRepository
 import com.github.jayteealao.crumbs.data.FilterState
 import com.github.jayteealao.crumbs.data.SyncErrorBus
 import com.github.jayteealao.crumbs.data.SyncErrorEvent
+import com.github.jayteealao.crumbs.data.TagRepository
 import com.github.jayteealao.crumbs.utils.produceTweetResponseEntities
 import com.github.jayteealao.twitter.data.firestore.FirestoreRepository
 import com.github.jayteealao.twitter.models.TagEntity
@@ -44,7 +45,7 @@ class Repository @Inject constructor(
     private val deletedBookmarkRepository: DeletedBookmarkRepository,
     private val syncErrorBus: SyncErrorBus,
     private val scope: CoroutineScope
-) {
+) : TagRepository {
     private var latestBookmarkInDatabase: TweetEntity? = null
     private var orderOfLastBookmark: Int = 1000
     private var needsRefresh = false
@@ -230,26 +231,26 @@ class Repository @Inject constructor(
     }
 
     // Tag operations
-    suspend fun addTagToTweet(tweetId: String, tagName: String) {
+    override suspend fun addTagToTweet(tweetId: String, tagName: String) {
         // Insert the tag if it doesn't exist
         tweetDao.insertTag(TagEntity(tagName))
         // Link the tag to the tweet
         tweetDao.insertTweetTag(TweetTagCrossRef(tweetId, tagName))
     }
 
-    suspend fun removeTagFromTweet(tweetId: String, tagName: String) {
+    override suspend fun removeTagFromTweet(tweetId: String, tagName: String) {
         tweetDao.deleteTweetTag(tweetId, tagName)
     }
 
-    suspend fun getTagsForTweet(tweetId: String): List<String> {
+    override suspend fun getTagsForTweet(tweetId: String): List<String> {
         return tweetDao.getTagsForTweet(tweetId)
     }
 
-    suspend fun getAllTags(): List<String> {
+    override suspend fun getAllTags(): List<String> {
         return tweetDao.getAllTags().map { it.name }
     }
 
-    suspend fun saveTags(tweetId: String, tags: List<String>) {
+    override suspend fun saveTags(tweetId: String, tags: List<String>) {
         // Get current tags
         val currentTags = getTagsForTweet(tweetId)
 

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.github.jayteealao.crumbs.data.FilterState
+import com.github.jayteealao.crumbs.data.TagRepository
 import com.github.jayteealao.crumbs.data.TypeFilter
 import com.github.jayteealao.reddit.data.RedditPrefs
 import com.github.jayteealao.reddit.data.RedditRepository
@@ -38,7 +39,8 @@ class RedditViewModel @Inject constructor(
     private val redditRepository: RedditRepository,
     private val redditAuthClient: RedditAuthClient,
     private val redditApiService: RedditApiService,
-    private val redditPrefs: RedditPrefs
+    private val redditPrefs: RedditPrefs,
+    private val tagRepository: TagRepository
 ) : ViewModel() {
 
     private val _isAccessTokenAvailable = MutableStateFlow(false)
@@ -54,9 +56,16 @@ class RedditViewModel @Inject constructor(
         .flatMapLatest { state -> redditRepository.pagingPostsData(state) }
         .cachedIn(viewModelScope)
 
+    private val _tagsForTweet = MutableStateFlow<Map<String, List<String>>>(emptyMap())
+    val tagsForTweet: StateFlow<Map<String, List<String>>> = _tagsForTweet
+
+    private val _allTags = MutableStateFlow<List<String>>(emptyList())
+    val allTags: StateFlow<List<String>> = _allTags
+
     init {
         checkAccessToken()
         redditRepository.buildDatabase()
+        loadAllTags()
     }
 
     /**
@@ -155,6 +164,27 @@ class RedditViewModel @Inject constructor(
 
     fun undoDelete(id: String) {
         viewModelScope.launch { redditRepository.undoDelete(id) }
+    }
+
+    fun loadTagsForTweet(id: String) {
+        viewModelScope.launch {
+            val tags = tagRepository.getTagsForTweet(id)
+            _tagsForTweet.value = _tagsForTweet.value + (id to tags)
+        }
+    }
+
+    fun loadAllTags() {
+        viewModelScope.launch {
+            _allTags.value = tagRepository.getAllTags()
+        }
+    }
+
+    fun saveTags(id: String, tags: List<String>) {
+        viewModelScope.launch {
+            tagRepository.saveTags(id, tags)
+            loadTagsForTweet(id)
+            loadAllTags()
+        }
     }
 
     fun logout() {

@@ -11,8 +11,8 @@ import javax.inject.Singleton
 class SyncErrorBus @Inject constructor() {
 
     private val _events = MutableSharedFlow<SyncErrorEvent>(
-        replay = 0,
-        extraBufferCapacity = 1,
+        replay = 1,
+        extraBufferCapacity = 0,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
 

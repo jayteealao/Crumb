@@ -41,7 +41,6 @@ import com.github.jayteealao.crumbs.models.Bookmark
 import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.models.ContentType
 import com.github.jayteealao.reddit.models.RedditPostData
-import com.github.jayteealao.twitter.screens.BookmarksViewModel
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import timber.log.Timber
@@ -146,23 +145,18 @@ fun RedditBookmarksScreen(
     }
 }
 
-// Route — preserves cross-module BookmarksViewModel injection for tag state.
-
 @Composable
 fun RedditBookmarksRoute(
     navController: NavController,
     contentPadding: PaddingValues,
     redditAuthCode: String? = "",
     redditViewModel: RedditViewModel = hiltViewModel(),
-    // Cross-module Twitter VM consumed for tag state — load-bearing coupling
-    // that survives the brutalist rewrite. See implement-screens artifact.
-    bookmarksViewModel: BookmarksViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
     val pagedPosts = redditViewModel.pagingFlowData().collectAsLazyPagingItems()
     val loggedIn by redditViewModel.isAccessTokenAvailable.collectAsState()
-    val tagsMap by bookmarksViewModel.tagsForTweet.collectAsState()
-    val allTags by bookmarksViewModel.allTags.collectAsState()
+    val tagsMap by redditViewModel.tagsForTweet.collectAsState()
+    val allTags by redditViewModel.allTags.collectAsState()
 
     var popupBookmark by remember { mutableStateOf<Bookmark?>(null) }
     var popupAnchor by remember { mutableStateOf(Offset.Zero) }
@@ -194,7 +188,7 @@ fun RedditBookmarksRoute(
             popupBookmark = bookmark
             popupAnchor = offset
         },
-        onLoadTags = { id -> bookmarksViewModel.loadTagsForTweet(id) },
+        onLoadTags = { id -> redditViewModel.loadTagsForTweet(id) },
         onConnectClick = { context.startActivity(redditViewModel.authIntent()) },
         contentPadding = contentPadding,
     )
@@ -268,7 +262,7 @@ fun RedditBookmarksRoute(
                 popupBookmark = null
             },
             onSave = { tags ->
-                bookmarksViewModel.saveTags(popupBookmark!!.id, tags.toList())
+                redditViewModel.saveTags(popupBookmark!!.id, tags.toList())
                 showTagEditor = false
                 popupBookmark = null
             },
