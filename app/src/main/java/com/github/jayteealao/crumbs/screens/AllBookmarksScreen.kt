@@ -267,16 +267,16 @@ fun AllBookmarksRoute(
             anchorOffsetPx = lps.anchor,
             actions = bookmarkPopupActions(
                 onTag = {
-                    Timber.d("AllBookmarks long-press: TAG ${bookmark.id}")
+                    Timber.d("AllBookmarks long-press: TAG")
                     lps.showTagEditor = true
                 },
                 onOpen = {
-                    Timber.d("AllBookmarks long-press: OPEN ${bookmark.id}")
+                    Timber.d("AllBookmarks long-press: OPEN")
                     val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(bookmark.sourceUrl))
                     context.startActivity(intent)
                 },
                 onShare = {
-                    Timber.d("AllBookmarks long-press: SHARE ${bookmark.id}")
+                    Timber.d("AllBookmarks long-press: SHARE")
                     val shareIntent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
                         putExtra(Intent.EXTRA_TEXT, bookmark.sourceUrl)
@@ -284,7 +284,7 @@ fun AllBookmarksRoute(
                     context.startActivity(Intent.createChooser(shareIntent, "Share bookmark"))
                 },
                 onDelete = {
-                    Timber.d("AllBookmarks long-press: DELETE ${bookmark.id}")
+                    Timber.d("AllBookmarks long-press: DELETE")
                     when (bookmark.source) {
                         BookmarkSource.Twitter -> bookmarksViewModel.softDelete(bookmark.id)
                         BookmarkSource.Reddit -> redditViewModel.softDelete(bookmark.id)

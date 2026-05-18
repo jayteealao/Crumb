@@ -201,16 +201,16 @@ fun RedditBookmarksRoute(
             anchorOffsetPx = lps.anchor,
             actions = bookmarkPopupActions(
                 onTag = {
-                    Timber.d("Reddit long-press: TAG ${bookmark.id}")
+                    Timber.d("Reddit long-press: TAG")
                     lps.showTagEditor = true
                 },
                 onOpen = {
-                    Timber.d("Reddit long-press: OPEN ${bookmark.id}")
+                    Timber.d("Reddit long-press: OPEN")
                     val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(bookmark.sourceUrl))
                     context.startActivity(intent)
                 },
                 onShare = {
-                    Timber.d("Reddit long-press: SHARE ${bookmark.id}")
+                    Timber.d("Reddit long-press: SHARE")
                     val shareIntent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
                         putExtra(Intent.EXTRA_TEXT, bookmark.sourceUrl)
@@ -218,7 +218,7 @@ fun RedditBookmarksRoute(
                     context.startActivity(Intent.createChooser(shareIntent, "Share post"))
                 },
                 onDelete = {
-                    Timber.d("Reddit long-press: DELETE ${bookmark.id}")
+                    Timber.d("Reddit long-press: DELETE")
                     redditViewModel.softDelete(bookmark.id)
                     lps.bookmark = null
                 },
