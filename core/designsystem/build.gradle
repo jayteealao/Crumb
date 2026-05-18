@@ -58,13 +58,13 @@ dependencies {
     api libs.kotlinx.collections.immutable
 
     // Image loading
-    implementation 'io.coil-kt:coil-compose:2.5.0'
+    implementation libs.coil.compose
 
     // Video playback
-    implementation 'androidx.media3:media3-exoplayer:1.2.0'
-    implementation 'androidx.media3:media3-exoplayer-dash:1.2.0'
-    implementation 'androidx.media3:media3-exoplayer-hls:1.2.0'
-    implementation 'androidx.media3:media3-ui:1.2.0'
+    implementation libs.media3.exoplayer
+    implementation libs.media3.exoplayer.dash
+    implementation libs.media3.exoplayer.hls
+    implementation libs.media3.ui
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation(libs.roborazzi.core)
