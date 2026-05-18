@@ -54,7 +54,11 @@ class FirestoreRepository @Inject constructor() {
             val ids = mutableSetOf<String>()
             var lastDoc: com.google.firebase.firestore.DocumentSnapshot? = null
             var safetyHops = 0
-            while (ids.size < MAX_BOOKMARK_READ && safetyHops < MAX_PAGE_HOPS) {
+            var docsRead = 0
+            // Cap on *documents read* (billable reads), not on ids collected —
+            // a stream of docs without `tweetId` would otherwise let the loop
+            // walk MAX_PAGE_HOPS * READ_PAGE_SIZE billable reads before exit.
+            while (docsRead < MAX_BOOKMARK_READ && safetyHops < MAX_PAGE_HOPS) {
                 val pageQuery = db.collection(TWEETS_COLLECTION)
                     .orderBy(com.google.firebase.firestore.FieldPath.documentId())
                     .let { q -> if (lastDoc != null) q.startAfter(lastDoc) else q }
@@ -62,6 +66,7 @@ class FirestoreRepository @Inject constructor() {
 
                 val snapshot = pageQuery.get().await()
                 if (snapshot.isEmpty) break
+                docsRead += snapshot.documents.size
                 snapshot.documents.forEach { doc ->
                     doc.getString("tweetId")?.let(ids::add)
                 }
@@ -69,7 +74,7 @@ class FirestoreRepository @Inject constructor() {
                 safetyHops++
                 if (snapshot.documents.size < READ_PAGE_SIZE) break
             }
-            Timber.d("Extracted ${ids.size} tweet IDs (page-hops=$safetyHops)")
+            Timber.d("Extracted ${ids.size} tweet IDs from $docsRead docs (page-hops=$safetyHops)")
             ids
         } catch (e: Exception) {
             Timber.e(e, "Error fetching tweet IDs from Firestore")
