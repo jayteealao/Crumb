@@ -173,6 +173,14 @@ class RedditViewModel @Inject constructor(
         }
     }
 
+    fun loadTagsForItems(ids: List<String>) {
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            val batch = tagRepository.getTagsForItems(ids)
+            _tagsForTweet.value = _tagsForTweet.value + batch
+        }
+    }
+
     fun loadAllTags() {
         viewModelScope.launch {
             _allTags.value = tagRepository.getAllTags()

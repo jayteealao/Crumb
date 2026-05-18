@@ -34,6 +34,8 @@ kotlin {
 }
 
 dependencies {
+    implementation(project(":core:models"))
+
     implementation(libs.bundles.room)
     ksp(libs.room.compiler)
 

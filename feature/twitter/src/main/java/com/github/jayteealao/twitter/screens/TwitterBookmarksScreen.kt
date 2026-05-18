@@ -6,21 +6,14 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Logout
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
@@ -38,14 +31,14 @@ import com.github.jayteealao.crumbs.designsystem.components.CrumbsButton
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsLongPressPopup
 import com.github.jayteealao.crumbs.designsystem.components.EmptyState
 import com.github.jayteealao.crumbs.designsystem.components.LoadingCard
-import com.github.jayteealao.crumbs.designsystem.components.PopupAction
 import com.github.jayteealao.crumbs.designsystem.components.TagEditorDialog
+import com.github.jayteealao.crumbs.designsystem.components.bookmarkPopupActions
+import com.github.jayteealao.crumbs.designsystem.components.rememberLongPressState
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.models.Bookmark
 import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.models.ContentType
 import com.github.jayteealao.twitter.models.TweetData
-import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import timber.log.Timber
 import java.text.SimpleDateFormat
@@ -66,6 +59,7 @@ fun TwitterBookmarksScreen(
     onCardClick: (String) -> Unit,
     onLongPress: (Bookmark, Offset) -> Unit,
     onLoadTags: (String) -> Unit,
+    onLoadTagsForIds: (List<String>) -> Unit,
     onRefresh: () -> Unit,
     onConnectClick: () -> Unit,
     contentPadding: PaddingValues = PaddingValues(0.dp),
@@ -81,6 +75,15 @@ fun TwitterBookmarksScreen(
                 .testTag("twitter-bookmarks-empty"),
         )
         return
+    }
+
+    // Single batch tag load per page-snapshot change — replaces per-item LaunchedEffect.
+    val itemIds = remember(pagedBookmarks?.itemCount) {
+        val count = pagedBookmarks?.itemCount ?: 0
+        (0 until count).mapNotNull { pagedBookmarks?.peek(it)?.tweet?.id }
+    }
+    LaunchedEffect(itemIds) {
+        if (itemIds.isNotEmpty()) onLoadTagsForIds(itemIds)
     }
 
     PullToRefreshBox(
@@ -120,7 +123,6 @@ fun TwitterBookmarksScreen(
                     val tweetData = pagedBookmarks[index]
                     if (tweetData != null) {
                         val id = tweetData.tweet.id
-                        LaunchedEffect(id) { onLoadTags(id) }
                         val tags = uiState.tagsMap[id] ?: emptyList()
                         val bookmark = tweetData.toBookmark(tags)
                         CrumbsBookmarkCard(
@@ -173,9 +175,7 @@ fun TwitterBookmarksRoute(
     val allTags by bookmarksViewModel.allTags.collectAsState()
     val isRefreshing by bookmarksViewModel.isRefreshing.collectAsState()
 
-    var popupBookmark by remember { mutableStateOf<Bookmark?>(null) }
-    var popupAnchor by remember { mutableStateOf(Offset.Zero) }
-    var showTagEditor by remember { mutableStateOf(false) }
+    val lps = rememberLongPressState()
 
     LaunchedEffect(loggedIn) {
         if (loggedIn) {
@@ -201,87 +201,58 @@ fun TwitterBookmarksRoute(
             context.startActivity(intent)
         },
         onLongPress = { bookmark, offset ->
-            popupBookmark = bookmark
-            popupAnchor = offset
+            lps.bookmark = bookmark
+            lps.anchor = offset
         },
         onLoadTags = { id -> bookmarksViewModel.loadTagsForTweet(id) },
+        onLoadTagsForIds = { ids -> bookmarksViewModel.loadTagsForItems(ids) },
         onRefresh = { bookmarksViewModel.refresh() },
         onConnectClick = { context.startActivity(loginViewModel.authIntent()) },
         contentPadding = contentPadding,
     )
 
-    popupBookmark?.let { bookmark ->
+    lps.bookmark?.let { bookmark ->
         CrumbsLongPressPopup(
             visible = true,
-            onDismiss = { popupBookmark = null },
-            anchorOffsetPx = popupAnchor,
-            actions = persistentListOf(
-                PopupAction(
-                    id = "tag",
-                    label = "TAG",
-                    hint = "Add",
-                    icon = Icons.Default.LocalOffer,
-                    isPrimary = true,
-                    onClick = {
-                        Timber.d("Twitter long-press: TAG ${bookmark.id}")
-                        showTagEditor = true
-                    },
-                ),
-                PopupAction(
-                    id = "open",
-                    label = "OPEN",
-                    hint = "Url",
-                    icon = Icons.Default.Language,
-                    onClick = {
-                        Timber.d("Twitter long-press: OPEN ${bookmark.id}")
-                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(bookmark.sourceUrl))
-                        context.startActivity(intent)
-                    },
-                ),
-                PopupAction(
-                    id = "share",
-                    label = "SHARE",
-                    hint = "Link",
-                    icon = Icons.Default.Share,
-                    onClick = {
-                        Timber.d("Twitter long-press: SHARE ${bookmark.id}")
-                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, bookmark.sourceUrl)
-                        }
-                        context.startActivity(Intent.createChooser(shareIntent, "Share tweet"))
-                    },
-                ),
-                PopupAction(
-                    id = "delete",
-                    label = "DELETE",
-                    hint = "Remove",
-                    icon = Icons.Default.Delete,
-                    isDanger = true,
-                    onClick = {
-                        Timber.d("Twitter long-press: DELETE ${bookmark.id}")
-                        bookmarksViewModel.softDelete(bookmark.id)
-                        popupBookmark = null
-                    },
-                ),
+            onDismiss = { lps.bookmark = null },
+            anchorOffsetPx = lps.anchor,
+            actions = bookmarkPopupActions(
+                onTag = {
+                    Timber.d("Twitter long-press: TAG ${bookmark.id}")
+                    lps.showTagEditor = true
+                },
+                onOpen = {
+                    Timber.d("Twitter long-press: OPEN ${bookmark.id}")
+                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(bookmark.sourceUrl))
+                    context.startActivity(intent)
+                },
+                onShare = {
+                    Timber.d("Twitter long-press: SHARE ${bookmark.id}")
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, bookmark.sourceUrl)
+                    }
+                    context.startActivity(Intent.createChooser(shareIntent, "Share tweet"))
+                },
+                onDelete = {
+                    Timber.d("Twitter long-press: DELETE ${bookmark.id}")
+                    bookmarksViewModel.softDelete(bookmark.id)
+                    lps.bookmark = null
+                },
             ),
         )
     }
 
-    if (showTagEditor && popupBookmark != null) {
-        val current = (tagsMap[popupBookmark!!.id] ?: emptyList()).toImmutableList()
+    if (lps.showTagEditor && lps.bookmark != null) {
+        val current = (tagsMap[lps.bookmark!!.id] ?: emptyList()).toImmutableList()
         TagEditorDialog(
-            isVisible = showTagEditor,
+            isVisible = lps.showTagEditor,
             currentTags = current,
             availableTags = allTags.toImmutableList(),
-            onDismiss = {
-                showTagEditor = false
-                popupBookmark = null
-            },
+            onDismiss = { lps.dismiss() },
             onSave = { tags ->
-                bookmarksViewModel.saveTags(popupBookmark!!.id, tags.toList())
-                showTagEditor = false
-                popupBookmark = null
+                bookmarksViewModel.saveTags(lps.bookmark!!.id, tags.toList())
+                lps.dismiss()
             },
         )
     }
@@ -336,6 +307,7 @@ private fun PreviewTwitterEmptyLight() {
             onCardClick = {},
             onLongPress = { _, _ -> },
             onLoadTags = {},
+            onLoadTagsForIds = {},
             onRefresh = {},
             onConnectClick = {},
         )
@@ -352,6 +324,7 @@ private fun PreviewTwitterEmptyDark() {
             onCardClick = {},
             onLongPress = { _, _ -> },
             onLoadTags = {},
+            onLoadTagsForIds = {},
             onRefresh = {},
             onConnectClick = {},
         )

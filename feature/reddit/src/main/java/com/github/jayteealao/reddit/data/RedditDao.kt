@@ -42,7 +42,7 @@ interface RedditDao {
     @Transaction
     @Query("""
         SELECT p.* FROM reddit_posts p
-        LEFT JOIN deleted_bookmarks d ON p.id = d.bookmarkId
+        LEFT JOIN deleted_bookmarks d ON p.id = d.bookmarkId AND d.source = 'reddit'
         WHERE d.bookmarkId IS NULL
         ORDER BY p.`order` DESC
     """)
@@ -51,7 +51,7 @@ interface RedditDao {
     @Transaction
     @Query("""
         SELECT p.* FROM reddit_posts p
-        LEFT JOIN deleted_bookmarks d ON p.id = d.bookmarkId
+        LEFT JOIN deleted_bookmarks d ON p.id = d.bookmarkId AND d.source = 'reddit'
         INNER JOIN tweet_tags tt ON tt.tweetId = p.id
         WHERE d.bookmarkId IS NULL
           AND tt.tagName IN (:tagNames)

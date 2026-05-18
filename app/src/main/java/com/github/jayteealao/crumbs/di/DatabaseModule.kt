@@ -123,7 +123,7 @@ class DatabaseModule {
         AppDatabase::class.java,
         "AppDatabase"
     )
-        .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+        .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
         .build()
 
     @Singleton
@@ -149,5 +149,26 @@ val MIGRATION_4_5: Migration = object : Migration(4, 5) {
                 PRIMARY KEY(`bookmarkId`)
             )
         """.trimIndent())
+    }
+}
+
+val MIGRATION_5_6: Migration = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // SQLite cannot ALTER PRIMARY KEY — recreate the table with composite PK.
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `deleted_bookmarks_new` (" +
+                "`bookmarkId` TEXT NOT NULL, " +
+                "`source` TEXT NOT NULL, " +
+                "`deletedAt` INTEGER NOT NULL, " +
+                "PRIMARY KEY(`bookmarkId`, `source`))"
+        )
+        // Copy existing rows. If any (bookmarkId, source) duplicates exist they
+        // collapse via INSERT OR IGNORE — the first row wins.
+        db.execSQL(
+            "INSERT OR IGNORE INTO `deleted_bookmarks_new` (`bookmarkId`, `source`, `deletedAt`) " +
+                "SELECT `bookmarkId`, `source`, `deletedAt` FROM `deleted_bookmarks`"
+        )
+        db.execSQL("DROP TABLE `deleted_bookmarks`")
+        db.execSQL("ALTER TABLE `deleted_bookmarks_new` RENAME TO `deleted_bookmarks`")
     }
 }

@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import com.github.jayteealao.crumbs.data.BannerState
+import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.designsystem.components.BottomNavTab
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsBanner
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsBottomNav
@@ -152,7 +153,7 @@ private fun PreviewHomeBannerLight() {
             uiState = HomeUiState(
                 selectedTab = BottomNavTab.TWITTER,
                 bannerState = BannerState(
-                    source = "twitter",
+                    source = BookmarkSource.Twitter,
                     kicker = "ERR · RECONNECT TWITTER",
                     detail = "Twitter session expired. Tap to reconnect.",
                     ctaLabel = "RECONNECT",

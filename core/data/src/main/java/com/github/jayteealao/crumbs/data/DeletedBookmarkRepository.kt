@@ -1,43 +1,35 @@
 package com.github.jayteealao.crumbs.data
 
-import kotlinx.coroutines.channels.BufferOverflow
+import com.github.jayteealao.crumbs.models.BookmarkSource
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class DeletedBookmarkRepository @Inject constructor(
     private val dao: DeletedBookmarkDao,
+    private val snackbarBus: SnackbarBus,
 ) {
 
-    private val _events = MutableSharedFlow<SnackbarEvent>(
-        replay = 0,
-        extraBufferCapacity = 1,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST,
-    )
-
-    val events: SharedFlow<SnackbarEvent> = _events.asSharedFlow()
-
-    suspend fun softDelete(id: String, source: String) {
-        dao.insert(DeletedBookmark(id, source, System.currentTimeMillis()))
-        _events.tryEmit(SnackbarEvent.UndoableDelete(id, source))
+    suspend fun softDelete(id: String, source: BookmarkSource) {
+        dao.insert(DeletedBookmark(id, source.name.lowercase(), System.currentTimeMillis()))
+        snackbarBus.emit(SnackbarEvent.UndoableDelete(id, source))
     }
 
-    suspend fun undoDelete(id: String) {
-        dao.delete(id)
+    suspend fun undoDelete(id: String, source: BookmarkSource) {
+        dao.delete(id, source.name.lowercase())
     }
 
-    suspend fun isDeleted(id: String): Boolean = dao.exists(id)
+    suspend fun isDeleted(id: String, source: BookmarkSource): Boolean =
+        dao.exists(id, source.name.lowercase())
 
     /**
-     * One-shot snapshot of all tombstoned bookmark ids. Sync paths fetch this once
-     * before iterating remote pages and gate inserts on `Set.contains` instead of
+     * One-shot snapshot of all tombstoned bookmark ids for a given source. Sync paths fetch
+     * this once before iterating remote pages and gate inserts on `Set.contains` instead of
      * issuing a per-row DAO query (N+1 elimination + dispatcher-safe).
      */
-    suspend fun deletedIdsSnapshot(): Set<String> = dao.getAllIdsSnapshot().toSet()
+    suspend fun deletedIdsSnapshot(source: BookmarkSource): Set<String> =
+        dao.getAllIdsSnapshotForSource(source.name.lowercase()).toSet()
 
     fun deletedIds(): Flow<List<String>> = dao.getAllIds()
 }

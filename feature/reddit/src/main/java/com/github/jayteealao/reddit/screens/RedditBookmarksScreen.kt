@@ -6,18 +6,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.LocalOffer
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
@@ -34,14 +27,14 @@ import com.github.jayteealao.crumbs.designsystem.components.CrumbsBookmarkCard
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsLongPressPopup
 import com.github.jayteealao.crumbs.designsystem.components.EmptyState
 import com.github.jayteealao.crumbs.designsystem.components.LoadingCard
-import com.github.jayteealao.crumbs.designsystem.components.PopupAction
 import com.github.jayteealao.crumbs.designsystem.components.TagEditorDialog
+import com.github.jayteealao.crumbs.designsystem.components.bookmarkPopupActions
+import com.github.jayteealao.crumbs.designsystem.components.rememberLongPressState
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.models.Bookmark
 import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.models.ContentType
 import com.github.jayteealao.reddit.models.RedditPostData
-import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import timber.log.Timber
 
@@ -58,6 +51,7 @@ fun RedditBookmarksScreen(
     onCardClick: (String) -> Unit,
     onLongPress: (Bookmark, Offset) -> Unit,
     onLoadTags: (String) -> Unit,
+    onLoadTagsForIds: (List<String>) -> Unit,
     onConnectClick: () -> Unit,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     modifier: Modifier = Modifier,
@@ -72,6 +66,15 @@ fun RedditBookmarksScreen(
                 .testTag("reddit-bookmarks-empty"),
         )
         return
+    }
+
+    // Single batch tag load per page-snapshot change — replaces per-item LaunchedEffect.
+    val itemIds = remember(pagedPosts?.itemCount) {
+        val count = pagedPosts?.itemCount ?: 0
+        (0 until count).mapNotNull { pagedPosts?.peek(it)?.post?.id }
+    }
+    LaunchedEffect(itemIds) {
+        if (itemIds.isNotEmpty()) onLoadTagsForIds(itemIds)
     }
 
     Box(
@@ -109,7 +112,6 @@ fun RedditBookmarksScreen(
                     val postData = pagedPosts[index]
                     if (postData != null) {
                         val id = postData.post.id
-                        LaunchedEffect(id) { onLoadTags(id) }
                         val tags = uiState.tagsMap[id] ?: emptyList()
                         val bookmark = postData.toBookmark(tags)
                         CrumbsBookmarkCard(
@@ -158,9 +160,7 @@ fun RedditBookmarksRoute(
     val tagsMap by redditViewModel.tagsForTweet.collectAsState()
     val allTags by redditViewModel.allTags.collectAsState()
 
-    var popupBookmark by remember { mutableStateOf<Bookmark?>(null) }
-    var popupAnchor by remember { mutableStateOf(Offset.Zero) }
-    var showTagEditor by remember { mutableStateOf(false) }
+    val lps = rememberLongPressState()
 
     LaunchedEffect(loggedIn) {
         if (loggedIn) {
@@ -185,86 +185,57 @@ fun RedditBookmarksRoute(
             context.startActivity(intent)
         },
         onLongPress = { bookmark, offset ->
-            popupBookmark = bookmark
-            popupAnchor = offset
+            lps.bookmark = bookmark
+            lps.anchor = offset
         },
         onLoadTags = { id -> redditViewModel.loadTagsForTweet(id) },
+        onLoadTagsForIds = { ids -> redditViewModel.loadTagsForItems(ids) },
         onConnectClick = { context.startActivity(redditViewModel.authIntent()) },
         contentPadding = contentPadding,
     )
 
-    popupBookmark?.let { bookmark ->
+    lps.bookmark?.let { bookmark ->
         CrumbsLongPressPopup(
             visible = true,
-            onDismiss = { popupBookmark = null },
-            anchorOffsetPx = popupAnchor,
-            actions = persistentListOf(
-                PopupAction(
-                    id = "tag",
-                    label = "TAG",
-                    hint = "Add",
-                    icon = Icons.Default.LocalOffer,
-                    isPrimary = true,
-                    onClick = {
-                        Timber.d("Reddit long-press: TAG ${bookmark.id}")
-                        showTagEditor = true
-                    },
-                ),
-                PopupAction(
-                    id = "open",
-                    label = "OPEN",
-                    hint = "Url",
-                    icon = Icons.Default.Language,
-                    onClick = {
-                        Timber.d("Reddit long-press: OPEN ${bookmark.id}")
-                        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(bookmark.sourceUrl))
-                        context.startActivity(intent)
-                    },
-                ),
-                PopupAction(
-                    id = "share",
-                    label = "SHARE",
-                    hint = "Link",
-                    icon = Icons.Default.Share,
-                    onClick = {
-                        Timber.d("Reddit long-press: SHARE ${bookmark.id}")
-                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, bookmark.sourceUrl)
-                        }
-                        context.startActivity(Intent.createChooser(shareIntent, "Share post"))
-                    },
-                ),
-                PopupAction(
-                    id = "delete",
-                    label = "DELETE",
-                    hint = "Remove",
-                    icon = Icons.Default.Delete,
-                    isDanger = true,
-                    onClick = {
-                        Timber.d("Reddit long-press: DELETE ${bookmark.id}")
-                        redditViewModel.softDelete(bookmark.id)
-                        popupBookmark = null
-                    },
-                ),
+            onDismiss = { lps.bookmark = null },
+            anchorOffsetPx = lps.anchor,
+            actions = bookmarkPopupActions(
+                onTag = {
+                    Timber.d("Reddit long-press: TAG ${bookmark.id}")
+                    lps.showTagEditor = true
+                },
+                onOpen = {
+                    Timber.d("Reddit long-press: OPEN ${bookmark.id}")
+                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(bookmark.sourceUrl))
+                    context.startActivity(intent)
+                },
+                onShare = {
+                    Timber.d("Reddit long-press: SHARE ${bookmark.id}")
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, bookmark.sourceUrl)
+                    }
+                    context.startActivity(Intent.createChooser(shareIntent, "Share post"))
+                },
+                onDelete = {
+                    Timber.d("Reddit long-press: DELETE ${bookmark.id}")
+                    redditViewModel.softDelete(bookmark.id)
+                    lps.bookmark = null
+                },
             ),
         )
     }
 
-    if (showTagEditor && popupBookmark != null) {
-        val current = (tagsMap[popupBookmark!!.id] ?: emptyList()).toImmutableList()
+    if (lps.showTagEditor && lps.bookmark != null) {
+        val current = (tagsMap[lps.bookmark!!.id] ?: emptyList()).toImmutableList()
         TagEditorDialog(
-            isVisible = showTagEditor,
+            isVisible = lps.showTagEditor,
             currentTags = current,
             availableTags = allTags.toImmutableList(),
-            onDismiss = {
-                showTagEditor = false
-                popupBookmark = null
-            },
+            onDismiss = { lps.dismiss() },
             onSave = { tags ->
-                redditViewModel.saveTags(popupBookmark!!.id, tags.toList())
-                showTagEditor = false
-                popupBookmark = null
+                redditViewModel.saveTags(lps.bookmark!!.id, tags.toList())
+                lps.dismiss()
             },
         )
     }
@@ -311,6 +282,7 @@ private fun PreviewRedditEmptyLight() {
             onCardClick = {},
             onLongPress = { _, _ -> },
             onLoadTags = {},
+            onLoadTagsForIds = {},
             onConnectClick = {},
         )
     }
@@ -326,6 +298,7 @@ private fun PreviewRedditEmptyDark() {
             onCardClick = {},
             onLongPress = { _, _ -> },
             onLoadTags = {},
+            onLoadTagsForIds = {},
             onConnectClick = {},
         )
     }

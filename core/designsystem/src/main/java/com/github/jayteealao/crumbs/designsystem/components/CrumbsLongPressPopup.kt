@@ -14,12 +14,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -41,6 +46,7 @@ import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsSpacing
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsTypography
+import com.github.jayteealao.crumbs.models.Bookmark
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlin.math.roundToInt
@@ -261,6 +267,74 @@ private class FingertipPopupPositionProvider(
         )
     }
 }
+
+// ---------------------------------------------------------------------------
+// Long-press state holder — shared across all bookmark route composables.
+// ---------------------------------------------------------------------------
+
+/** Holds the three pieces of state that every bookmark route needs for the
+ *  long-press popup: which bookmark was pressed, where on screen, and whether
+ *  the tag editor is open. Call [dismiss] to close both the popup and the
+ *  tag editor at once.
+ */
+@Stable
+class LongPressState {
+    var bookmark by mutableStateOf<Bookmark?>(null)
+    var anchor by mutableStateOf(Offset.Zero)
+    var showTagEditor by mutableStateOf(false)
+
+    fun dismiss() {
+        showTagEditor = false
+        bookmark = null
+    }
+}
+
+@Composable
+fun rememberLongPressState(): LongPressState = remember { LongPressState() }
+
+// ---------------------------------------------------------------------------
+// Canonical 4-action list — TAG / OPEN / SHARE / DELETE — used by every
+// bookmark route.  The caller provides lambdas so per-route intent logic
+// stays in the route composable.
+// ---------------------------------------------------------------------------
+
+fun bookmarkPopupActions(
+    onTag: () -> Unit,
+    onOpen: () -> Unit,
+    onShare: () -> Unit,
+    onDelete: () -> Unit,
+): ImmutableList<PopupAction> = persistentListOf(
+    PopupAction(
+        id = "tag",
+        label = "TAG",
+        hint = "Add",
+        icon = Icons.Default.LocalOffer,
+        isPrimary = true,
+        onClick = onTag,
+    ),
+    PopupAction(
+        id = "open",
+        label = "OPEN",
+        hint = "Url",
+        icon = Icons.Default.Language,
+        onClick = onOpen,
+    ),
+    PopupAction(
+        id = "share",
+        label = "SHARE",
+        hint = "Link",
+        icon = Icons.Default.Share,
+        onClick = onShare,
+    ),
+    PopupAction(
+        id = "delete",
+        label = "DELETE",
+        hint = "Remove",
+        icon = Icons.Default.Delete,
+        isDanger = true,
+        onClick = onDelete,
+    ),
+)
 
 // Default 4-action set matching handoff Screen 5.
 fun defaultPopupActions(

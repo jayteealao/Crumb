@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.github.jayteealao.crumbs.db.AppDatabase
+import com.github.jayteealao.crumbs.models.BookmarkSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -34,6 +35,7 @@ import org.robolectric.annotation.Config
 class DeletedBookmarkRepositoryTest {
 
     private lateinit var db: AppDatabase
+    private lateinit var snackbarBus: SnackbarBus
     private lateinit var repo: DeletedBookmarkRepository
 
     @Before
@@ -42,7 +44,8 @@ class DeletedBookmarkRepositoryTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repo = DeletedBookmarkRepository(db.deletedBookmarkDao())
+        snackbarBus = SnackbarBus()
+        repo = DeletedBookmarkRepository(db.deletedBookmarkDao(), snackbarBus)
     }
 
     @After
@@ -52,45 +55,45 @@ class DeletedBookmarkRepositoryTest {
 
     @Test
     fun softDelete_insertsTombstone_isDeletedReturnsTrue() = runBlocking {
-        repo.softDelete("tweet-123", BookmarkSource.TWITTER)
+        repo.softDelete("tweet-123", BookmarkSource.Twitter)
 
         assertTrue(
             "Tombstoned id should be reported as deleted so sync filters it out",
-            repo.isDeleted("tweet-123"),
+            repo.isDeleted("tweet-123", BookmarkSource.Twitter),
         )
         assertFalse(
             "Untouched id should not be reported as deleted",
-            repo.isDeleted("other-id"),
+            repo.isDeleted("other-id", BookmarkSource.Twitter),
         )
     }
 
     @Test
     fun undoDelete_removesTombstone_isDeletedReturnsFalse() = runBlocking {
-        repo.softDelete("tweet-456", BookmarkSource.TWITTER)
-        assertTrue(repo.isDeleted("tweet-456"))
+        repo.softDelete("tweet-456", BookmarkSource.Twitter)
+        assertTrue(repo.isDeleted("tweet-456", BookmarkSource.Twitter))
 
-        repo.undoDelete("tweet-456")
+        repo.undoDelete("tweet-456", BookmarkSource.Twitter)
 
         assertFalse(
             "UNDO must clear the tombstone so the bookmark re-appears in sync",
-            repo.isDeleted("tweet-456"),
+            repo.isDeleted("tweet-456", BookmarkSource.Twitter),
         )
     }
 
     @Test
     fun softDelete_emitsUndoableDeleteEvent() = runBlocking {
-        // events is a MutableSharedFlow with replay = 0, so the collector must be
-        // started before the emission. Launch the collector first, yield to let it
-        // subscribe, then trigger softDelete.
+        // snackbarBus.events is a MutableSharedFlow with replay = 0, so the collector
+        // must be started before the emission. Launch the collector first, yield to let
+        // it subscribe, then trigger softDelete.
         val scope = CoroutineScope(Dispatchers.Default)
-        val deferredEvent = scope.async { repo.events.first() }
+        val deferredEvent = scope.async { snackbarBus.events.first() }
         // Give the collector a chance to subscribe before we emit.
         yield()
         // Small busy-wait fallback in case the dispatcher hasn't scheduled the
-        // collector yet (sharedFlow.first() must be active when tryEmit runs).
+        // collector yet (sharedFlow.first() must be active when emit runs).
         repeat(20) { yield() }
 
-        repo.softDelete("reddit-abc", BookmarkSource.REDDIT)
+        repo.softDelete("reddit-abc", BookmarkSource.Reddit)
 
         val event = deferredEvent.await()
 
@@ -100,6 +103,6 @@ class DeletedBookmarkRepositoryTest {
         )
         val undoable = event as SnackbarEvent.UndoableDelete
         assertEquals("reddit-abc", undoable.id)
-        assertEquals(BookmarkSource.REDDIT, undoable.source)
+        assertEquals(BookmarkSource.Reddit, undoable.source)
     }
 }

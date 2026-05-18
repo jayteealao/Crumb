@@ -3,7 +3,7 @@ package com.github.jayteealao.twitter.data
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
-import com.github.jayteealao.crumbs.data.BookmarkSource
+import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.data.DeletedBookmarkRepository
 import com.github.jayteealao.crumbs.data.FilterState
 import com.github.jayteealao.crumbs.data.SyncErrorBus
@@ -87,7 +87,7 @@ class Repository @Inject constructor(
             if (firestoreTweets.isNotEmpty()) {
                 // Get the current max order to assign new orders
                 var currentOrder = tweetDao.getMaxOrder() ?: 1000
-                val tombstones = deletedBookmarkRepository.deletedIdsSnapshot()
+                val tombstones = deletedBookmarkRepository.deletedIdsSnapshot(BookmarkSource.Twitter)
 
                 firestoreTweets.forEach { tweetEntities ->
                     currentOrder++
@@ -162,7 +162,7 @@ class Repository @Inject constructor(
 
             if (refreshToken.isNotBlank() && userId.isNotBlank()) {
                 Timber.d("building database: fetching new bookmarks incrementally")
-                val tombstones = deletedBookmarkRepository.deletedIdsSnapshot()
+                val tombstones = deletedBookmarkRepository.deletedIdsSnapshot(BookmarkSource.Twitter)
                 val tweetEntitiesChannel =
                     scope.produceTweetResponseEntities(
                         refreshToken,
@@ -220,11 +220,11 @@ class Repository @Inject constructor(
     }
 
     suspend fun softDelete(id: String) {
-        deletedBookmarkRepository.softDelete(id, BookmarkSource.TWITTER)
+        deletedBookmarkRepository.softDelete(id, BookmarkSource.Twitter)
     }
 
     suspend fun undoDelete(id: String) {
-        deletedBookmarkRepository.undoDelete(id)
+        deletedBookmarkRepository.undoDelete(id, BookmarkSource.Twitter)
     }
 
     // Tag operations
@@ -241,6 +241,12 @@ class Repository @Inject constructor(
 
     override suspend fun getTagsForTweet(tweetId: String): List<String> {
         return tweetDao.getTagsForTweet(tweetId)
+    }
+
+    override suspend fun getTagsForItems(ids: List<String>): Map<String, List<String>> {
+        if (ids.isEmpty()) return emptyMap()
+        return tweetDao.getTagsForTweets(ids)
+            .groupBy({ it.tweetId }, { it.tagName })
     }
 
     override suspend fun getAllTags(): List<String> {

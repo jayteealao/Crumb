@@ -10,7 +10,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
 import com.dropbox.differ.SimpleImageComparator
 import com.github.jayteealao.crumbs.data.BannerState
-import com.github.jayteealao.crumbs.data.BookmarkSource
+import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.designsystem.components.BottomNavTab
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
@@ -102,7 +102,7 @@ class HomeScreenTest {
                     uiState = HomeUiState(
                         selectedTab = BottomNavTab.TWITTER,
                         bannerState = BannerState(
-                            source = BookmarkSource.TWITTER,
+                            source = BookmarkSource.Twitter,
                             kicker = "ERR · RECONNECT TWITTER",
                             detail = "Twitter session expired. Tap to reconnect.",
                             ctaLabel = "RECONNECT",
@@ -138,7 +138,7 @@ class HomeScreenTest {
                     uiState = HomeUiState(
                         selectedTab = BottomNavTab.REDDIT,
                         bannerState = BannerState(
-                            source = BookmarkSource.REDDIT,
+                            source = BookmarkSource.Reddit,
                             kicker = "ERR · RECONNECT REDDIT",
                             detail = "Reddit session expired. Tap to reconnect.",
                             ctaLabel = "RECONNECT",

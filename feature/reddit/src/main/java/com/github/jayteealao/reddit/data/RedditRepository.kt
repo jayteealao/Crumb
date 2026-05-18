@@ -3,7 +3,7 @@ package com.github.jayteealao.reddit.data
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
-import com.github.jayteealao.crumbs.data.BookmarkSource
+import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.data.DeletedBookmarkRepository
 import com.github.jayteealao.crumbs.data.FilterState
 import com.github.jayteealao.crumbs.data.SyncErrorBus
@@ -85,7 +85,7 @@ class RedditRepository @Inject constructor(
                     var after: String? = null
                     var orderStart = orderOfLastPost + BUFFER
                     var fetchedCount = 0
-                    val tombstones = deletedBookmarkRepository.deletedIdsSnapshot()
+                    val tombstones = deletedBookmarkRepository.deletedIdsSnapshot(BookmarkSource.Reddit)
 
                     // Fetch all pages until no more results
                     var hasMore: Boolean
@@ -175,11 +175,11 @@ class RedditRepository @Inject constructor(
     }
 
     suspend fun softDelete(id: String) {
-        deletedBookmarkRepository.softDelete(id, BookmarkSource.REDDIT)
+        deletedBookmarkRepository.softDelete(id, BookmarkSource.Reddit)
     }
 
     suspend fun undoDelete(id: String) {
-        deletedBookmarkRepository.undoDelete(id)
+        deletedBookmarkRepository.undoDelete(id, BookmarkSource.Reddit)
     }
 
     /**

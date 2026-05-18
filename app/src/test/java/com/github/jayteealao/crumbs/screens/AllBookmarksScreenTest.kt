@@ -43,6 +43,7 @@ class AllBookmarksScreenTest {
                     onLongPress = { _, _ -> },
                     onConnectAccountClick = {},
                     onLoadTags = {},
+                    onLoadTagsForIds = {},
                 )
             }
         }
@@ -62,6 +63,7 @@ class AllBookmarksScreenTest {
                     onLongPress = { _, _ -> },
                     onConnectAccountClick = {},
                     onLoadTags = {},
+                    onLoadTagsForIds = {},
                 )
             }
         }
@@ -83,6 +85,7 @@ class AllBookmarksScreenTest {
                     onLongPress = { _, _ -> },
                     onConnectAccountClick = { fired = true },
                     onLoadTags = {},
+                    onLoadTagsForIds = {},
                 )
             }
         }

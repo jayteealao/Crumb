@@ -102,6 +102,16 @@ class BookmarksViewModel @Inject constructor(
         }
     }
 
+    fun loadTagsForItems(ids: List<String>) {
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            val batch = repository.getTagsForItems(ids)
+            // Merge: preserve existing entries not in the batch so single-item
+            // updates from saveTags() are not overwritten.
+            _tagsForTweet.value = _tagsForTweet.value + batch
+        }
+    }
+
     fun loadAllTags() {
         viewModelScope.launch {
             _allTags.value = repository.getAllTags()

@@ -109,7 +109,7 @@ interface TweetDao {
     @Transaction
     @Query("""
         SELECT t.* FROM tweetEntity t
-        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId
+        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
         WHERE t.referenced = 0
           AND d.bookmarkId IS NULL
         ORDER BY t.`order` DESC
@@ -119,7 +119,7 @@ interface TweetDao {
     @Transaction
     @Query("""
         SELECT t.* FROM tweetEntity t
-        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId
+        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
         INNER JOIN tweet_tags tt ON tt.tweetId = t.id
         WHERE t.referenced = 0
           AND d.bookmarkId IS NULL
@@ -147,6 +147,13 @@ interface TweetDao {
 
     @Query("SELECT tags.name FROM tags INNER JOIN tweet_tags ON tags.name = tweet_tags.tagName WHERE tweet_tags.tweetId = :tweetId")
     suspend fun getTagsForTweet(tweetId: String): List<String>
+
+    /**
+     * Batch variant — fetches tag names for multiple tweet ids in a single query.
+     * Returns all matching rows as (tweetId, tagName) pairs; callers group by tweetId.
+     */
+    @Query("SELECT tweetId, tagName FROM tweet_tags WHERE tweetId IN (:tweetIds)")
+    suspend fun getTagsForTweets(tweetIds: List<String>): List<TweetTagCrossRef>
 
     @Query("SELECT * FROM tags ORDER BY name ASC")
     suspend fun getAllTags(): List<TagEntity>

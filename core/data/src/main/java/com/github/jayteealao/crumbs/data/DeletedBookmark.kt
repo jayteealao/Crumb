@@ -1,11 +1,10 @@
 package com.github.jayteealao.crumbs.data
 
 import androidx.room.Entity
-import androidx.room.PrimaryKey
 
-@Entity(tableName = "deleted_bookmarks")
+@Entity(tableName = "deleted_bookmarks", primaryKeys = ["bookmarkId", "source"])
 data class DeletedBookmark(
-    @PrimaryKey val bookmarkId: String,
+    val bookmarkId: String,
     val source: String,
     val deletedAt: Long,
 )

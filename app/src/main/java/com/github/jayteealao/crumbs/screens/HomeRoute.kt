@@ -18,8 +18,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.navigation.NavController
 import com.github.jayteealao.crumbs.data.BannerState
-import com.github.jayteealao.crumbs.data.BookmarkSource
-import com.github.jayteealao.crumbs.data.DeletedBookmarkRepository
+import com.github.jayteealao.crumbs.models.BookmarkSource
+import com.github.jayteealao.crumbs.data.SnackbarBus
 import com.github.jayteealao.crumbs.data.SnackbarEvent
 import com.github.jayteealao.crumbs.data.SyncErrorBus
 import com.github.jayteealao.crumbs.data.SyncErrorEvent
@@ -41,7 +41,7 @@ import javax.inject.Inject
 @HiltViewModel
 class HomeServicesViewModel @Inject constructor(
     val syncErrorBus: SyncErrorBus,
-    val tombstoneRepository: DeletedBookmarkRepository,
+    val snackbarBus: SnackbarBus,
 ) : ViewModel()
 
 @Composable
@@ -89,7 +89,7 @@ fun HomeRoute(
             when (event) {
                 is SyncErrorEvent.TwitterAuth401 -> {
                     twitterBanner = BannerState(
-                        source = BookmarkSource.TWITTER,
+                        source = BookmarkSource.Twitter,
                         kicker = "ERR · RECONNECT TWITTER",
                         detail = "Twitter session expired. Tap to reconnect.",
                         ctaLabel = "RECONNECT",
@@ -97,7 +97,7 @@ fun HomeRoute(
                 }
                 is SyncErrorEvent.RedditAuth401 -> {
                     redditBanner = BannerState(
-                        source = BookmarkSource.REDDIT,
+                        source = BookmarkSource.Reddit,
                         kicker = "ERR · RECONNECT REDDIT",
                         detail = "Reddit session expired. Tap to reconnect.",
                         ctaLabel = "RECONNECT",
@@ -109,7 +109,7 @@ fun HomeRoute(
     }
 
     LaunchedEffect(Unit) {
-        services.tombstoneRepository.events.collect { event ->
+        services.snackbarBus.events.collect { event ->
             when (event) {
                 is SnackbarEvent.UndoableDelete -> {
                     val result = snackbarHostState.showSnackbar(
@@ -119,9 +119,8 @@ fun HomeRoute(
                     )
                     if (result == SnackbarResult.ActionPerformed) {
                         when (event.source) {
-                            BookmarkSource.TWITTER -> bookmarksViewModel.undoDelete(event.id)
-                            BookmarkSource.REDDIT -> redditViewModel.undoDelete(event.id)
-                            else -> Unit
+                            BookmarkSource.Twitter -> bookmarksViewModel.undoDelete(event.id)
+                            BookmarkSource.Reddit -> redditViewModel.undoDelete(event.id)
                         }
                     }
                 }
@@ -149,9 +148,9 @@ fun HomeRoute(
         onSortClick = { /* sort dialog deferred to a follow-up slice */ },
         onBannerCta = {
             val intent: Intent? = when (activeBanner?.source) {
-                BookmarkSource.TWITTER -> loginViewModel.authIntent()
-                BookmarkSource.REDDIT -> redditViewModel.authIntent()
-                else -> null
+                BookmarkSource.Twitter -> loginViewModel.authIntent()
+                BookmarkSource.Reddit -> redditViewModel.authIntent()
+                null -> null
             }
             intent?.let {
                 try {
