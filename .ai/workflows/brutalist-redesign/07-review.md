@@ -7,7 +7,7 @@ slice-slug: ""
 status: complete
 stage-number: 7
 created-at: "2026-05-18T11:35:48Z"
-updated-at: "2026-05-18T14:48:25Z"
+updated-at: "2026-05-18T15:10:09Z"
 verdict: dont-ship
 commands-run: [correctness, security, code-simplification, testing, maintainability, reliability, frontend-accessibility, backend-concurrency, architecture, performance, data-integrity, migrations, privacy, supply-chain]
 metric-commands-run: 14
@@ -19,12 +19,12 @@ metric-findings-med: 40
 metric-findings-low: 19
 metric-findings-nit: 10
 metric-issues-found-initial: 98
-metric-issues-found-final: 80   # 18 patched (B1/B2/B3 + H1..H15); 39 Fix decisions remaining
+metric-issues-found-final: 78   # 20 patched (B1/B2/B3 + H1..H17); 37 Fix decisions remaining
 metric-fix-decisions: 57
-metric-fix-patched: 18
+metric-fix-patched: 20
 fix-rounds-run: 1
-convergence: in-progress   # 18/57 Fix decisions patched at checkpoint; verdict re-evaluated when all 57 land
-review-owned-fix-commit: "9dfb119,30def3f,5461075,41aa8aa,e97ee5f"
+convergence: in-progress   # 20/57 Fix decisions patched at checkpoint; verdict re-evaluated when all 57 land
+review-owned-fix-commit: "9dfb119,30def3f,5461075,41aa8aa,e97ee5f,790bdba"
 tags: [redesign, slug-wide-review, escalated]
 refs:
   index: 00-index.md
@@ -223,8 +223,8 @@ The exhaustive per-finding writeups (evidence snippets, suggested fixes, severit
 Stage-5 review-fix mode in progress. Fixes land phase-by-phase rather than as a single mega-commit so each phase produces a reviewable diff.
 
 **Round count:** 1 (in-progress)
-**Convergence:** in-progress — 18/57 patched at this checkpoint
-**Initial findings:** 98 → **Current open:** 80 (18 patched)
+**Convergence:** in-progress — 20/57 patched at this checkpoint
+**Initial findings:** 98 → **Current open:** 78 (20 patched)
 
 | ID | Severity | Status | Commit | Notes |
 |----|----------|--------|--------|-------|
@@ -246,8 +246,10 @@ Stage-5 review-fix mode in progress. Fixes land phase-by-phase rather than as a 
 | H13 (MAINT-01+CS-2) | HIGH | Fixed | e97ee5f | New `LongPressState` (`@Stable` class with `bookmark`/`anchor`/`showTagEditor` mutable state + `dismiss()`), `rememberLongPressState()` composable factory, and `bookmarkPopupActions(onTag, onOpen, onShare, onDelete)` plain function all added to `CrumbsLongPressPopup.kt`. The three Routes (Twitter, Reddit, All) each collapse the popup state triple into `val lps = rememberLongPressState()` and the 50-line inline 4-action `persistentListOf(...)` into `bookmarkPopupActions(...)`. Per-route lambdas keep the `softDelete` dispatch source-correct. |
 | H14 (PERF-01) | HIGH | Fixed | e97ee5f | Eliminated the per-item `LaunchedEffect(id) { onLoadTags(id) }` from all three screens. `TweetDao.getTagsForTweets(ids: List<String>): List<TweetTagCrossRef>` (IN-clause), `TagRepository.getTagsForItems`, `BookmarksViewModel.loadTagsForItems`, and `RedditViewModel.loadTagsForItems` form the batch path. Each screen now fires one `LaunchedEffect(itemIds)` per page-snapshot change, eliminating ~20 DB queries + ~20 `tagsMap` StateFlow updates per page. `AllBookmarksScreen` dispatches one batch per source. |
 | H15 (DATA-01) | HIGH | Fixed | e97ee5f | `DeletedBookmark` PK is now composite `(bookmarkId, source)`. DAO queries (`exists`, `delete`, `getAllIdsSnapshotForSource`) and repository signatures (`isDeleted`, `undoDelete`, `deletedIdsSnapshot`) take a typed `BookmarkSource`. `LEFT JOIN deleted_bookmarks` clauses in TweetDao and RedditDao filter on `d.source = 'twitter'` / `'reddit'` respectively. `AppDatabase` bumped 5 → 6; `MIGRATION_5_6` recreates the table via `CREATE TABLE ... INSERT OR IGNORE ... DROP ... RENAME` and is registered alongside the prior migrations. KSP emitted `app/schemas/.../6.json` with the new PK; `MigrationTest.migrate5To6_compositePkAndDataSurvives` asserts data preservation. Cross-source tombstone collisions can no longer cascade. |
+| H16 (A11Y-01+A11Y-02) | HIGH | Fixed | 790bdba | `CrumbsBottomNav` tabs gain `semantics(mergeDescendants = true) { role = Role.Tab; selected = isSelected; contentDescription = tab.label }` so TalkBack announces e.g. "Twitter, tab, selected" instead of reading the raw uppercase display text. `CrumbsFilterBar` chips gain `role = Role.Checkbox` + `toggleableState = On/Off` + mixed-case `contentDescription`; the sort trigger gains `role = Role.Button` + `contentDescription = "Sort: $sortLabel"`. Semantics blocks precede `clickable` so the framework's auto-injected `Role.Button` cannot overwrite the tab/checkbox roles. |
+| H17 (A11Y-03+A11Y-04) | HIGH | Fixed | 790bdba | `CrumbsBanner` CTA gains `role = Role.Button` + mixed-case `contentDescription = ctaLabel` (so "RECONNECT" display text reads as "Reconnect, button"). `Modifier.minimumInteractiveComponentSize()` applied to: the banner CTA `Text`, `CrumbsIconButton` (the entire `inner` modifier chain — Small 36dp and Medium 40dp both gain a 48dp hit slop while keeping their brutalist visual size), `CrumbsFilterBar` chips, and the sort trigger. All touch targets now satisfy the 48dp WCAG 2.5.5 / Android Material minimum without altering the 34dp visual filter-bar height. |
 
-**Remaining 39 Fix decisions queued** — see triage tables above. Continuing phases (recommended order): A11y (H16, H17), Privacy/Testing/Migrations/Supply (H18, H20, H21, H22), then the 8 MED bundles (31 findings).
+**Remaining 37 Fix decisions queued** — see triage tables above. Continuing phases (recommended order): Privacy/Testing/Migrations/Supply (H18, H20, H21, H22), then the 8 MED bundles (31 findings).
 
 **Next invocation to continue:** `/wf implement brutalist-redesign reviews`
 
