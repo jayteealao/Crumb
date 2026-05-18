@@ -107,7 +107,7 @@ class RedditRepository @Inject constructor(
                             // Prepare posts for database; gate on tombstone presence
                             entitiesToInsert = data.data.children
                                 .filter { it.kind == "t3" }
-                                .filter { !deletedBookmarkRepository.isDeleted(it.data.name) }
+                                .filter { !deletedBookmarkRepository.isDeleted(it.data.id) }
                                 .map { thing ->
                                     val order = orderStart--
                                     thing.data.toEntity(order)
@@ -157,10 +157,18 @@ class RedditRepository @Inject constructor(
         pagingSourceFactory = { redditDao.getPostsTombstoneAware() }
     ).flow
 
-    fun pagingPostsData(@Suppress("UNUSED_PARAMETER") filter: FilterState): Flow<PagingData<RedditPostData>> = Pager(
-        config = PagingConfig(pageSize = 20),
-        pagingSourceFactory = { redditDao.getPostsTombstoneAware() }
-    ).flow
+    fun pagingPostsData(filter: FilterState): Flow<PagingData<RedditPostData>> {
+        val sourceFactory: () -> androidx.paging.PagingSource<Int, RedditPostData> =
+            if (filter.selectedTags.isNotEmpty()) {
+                { redditDao.getPostsByTagsTombstoneAware(filter.selectedTags.toList()) }
+            } else {
+                { redditDao.getPostsTombstoneAware() }
+            }
+        return Pager(
+            config = PagingConfig(pageSize = 20),
+            pagingSourceFactory = sourceFactory,
+        ).flow
+    }
 
     /**
      * Delete a post from saved

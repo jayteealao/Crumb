@@ -61,6 +61,11 @@ fun HomeRoute(
 
     val twitterFilter by bookmarksViewModel.filter.collectAsState()
     val redditFilter by redditViewModel.filter.collectAsState()
+    val twitterAccess by loginViewModel.isAccessTokenAvailable.collectAsState()
+    val redditAccess by redditViewModel.isAccessTokenAvailable.collectAsState()
+
+    LaunchedEffect(twitterAccess) { if (twitterAccess) twitterBanner = null }
+    LaunchedEffect(redditAccess) { if (redditAccess) redditBanner = null }
 
     val activeFilter = when (selectedTab) {
         BottomNavTab.TWITTER -> twitterFilter
