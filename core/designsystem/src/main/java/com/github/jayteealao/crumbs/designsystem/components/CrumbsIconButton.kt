@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,6 +72,7 @@ fun CrumbsIconButton(
     }
 
     var inner: Modifier = modifier
+        .minimumInteractiveComponentSize()
         .size(square)
         .background(backgroundColor)
     if (showBorder) inner = inner.border(stroke.regular, colors.ink, RectangleShape)

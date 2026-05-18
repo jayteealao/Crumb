@@ -12,12 +12,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
@@ -101,6 +108,12 @@ fun CrumbsFilterBar(
                             RectangleShape,
                         )
                         .background(if (selected) colors.accent else Color.Transparent)
+                        .semantics(mergeDescendants = true) {
+                            role = Role.Checkbox
+                            toggleableState = if (selected) ToggleableState.On else ToggleableState.Off
+                            contentDescription = chip.label
+                        }
+                        .minimumInteractiveComponentSize()
                         .clickable {
                             when (mode) {
                                 FilterMode.Single -> onChipToggled(chip.id)
@@ -122,6 +135,11 @@ fun CrumbsFilterBar(
         Box(
             modifier = Modifier
                 .fillMaxHeight()
+                .semantics(mergeDescendants = true) {
+                    role = Role.Button
+                    contentDescription = "Sort: $sortLabel"
+                }
+                .minimumInteractiveComponentSize()
                 .clickable { onSortClick() }
                 .padding(horizontal = 10.dp)
                 .testTag("filter-bar-sort"),
