@@ -3,11 +3,11 @@ package com.github.jayteealao.crumbs.db
 import androidx.room.testing.MigrationTestHelper
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.github.jayteealao.crumbs.di.MIGRATION_4_5
-import com.github.jayteealao.crumbs.di.MIGRATION_5_6
-import com.github.jayteealao.crumbs.di.MIGRATION_6_7
-import com.github.jayteealao.crumbs.di.MIGRATION_7_8
-import com.github.jayteealao.crumbs.di.MIGRATION_8_9
+import com.github.jayteealao.crumbs.db.MIGRATION_4_5
+import com.github.jayteealao.crumbs.db.MIGRATION_5_6
+import com.github.jayteealao.crumbs.db.MIGRATION_6_7
+import com.github.jayteealao.crumbs.db.MIGRATION_7_8
+import com.github.jayteealao.crumbs.db.MIGRATION_8_9
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
