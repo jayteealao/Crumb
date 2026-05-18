@@ -30,7 +30,15 @@ class DebugDataInjector @Inject constructor(
 ) {
     suspend fun run(wipe: Boolean) = withContext(Dispatchers.IO) {
         if (wipe) {
+            // Tombstones survive across the debug seed wipe so a developer
+            // doing repeat seed+sync cycles does not see permanently-deleted
+            // bookmarks reappear. clearAllTables() drops every table — we
+            // snapshot the deleted_bookmarks rows, wipe, then restore them.
+            val preservedTombstones = db.deletedBookmarkDao().getAllDeleted()
             db.clearAllTables()
+            if (preservedTombstones.isNotEmpty()) {
+                db.deletedBookmarkDao().insertAll(preservedTombstones)
+            }
         }
         seedTwitter()
         seedReddit()

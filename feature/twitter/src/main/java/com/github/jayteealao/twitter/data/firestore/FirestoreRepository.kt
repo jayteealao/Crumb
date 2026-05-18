@@ -5,6 +5,7 @@ import com.github.jayteealao.twitter.models.TweetEntities
 import com.github.jayteealao.twitter.models.TweetEntity
 import com.github.jayteealao.twitter.models.TweetReferencedTweetsFull
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.Dispatchers
@@ -188,23 +189,29 @@ class FirestoreRepository @Inject constructor() {
         try {
             val tweetId = tweetEntities.tweetEntity.id
 
-            // Check if tweet already exists
-            val existingTweet = db.collection(TWEETS_COLLECTION)
-                .whereEqualTo("tweetId", tweetId)
-                .get()
-                .await()
-
-            if (!existingTweet.isEmpty) {
-                Timber.d("Tweet $tweetId already exists in Firestore, skipping upload")
-                return@withContext
+            // Idempotent upload: parent doc uses the tweet id as its
+            // deterministic document key, with merge semantics so repeated
+            // calls (e.g. two concurrent syncs) collapse into one doc instead
+            // of racing through whereEqualTo()+set() and double-writing.
+            val tweetRef = db.collection(TWEETS_COLLECTION).document(tweetId)
+            val existingSnapshot = tweetRef.get().await()
+            val isFirstWrite = !existingSnapshot.exists()
+            if (!isFirstWrite) {
+                Timber.d("Tweet $tweetId already in Firestore — merging only")
             }
 
             // Use batch write for atomicity
             val batch = db.batch()
 
-            // Add tweet
-            val tweetRef = db.collection(TWEETS_COLLECTION).document()
-            batch.set(tweetRef, FirestoreTweet.fromTweetEntity(tweetEntities.tweetEntity))
+            // Add tweet (deterministic doc, merge-safe for repeat uploads)
+            batch.set(tweetRef, FirestoreTweet.fromTweetEntity(tweetEntities.tweetEntity), SetOptions.merge())
+
+            // Sub-collections only fan out on the first write — repeating them
+            // on every call would multiply child docs and inflate read costs.
+            if (!isFirstWrite) {
+                batch.commit().await()
+                return@withContext
+            }
 
             // Add users
             tweetEntities.twitterUserEntity.forEach { user ->

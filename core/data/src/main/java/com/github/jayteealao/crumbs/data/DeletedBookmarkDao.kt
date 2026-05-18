@@ -23,4 +23,12 @@ interface DeletedBookmarkDao {
 
     @Query("SELECT bookmarkId FROM deleted_bookmarks")
     fun getAllIds(): Flow<List<String>>
+
+    // Used by the debug seed path to snapshot + restore tombstones around
+    // clearAllTables(), so permanently-deleted bookmarks do not reappear.
+    @Query("SELECT * FROM deleted_bookmarks")
+    suspend fun getAllDeleted(): List<DeletedBookmark>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(tombstones: List<DeletedBookmark>)
 }

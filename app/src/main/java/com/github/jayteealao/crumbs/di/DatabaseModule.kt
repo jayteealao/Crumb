@@ -123,7 +123,7 @@ class DatabaseModule {
         AppDatabase::class.java,
         "AppDatabase"
     )
-        .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+        .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
         .build()
 
     @Singleton
@@ -149,6 +149,21 @@ val MIGRATION_4_5: Migration = object : Migration(4, 5) {
                 PRIMARY KEY(`bookmarkId`)
             )
         """.trimIndent())
+    }
+}
+
+/**
+ * v7 → v8: index FK columns on pollIds and mediaKeys.
+ *
+ * Without these indexes Room must scan the entire child table whenever a
+ * parent tweetEntity is deleted or its `id` is updated. KSP flagged this
+ * as a high-priority warning; adding ordinary BTREE indexes keeps the
+ * cascade behavior cheap regardless of how many polls/media rows exist.
+ */
+val MIGRATION_7_8: Migration = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_pollIds_tweetId` ON `pollIds` (`tweetId`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_mediaKeys_tweet_id` ON `mediaKeys` (`tweet_id`)")
     }
 }
 
