@@ -41,6 +41,7 @@ import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.models.ContentType
 import com.github.jayteealao.reddit.models.RedditPostData
 import com.github.jayteealao.reddit.screens.RedditViewModel
+import com.github.jayteealao.reddit.screens.toBookmark
 import com.github.jayteealao.twitter.models.TweetData
 import com.github.jayteealao.twitter.screens.BookmarksViewModel
 import com.github.jayteealao.twitter.screens.LoginViewModel
@@ -310,36 +311,10 @@ fun AllBookmarksRoute(
     }
 }
 
-private fun RedditPostData.toBookmark(tags: List<String> = emptyList()): Bookmark {
-    val contentType = when {
-        post.isVideo -> ContentType.Video
-        post.thumbnail != null && post.thumbnail !in listOf("self", "default", "nsfw") -> ContentType.Image
-        !post.isSelf -> ContentType.Link
-        else -> ContentType.Text
-    }
-    val imageUrl = when {
-        post.thumbnail != null && post.thumbnail !in listOf("self", "default", "nsfw") -> post.thumbnail
-        contentType == ContentType.Image -> post.url
-        else -> null
-    }
-    val videoUrl = if (post.isVideo) post.url else null
-    return Bookmark(
-        id = post.id,
-        source = BookmarkSource.Reddit,
-        author = "u/${post.author}",
-        title = post.title,
-        previewText = if (post.selftext.isNotBlank()) post.selftext else post.title,
-        imageUrl = imageUrl,
-        videoUrl = videoUrl,
-        contentType = contentType,
-        savedAt = post.createdUtc * 1000,
-        tags = tags,
-        isThread = false,
-        threadCount = 1,
-        isDeleted = false,
-        sourceUrl = "https://reddit.com${post.permalink}",
-    )
-}
+// `RedditPostData.toBookmark` lives in feature/reddit
+// (com.github.jayteealao.reddit.screens.toBookmark). Importing it here keeps
+// the conversion logic single-sourced — the duplicate that used to live below
+// drifted from the reddit copy and is removed.
 
 @Preview(name = "AllBookmarks Empty Light", showBackground = true)
 @Composable

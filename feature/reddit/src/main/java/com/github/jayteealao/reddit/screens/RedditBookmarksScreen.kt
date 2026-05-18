@@ -241,7 +241,7 @@ fun RedditBookmarksRoute(
     }
 }
 
-private fun RedditPostData.toBookmark(tags: List<String> = emptyList()): Bookmark {
+fun RedditPostData.toBookmark(tags: List<String> = emptyList()): Bookmark {
     val contentType = when {
         post.isVideo -> ContentType.Video
         post.thumbnail != null && post.thumbnail !in listOf("self", "default", "nsfw") -> ContentType.Image

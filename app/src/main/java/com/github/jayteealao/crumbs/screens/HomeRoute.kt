@@ -7,7 +7,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.github.jayteealao.crumbs.data.BannerState
 import com.github.jayteealao.crumbs.models.BookmarkSource
@@ -64,24 +65,38 @@ fun HomeRoute(
     val snackbarHostState = remember { SnackbarHostState() }
     val snackbarScope = rememberCoroutineScope()
 
-    val twitterFilter by bookmarksViewModel.filter.collectAsState()
-    val redditFilter by redditViewModel.filter.collectAsState()
-    val twitterAccess by loginViewModel.isAccessTokenAvailable.collectAsState()
-    val redditAccess by redditViewModel.isAccessTokenAvailable.collectAsState()
+    // collectAsStateWithLifecycle stops collecting when the route goes off-
+    // screen (e.g. settings deep-link) so background flows don't keep waking
+    // the route just to drop emissions on the floor.
+    val twitterFilter by bookmarksViewModel.filter.collectAsStateWithLifecycle()
+    val redditFilter by redditViewModel.filter.collectAsStateWithLifecycle()
+    val twitterAccess by loginViewModel.isAccessTokenAvailable.collectAsStateWithLifecycle()
+    val redditAccess by redditViewModel.isAccessTokenAvailable.collectAsStateWithLifecycle()
 
     LaunchedEffect(twitterAccess) { if (twitterAccess) twitterBanner = null }
     LaunchedEffect(redditAccess) { if (redditAccess) redditBanner = null }
 
-    val activeFilter = when (selectedTab) {
-        BottomNavTab.TWITTER -> twitterFilter
-        BottomNavTab.REDDIT -> redditFilter
-        BottomNavTab.ALL -> twitterFilter
-        BottomNavTab.MAP -> twitterFilter
+    // derivedStateOf collapses transitive recompositions: callers reading
+    // activeFilter/activeBanner only invalidate when the *resolved* value
+    // changes, not on every twitter/reddit emission.
+    val activeFilter by remember {
+        derivedStateOf {
+            when (selectedTab) {
+                BottomNavTab.TWITTER -> twitterFilter
+                BottomNavTab.REDDIT -> redditFilter
+                BottomNavTab.ALL -> twitterFilter
+                BottomNavTab.MAP -> twitterFilter
+            }
+        }
     }
-    val activeBanner = when (selectedTab) {
-        BottomNavTab.TWITTER -> twitterBanner
-        BottomNavTab.REDDIT -> redditBanner
-        else -> null
+    val activeBanner by remember {
+        derivedStateOf {
+            when (selectedTab) {
+                BottomNavTab.TWITTER -> twitterBanner
+                BottomNavTab.REDDIT -> redditBanner
+                else -> null
+            }
+        }
     }
 
     LaunchedEffect(Unit) {

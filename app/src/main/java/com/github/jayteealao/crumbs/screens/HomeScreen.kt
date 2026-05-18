@@ -27,6 +27,10 @@ data class HomeUiState(
     val selectedTab: BottomNavTab = BottomNavTab.TWITTER,
     val isSearchActive: Boolean = false,
     val searchQuery: String = "",
+    // Count badge value displayed in the filter bar. Currently unwired — the
+    // active VM does not surface a per-tab total Flow yet, so HomeRoute hands
+    // through 0. Kept as a first-class field so the wiring can land in a
+    // follow-up without re-threading the HomeScreen signature.
     val filterCount: Int = 0,
     val selectedFilterChipIds: Set<String> = emptySet(),
     val bannerState: BannerState? = null,
