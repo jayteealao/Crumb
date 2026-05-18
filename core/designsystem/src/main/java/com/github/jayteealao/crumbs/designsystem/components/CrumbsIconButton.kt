@@ -17,6 +17,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
@@ -76,7 +80,15 @@ fun CrumbsIconButton(
         .size(square)
         .background(backgroundColor)
     if (showBorder) inner = inner.border(stroke.regular, colors.ink, RectangleShape)
+    // Apply contentDescription + Role.Button at the clickable layer so TalkBack
+    // reads a meaningful label even when the inner Icon was created with
+    // contentDescription=null. Without this, the `contentDescription` parameter
+    // is silently dropped by composition.
     inner = inner
+        .semantics(mergeDescendants = true) {
+            role = Role.Button
+            contentDescription?.let { this.contentDescription = it }
+        }
         .clickable(enabled = enabled) { onClick() }
         .testTag("icon-btn-${style.name.lowercase()}")
 

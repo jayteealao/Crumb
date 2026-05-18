@@ -32,6 +32,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
@@ -172,6 +176,14 @@ fun CrumbsLongPressPopup(
                             action = action,
                             modifier = Modifier
                                 .weight(1f)
+                                // Mixed-case label as a single semantic node so
+                                // TalkBack pronounces "Tag" / "Open" instead of
+                                // spelling the uppercase glyphs T-A-G letter by
+                                // letter. The visual still uppercases inside.
+                                .semantics(mergeDescendants = true) {
+                                    role = Role.Button
+                                    contentDescription = action.label
+                                }
                                 .clickable {
                                     action.onClick()
                                     onDismiss()
@@ -226,7 +238,10 @@ private fun PopupActionCell(
         action.icon?.let { iv ->
             Icon(
                 imageVector = iv,
-                contentDescription = action.label,
+                // Icon is decorative — the clickable cell above merges a
+                // contentDescription on the action, so a duplicate label here
+                // would cause TalkBack to read the action name twice.
+                contentDescription = null,
                 tint = labelColor,
                 modifier = Modifier.size(18.dp),
             )
@@ -306,7 +321,7 @@ fun bookmarkPopupActions(
 ): ImmutableList<PopupAction> = persistentListOf(
     PopupAction(
         id = "tag",
-        label = "TAG",
+        label = "Tag",
         hint = "Add",
         icon = Icons.Default.LocalOffer,
         isPrimary = true,
@@ -314,21 +329,21 @@ fun bookmarkPopupActions(
     ),
     PopupAction(
         id = "open",
-        label = "OPEN",
+        label = "Open",
         hint = "Url",
         icon = Icons.Default.Language,
         onClick = onOpen,
     ),
     PopupAction(
         id = "share",
-        label = "SHARE",
+        label = "Share",
         hint = "Link",
         icon = Icons.Default.Share,
         onClick = onShare,
     ),
     PopupAction(
         id = "delete",
-        label = "DELETE",
+        label = "Delete",
         hint = "Remove",
         icon = Icons.Default.Delete,
         isDanger = true,

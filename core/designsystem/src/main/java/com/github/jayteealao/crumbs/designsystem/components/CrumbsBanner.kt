@@ -15,8 +15,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
@@ -46,6 +48,13 @@ fun CrumbsBanner(
         modifier = modifier
             .fillMaxWidth()
             .background(colors.surface)
+            // Polite liveRegion: screen readers announce kicker+detail when the
+            // banner appears (e.g., after a 401), without interrupting the user's
+            // current focus. The CTA below is independently focusable.
+            .semantics(mergeDescendants = false) {
+                liveRegion = LiveRegionMode.Polite
+                contentDescription = "$kickerLine. $detail"
+            }
             .testTag("banner"),
     ) {
         Box(

@@ -182,10 +182,15 @@ fun CrumbsBookmarkCard(
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (bookmark.isThread) {
+                    // Accent yellow on surface fails WCAG AA at caption size in
+                    // light mode (contrast ≈3.4:1). Switch to ink and keep the
+                    // visual hierarchy via the ↳ glyph + uppercase mono so the
+                    // indicator still reads as a "thread badge" without relying
+                    // on color alone (also satisfies WCAG 1.4.1 Use of Color).
                     Text(
-                        text = "+ ${bookmark.threadCount} MORE",
+                        text = "↳ + ${bookmark.threadCount} MORE",
                         style = typography.captionMono,
-                        color = colors.accent,
+                        color = colors.ink,
                     )
                 }
                 if (bookmark.tags.isNotEmpty()) {
