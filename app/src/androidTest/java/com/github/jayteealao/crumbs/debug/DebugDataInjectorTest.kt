@@ -50,7 +50,15 @@ class DebugDataInjectorTest {
     fun run_wipeTrue_seedsDeterministicCounts() = runBlocking {
         injector.run(wipe = true)
         assertEquals(5, db.tweetDao().getAllTags().size)
-        assertEquals(listOf("debug-tweet-1", "debug-tweet-2", "debug-tweet-3", "debug-tweet-4").size, 4)
+        // Replaces a vacuous `4 == 4` assertion: check that the seeded tweet
+        // ids actually landed in the database. The injector is documented to
+        // emit ids debug-tweet-{1..4}, so the DAO must return exactly those.
+        val tweetIds = db.tweetDao().getAllTweetIds().toSet()
+        assertEquals(
+            "Seed should insert exactly the four debug tweets",
+            setOf("debug-tweet-1", "debug-tweet-2", "debug-tweet-3", "debug-tweet-4"),
+            tweetIds,
+        )
         assertEquals("debug-tweet-1", db.tweetDao().getLatestBookmark()?.id)
         assertEquals(4, db.redditDao().getPostCount())
     }

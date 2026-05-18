@@ -5,6 +5,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.jayteealao.crumbs.di.MIGRATION_4_5
 import com.github.jayteealao.crumbs.di.MIGRATION_5_6
+import com.github.jayteealao.crumbs.di.MIGRATION_6_7
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -62,6 +63,51 @@ class MigrationTest {
             assertEquals("abc123", cursor.getString(0))
             assertEquals("twitter", cursor.getString(1))
             assertEquals(1000L, cursor.getLong(2))
+        }
+
+        db.close()
+    }
+
+    @Test
+    fun migrate6To7_indexesOrderColumns() {
+        helper.createDatabase(TEST_DB, 6).apply { close() }
+
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB,
+            7,
+            true,
+            MIGRATION_6_7,
+        )
+
+        // Verify the two `order` indexes exist after migration. SQLite reports
+        // indexes via the sqlite_master master table; index_tweetEntity_order
+        // and index_reddit_posts_order must both be present so feed paging
+        // sorts O(log n) instead of regressing to a full-table scan.
+        val expectedIndexes = setOf("index_tweetEntity_order", "index_reddit_posts_order")
+        val foundIndexes = mutableSetOf<String>()
+        db.query(
+            "SELECT name FROM sqlite_master WHERE type='index' AND name IN ('index_tweetEntity_order', 'index_reddit_posts_order')"
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                foundIndexes += cursor.getString(0)
+            }
+        }
+        assertEquals(
+            "Both feed `order` indexes should exist after 6→7 migration",
+            expectedIndexes,
+            foundIndexes,
+        )
+
+        // Foreign-key integrity: turning on FK enforcement and running the
+        // pragma check must report no violations after migrating into v7
+        // (this validates that the migration did not orphan any rows from
+        // earlier joins on tweet_tags/reddit_posts).
+        db.execSQL("PRAGMA foreign_keys = ON")
+        db.query("PRAGMA foreign_key_check").use { cursor ->
+            assertTrue(
+                "PRAGMA foreign_key_check should return no rows (no FK violations)",
+                cursor.count == 0,
+            )
         }
 
         db.close()
