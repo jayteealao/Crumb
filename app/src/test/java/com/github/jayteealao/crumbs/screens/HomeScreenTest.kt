@@ -46,7 +46,7 @@ class HomeScreenTest {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = false) {
                 HomeScreen(
-                    uiState = HomeUiState(selectedTab = BottomNavTab.TWITTER, filterCount = 42),
+                    uiState = HomeUiState(selectedTab = BottomNavTab.TWITTER),
                     onTabSelected = {},
                     onSearchQueryChange = {},
                     onSearchActiveChange = {},
@@ -74,7 +74,7 @@ class HomeScreenTest {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = true) {
                 HomeScreen(
-                    uiState = HomeUiState(selectedTab = BottomNavTab.ALL, filterCount = 13),
+                    uiState = HomeUiState(selectedTab = BottomNavTab.ALL),
                     onTabSelected = {},
                     onSearchQueryChange = {},
                     onSearchActiveChange = {},

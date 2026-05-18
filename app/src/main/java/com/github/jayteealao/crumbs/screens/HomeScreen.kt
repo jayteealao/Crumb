@@ -27,11 +27,6 @@ data class HomeUiState(
     val selectedTab: BottomNavTab = BottomNavTab.TWITTER,
     val isSearchActive: Boolean = false,
     val searchQuery: String = "",
-    // Count badge value displayed in the filter bar. Currently unwired — the
-    // active VM does not surface a per-tab total Flow yet, so HomeRoute hands
-    // through 0. Kept as a first-class field so the wiring can land in a
-    // follow-up without re-threading the HomeScreen signature.
-    val filterCount: Int = 0,
     val selectedFilterChipIds: Set<String> = emptySet(),
     val bannerState: BannerState? = null,
 )
@@ -82,7 +77,7 @@ fun HomeScreen(
         },
         filterBar = {
             CrumbsFilterBar(
-                count = uiState.filterCount,
+                count = 0,
                 chips = HomeFilterChips,
                 selectedChipIds = uiState.selectedFilterChipIds,
                 onChipToggled = onChipToggled,
@@ -117,7 +112,7 @@ fun HomeScreen(
 private fun PreviewHomeLight() {
     CrumbsTheme(darkTheme = false) {
         HomeScreen(
-            uiState = HomeUiState(selectedTab = BottomNavTab.TWITTER, filterCount = 42),
+            uiState = HomeUiState(selectedTab = BottomNavTab.TWITTER),
             onTabSelected = {},
             onSearchQueryChange = {},
             onSearchActiveChange = {},
@@ -134,7 +129,7 @@ private fun PreviewHomeLight() {
 private fun PreviewHomeDark() {
     CrumbsTheme(darkTheme = true) {
         HomeScreen(
-            uiState = HomeUiState(selectedTab = BottomNavTab.ALL, filterCount = 13),
+            uiState = HomeUiState(selectedTab = BottomNavTab.ALL),
             onTabSelected = {},
             onSearchQueryChange = {},
             onSearchActiveChange = {},
