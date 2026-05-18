@@ -7,7 +7,7 @@ slice-slug: ""
 status: complete
 stage-number: 7
 created-at: "2026-05-18T11:35:48Z"
-updated-at: "2026-05-18T13:02:51Z"
+updated-at: "2026-05-18T13:20:17Z"
 verdict: dont-ship
 commands-run: [correctness, security, code-simplification, testing, maintainability, reliability, frontend-accessibility, backend-concurrency, architecture, performance, data-integrity, migrations, privacy, supply-chain]
 metric-commands-run: 14
@@ -19,12 +19,12 @@ metric-findings-med: 40
 metric-findings-low: 19
 metric-findings-nit: 10
 metric-issues-found-initial: 98
-metric-issues-found-final: 90   # 8 patched (B1/B2/B3/H1/H2/H3/H4/H5); 49 Fix decisions remaining
+metric-issues-found-final: 85   # 13 patched (B1/B2/B3/H1/H2/H3/H4/H5/H6/H7/H8/H9/H10); 44 Fix decisions remaining
 metric-fix-decisions: 57
-metric-fix-patched: 8
+metric-fix-patched: 13
 fix-rounds-run: 1
-convergence: in-progress   # 8/57 Fix decisions patched at checkpoint; verdict re-evaluated when all 57 land
-review-owned-fix-commit: "9dfb119,30def3f,5461075"
+convergence: in-progress   # 13/57 Fix decisions patched at checkpoint; verdict re-evaluated when all 57 land
+review-owned-fix-commit: "9dfb119,30def3f,5461075,41aa8aa"
 tags: [redesign, slug-wide-review, escalated]
 refs:
   index: 00-index.md
@@ -223,8 +223,8 @@ The exhaustive per-finding writeups (evidence snippets, suggested fixes, severit
 Stage-5 review-fix mode in progress. Fixes land phase-by-phase rather than as a single mega-commit so each phase produces a reviewable diff.
 
 **Round count:** 1 (in-progress)
-**Convergence:** in-progress — 8/57 patched at this checkpoint
-**Initial findings:** 98 → **Current open:** 90 (8 patched)
+**Convergence:** in-progress — 13/57 patched at this checkpoint
+**Initial findings:** 98 → **Current open:** 85 (13 patched)
 
 | ID | Severity | Status | Commit | Notes |
 |----|----------|--------|--------|-------|
@@ -236,8 +236,13 @@ Stage-5 review-fix mode in progress. Fixes land phase-by-phase rather than as a 
 | H3 (CR-1) | HIGH | Fixed | 5461075 | RedditRepository.kt:110 — `it.data.name` → `it.data.id`. Tombstone-filter key now matches the key stored by `softDelete(bookmark.id, …)`; deleted Reddit posts are correctly suppressed on the next sync. |
 | H4 (CR-3) | HIGH | Fixed | 5461075 | HomeRoute.kt — hoisted `twitterAccess` / `redditAccess` from the two ViewModels' `isAccessTokenAvailable` StateFlows; two `LaunchedEffect(access) { if (access) banner = null }` blocks clear the corresponding banner when the access token becomes available. |
 | H5 (CR-5+PERF-03) | HIGH | Fixed | 5461075 | RedditDao gains `getPostsByTagsTombstoneAware(tagNames)` mirroring the Twitter pattern. `pagingPostsData(filter)` branches to the tag-aware query when `filter.selectedTags` is non-empty; `@Suppress("UNUSED_PARAMETER")` removed. Reddit type chips remain visual-only — same parity as Twitter, which also does not wire `filter.type` today. |
+| H6 (REL-03) | HIGH | Fixed | 41aa8aa | HomeRoute banner CTA now resolves the auth Intent first, then wraps `context.startActivity(it)` in a try/catch for `ActivityNotFoundException`. On failure we surface `"NO BROWSER FOUND"` via the existing snackbar host instead of letting the exception propagate. Adds `rememberCoroutineScope` for the snackbar emit. |
+| H7 (REL-04+CR-2+CONC-3+DATA-03+PERF-02) | HIGH | Fixed | 41aa8aa | `DeletedBookmarkDao.existsBlocking` → `suspend fun exists`; added `suspend fun getAllIdsSnapshot()`. `DeletedBookmarkRepository.isDeleted` is now `suspend`; new `suspend fun deletedIdsSnapshot(): Set<String>`. All 3 sync call sites (Twitter syncFromFirestore + refreshBookmarksInternal, Reddit buildDatabase) prefetch the snapshot once per pass and gate inserts on `Set.contains`. Eliminates ~800 per-row DB queries on Reddit sync and the latent main-thread-DB crash risk on the OkHttp callback path. |
+| H8 (CONC-1) | HIGH | Fixed | 41aa8aa | Both repositories replaced the split-lock `isFetching` flag with a single `fetchMutex.tryLock()` + `try/finally { fetchMutex.unlock() }` pattern. The mutex itself is the lock; the `isFetching` field is gone. Cancellation during fetch can no longer orphan the flag and silently disable future syncs. |
+| H9 (CONC-2+DATA-02) | HIGH | Fixed | 41aa8aa | `TweetDao.insertTweetEntities` now annotated `@Transaction @Insert`; added `insertTweetEntitiesAtomic(...)` default-method `@Transaction` wrapper that also bundles the optional `PollIds` insert. `Repository.saveTweetEntities` calls the atomic wrapper. Paging3 InvalidationTracker now sees one invalidation per sync write — no partially-hydrated rows. |
+| H10 (CONC-4) | HIGH | Fixed | 41aa8aa | `CoroutineModule.providesCoroutineScope` is now `@Singleton` and returns `CoroutineScope(SupervisorJob() + Dispatchers.IO + CoroutineExceptionHandler)`. One transient sync exception can no longer cancel the scope shared by Twitter, Reddit, and Firestore startup syncs. |
 
-**Remaining 49 Fix decisions queued** — see triage tables above. Continuing phases (recommended order): Reliability (H6, H7, H8, H9, H10), Architecture/Data (H11, H12, H13, H14, H15), A11y (H16, H17), Privacy/Testing/Migrations/Supply (H18, H20, H21, H22), then the 8 MED bundles (31 findings).
+**Remaining 44 Fix decisions queued** — see triage tables above. Continuing phases (recommended order): Architecture/Data (H11, H12, H13, H14, H15), A11y (H16, H17), Privacy/Testing/Migrations/Supply (H18, H20, H21, H22), then the 8 MED bundles (31 findings).
 
 **Next invocation to continue:** `/wf implement brutalist-redesign reviews`
 
