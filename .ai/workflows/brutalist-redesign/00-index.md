@@ -7,7 +7,7 @@ status: active
 current-stage: review
 stage-number: 7
 created-at: "2026-05-16T21:44:39Z"
-updated-at: "2026-05-18T21:30:00Z"
+updated-at: "2026-05-18T23:30:00Z"
 selected-slice: maestro
 branch-strategy: dedicated
 branch: "feat/brutalist-redesign"
@@ -299,7 +299,7 @@ progress:
   implement: complete      # 7/7 slices implemented; see 05-implement-*.md
   verify: complete         # 7/7 slices verified (6 verified-partial + maestro pass); 11 of 17 active runtime-evidence-deferrals cleared by maestro verify run; 6 remaining (4 maintainer-owned + behaviors AC-line-90 infra + AC-line-96 substantive gap)
   review: complete         # slug-wide review: 14 commands, 141 raw → 98 deduplicated findings (3 BLOCKER, 26 HIGH, 40 MED, 19 LOW, 10 NIT); verdict: dont-ship; convergence: escalated; 57 Fix decisions routed to /wf implement reviews
-  review-fixes: complete       # 53/57 patched at 2026-05-18T21:30:00Z — earlier phases (B1-B3 + H1-H17) in commits 9dfb119/30def3f/5461075/41aa8aa/e97ee5f/790bdba; Phase A (H18+H20+H21) 7dcf586; 8 MED bundles d417330 (reliability) → 01a1540 (a11y) → 0ff5431 (perf) → dd4a169 (build) → 6c367a7 (tests) → 4d9634c (state) → 32e01af (data/migration) → 3512352 (security). 4 explicit deferrals captured: PERF-06 (compose-stability nicety), TEST-03 (Turbine migration), CONC-9 (orderOfLastBookmark durability), SUPPLY-03/06 (font OFL + Action SHA-pinning). H19 and H22 dismissed per triage. Verdict moves from `dont-ship` toward shippable; see 07-review.md ## Fix Status for the per-finding ledger.
+  review-fixes: complete       # Round 1: 53/57 patched in commits 9dfb119..3512352. Round 2: re-reviewed at 2026-05-18T23:30:00Z (14 parallel sub-agents) surfaced 3 HIGH regressions in the round-1 fix commits (R2-CR-1 stale-access-token loop, R2-CR-2 SyncErrorBus replay leak, R2-ARCH-001 Reddit tag FK violation) + ~20 MEDs. All 3 HIGHs and ~15 MEDs patched across commits b0792aa..3c10f90. Final verdict: ship-with-caveats; convergence: converged. Remaining ~12 MED deferrals (Firestore child-doc race, refresh helper extraction, supply-chain SHA-pin, Firestore defence-in-depth, etc.) documented with rationale in 07-review.md Round 2 section.
   handoff: not-started
   ship: not-started
   retro: not-started
