@@ -35,7 +35,9 @@ data class Tweet(
 * */
 @Entity(
     tableName = "tweetEntity",
-    indices = [Index("author_id")]
+    // `order` indexed because the feed paging query sorts by `order DESC`;
+    // without it Room scans the full table on every page boundary.
+    indices = [Index("author_id"), Index("order")]
 )
 data class TweetEntity(
     @PrimaryKey val id: String,

@@ -37,7 +37,7 @@ import com.github.jayteealao.twitter.models.TwitterUserEntity
         RedditPostEntity::class,
         DeletedBookmark::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {

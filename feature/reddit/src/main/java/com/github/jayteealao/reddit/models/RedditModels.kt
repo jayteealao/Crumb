@@ -61,7 +61,9 @@ data class RedditPost(
  */
 @Entity(
     tableName = "reddit_posts",
-    indices = [Index("author"), Index("subreddit")]
+    // `order` indexed because the saved-posts feed sorts by `order DESC`;
+    // without it Room scans the full table on every page boundary.
+    indices = [Index("author"), Index("subreddit"), Index("order")]
 )
 data class RedditPostEntity(
     @PrimaryKey val id: String,

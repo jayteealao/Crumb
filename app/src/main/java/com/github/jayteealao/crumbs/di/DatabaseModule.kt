@@ -123,7 +123,7 @@ class DatabaseModule {
         AppDatabase::class.java,
         "AppDatabase"
     )
-        .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+        .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
         .build()
 
     @Singleton
@@ -149,6 +149,21 @@ val MIGRATION_4_5: Migration = object : Migration(4, 5) {
                 PRIMARY KEY(`bookmarkId`)
             )
         """.trimIndent())
+    }
+}
+
+/**
+ * v6 → v7: index `order` on tweetEntity and reddit_posts.
+ *
+ * The feed paging queries ORDER BY `order` DESC, but neither table had an
+ * index on that column — Room degraded to a full-table scan on every page
+ * boundary as the bookmark count grew. Adding plain BTREE indexes makes the
+ * page query O(log n) seek + O(pageSize) read regardless of total size.
+ */
+val MIGRATION_6_7: Migration = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweetEntity_order` ON `tweetEntity` (`order`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_reddit_posts_order` ON `reddit_posts` (`order`)")
     }
 }
 
