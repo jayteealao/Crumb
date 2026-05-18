@@ -21,7 +21,7 @@ metric-issues-found-initial: 2
 metric-issues-found-final: 0
 fix-rounds-run: 1
 convergence: converged
-verify-owned-fix-commit: ""
+verify-owned-fix-commit: "db53258"
 interactive-verification: required
 adapters-used: [android]
 bootstrap-failures: []
@@ -148,7 +148,7 @@ Initial issue inventory (snapshot before fix loop):
 
 - **`long_press.yaml` action exercises were too aggressive.** The original flow tapped each action (TAG / OPEN / SHARE / DELETE) and then issued `back` to return to the bookmark list. TAG opens `TagEditorDialog` (a Compose Dialog); `back` dismisses the Dialog AND pops one nav step beyond it, putting the flow in a state where `bookmark-card` is not visible. Fix: simplified the flow to assert all 4 action labels are visible (proves the popup composition contract), then `back` to dismiss, then a separate sequence exercising DELETE → snackbar UNDO. Downstream behavior of TAG/OPEN/SHARE is already covered by Compose UI tests in `androidTest` per the components slice's verify.
 
-Commit: pending (bundled into this verify's atomic commit alongside the verify artifacts).
+Commit: `db53258` on `feat/brutalist-redesign` — 14 files changed (+322/-195).
 
 ## Cross-Slice Deferral Clearance
 
