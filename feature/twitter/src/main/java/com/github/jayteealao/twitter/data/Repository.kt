@@ -9,6 +9,7 @@ import com.github.jayteealao.crumbs.data.FilterState
 import com.github.jayteealao.crumbs.data.SyncErrorBus
 import com.github.jayteealao.crumbs.data.SyncErrorEvent
 import com.github.jayteealao.crumbs.data.TagRepository
+import com.github.jayteealao.crumbs.data.withAuthRefreshSingleFlight
 import com.github.jayteealao.crumbs.utils.produceTweetResponseEntities
 import com.github.jayteealao.twitter.data.firestore.FirestoreRepository
 import com.github.jayteealao.twitter.models.TagEntity
@@ -30,7 +31,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -288,39 +288,27 @@ class Repository @Inject constructor(
     }
 
     /**
-     * Single-flight access-token refresh. Returns true if a fresh access token
-     * has been persisted; false on hard failure.
-     *
-     * Uses `withLock` (not tryLock) so a concurrent 401 from a sibling
-     * pagination call waits for the in-flight refresh to finish and observes
-     * the actual outcome, rather than skipping and falsely claiming success
-     * (which would suppress the banner while the loop kept 401-ing).
-     * twitterAuthClient.refreshAccessToken does NOT persist by itself, so we
-     * write back via authPref.setAccessAndRefreshToken before returning.
+     * Single-flight access-token refresh. Delegates the mutex/log/catch
+     * scaffolding to [withAuthRefreshSingleFlight] so this method only owns
+     * the Twitter-specific bits: re-reading the refreshToken from Prefs and
+     * persisting both tokens after a successful call (the Twitter auth
+     * client does not persist by itself).
      */
-    private suspend fun refreshTokenSingleFlight(currentRefreshToken: String): Boolean {
-        return refreshMutex.withLock {
-            // Re-read once inside the lock; if a previous holder already
-            // refreshed, the persisted refreshToken may have rotated.
+    private suspend fun refreshTokenSingleFlight(currentRefreshToken: String): Boolean =
+        withAuthRefreshSingleFlight(refreshMutex, tag = "twitter-refresh") {
+            // Re-read inside the lock; a previous holder may have rotated the
+            // refreshToken before we got here.
             val tokenToUse = authPref.refreshCode.first().ifBlank { currentRefreshToken }
-            try {
-                val tokenResponse = twitterAuthClient.refreshAccessToken(tokenToUse)
-                val access = tokenResponse?.accessToken
-                val refresh = tokenResponse?.refreshToken
-                if (!access.isNullOrBlank() && !refresh.isNullOrBlank()) {
-                    authPref.setAccessAndRefreshToken(access, refresh)
-                    Timber.d("refreshTokenSingleFlight: token refreshed and persisted")
-                    true
-                } else {
-                    Timber.w("refreshTokenSingleFlight: refresh returned null/blank tokens")
-                    false
-                }
-            } catch (e: Exception) {
-                Timber.e(e, "refreshTokenSingleFlight: exception during refresh")
+            val tokenResponse = twitterAuthClient.refreshAccessToken(tokenToUse)
+            val access = tokenResponse?.accessToken
+            val refresh = tokenResponse?.refreshToken
+            if (!access.isNullOrBlank() && !refresh.isNullOrBlank()) {
+                authPref.setAccessAndRefreshToken(access, refresh)
+                true
+            } else {
                 false
             }
         }
-    }
 
     /**
      * Clear all Twitter tokens to force re-authentication

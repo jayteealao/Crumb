@@ -1,6 +1,7 @@
 package com.github.jayteealao.crumbs.debug
 
 import android.content.Context
+import androidx.room.withTransaction
 import com.github.jayteealao.crumbs.db.AppDatabase
 import com.github.jayteealao.pref.writeString
 import com.github.jayteealao.reddit.data.RedditPrefs
@@ -30,14 +31,17 @@ class DebugDataInjector @Inject constructor(
 ) {
     suspend fun run(wipe: Boolean) = withContext(Dispatchers.IO) {
         if (wipe) {
-            // Tombstones survive across the debug seed wipe so a developer
-            // doing repeat seed+sync cycles does not see permanently-deleted
-            // bookmarks reappear. clearAllTables() drops every table — we
-            // snapshot the deleted_bookmarks rows, wipe, then restore them.
-            val preservedTombstones = db.deletedBookmarkDao().getAllDeleted()
-            db.clearAllTables()
-            if (preservedTombstones.isNotEmpty()) {
-                db.deletedBookmarkDao().insertAll(preservedTombstones)
+            // Tombstones survive the debug seed wipe so a developer doing
+            // repeat seed+sync cycles does not see permanently-deleted
+            // bookmarks reappear. The whole snapshot → clear → restore
+            // round-trip runs inside one Room transaction so a torn process
+            // can't leave the DB in a wiped-but-not-restored state.
+            db.withTransaction {
+                val preservedTombstones = db.deletedBookmarkDao().getAllDeleted()
+                db.clearAllTables()
+                if (preservedTombstones.isNotEmpty()) {
+                    db.deletedBookmarkDao().insertAll(preservedTombstones)
+                }
             }
         }
         seedTwitter()

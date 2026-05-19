@@ -9,6 +9,7 @@ import com.github.jayteealao.crumbs.data.FilterState
 import com.github.jayteealao.crumbs.data.SyncErrorBus
 import com.github.jayteealao.crumbs.data.SyncErrorEvent
 import com.github.jayteealao.crumbs.data.TagRepository
+import com.github.jayteealao.crumbs.data.withAuthRefreshSingleFlight
 import com.github.jayteealao.reddit.models.RedditPostData
 import com.github.jayteealao.reddit.models.RedditTagCrossRef
 import com.github.jayteealao.reddit.models.toEntity
@@ -23,7 +24,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -216,34 +216,16 @@ class RedditRepository @Inject constructor(
     ).flow
 
     /**
-     * Single-flight access-token refresh. Returns true if a fresh access
-     * token has been persisted by [RedditAuthClient.refreshAccessToken]
-     * (which writes to Prefs internally), false on hard failure.
-     *
-     * Uses `withLock` (not tryLock) so a concurrent 401 from a sibling call
-     * waits for the in-flight refresh to finish and observes the actual
-     * outcome, rather than skipping and falsely claiming success.
+     * Single-flight access-token refresh. The Reddit auth client persists
+     * tokens internally, so this method just delegates to the shared
+     * scaffolding and converts a non-blank access token to `true`.
      */
-    private suspend fun refreshTokenSingleFlight(currentRefreshToken: String): Boolean {
-        return refreshMutex.withLock {
-            // Re-read once inside the lock in case a previous holder rotated
-            // the refreshToken in Prefs.
+    private suspend fun refreshTokenSingleFlight(currentRefreshToken: String): Boolean =
+        withAuthRefreshSingleFlight(refreshMutex, tag = "reddit-refresh") {
             val tokenToUse = redditPrefs.refreshToken.first().ifBlank { currentRefreshToken }
-            try {
-                val newAccess = redditAuthClient.refreshAccessToken(tokenToUse)
-                if (!newAccess.isNullOrBlank()) {
-                    Timber.d("refreshTokenSingleFlight: Reddit token refreshed")
-                    true
-                } else {
-                    Timber.w("refreshTokenSingleFlight: Reddit refresh returned null")
-                    false
-                }
-            } catch (e: Exception) {
-                Timber.e(e, "refreshTokenSingleFlight: exception during Reddit refresh")
-                false
-            }
+            val newAccess = redditAuthClient.refreshAccessToken(tokenToUse)
+            !newAccess.isNullOrBlank()
         }
-    }
 
     // --- TagRepository (source-scoped to Reddit) ---
 

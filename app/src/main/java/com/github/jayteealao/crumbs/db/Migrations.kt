@@ -122,6 +122,13 @@ val MIGRATION_4_5: Migration = object : Migration(4, 5) {
  * composite `(bookmarkId, source)`. SQLite cannot ALTER PRIMARY KEY, so the
  * table is recreated; INSERT OR IGNORE collapses any pre-existing duplicates
  * (which the old single-column PK already prevented).
+ *
+ * NOTE on atomicity: Room runs each Migration.migrate(db) callback inside
+ * an outer transaction (`SupportSQLiteDatabase.beginTransaction()` /
+ * `endTransaction()` are managed by RoomOpenHelper). The four execSQL calls
+ * below therefore commit or rollback together — a torn process cannot leave
+ * the DB with `deleted_bookmarks_new` populated but the original table
+ * still present.
  */
 val MIGRATION_5_6: Migration = object : Migration(5, 6) {
     override fun migrate(db: SupportSQLiteDatabase) {
