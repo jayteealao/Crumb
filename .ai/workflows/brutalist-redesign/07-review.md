@@ -7,7 +7,7 @@ slice-slug: ""
 status: complete
 stage-number: 7
 created-at: "2026-05-18T11:35:48Z"
-updated-at: "2026-05-18T23:30:00Z"
+updated-at: "2026-05-19T00:30:00Z"
 verdict: ship-with-caveats
 commands-run: [correctness, security, code-simplification, testing, maintainability, reliability, frontend-accessibility, backend-concurrency, architecture, performance, data-integrity, migrations, privacy, supply-chain]
 metric-commands-run: 14
@@ -24,7 +24,7 @@ metric-fix-decisions: 60
 metric-fix-patched: 71
 fix-rounds-run: 2
 convergence: converged
-review-owned-fix-commit: "9dfb119,30def3f,5461075,41aa8aa,e97ee5f,790bdba,7dcf586,d417330,01a1540,0ff5431,dd4a169,6c367a7,4d9634c,32e01af,3512352,b0792aa,b22c099,061711c,c9d53b1,8cae6f8,e4984a8,3c10f90"
+review-owned-fix-commit: "9dfb119,30def3f,5461075,41aa8aa,e97ee5f,790bdba,7dcf586,d417330,01a1540,0ff5431,dd4a169,6c367a7,4d9634c,32e01af,3512352,b0792aa,b22c099,061711c,c9d53b1,8cae6f8,e4984a8,3c10f90,258ad1f"
 tags: [redesign, slug-wide-review, converged, round-2-validated]
 refs:
   index: 00-index.md
@@ -336,6 +336,42 @@ Triage via AskUserQuestion: user chose "Fix now" for all 3 HIGHs and "HIGHs + al
 ### Round-2 sub-review files (preserved untouched alongside round-1 originals)
 
 `07-review-correctness-round2.md`, `07-review-security-round2.md`, `07-review-reliability-round2.md`, `07-review-backend-concurrency-round2.md`, `07-review-performance-round2.md`, `07-review-data-integrity-round2.md`, `07-review-migrations-round2.md`, `07-review-testing-round2.md`, `07-review-frontend-accessibility-round2.md`, `07-review-architecture-round2.md`, `07-review-code-simplification-round2.md`, `07-review-maintainability-round2.md`, `07-review-privacy-round2.md`, `07-review-supply-chain-round2.md`.
+
+---
+
+## Triage pass (added 2026-05-19T00:30:00Z)
+
+Re-invoked `/wf review brutalist-redesign triage` against the round-2 deferral set. User selected the "cheap + refresh-helper extraction + tests" scope — every other deferral remains deferred with its prior rationale. Five deferred items move to `Fixed`; the commit lands as `258ad1f`.
+
+| ID | Prior decision | New decision | Notes |
+|----|----------------|--------------|-------|
+| R2-DATA-01 | Deferred | Fixed in `258ad1f` | Inline comment on `MIGRATION_5_6` documenting Room's implicit outer-transaction guarantee for migration callbacks. The contract is now self-evident at the call site. |
+| R2-DATA-02 | Deferred | Fixed in `258ad1f` | `DebugDataInjector` snapshot → `clearAllTables()` → restore is wrapped in `db.withTransaction { }` so a torn process cannot leave the database wiped without tombstones restored. |
+| R2-CS-02 / R2-MAINT-01 / R2-ARCH-004 | Deferred | Fixed in `258ad1f` | New `withAuthRefreshSingleFlight` helper in `core/data` owns mutex/log/catch. Both repository implementations shrink to the provider-specific lambda (Twitter re-reads + persists tokens; Reddit's auth client persists internally, so the body returns `!access.isNullOrBlank()`). The two diverged Timber log strings collapse to one. |
+| R2-TEST-03 | Deferred | Fixed in `258ad1f` | New `AuthRefreshSingleFlightTest` (5 tests): doRefresh return propagation, exception → `false`, mutex released after exception, and 10-way concurrent serialization (max inside-lambda concurrency == 1). All pass. |
+| R2-PERF-02 | Deferred | Documented above | The corrected rationale already appears in the Round 2 deferrals table earlier in this artifact; no code change. The original "compose @Immutable covers it" claim is replaced with "H14 reduced tag loads to once-per-page; PERF-06 has no measurable runtime gain". |
+
+### Still deferred after this triage (15 items)
+
+| ID | Reason |
+|----|--------|
+| R2-CONC-2 / R2-MIG-02 | Firestore child sub-collection deterministic IDs. Single-process protected by `fetchMutex`. Bundle into a future Firestore-hardening slice. |
+| R2-REL-04 | Reddit `hasMore=false` exit contract is structurally correct today (line-by-line pinned with a comment); no transient 5xx retry was in scope. |
+| R2-CR-4 | Simultaneous Twitter + Reddit 401s coalesce to one banner. UI design question; tracked for the multi-source UX slice. |
+| R2-PRIV-01 | Firestore single-user defence-in-depth requires authoritative Firebase Security Rules (out-of-repo) + a `FirebaseAuth.currentUser` check at upload/read time. Both must land together. |
+| R2-PRIV-03 | Deterministic Firestore doc-id enables ID enumeration. Real fix breaks the round-1 MIG-04 idempotency property; revisit when multi-tenancy lands. |
+| R2-SEC-02 | Debug APK signed with release key — config decision, not a bug. |
+| R2-SUPPLY-01 / R2-SUPPLY-06 | Mutable-tag Actions. Needs authoritative SHA lookups; fabricating pins would break CI. |
+| R2-ARCH-002 / R2-ARCH-003 / R2-ARCH-006 | H23 god-object split, bus layering, H24 AppDatabase relocation — all multi-week follow-up workflows. |
+| PERF-06, TEST-03, CONC-9, SUPPLY-03, H23, H24, MED-defaulted-defer set | Round-1 deferrals untouched by this triage. |
+| LOW + NIT findings | Not in scope for triage per the `/wf review` protocol. |
+
+### Status
+
+- **Round-2 deferrals re-triaged:** 5/~20 promoted to `Fixed`; the remainder retain prior deferral rationale.
+- **Commit:** `258ad1f` (1 commit, +207/-63 lines across 7 files).
+- **Convergence:** `converged` (unchanged — every triaged `Fix` decision across all three triage passes landed).
+- **Verdict:** `ship-with-caveats` (unchanged).
 
 ## Recommendations
 
