@@ -4,11 +4,11 @@ type: index
 slug: cloud-function-bookmark-sync
 title: "Cloud Function bookmark sync (Option D from investigate-sync-architecture)"
 status: active
-current-stage: verify
-stage-number: 6
+current-stage: implement
+stage-number: 5
 created-at: "2026-05-19T11:39:20Z"
-updated-at: "2026-05-20T18:30:00Z"
-selected-slice: functions-oauth
+updated-at: "2026-05-20T22:20:01Z"
+selected-slice: daily-poll
 branch-strategy: shared
 branch: "feat/brutalist-redesign"
 base-branch: "main"
@@ -16,11 +16,7 @@ review-scope: slug-wide
 pr-url: ""
 pr-number: 0
 open-questions:
-  - "Daily Scheduler cron expression (defaulted 0 9 * * * UTC; PO may revise in plan)"
-  - "Pending-delete auto-expiry behavior (defaulted: never auto-expires; user must act)"
-  - "HMAC state max-age window (defaulted: 10 minutes)"
-  - "triggerPoll debounce window (defaulted: 60 seconds)"
-  - "Maestro coverage strategy for the X authorize step on emulator (Custom Tab simulation vs mocked redirect)"
+  - "Maestro coverage strategy for the X authorize step on emulator (Custom Tab simulation vs mocked redirect) — owned by android-reader plan"
 tags: [sync, cloud-functions, firestore, twitter, server-side, oauth]
 stack:
   detected-at: "2026-05-19T11:39:20Z"
@@ -51,11 +47,15 @@ stack:
     - {name: scheduled-tasks, hint: "OS-level scheduled tasks (NOT Cloud Scheduler)"}
   user-confirmed: true
 next-command: wf-verify
-next-invocation: "/wf verify cloud-function-bookmark-sync functions-oauth"
+next-invocation: "/wf verify cloud-function-bookmark-sync daily-poll"
 runtime-evidence-deferrals:
   - slice: auth-foundation
     reason: "Live Google sign-in + collision-link Maestro flow `sign_in_google.yaml` depends on navigation past LoginScreen owned by android-reader slice. Operator prereqs (Firebase Console provider enable + 3 SHA-1 registrations + Type-3 OAuth client in google-services.json + FIREBASE_WEB_OAUTH_CLIENT_ID env) are external manual steps."
     deferred-at: "2026-05-20T06:38:36Z"
+    cleared-by: null
+  - slice: functions-oauth
+    reason: "Live evidence for AC-1, AC-2, AC-5, AC-6, AC-7 requires the 12-item Operator Checklist in 05-implement-functions-oauth.md (dedicated SA, Secret Manager seeds + per-secret IAM, X portal redirect_uri registration, Cloud Scheduler warmup job, `firebase deploy --only functions:crumb-oauth:*`, post-deploy curl + Cloud Logging cold/warm capture). AC-2 end-to-end additionally depends on the Custom Tab + deep-link flow owned by the android-reader slice. None executable from this verify session."
+    deferred-at: "2026-05-20T18:57:07Z"
     cleared-by: null
 slices:
   - slug: auth-foundation
@@ -67,7 +67,7 @@ slices:
     complexity: l
     depends-on: [auth-foundation]
   - slug: daily-poll
-    status: defined
+    status: implemented
     complexity: l
     depends-on: [functions-oauth]
   - slug: android-reader
@@ -96,19 +96,22 @@ workflow-files:
   - 04-plan.md
   - 04-plan-auth-foundation.md
   - 04-plan-functions-oauth.md
+  - 04-plan-daily-poll.md
   - 05-implement.md
   - 05-implement-auth-foundation.md
   - 05-implement-functions-oauth.md
+  - 05-implement-daily-poll.md
   - 06-verify.md
   - 06-verify-auth-foundation.md
+  - 06-verify-functions-oauth.md
   - po-answers.md
 progress:
   intake: complete
   shape: complete
   slice: complete   # 6 slices defined (auth-foundation, functions-oauth, daily-poll, android-reader, pending-delete, cutover-migration); sequential dependency chain
-  plan: in-progress   # auth-foundation + functions-oauth planned; 4 slices remain to plan (daily-poll, android-reader, pending-delete, cutover-migration)
-  implement: in-progress   # auth-foundation + functions-oauth implemented; 4 slices remain (daily-poll, android-reader, pending-delete, cutover-migration)
-  verify: in-progress   # auth-foundation verified (06-verify-auth-foundation.md, result: partial — runtime-evidence deferred); 5 slices remain (functions-oauth next)
+  plan: in-progress   # auth-foundation + functions-oauth + daily-poll planned; 3 slices remain to plan (android-reader, pending-delete, cutover-migration)
+  implement: in-progress   # auth-foundation + functions-oauth + daily-poll implemented; 3 slices remain (android-reader, pending-delete, cutover-migration)
+  verify: in-progress   # auth-foundation + functions-oauth verified (06-verify-*.md, both result: partial — runtime-evidence deferred); daily-poll awaiting verify; 3 slices remain after that
   review: not-started
   handoff: not-started
   ship: not-started

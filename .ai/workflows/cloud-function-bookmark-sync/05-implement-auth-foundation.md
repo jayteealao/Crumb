@@ -12,7 +12,7 @@ metric-lines-added: 500
 metric-lines-removed: 94
 metric-deviations-from-plan: 3
 metric-review-fixes-applied: 0
-commit-sha: ""
+commit-sha: "8f391f2f49ddff3ae5f04d4bd90f7a8682d3cb51"
 tags: [firebase-auth, credential-manager, google-sign-in, account-linking, android, hilt, robolectric, roborazzi]
 refs:
   index: 00-index.md

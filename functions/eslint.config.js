@@ -11,7 +11,7 @@ module.exports = [
     languageOptions: {
       parser: tsParser,
       parserOptions: { project: ["./tsconfig.json"], sourceType: "module" },
-      globals: { fetch: "readonly", Response: "readonly", URLSearchParams: "readonly", Buffer: "readonly", console: "readonly", process: "readonly" },
+      globals: { fetch: "readonly", Response: "readonly", URLSearchParams: "readonly", Buffer: "readonly", console: "readonly", process: "readonly", setTimeout: "readonly", clearTimeout: "readonly" },
     },
     plugins: { "@typescript-eslint": tsPlugin },
     rules: {
@@ -39,7 +39,7 @@ module.exports = [
     languageOptions: {
       parser: tsParser,
       parserOptions: { sourceType: "module" },
-      globals: { jest: "readonly", describe: "readonly", it: "readonly", expect: "readonly", beforeEach: "readonly", afterEach: "readonly", Response: "readonly", TextEncoder: "readonly", Buffer: "readonly", globalThis: "readonly" },
+      globals: { jest: "readonly", describe: "readonly", it: "readonly", expect: "readonly", beforeEach: "readonly", afterEach: "readonly", Response: "readonly", ResponseInit: "readonly", TextEncoder: "readonly", Buffer: "readonly", globalThis: "readonly", setTimeout: "readonly", clearTimeout: "readonly" },
     },
     plugins: { "@typescript-eslint": tsPlugin },
     rules: {

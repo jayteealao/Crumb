@@ -124,7 +124,7 @@ describe("oauthCallback", () => {
     await invoke(req, res);
 
     expect(setRefreshToken).toHaveBeenCalledWith("uid1", "rt-secret");
-    expect(mockDoc).toHaveBeenCalledWith("users/uid1/twitter/sync_status");
+    expect(mockDoc).toHaveBeenCalledWith("users/uid1/sync_status/state");
     expect(mockDocSet).toHaveBeenCalledWith(
       expect.objectContaining({ linked: true, lastPolledAt: null, lastError: null }),
       { merge: true },

@@ -12,7 +12,7 @@ metric-lines-added: 712
 metric-lines-removed: 2
 metric-deviations-from-plan: 3
 metric-review-fixes-applied: 0
-commit-sha: ""
+commit-sha: "35493b9"
 tags: [cloud-functions, typescript, firebase-functions-v7, jose, secret-manager, oauth-pkce, jest, firestore-rules]
 refs:
   index: 00-index.md

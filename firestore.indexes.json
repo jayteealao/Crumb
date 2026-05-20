@@ -1,0 +1,12 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "sync_status",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "linked", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

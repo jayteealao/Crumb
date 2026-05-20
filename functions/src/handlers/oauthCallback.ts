@@ -55,7 +55,7 @@ export const oauthCallback = onRequest(async (req, res) => {
       body,
     });
 
-    const statusDoc = db().doc(`users/${claims.uid}/twitter/sync_status`);
+    const statusDoc = db().doc(`users/${claims.uid}/sync_status/state`);
 
     if (!response.ok) {
       const errorCode = await extractErrorCode(response);
