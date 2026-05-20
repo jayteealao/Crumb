@@ -1,0 +1,34 @@
+{
+  "name": "crumb-functions",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": "20"
+  },
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "jest",
+    "serve": "firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions"
+  },
+  "dependencies": {
+    "@google-cloud/secret-manager": "^5",
+    "firebase-admin": "^13",
+    "firebase-functions": "^7",
+    "jose": "^5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/jest": "^29",
+    "@types/node": "^20",
+    "@typescript-eslint/eslint-plugin": "^8",
+    "@typescript-eslint/parser": "^8",
+    "eslint": "^9",
+    "firebase-functions-test": "^3",
+    "jest": "^30",
+    "ts-jest": "^29",
+    "typescript": "^5"
+  }
+}

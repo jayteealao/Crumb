@@ -1,0 +1,27 @@
+rules_version = '2';
+
+// Crumbs Firestore security rules.
+// - Per-user scope at /users/{uid}/** is readable/writable only by the matching
+//   uid AND only if the user's email is present in the allowlist map at
+//   /config/allowed_emails (map field `emails`, key = email, value = true).
+// - CRITICAL: the /config/allowed_emails document must exist with the
+//   operator's email set BEFORE this ruleset is deployed, otherwise the
+//   `get()` evaluates against a missing document and denies all reads,
+//   including the operator's own.
+// - All other paths deny by default. Migration left root-level collections
+//   (tweets, metrics, media, includes, textAnnotations, users, mediaContent,
+//   mediaKeys) intact as a safety net; they are unreachable from any client
+//   under this ruleset and can be deleted via Admin SDK once verified.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid}/{document=**} {
+      allow read, write: if request.auth != null
+        && request.auth.uid == uid
+        && get(/databases/$(database)/documents/config/allowed_emails)
+             .data.emails[request.auth.token.email] == true;
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

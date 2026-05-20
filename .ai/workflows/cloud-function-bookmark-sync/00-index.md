@@ -4,11 +4,11 @@ type: index
 slug: cloud-function-bookmark-sync
 title: "Cloud Function bookmark sync (Option D from investigate-sync-architecture)"
 status: active
-current-stage: implement
-stage-number: 5
+current-stage: verify
+stage-number: 6
 created-at: "2026-05-19T11:39:20Z"
-updated-at: "2026-05-19T22:51:34Z"
-selected-slice: auth-foundation
+updated-at: "2026-05-20T18:30:00Z"
+selected-slice: functions-oauth
 branch-strategy: shared
 branch: "feat/brutalist-redesign"
 base-branch: "main"
@@ -29,7 +29,7 @@ stack:
   ui: [compose]
   build: [gradle, firebase-cli]
   package-managers: [gradle, npm]
-  testing: [junit, roborazzi, maestro]
+  testing: [junit, roborazzi, maestro, jest]
   observability: [lazylogcat]
   integrations: [hilt, room, paging, firestore, datastore, firebase-auth, cloud-functions, cloud-scheduler, secret-manager]
   available-skills:
@@ -51,14 +51,19 @@ stack:
     - {name: scheduled-tasks, hint: "OS-level scheduled tasks (NOT Cloud Scheduler)"}
   user-confirmed: true
 next-command: wf-verify
-next-invocation: "/wf verify cloud-function-bookmark-sync auth-foundation"
+next-invocation: "/wf verify cloud-function-bookmark-sync functions-oauth"
+runtime-evidence-deferrals:
+  - slice: auth-foundation
+    reason: "Live Google sign-in + collision-link Maestro flow `sign_in_google.yaml` depends on navigation past LoginScreen owned by android-reader slice. Operator prereqs (Firebase Console provider enable + 3 SHA-1 registrations + Type-3 OAuth client in google-services.json + FIREBASE_WEB_OAUTH_CLIENT_ID env) are external manual steps."
+    deferred-at: "2026-05-20T06:38:36Z"
+    cleared-by: null
 slices:
   - slug: auth-foundation
     status: implemented
     complexity: m
     depends-on: []
   - slug: functions-oauth
-    status: defined
+    status: implemented
     complexity: l
     depends-on: [auth-foundation]
   - slug: daily-poll
@@ -90,16 +95,20 @@ workflow-files:
   - 03-slice-cutover-migration.md
   - 04-plan.md
   - 04-plan-auth-foundation.md
+  - 04-plan-functions-oauth.md
   - 05-implement.md
   - 05-implement-auth-foundation.md
+  - 05-implement-functions-oauth.md
+  - 06-verify.md
+  - 06-verify-auth-foundation.md
   - po-answers.md
 progress:
   intake: complete
   shape: complete
   slice: complete   # 6 slices defined (auth-foundation, functions-oauth, daily-poll, android-reader, pending-delete, cutover-migration); sequential dependency chain
-  plan: in-progress   # auth-foundation planned (04-plan-auth-foundation.md); 5 slices remain to plan
-  implement: in-progress   # auth-foundation implemented (05-implement-auth-foundation.md); 5 slices remain
-  verify: not-started
+  plan: in-progress   # auth-foundation + functions-oauth planned; 4 slices remain to plan (daily-poll, android-reader, pending-delete, cutover-migration)
+  implement: in-progress   # auth-foundation + functions-oauth implemented; 4 slices remain (daily-poll, android-reader, pending-delete, cutover-migration)
+  verify: in-progress   # auth-foundation verified (06-verify-auth-foundation.md, result: partial — runtime-evidence deferred); 5 slices remain (functions-oauth next)
   review: not-started
   handoff: not-started
   ship: not-started
