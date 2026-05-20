@@ -4,10 +4,10 @@ import com.github.jayteealao.twitter.models.MediaKeys
 import com.github.jayteealao.twitter.models.TweetEntities
 import com.github.jayteealao.twitter.models.TweetEntity
 import com.github.jayteealao.twitter.models.TweetReferencedTweetsFull
+import com.google.firebase.Firebase
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
-import com.google.firebase.firestore.ktx.firestore
-import com.google.firebase.ktx.Firebase
+import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll

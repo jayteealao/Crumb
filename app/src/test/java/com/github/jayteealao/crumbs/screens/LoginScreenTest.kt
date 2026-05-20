@@ -99,4 +99,153 @@ class LoginScreenTest {
         composeTestRule.onNodeWithTag("login-reddit-cta").performClick()
         assertTrue(fired)
     }
+
+    // Confirms the new Google CTA fires its callback (regression guard).
+    @Test
+    fun loginScreen_signInGoogle_invokesCallback() {
+        var fired = false
+        composeTestRule.setContent {
+            CrumbsTheme {
+                LoginScreen(
+                    uiState = LoginUiState(),
+                    onConnectTwitter = {},
+                    onConnectReddit = {},
+                    onSkipAuth = {},
+                    onSignInWithGoogle = { fired = true },
+                )
+            }
+        }
+        composeTestRule.onNodeWithTag("login-google-cta").performClick()
+        assertTrue(fired)
+    }
+
+    // Roborazzi snapshots for the Firebase auth surface — 4 states × 2 themes.
+
+    @Test
+    fun loginScreen_googlePrimary_light() {
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = false) {
+                LoginScreen(
+                    uiState = LoginUiState(),
+                    onConnectTwitter = {},
+                    onConnectReddit = {},
+                    onSkipAuth = {},
+                )
+            }
+        }
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/LoginScreen_googlePrimary_light.png", options)
+    }
+
+    @Test
+    fun loginScreen_googlePrimary_dark() {
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = true) {
+                LoginScreen(
+                    uiState = LoginUiState(),
+                    onConnectTwitter = {},
+                    onConnectReddit = {},
+                    onSkipAuth = {},
+                )
+            }
+        }
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/LoginScreen_googlePrimary_dark.png", options)
+    }
+
+    @Test
+    fun loginScreen_collisionPrompt_light() {
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = false) {
+                LoginScreen(
+                    uiState = LoginUiState(collisionPromptVisible = true),
+                    onConnectTwitter = {},
+                    onConnectReddit = {},
+                    onSkipAuth = {},
+                )
+            }
+        }
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/LoginScreen_collisionPrompt_light.png", options)
+    }
+
+    @Test
+    fun loginScreen_collisionPrompt_dark() {
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = true) {
+                LoginScreen(
+                    uiState = LoginUiState(collisionPromptVisible = true),
+                    onConnectTwitter = {},
+                    onConnectReddit = {},
+                    onSkipAuth = {},
+                )
+            }
+        }
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/LoginScreen_collisionPrompt_dark.png", options)
+    }
+
+    @Test
+    fun loginScreen_emailDialog_light() {
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = false) {
+                LoginScreen(
+                    uiState = LoginUiState(emailDialogVisible = true),
+                    onConnectTwitter = {},
+                    onConnectReddit = {},
+                    onSkipAuth = {},
+                )
+            }
+        }
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/LoginScreen_emailDialog_light.png", options)
+    }
+
+    @Test
+    fun loginScreen_emailDialog_dark() {
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = true) {
+                LoginScreen(
+                    uiState = LoginUiState(emailDialogVisible = true),
+                    onConnectTwitter = {},
+                    onConnectReddit = {},
+                    onSkipAuth = {},
+                )
+            }
+        }
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/LoginScreen_emailDialog_dark.png", options)
+    }
+
+    @Test
+    fun loginScreen_signedIn_light() {
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = false) {
+                LoginScreen(
+                    uiState = LoginUiState(firebaseSignedIn = true),
+                    onConnectTwitter = {},
+                    onConnectReddit = {},
+                    onSkipAuth = {},
+                )
+            }
+        }
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/LoginScreen_signedIn_light.png", options)
+    }
+
+    @Test
+    fun loginScreen_signedIn_dark() {
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = true) {
+                LoginScreen(
+                    uiState = LoginUiState(firebaseSignedIn = true),
+                    onConnectTwitter = {},
+                    onConnectReddit = {},
+                    onSkipAuth = {},
+                )
+            }
+        }
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/LoginScreen_signedIn_dark.png", options)
+    }
 }

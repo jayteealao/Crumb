@@ -1,0 +1,107 @@
+---
+schema: sdlc/v1
+type: index
+slug: cloud-function-bookmark-sync
+title: "Cloud Function bookmark sync (Option D from investigate-sync-architecture)"
+status: active
+current-stage: implement
+stage-number: 5
+created-at: "2026-05-19T11:39:20Z"
+updated-at: "2026-05-19T22:51:34Z"
+selected-slice: auth-foundation
+branch-strategy: shared
+branch: "feat/brutalist-redesign"
+base-branch: "main"
+review-scope: slug-wide
+pr-url: ""
+pr-number: 0
+open-questions:
+  - "Daily Scheduler cron expression (defaulted 0 9 * * * UTC; PO may revise in plan)"
+  - "Pending-delete auto-expiry behavior (defaulted: never auto-expires; user must act)"
+  - "HMAC state max-age window (defaulted: 10 minutes)"
+  - "triggerPoll debounce window (defaulted: 60 seconds)"
+  - "Maestro coverage strategy for the X authorize step on emulator (Custom Tab simulation vs mocked redirect)"
+tags: [sync, cloud-functions, firestore, twitter, server-side, oauth]
+stack:
+  detected-at: "2026-05-19T11:39:20Z"
+  platforms: [android, service]
+  languages: [kotlin, typescript]
+  ui: [compose]
+  build: [gradle, firebase-cli]
+  package-managers: [gradle, npm]
+  testing: [junit, roborazzi, maestro]
+  observability: [lazylogcat]
+  integrations: [hilt, room, paging, firestore, datastore, firebase-auth, cloud-functions, cloud-scheduler, secret-manager]
+  available-skills:
+    - {name: sdlc-workflow, hint: "SDLC lifecycle stage dispatcher (this workflow)"}
+    - {name: web-search-prime, hint: "Freshness research for Cloud Functions / X API / Firebase pricing"}
+    - {name: webReader, hint: "Read external docs verbatim"}
+    - {name: zread, hint: "Cross-repo source-of-truth lookups (Firebase SDK, Cloud Functions samples)"}
+    - {name: ccd_session, hint: "Session/chapter management"}
+  available-cli:
+    - {name: firebase, hint: "Firebase CLI (auth, deploy --only functions, firestore:rules, etc.)"}
+    - {name: gcloud, hint: "Google Cloud CLI (Identity Platform, Secret Manager, Scheduler, IAM)"}
+    - {name: android, hint: "Android CLI for project + SDK orchestration"}
+    - {name: lazylogcat, hint: "Non-interactive logcat capture and filter"}
+    - {name: maestro, hint: "UI flow automation (existing flows under maestro/)"}
+  available-mcp:
+    - {name: web-search-prime, hint: "Web search"}
+    - {name: web-reader, hint: "URL → markdown"}
+    - {name: zai-mcp-server, hint: "Screenshot/diagram analysis for client UX changes"}
+    - {name: scheduled-tasks, hint: "OS-level scheduled tasks (NOT Cloud Scheduler)"}
+  user-confirmed: true
+next-command: wf-verify
+next-invocation: "/wf verify cloud-function-bookmark-sync auth-foundation"
+slices:
+  - slug: auth-foundation
+    status: implemented
+    complexity: m
+    depends-on: []
+  - slug: functions-oauth
+    status: defined
+    complexity: l
+    depends-on: [auth-foundation]
+  - slug: daily-poll
+    status: defined
+    complexity: l
+    depends-on: [functions-oauth]
+  - slug: android-reader
+    status: defined
+    complexity: l
+    depends-on: [auth-foundation, daily-poll]
+  - slug: pending-delete
+    status: defined
+    complexity: m
+    depends-on: [android-reader]
+  - slug: cutover-migration
+    status: defined
+    complexity: m
+    depends-on: [pending-delete]
+workflow-files:
+  - 00-index.md
+  - 01-intake.md
+  - 02-shape.md
+  - 03-slice.md
+  - 03-slice-auth-foundation.md
+  - 03-slice-functions-oauth.md
+  - 03-slice-daily-poll.md
+  - 03-slice-android-reader.md
+  - 03-slice-pending-delete.md
+  - 03-slice-cutover-migration.md
+  - 04-plan.md
+  - 04-plan-auth-foundation.md
+  - 05-implement.md
+  - 05-implement-auth-foundation.md
+  - po-answers.md
+progress:
+  intake: complete
+  shape: complete
+  slice: complete   # 6 slices defined (auth-foundation, functions-oauth, daily-poll, android-reader, pending-delete, cutover-migration); sequential dependency chain
+  plan: in-progress   # auth-foundation planned (04-plan-auth-foundation.md); 5 slices remain to plan
+  implement: in-progress   # auth-foundation implemented (05-implement-auth-foundation.md); 5 slices remain
+  verify: not-started
+  review: not-started
+  handoff: not-started
+  ship: not-started
+  retro: not-started
+---

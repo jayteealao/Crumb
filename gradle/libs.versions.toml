@@ -1,6 +1,7 @@
 [versions]
 composeBom = "2026.05.00"
 coroutines = "1.5.2"
+coroutinesTest = "1.10.2"
 roborazzi = "1.60.0"
 robolectric = "4.16"
 kotlinxCollectionsImmutable = "0.3.8"
@@ -9,7 +10,9 @@ arrow = "1.1.4-alpha.10"
 lifecycle = "2.6.0-alpha01"
 retrofit = "2.9.0"
 room = "2.8.4"
-firebase-bom = "32.7.0"
+firebase-bom = "34.13.0"
+androidxCredentials = "1.6.0"
+googleid = "1.1.1"
 hilt = "2.59.2"
 coil = "2.5.0"
 coilTransformations = "2.0.2"
@@ -61,10 +64,17 @@ roborazzi-junit-rule = { module = "io.github.takahirom.roborazzi:roborazzi-junit
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 #firebase
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
-firebase-firestore = { module = "com.google.firebase:firebase-firestore-ktx" }
+firebase-firestore = { module = "com.google.firebase:firebase-firestore" }
+firebase-auth = { module = "com.google.firebase:firebase-auth" }
+#credentials (Credential Manager + Google Identity)
+androidx-credentials = { module = "androidx.credentials:credentials", version.ref = "androidxCredentials" }
+androidx-credentials-play-services-auth = { module = "androidx.credentials:credentials-play-services-auth", version.ref = "androidxCredentials" }
+googleid = { module = "com.google.android.libraries.identity.googleid:googleid", version.ref = "googleid" }
 #hilt
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
 hilt-compiler = { module = "com.google.dagger:hilt-compiler", version.ref = "hilt" }
+hilt-android-testing = { module = "com.google.dagger:hilt-android-testing", version.ref = "hilt" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutinesTest" }
 #arrow
 arrow-optics = { module = "io.arrow-kt:arrow-optics", version.ref = "arrow" }
 #coil
