@@ -24,6 +24,10 @@ data class Bookmark(
     // Status fields
     val isDeleted: Boolean = false, // Original source deleted/unavailable
     val isRead: Boolean = false, // User has opened this
+    // Server-side flag from daily-poll: X has removed this bookmark and the
+    // user has not yet confirmed/cancelled. Drives strikethrough rendering
+    // and swipe affordances on Twitter rows; always `false` for Reddit.
+    val pendingDelete: Boolean = false,
 
     // Original source URL
     val sourceUrl: String

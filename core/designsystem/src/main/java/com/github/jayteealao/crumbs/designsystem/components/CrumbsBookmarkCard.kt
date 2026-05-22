@@ -18,8 +18,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,13 +33,17 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.github.jayteealao.crumbs.designsystem.modifiers.brutalistStrikethrough
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsSpacing
@@ -54,14 +62,57 @@ import com.github.jayteealao.crumbs.models.toRelativeTime
 //
 // Caller migration: pass `Offset.Zero` if real popup wiring is deferred.
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun CrumbsBookmarkCard(
     bookmark: Bookmark,
     onCardClick: (String) -> Unit,
     onLongPress: (Bookmark, Offset) -> Unit = { _, _ -> },
     isExpanded: Boolean = false,
-    modifier: Modifier = Modifier
+    onConfirmDeletePending: ((String) -> Unit)? = null,
+    onCancelDeletePending: ((String) -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    if (bookmark.pendingDelete) {
+        // `confirmValueChange` returns `false` so the box snaps back; actual row
+        // removal is driven by the paging Flow once Room updates land.
+        val dismissState = rememberSwipeToDismissBoxState(
+            confirmValueChange = { value ->
+                when (value) {
+                    SwipeToDismissBoxValue.StartToEnd -> {
+                        onCancelDeletePending?.invoke(bookmark.id)
+                    }
+                    SwipeToDismissBoxValue.EndToStart -> {
+                        onConfirmDeletePending?.invoke(bookmark.id)
+                    }
+                    SwipeToDismissBoxValue.Settled -> Unit
+                }
+                false
+            },
+        )
+        SwipeToDismissBox(
+            state = dismissState,
+            modifier = modifier.testTag("bookmark-card-pending-${bookmark.id}"),
+            backgroundContent = {},
+        ) {
+            BookmarkCardContent(bookmark = bookmark, onCardClick = onCardClick, onLongPress = onLongPress)
+        }
+    } else {
+        BookmarkCardContent(
+            bookmark = bookmark,
+            onCardClick = onCardClick,
+            onLongPress = onLongPress,
+            modifier = modifier,
+        )
+    }
+}
+
+@Composable
+private fun BookmarkCardContent(
+    bookmark: Bookmark,
+    onCardClick: (String) -> Unit,
+    onLongPress: (Bookmark, Offset) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = LocalCrumbsColors.current
     val spacing = LocalCrumbsSpacing.current
@@ -83,6 +134,13 @@ fun CrumbsBookmarkCard(
             .semantics {
                 onClick(label = "Open bookmark") { onCardClick(bookmark.sourceUrl); true }
                 onLongClick(label = "Show actions") { onLongPress(bookmark, Offset.Zero); true }
+                if (bookmark.pendingDelete) {
+                    // `stateDescription` layers after the visible title for
+                    // TalkBack instead of replacing it, and the polite live
+                    // region auto-announces when the row enters this state.
+                    stateDescription = "Pending removal — swipe to confirm or cancel"
+                    liveRegion = LiveRegionMode.Polite
+                }
             },
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -172,7 +230,9 @@ fun CrumbsBookmarkCard(
                     color = colors.ink,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.testTag("card-title"),
+                    modifier = Modifier
+                        .testTag(if (bookmark.pendingDelete) "bookmark-card-strikethrough" else "card-title")
+                        .brutalistStrikethrough(active = bookmark.pendingDelete, color = colors.ink),
                 )
                 Text(
                     text = bookmark.previewText,

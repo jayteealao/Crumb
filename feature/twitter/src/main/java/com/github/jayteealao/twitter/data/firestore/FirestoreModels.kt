@@ -27,7 +27,11 @@ data class FirestoreTweet(
     var inReplyToUserId: String? = null,
     var lang: String? = null,
     var order: Int = 0,
-    var source: String? = null
+    var source: String? = null,
+    // Nullable so the deserializer accepts pre-poll-correctness docs that
+    // never wrote this field. `toTweetEntity` collapses null → false.
+    @get:PropertyName("pending_delete") @set:PropertyName("pending_delete")
+    var pendingDelete: Boolean? = null,
 ) {
     fun toTweetEntity(referenced: Boolean = false): TweetEntity = TweetEntity(
         id = tweetId,
@@ -38,7 +42,8 @@ data class FirestoreTweet(
         inReplyToUserId = inReplyToUserId,
         lang = lang,
         referenced = referenced,
-        order = order
+        order = order,
+        pendingDelete = pendingDelete ?: false,
     )
 
     companion object {

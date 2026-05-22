@@ -297,6 +297,27 @@ class Repository @Inject constructor(
         deletedBookmarkRepository.undoDelete(id, BookmarkSource.Twitter)
     }
 
+    /**
+     * Swipe-right confirm: persist a Room tombstone (so the row disappears from
+     * the paging Flow immediately) then stamp the server doc as deleted. The
+     * Firestore write is best-effort offline — Room is the source of UI truth.
+     */
+    suspend fun confirmDeletePending(id: String) {
+        deletedBookmarkRepository.softDelete(id, BookmarkSource.Twitter)
+        runCatching { firestoreRepository.markDeleted(id) }
+            .onFailure { Timber.w(it, "confirmDeletePending: Firestore mark failed for id=$id") }
+    }
+
+    /**
+     * Swipe-left cancel: clear the local `pending_delete` flag first so the
+     * card flips back to normal styling immediately, then sync to Firestore.
+     */
+    suspend fun cancelDeletePending(id: String) {
+        tweetDao.updatePendingDelete(id, false)
+        runCatching { firestoreRepository.cancelPendingDelete(id) }
+            .onFailure { Timber.w(it, "cancelDeletePending: Firestore clear failed for id=$id") }
+    }
+
     // Tag operations
     override suspend fun addTagToTweet(tweetId: String, tagName: String) {
         // Insert the tag if it doesn't exist

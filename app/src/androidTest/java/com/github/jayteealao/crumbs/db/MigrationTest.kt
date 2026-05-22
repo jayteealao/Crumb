@@ -8,6 +8,7 @@ import com.github.jayteealao.crumbs.db.MIGRATION_5_6
 import com.github.jayteealao.crumbs.db.MIGRATION_6_7
 import com.github.jayteealao.crumbs.db.MIGRATION_7_8
 import com.github.jayteealao.crumbs.db.MIGRATION_8_9
+import com.github.jayteealao.crumbs.db.MIGRATION_9_10
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -190,6 +191,58 @@ class MigrationTest {
             assertTrue(cursor.moveToFirst())
             assertEquals("post-1", cursor.getString(0))
             assertEquals("design", cursor.getString(1))
+        }
+
+        db.close()
+    }
+
+    @Test
+    fun migrate9To10_addsPendingDeleteColumn() {
+        // Seed v9 with a single tweetEntity row that pre-dates the new column.
+        helper.createDatabase(TEST_DB, 9).apply {
+            execSQL(
+                """
+                INSERT INTO tweetEntity
+                    (id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`)
+                VALUES
+                    ('tweet-1', 'hi', '2026-05-21T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1)
+                """.trimIndent()
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB,
+            10,
+            true,
+            MIGRATION_9_10,
+        )
+
+        // Column exists with the correct affinity, NOT NULL constraint, and default 0.
+        db.query("PRAGMA table_info(tweetEntity)").use { cursor ->
+            val schema = mutableMapOf<String, Triple<String, Int, String?>>()
+            val nameIdx = cursor.getColumnIndex("name")
+            val typeIdx = cursor.getColumnIndex("type")
+            val notNullIdx = cursor.getColumnIndex("notnull")
+            val defaultIdx = cursor.getColumnIndex("dflt_value")
+            while (cursor.moveToNext()) {
+                schema[cursor.getString(nameIdx)] = Triple(
+                    cursor.getString(typeIdx),
+                    cursor.getInt(notNullIdx),
+                    cursor.getString(defaultIdx),
+                )
+            }
+            val pd = schema["pending_delete"]
+            assertTrue("pending_delete column missing after 9→10 migration", pd != null)
+            assertEquals("pending_delete must be INTEGER", "INTEGER", pd!!.first)
+            assertEquals("pending_delete must be NOT NULL", 1, pd.second)
+            assertEquals("pending_delete must default to 0", "0", pd.third)
+        }
+
+        // Seed row survives the migration with pending_delete defaulted to 0.
+        db.query("SELECT pending_delete FROM tweetEntity WHERE id = 'tweet-1'").use { cursor ->
+            assertTrue("Seed row missing after 9→10 migration", cursor.moveToFirst())
+            assertEquals(0, cursor.getInt(0))
         }
 
         db.close()

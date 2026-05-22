@@ -77,6 +77,54 @@ class DebugDataInjector @Inject constructor(
         context.writeString(ACCESS_CODE, "INVALID_DEBUG_TOKEN")
     }
 
+    /**
+     * Seeds two `pendingDelete = true` tweet rows so Maestro can drive the
+     * swipe-to-confirm / swipe-to-cancel flow deterministically without a
+     * live daily-poll round-trip. Author row is reused from [seedTwitter].
+     */
+    suspend fun seedPendingDelete() = withContext(Dispatchers.IO) {
+        val dao = db.tweetDao()
+        val user = TwitterUserEntity(
+            id = "debug-user-twitter",
+            name = "Crumbs Test User",
+            username = "crumbs_test",
+            profileImageUrl = null,
+            verified = false,
+            verifiedType = null,
+            description = "Debug-only seeded user",
+            mentionedIn = null,
+        )
+        dao.insertTwitterUser(user)
+        dao.insertTweet(
+            TweetEntity(
+                id = "debug-pending-1",
+                text = "Pending removal — swipe right to confirm, left to cancel.",
+                createdAt = "2026-05-21T00:00:00Z",
+                authorId = user.id,
+                conversationId = "debug-pending-1",
+                inReplyToUserId = null,
+                lang = "en",
+                referenced = false,
+                order = 1100,
+                pendingDelete = true,
+            )
+        )
+        dao.insertTweet(
+            TweetEntity(
+                id = "debug-pending-2",
+                text = "Another removal candidate seeded for the cancel-swipe path.",
+                createdAt = "2026-05-21T00:01:00Z",
+                authorId = user.id,
+                conversationId = "debug-pending-2",
+                inReplyToUserId = null,
+                lang = "en",
+                referenced = false,
+                order = 1099,
+                pendingDelete = true,
+            )
+        )
+    }
+
     private fun seedTwitter() {
         val dao = db.tweetDao()
         val user = TwitterUserEntity(

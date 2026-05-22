@@ -6,6 +6,7 @@ import com.github.jayteealao.twitter.models.TweetEntity
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.FieldPath
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.Dispatchers
@@ -273,6 +274,51 @@ class FirestoreRepository @Inject constructor(
             batch.forEach { tweetEntities ->
                 uploadTweet(tweetEntities)
             }
+        }
+    }
+
+    /**
+     * Swipe-right (confirm-delete) write. Stamps the user's per-item decision on
+     * the server doc so the next daily poll skips it. `FieldValue.serverTimestamp()`
+     * is monotonic and drift-free across devices; Firestore queues offline.
+     */
+    suspend fun markDeleted(tweetId: String): Unit = withContext(Dispatchers.IO) {
+        val uid = auth.currentUser?.uid ?: run {
+            Timber.w("markDeleted called before authentication; tweetId=$tweetId")
+            return@withContext
+        }
+        try {
+            tweetsCol(uid).document(tweetId)
+                .update(
+                    mapOf(
+                        "deleted" to true,
+                        "deletedAt" to FieldValue.serverTimestamp(),
+                    )
+                )
+                .await()
+        } catch (e: Exception) {
+            // Caller swallows; Room-side tombstone is the source of UI truth.
+            Timber.w(e, "markDeleted: Firestore update failed for tweetId=$tweetId")
+            throw e
+        }
+    }
+
+    /**
+     * Swipe-left (cancel-pending-delete) write. Clears the server-side flag so
+     * the row returns to normal styling on the next poll.
+     */
+    suspend fun cancelPendingDelete(tweetId: String): Unit = withContext(Dispatchers.IO) {
+        val uid = auth.currentUser?.uid ?: run {
+            Timber.w("cancelPendingDelete called before authentication; tweetId=$tweetId")
+            return@withContext
+        }
+        try {
+            tweetsCol(uid).document(tweetId)
+                .update("pending_delete", false)
+                .await()
+        } catch (e: Exception) {
+            Timber.w(e, "cancelPendingDelete: Firestore update failed for tweetId=$tweetId")
+            throw e
         }
     }
 

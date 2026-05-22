@@ -48,7 +48,8 @@ data class TweetEntity(
     @ColumnInfo(name = "in_reply_to_user_id") val inReplyToUserId: String?,
     val lang: String?,
     val referenced: Boolean = false,
-    val order: Int = 0
+    val order: Int = 0,
+    @ColumnInfo(name = "pending_delete") val pendingDelete: Boolean = false,
 )
 
 fun Tweet.toTweetEntity(referenced: Boolean = false) = TweetEntity(

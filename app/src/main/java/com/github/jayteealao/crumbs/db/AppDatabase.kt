@@ -39,7 +39,7 @@ import com.github.jayteealao.twitter.models.TwitterUserEntity
         RedditTagCrossRef::class,
         DeletedBookmark::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {

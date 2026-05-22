@@ -62,6 +62,8 @@ fun TwitterBookmarksScreen(
     onLoadTagsForIds: (List<String>) -> Unit,
     onRefresh: () -> Unit,
     onConnectClick: () -> Unit,
+    onConfirmDeletePending: (String) -> Unit = {},
+    onCancelDeletePending: (String) -> Unit = {},
     contentPadding: PaddingValues = PaddingValues(0.dp),
     modifier: Modifier = Modifier,
 ) {
@@ -129,6 +131,8 @@ fun TwitterBookmarksScreen(
                             bookmark = bookmark,
                             onCardClick = onCardClick,
                             onLongPress = onLongPress,
+                            onConfirmDeletePending = onConfirmDeletePending,
+                            onCancelDeletePending = onCancelDeletePending,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                         )
                     }
@@ -208,6 +212,8 @@ fun TwitterBookmarksRoute(
         onLoadTagsForIds = { ids -> bookmarksViewModel.loadTagsForItems(ids) },
         onRefresh = { bookmarksViewModel.refresh() },
         onConnectClick = { context.startActivity(loginViewModel.authIntent()) },
+        onConfirmDeletePending = { id -> bookmarksViewModel.confirmDeletePending(id) },
+        onCancelDeletePending = { id -> bookmarksViewModel.cancelDeletePending(id) },
         contentPadding = contentPadding,
     )
 
@@ -293,6 +299,7 @@ fun TweetData.toBookmark(tags: List<String> = emptyList()): Bookmark {
         isThread = false,
         threadCount = 1,
         isDeleted = false,
+        pendingDelete = tweet.pendingDelete,
         sourceUrl = "https://twitter.com/${user.username}/status/${tweet.id}",
     )
 }

@@ -191,6 +191,19 @@ val MIGRATION_8_9: Migration = object : Migration(8, 9) {
     }
 }
 
+/**
+ * v9 → v10: surface the server-side `pending_delete` flag on `tweetEntity`.
+ * `daily-poll` writes this on tweet docs that disappear from a fresh X
+ * bookmarks page; the device renders strikethrough + swipe affordances when
+ * the column is true. INTEGER NOT NULL DEFAULT 0 maps Kotlin Boolean → SQLite
+ * with the safe default for every existing row.
+ */
+val MIGRATION_9_10: Migration = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `tweetEntity` ADD COLUMN `pending_delete` INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
 /** Full list registered by the DI module's `addMigrations(*ALL_MIGRATIONS)`. */
 val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_2_3,
@@ -200,4 +213,5 @@ val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_6_7,
     MIGRATION_7_8,
     MIGRATION_8_9,
+    MIGRATION_9_10,
 )

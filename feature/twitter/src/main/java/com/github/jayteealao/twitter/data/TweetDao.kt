@@ -138,6 +138,14 @@ interface TweetDao {
     @Query("SELECT MAX(`order`) FROM tweetEntity")
     suspend fun getMaxOrder(): Int?
 
+    /**
+     * Flip the per-tweet `pending_delete` flag. Driven by the cancel-swipe path
+     * (sets value=false); the confirm-swipe path writes a tombstone via
+     * DeletedBookmarkDao instead and does not call this.
+     */
+    @Query("UPDATE tweetEntity SET pending_delete = :value WHERE id = :id")
+    suspend fun updatePendingDelete(id: String, value: Boolean)
+
     // Tag operations
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertTag(tag: TagEntity)

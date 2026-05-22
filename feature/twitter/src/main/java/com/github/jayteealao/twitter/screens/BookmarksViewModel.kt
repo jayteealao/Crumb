@@ -104,6 +104,14 @@ class BookmarksViewModel @Inject constructor(
         viewModelScope.launch { repository.undoDelete(id) }
     }
 
+    fun confirmDeletePending(id: String) {
+        viewModelScope.launch { repository.confirmDeletePending(id) }
+    }
+
+    fun cancelDeletePending(id: String) {
+        viewModelScope.launch { repository.cancelDeletePending(id) }
+    }
+
     // Tag operations
     private val _tagsForTweet = MutableStateFlow<Map<String, List<String>>>(emptyMap())
     val tagsForTweet: StateFlow<Map<String, List<String>>> = _tagsForTweet

@@ -1,0 +1,32 @@
+appId: com.github.jayteealao.crumbs
+---
+- launchApp:
+    clearState: true
+    arguments:
+      debug_action: "seed_sync_status"
+      linked: "true"
+- launchApp:
+    arguments:
+      debug_action: "seed_pending_delete"
+- extendedWaitUntil:
+    visible:
+      id: "twitter-bookmarks-screen"
+    timeout: 10000
+- assertVisible:
+    id: "bookmark-card-strikethrough"
+- swipe:
+    direction: LEFT
+    from:
+      id: "bookmark-card-pending-debug-pending-1"
+- extendedWaitUntil:
+    notVisible:
+      id: "bookmark-card-pending-debug-pending-1"
+    timeout: 5000
+- swipe:
+    direction: RIGHT
+    from:
+      id: "bookmark-card-pending-debug-pending-2"
+- extendedWaitUntil:
+    notVisible:
+      id: "bookmark-card-strikethrough"
+    timeout: 5000

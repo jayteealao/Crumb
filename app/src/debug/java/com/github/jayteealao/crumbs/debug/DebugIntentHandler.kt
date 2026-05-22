@@ -24,6 +24,7 @@ object DebugIntentHandler {
     private const val ACTION_WIPE = "wipe"
     private const val ACTION_CORRUPT_TOKEN = "corrupt_token"
     private const val ACTION_SEED_SYNC_STATUS = "seed_sync_status"
+    private const val ACTION_SEED_PENDING_DELETE = "seed_pending_delete"
 
     @JvmStatic
     fun handleIntent(activity: ComponentActivity, intent: Intent?) {
@@ -55,6 +56,12 @@ object DebugIntentHandler {
                 val linked = intent.getStringExtra("linked")?.equals("true", ignoreCase = true) ?: false
                 runCatching { injector.seedSyncStatus(linked = linked) }
                     .onFailure { Timber.e(it, "DebugDataInjector.seedSyncStatus failed") }
+            }
+            ACTION_SEED_PENDING_DELETE -> {
+                activity.lifecycleScope.launch {
+                    runCatching { injector.seedPendingDelete() }
+                        .onFailure { Timber.e(it, "DebugDataInjector.seedPendingDelete failed") }
+                }
             }
             else -> Timber.w("DebugIntentHandler: unknown debug_action=%s", action)
         }
