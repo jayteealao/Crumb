@@ -6,7 +6,7 @@ workflow-type: hotfix
 files-changed:
   - "core/designsystem/src/main/java/com/github/jayteealao/crumbs/designsystem/components/CrumbsFilterBar.kt"
 lines-changed: 9   # 8 inserted, 1 deleted per git diff --stat (net +7 lines: 2 imports + 1 modifier + 2 Text params + 4 comment lines)
-commit-sha: "(written by atomic commit after this artifact lands)"
+commit-sha: "9d3dcbf"
 test-result: pass
 status: complete
 created-at: "2026-05-23T00:30:00Z"
