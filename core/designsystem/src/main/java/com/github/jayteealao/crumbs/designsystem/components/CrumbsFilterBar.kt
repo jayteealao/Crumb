@@ -3,6 +3,7 @@ package com.github.jayteealao.crumbs.designsystem.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
@@ -89,11 +91,14 @@ fun CrumbsFilterBar(
             )
         }
         VerticalInkDivider(stroke.hairline, colors.ink)
-        // Chip row, centered slot
+        // Chip row, centered slot. horizontalScroll lets long chip sets
+        // (e.g., the live 6-chip home filter) extend past the screen edge
+        // instead of squishing chips and wrapping their labels mid-word.
         Row(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
+                .horizontalScroll(rememberScrollState())
                 .padding(horizontal = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -127,6 +132,8 @@ fun CrumbsFilterBar(
                         text = chip.label.uppercase(),
                         style = typography.metaMono,
                         color = if (selected) colors.onAccent else colors.ink,
+                        maxLines = 1,
+                        softWrap = false,
                     )
                 }
             }
