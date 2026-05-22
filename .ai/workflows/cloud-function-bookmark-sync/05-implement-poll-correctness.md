@@ -12,7 +12,7 @@ metric-lines-added: 537
 metric-lines-removed: 32
 metric-deviations-from-plan: 2
 metric-review-fixes-applied: 0
-commit-sha: "9409017"
+commit-sha: "bdd3370"
 tags: [cloud-functions, poll-engine, bigint-comparison, firestore-in-query, finally-block, migration-backfill, jest]
 refs:
   index: 00-index.md
