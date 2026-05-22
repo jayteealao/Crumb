@@ -21,7 +21,7 @@ metric-issues-found-initial: 4
 metric-issues-found-final: 1
 fix-rounds-run: 1
 convergence: converged
-verify-owned-fix-commit: null
+verify-owned-fix-commit: "14c1527"
 interactive-verification: deferred
 interactive-verification-defer-reason: "AC4 (instrumented MigrationTest v9→v10) deferred. Root cause is NOT pending-delete code — it is a pre-existing `kotlinx-serialization` classpath mismatch in `androidx.room:room-testing` that throws AbstractMethodError on `GeneratedSerializer.typeParametersSerializers()` during ANY `MigrationTestHelper.createDatabase(name, version)` call (fails at v9 load, before the v9→v10 path even runs). All 6 prior MigrationTest cases (v3→v4 through v8→v9) are equally affected. Fix is to align the kotlinx-serialization-core/json version exposed to androidTest classpath with what room-testing was compiled against; this is out of scope for the pending-delete slice. MIGRATION_9_10 correctness independently proven by schema/10.json regeneration during implement + the unit-test-side projection extension. Clearing event: a follow-up fix to align kotlinx-serialization in app/build.gradle.kts androidTest dependencies, then re-run `:app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.github.jayteealao.crumbs.db.MigrationTest#migrate9To10_addsPendingDeleteColumn`."
 adapters-used: [android]
@@ -137,7 +137,7 @@ Single composite gradle invocation `BUILD SUCCESSFUL in 3s`, 329/333 actionable 
 | DEBUG-SEED-1 | augmentation-regression (`DebugDataInjector.seedPendingDelete()` did not write the Twitter access token, so the post-skip-auth `loggedIn` gate refused to render the feed and showed the `twitter-bookmarks-empty` "CONNECT TO TWITTER" state instead) | Fix | Added a `seedAuthTokens()` call at the head of `seedPendingDelete()`. This matches the `run(wipe = true)` path's behavior. | After this fix the Maestro flow advanced past the empty-state branch and rendered the seeded rows. |
 | AC4-MIGRATION-TEST | bootstrap-failure (kotlinx-serialization classpath mismatch in `androidx.room:room-testing`) | Skip | Triaged as out-of-scope for the pending-delete slice; documented as the per-slice `interactive-verification: deferred` reason with a precise actionable clearing path. | Not re-run; deferred. |
 
-Commit: `(see verify-time fix commit below)` — landed via `fix(twitter): verify-time fixes for pending-delete` covering ANDROID-TEST-1, MAESTRO-FLOW-1, DEBUG-SEED-1. The AC4 deferral landed no code change.
+Commit: `14c1527` — `fix(twitter): unblock pending-delete live verification` covering ANDROID-TEST-1, MAESTRO-FLOW-1, DEBUG-SEED-1. The AC4 deferral landed no code change.
 
 `metric-issues-found-initial`: 4 (one bootstrap blocker + two augmentation gaps + one pre-existing androidTest compile breakage)
 `metric-issues-found-final`: 1 (the kotlinx-serialization deferral)
