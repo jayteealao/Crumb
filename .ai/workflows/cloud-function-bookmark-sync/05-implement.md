@@ -5,23 +5,23 @@ slug: cloud-function-bookmark-sync
 status: in-progress
 stage-number: 5
 created-at: "2026-05-19T22:51:34Z"
-updated-at: "2026-05-20T22:20:01Z"
-slices-implemented: 3
-slices-total: 6
-metric-total-files-changed: 48
-metric-total-lines-added: 2737
-metric-total-lines-removed: 101
-tags: [firebase-auth, credential-manager, google-sign-in, account-linking, android, hilt, robolectric, roborazzi, cloud-functions, typescript, jose, secret-manager, oauth-pkce, jest, firestore-rules, onschedule, oncall, twitter-api, firestore-transactions, lease, debounce, refresh-token-rotation, iam-verification]
+updated-at: "2026-05-22T12:52:17Z"
+slices-implemented: 4
+slices-total: 7
+metric-total-files-changed: 53
+metric-total-lines-added: 3274
+metric-total-lines-removed: 133
+tags: [firebase-auth, credential-manager, google-sign-in, account-linking, android, hilt, robolectric, roborazzi, cloud-functions, typescript, jose, secret-manager, oauth-pkce, jest, firestore-rules, onschedule, oncall, twitter-api, firestore-transactions, lease, debounce, refresh-token-rotation, iam-verification, bigint-comparison, firestore-in-query, finally-block, migration-backfill]
 refs:
   index: 00-index.md
   plan-index: 04-plan.md
 next-command: wf-verify
-next-invocation: "/wf verify cloud-function-bookmark-sync daily-poll"
+next-invocation: "/wf verify cloud-function-bookmark-sync poll-correctness"
 ---
 
 # Implement Index
 
-Master index for the six-slice implementation chain. Three slices implemented (`auth-foundation`, `functions-oauth`, `daily-poll`); three slices remain (`android-reader`, `pending-delete`, `cutover-migration`).
+Master index for the seven-slice implementation chain. Four slices implemented (`auth-foundation`, `functions-oauth`, `daily-poll`, `poll-correctness`); three slices remain (`android-reader`, `pending-delete`, `cutover-migration`).
 
 ## Slice Implementation Summaries
 
@@ -52,6 +52,15 @@ Master index for the six-slice implementation chain. Three slices implemented (`
 - **Deviations from plan:** 4 — see [05-implement-daily-poll.md § Deviations from Plan](05-implement-daily-poll.md). Most consequential: `sync_status` doc path corrected to `users/{uid}/sync_status/state` (4 segments) because the plan's 3-segment path is invalid for `.doc()`. Co-deploy of `oauthCallback` + handlers is required to land the path move atomically.
 - **Details:** [05-implement-daily-poll.md](05-implement-daily-poll.md).
 
+### `poll-correctness` *(implemented this round)*
+
+- **Status:** code complete; build + 27 jest cases (23 existing + 4 new) + lint all green locally. Operator checklist (8 items) gates the live backfill + redeploy + AC re-capture for verify.
+- **Surface:** 5 files (4 modified + 1 new). `functions/src/lib/poll.ts` surgically modified: BigInt comparison helpers (`isAtOrBelowBoundary` / `isStrictlyAboveBoundary`) replace lex compare; `latestIdInDb` discovery moved from a broken `orderBy("id", "desc")` query to a `sync_status.latest_tweet_id` cache read; pending_delete diff parallelizes precondition reads via `where(FieldPath.documentId(), "in", [30-chunk])` and chunks writes at 450 ops/commit; finally observability wraps work in a 5s `Promise.race` + emits a synchronous `console.error` JSON envelope alongside the firebase logger line. New `scripts/firestore-migrate/backfill-tweet-id-field.mjs` one-shot ADC script seeds the new cache field + writes the missing `id` field onto 1,050/4,275 legacy migration docs (idempotent, dry-run supported).
+- **Boundary:** server-side only — no handler signature change, no new export, no new function deploy beyond re-pushing `dailyPoll` + `triggerPoll`. Closes the four defects (ISSUE-1 lex compare, ISSUE-2 unbounded pdBatch, ISSUE-3 missing `id` field, ISSUE-4 silent finally-failure visibility) the daily-poll verify escalated.
+- **Foundations introduced:** `sync_status.latest_tweet_id` field — a BigInt-string cache that downstream slices may consume (`android-reader` does not need it, but if a future slice wants the freshness boundary without a collection scan, it's available). Test fake gains `failNextSet(reason, predicate?)` injection — reusable by future tests of error paths.
+- **Deviations from plan:** 2 — see [05-implement-poll-correctness.md § Deviations from Plan](05-implement-poll-correctness.md). Backfill script colocated with `scripts/firestore-migrate/` for `firebase-admin` dep reuse; defensive BigInt helpers fall back to string equality for non-numeric test fixtures.
+- **Details:** [05-implement-poll-correctness.md](05-implement-poll-correctness.md).
+
 ### `android-reader`, `pending-delete`, `cutover-migration` *(not implemented this round)*
 
 Each remains in `defined` slice state with no plan yet. `android-reader` consumes the `triggerPoll` return-shape contract + the `users/{uid}/sync_status/state` doc path defined by `daily-poll`. `pending-delete` consumes the `pending_delete: true` server flag. `cutover-migration` consumes `lib/secrets.setRefreshToken` and is also responsible for deleting any orphan docs at the legacy `users/{uid}/twitter/...` subtree.
@@ -71,6 +80,7 @@ Each remains in `defined` slice state with no plan yet. `android-reader` consume
 
 ## Recommended Next Stage
 
-- **Option A (default):** `/wf verify cloud-function-bookmark-sync daily-poll` — execute the operator checklist (9 items), capture live evidence (twice-daily cron, debounce, in_progress lease, IAM verifier exit-0, pending-delete server flag). Run `/compact` first.
-- **Option B:** `/wf plan cloud-function-bookmark-sync android-reader` — start the next slice's plan in parallel with operator-checklist execution.
-- **Option C:** `/wf review cloud-function-bookmark-sync` — slug-wide review against `main...HEAD` covering all three implemented slices (`review-scope: slug-wide` per `00-index.md`).
+- **Option A (default):** `/wf verify cloud-function-bookmark-sync poll-correctness` — run the 8-item operator checklist (ADC sign-in → dry-run backfill → live backfill → redeploy → triggerPoll → debounce → un-bookmark round-trip), confirm the four daily-poll AC reach pass on a fresh corpus. Run `/compact` first.
+- **Option B:** `/wf verify cloud-function-bookmark-sync daily-poll` — re-verify the original daily-poll slice; the four escalated issues should now converge.
+- **Option C:** `/wf plan cloud-function-bookmark-sync android-reader` — start the next slice's plan in parallel with verify execution.
+- **Option D:** `/wf review cloud-function-bookmark-sync` — slug-wide review against `main...HEAD` covering all four implemented slices.

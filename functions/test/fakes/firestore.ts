@@ -91,6 +91,14 @@ export interface FakeContext {
   journal: JournalEntry[];
   store: Map<string, Record<string, unknown>>;
   seed: (path: string, data: Record<string, unknown>) => void;
+  // Inject a failure on the next matching `set()` (single-shot). When
+  // `predicate` is omitted, the very next set() throws. Used by the
+  // finally-block visibility test to throw on the success-path sync_status
+  // write without disturbing the prior lease-tx write.
+  failNextSet: (
+    reason: string,
+    predicate?: (path: string, data: Record<string, unknown>) => boolean,
+  ) => void;
 }
 
 function parentOf(path: string): { path: string; isDoc: boolean } | null {
@@ -159,6 +167,18 @@ function deepMerge(
 export function createFakeDb(): FakeContext {
   const journal: JournalEntry[] = [];
   const store = new Map<string, Record<string, unknown>>();
+  let nextSetFailure: {
+    reason: string;
+    predicate?: (path: string, data: Record<string, unknown>) => boolean;
+  } | null = null;
+
+  function shouldFailSet(path: string, data: Record<string, unknown>): string | null {
+    if (!nextSetFailure) return null;
+    if (nextSetFailure.predicate && !nextSetFailure.predicate(path, data)) return null;
+    const reason = nextSetFailure.reason;
+    nextSetFailure = null;
+    return reason;
+  }
 
   function makeDocRef(path: string): FakeDocRef {
     const id = lastSegment(path);
@@ -191,6 +211,8 @@ export function createFakeDb(): FakeContext {
         };
       },
       set: async (data, opts) => {
+        const failReason = shouldFailSet(path, data);
+        if (failReason) throw new Error(failReason);
         const merge = opts?.merge === true;
         journal.push({ op: "set", path, data, merge });
         const prev = store.get(path);
@@ -243,8 +265,22 @@ export function createFakeDb(): FakeContext {
         if (!matches) continue;
         let pass = true;
         for (const w of options.where) {
-          const v = (data as Record<string, unknown>)[w.field];
-          if (w.op === "==" && v !== w.value) pass = false;
+          // FieldPath.documentId() is mocked to the literal "__name__" — the
+          // underlying field-path string Firestore uses for the doc id.
+          if (w.field === "__name__") {
+            const id = lastSegment(path);
+            if (w.op === "in" && Array.isArray(w.value)) {
+              if (!w.value.includes(id)) pass = false;
+            } else if (w.op === "==" && id !== w.value) {
+              pass = false;
+            }
+          } else {
+            const v = (data as Record<string, unknown>)[w.field];
+            if (w.op === "==" && v !== w.value) pass = false;
+            if (w.op === "in" && Array.isArray(w.value) && !w.value.includes(v)) {
+              pass = false;
+            }
+          }
         }
         if (!pass) continue;
         docs.push({
@@ -338,6 +374,8 @@ export function createFakeDb(): FakeContext {
           };
         },
         set: (ref, data, opts) => {
+          const failReason = shouldFailSet(ref.path, data);
+          if (failReason) throw new Error(failReason);
           const merge = opts?.merge === true;
           journal.push({ op: "set", path: ref.path, data, merge });
           const prev = store.get(ref.path);
@@ -367,6 +405,9 @@ export function createFakeDb(): FakeContext {
     store,
     seed: (path, data) => {
       store.set(path, { ...data });
+    },
+    failNextSet: (reason, predicate) => {
+      nextSetFailure = { reason, predicate };
     },
   };
 }

@@ -17,7 +17,7 @@
 //     has an active pagination bug (see lib/twitter-api.ts).
 
 import { logger } from "firebase-functions/v2";
-import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { FieldValue, FieldPath, Timestamp } from "firebase-admin/firestore";
 import type { DocumentReference, WriteBatch, Firestore } from "firebase-admin/firestore";
 
 import { db } from "./admin";
@@ -79,6 +79,11 @@ interface SyncStatusData {
   lastPolledAt?: Timestamp;
   lastError?: string | null;
   xUserId?: string;
+  // BigInt-string of the numerically-largest stored tweet id. Seeded by
+  // scripts/backfill-tweet-id-field.mjs and maintained by runPoll's success
+  // path. Used as the stop-on-overlap boundary; replaces the broken
+  // `orderBy("id", "desc").limit(1)` which compared snowflakes lexicographically.
+  latest_tweet_id?: string;
   poll_lease?: LeaseState | null;
   [key: string]: unknown;
 }
@@ -87,6 +92,27 @@ function assertPathScoped(path: string, uid: string): void {
   const prefix = `users/${uid}/`;
   if (!path.startsWith(prefix)) {
     throw new Error(`path_guard_violation: ${path}`);
+  }
+}
+
+// Numeric-snowflake comparison helpers. In production every tweet id is a
+// valid u64 snowflake string, so BigInt conversion succeeds. Test fixtures
+// use synthetic ids like `T1` that are not numeric — fall back to string
+// equality (NOT lex `<`/`>`, which is the original defect for mixed-length
+// snowflakes).
+function isAtOrBelowBoundary(id: string, boundary: string): boolean {
+  try {
+    return BigInt(id) <= BigInt(boundary);
+  } catch {
+    return id === boundary;
+  }
+}
+
+function isStrictlyAboveBoundary(id: string, boundary: string): boolean {
+  try {
+    return BigInt(id) > BigInt(boundary);
+  } catch {
+    return false;
   }
 }
 
@@ -202,6 +228,7 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
   let flaggedCount = 0;
   let resolvedXUserId: string | undefined;
   let pollFailed: PollFailureReason | null = null;
+  let newLatestTweetId: string | undefined;
 
   try {
     // Sub-step 4b: refresh-token grant + conditional rotation persist.
@@ -274,15 +301,15 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
     resolvedXUserId = xUserId;
 
     // Sub-step 4d: paginated bookmark fetch with stop-on-overlap.
-    const latestIdSnap = await database
-      .collection(`users/${uid}/tweets`)
-      .orderBy("id", "desc")
-      .limit(1)
-      .select()
-      .get();
-    const latestIdInDb: string | undefined = latestIdSnap.empty
-      ? undefined
-      : latestIdSnap.docs[0].id;
+    //
+    // `latest_tweet_id` is the BigInt-max-string of stored tweet ids — seeded
+    // by scripts/backfill-tweet-id-field.mjs and re-written by this function's
+    // success-path finally patch (see `newLatestTweetId` below). It replaces
+    // an earlier `orderBy("id", "desc").limit(1)` query that compared snowflake
+    // strings lexicographically (2017-era 18-char ids sorted AFTER 2024+
+    // 19-char ids because `'9' > '2'` at position 0), which caused
+    // stop-on-overlap to mis-fire and the function to silently drop work.
+    const latestIdInDb: string | undefined = currentStatus.latest_tweet_id;
 
     const collected: Array<{ tweet: TweetData; includes?: IncludesData }> = [];
     const seenIds = new Set<string>();
@@ -305,9 +332,13 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
       const json = (await resp.json()) as BookmarksPage;
       const page = json.data ?? [];
       for (const tweet of page) {
-        if (latestIdInDb && tweet.id === latestIdInDb) {
-          // Boundary tweet IS still present in X — record as seen but do not
-          // re-write its full payload (no new data above the overlap line for it).
+        // BigInt comparison: snowflake ids are variable-length numeric strings;
+        // lexicographic compare misclassifies 18-char (2017-era) vs 19-char
+        // (2024+) ids. `<=` includes the boundary tweet itself as still-present.
+        if (latestIdInDb && isAtOrBelowBoundary(tweet.id, latestIdInDb)) {
+          // Boundary (or below) IS still present in X — record as seen but do
+          // not re-write the payload. Anything strictly below the boundary
+          // was not paged in this poll; its presence remains unknown.
           seenIds.add(tweet.id);
           stoppedOnOverlap = true;
           stop = true;
@@ -425,8 +456,9 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
     for (const id of existingIds) {
       if (seenIds.has(id)) continue;
       if (stoppedOnOverlap) {
-        // Only flag if strictly above the overlap boundary.
-        if (latestIdInDb && id > latestIdInDb) {
+        // Only flag if strictly above the overlap boundary. BigInt compare
+        // for the same reason as the overlap check above.
+        if (latestIdInDb && isStrictlyAboveBoundary(id, latestIdInDb)) {
           missingNow.push(id);
         }
       } else {
@@ -435,28 +467,78 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
     }
 
     if (missingNow.length > 0) {
-      const pdBatch = database.batch();
-      let flagged = 0;
+      // Read the `deleted` precondition for every candidate via chunked `in`
+      // queries — 30 ids per query is the Firestore documentId-in cap. One
+      // RPC per chunk; up to 30 docs returned. Replaces a serial loop of
+      // 3,000+ individual docRef.get() calls.
+      const IN_CHUNK = 30;
+      const idChunks: string[][] = [];
+      for (let i = 0; i < missingNow.length; i += IN_CHUNK) {
+        idChunks.push(missingNow.slice(i, i + IN_CHUNK));
+      }
+      const snaps = await Promise.all(
+        idChunks.map((ids) =>
+          database
+            .collection(`users/${uid}/tweets`)
+            .where(FieldPath.documentId(), "in", ids)
+            .select("deleted")
+            .get(),
+        ),
+      );
+      const deletedSet = new Set<string>();
+      for (const snap of snaps) {
+        for (const d of snap.docs) {
+          if ((d.data() as Record<string, unknown>)?.deleted === true) {
+            deletedSet.add(d.id);
+          }
+        }
+      }
+
+      const pdWrites: Array<[DocumentReference, Record<string, unknown>]> = [];
       for (const id of missingNow) {
+        if (deletedSet.has(id)) continue;
         const docRef = database.doc(`users/${uid}/tweets/${id}`);
         assertPathScoped(docRef.path, uid);
-        const docSnap = await docRef.get();
-        if (docSnap.data()?.deleted === true) continue;
-        pdBatch.set(
+        pdWrites.push([
           docRef,
           {
             pending_delete: true,
             pending_delete_detected_at: Timestamp.now(),
             updatedAt: FieldValue.serverTimestamp(),
           },
-          { merge: true },
+        ]);
+      }
+
+      // Same 450-chunk commit pattern as the collection-write loop above.
+      // Hard cap is 500 ops per batch; 450 leaves headroom.
+      for (let i = 0; i < pdWrites.length; i += BATCH_SIZE) {
+        const batch: WriteBatch = database.batch();
+        const chunk = pdWrites.slice(i, i + BATCH_SIZE);
+        for (const [ref, data] of chunk) {
+          batch.set(ref, data, { merge: true });
+        }
+        await batch.commit();
+      }
+      flaggedCount = pdWrites.length;
+    }
+
+    // Compute new BigInt-max boundary for the success-path patch (used in
+    // finally below). Newer collected ids supersede the existing cache.
+    // Wrapped in try/catch: defensive against non-numeric ids (test fixtures
+    // use synthetic strings; production snowflakes are always numeric).
+    if (collected.length > 0) {
+      try {
+        const base = latestIdInDb ? BigInt(latestIdInDb) : 0n;
+        const newMax = collected.reduce(
+          (max, { tweet }) => (BigInt(tweet.id) > max ? BigInt(tweet.id) : max),
+          base,
         );
-        flagged++;
+        if (newMax > 0n && (!latestIdInDb || newMax > BigInt(latestIdInDb))) {
+          newLatestTweetId = newMax.toString();
+        }
+      } catch {
+        // Non-numeric id — skip cache update; the existing cache stays.
       }
-      if (flagged > 0) {
-        await pdBatch.commit();
-      }
-      flaggedCount = flagged;
     }
 
     return {
@@ -466,7 +548,14 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
     };
   } finally {
     // Sub-step 4h: release lease + write sync_status (always runs).
-    try {
+    //
+    // Observability: the firebase-functions logger buffers async, so on Gen 2
+    // post-response CPU throttling its log lines can be lost. Wrap the work
+    // in a 5s Promise.race timeout, then emit BOTH the firebase logger line
+    // (for normal cases) AND a synchronous console.error JSON envelope (for
+    // when the logger's async flush is too slow). stderr is captured
+    // immediately by Cloud Logging.
+    const finallyWork = async (): Promise<void> => {
       if (pollFailed) {
         await releaseLeaseWithError(database, uid, pollFailed, {
           setUnlinked: pollFailed === "refresh_revoked",
@@ -481,10 +570,39 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
           updatedAt: FieldValue.serverTimestamp(),
         };
         if (resolvedXUserId) finalPatch.xUserId = resolvedXUserId;
+        if (newLatestTweetId) finalPatch.latest_tweet_id = newLatestTweetId;
         await statusRef.set(finalPatch, { merge: true });
       }
+    };
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        finallyWork(),
+        new Promise<never>((_, reject) => {
+          timeoutHandle = setTimeout(
+            () => reject(new Error("finally_timeout_5s")),
+            5000,
+          );
+        }),
+      ]);
     } catch (e) {
-      logger.error("daily_poll_finally_failed", { uid, code: (e as Error).message });
+      const msg = (e as Error).message;
+      const where = msg === "finally_timeout_5s" ? "timeout" : "throw";
+      logger.error("daily_poll_finally_failed", { uid, code: msg, where });
+      // Synchronous fallback bypasses the firebase-functions logger's async
+      // flush path; stderr is captured immediately by Cloud Logging.
+      // eslint-disable-next-line no-console
+      console.error(
+        JSON.stringify({
+          severity: "ERROR",
+          message: "daily_poll_finally_failed",
+          uid,
+          code: msg,
+          where,
+        }),
+      );
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
     }
   }
 }

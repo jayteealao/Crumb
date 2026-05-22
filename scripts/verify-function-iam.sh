@@ -9,10 +9,11 @@
 #      Engine SA.
 #   2. The dedicated SA holds `roles/secretmanager.secretAccessor` on each
 #      relevant secret, scoped per-secret (not project-level).
-#   3. The dedicated SA holds NO project-level Firestore roles
-#      (datastore.user / datastore.owner / datastore.writer). The Admin SDK
-#      bypass is the write mechanism; project-level roles would be redundant
-#      and dangerous.
+#   3. The dedicated SA holds no broader-than-needed Firestore roles. The
+#      Admin SDK bypasses Firestore Security Rules but still requires GCP
+#      IAM to talk to the API, so `roles/datastore.user` (entity CRUD only)
+#      is required. `roles/datastore.owner` (admin operations) and
+#      `roles/datastore.writer` (legacy broad) remain forbidden.
 #
 # Usage:
 #   bash scripts/verify-function-iam.sh [uid]
@@ -67,20 +68,30 @@ for SECRET in \
 done
 
 echo
-echo "==> Verifying NO project-level Firestore roles on the SA"
-BAD=$(gcloud projects get-iam-policy "$PROJECT_ID" --format=json \
+echo "==> Verifying SA Firestore roles: datastore.user required, owner/writer forbidden"
+POLICY=$(gcloud projects get-iam-policy "$PROJECT_ID" --format=json)
+BAD=$(echo "$POLICY" \
   | jq --arg sa "serviceAccount:$SA_EMAIL" '
       [.bindings[]
-       | select(.role == "roles/datastore.user"
-             or .role == "roles/datastore.owner"
+       | select(.role == "roles/datastore.owner"
              or .role == "roles/datastore.writer")
        | select(.members[]? == $sa)
        | .role]
     ')
 if [[ "$BAD" != "[]" ]]; then
-  fail "SA has unexpected Firestore roles at project level: $BAD"
+  fail "SA has overly broad Firestore roles at project level: $BAD"
 fi
-pass "SA has no project-level Firestore roles"
+HAS_USER=$(echo "$POLICY" \
+  | jq --arg sa "serviceAccount:$SA_EMAIL" '
+      [.bindings[]
+       | select(.role == "roles/datastore.user")
+       | select(.members[]? == $sa)
+       | .role]
+    ')
+if [[ "$HAS_USER" == "[]" ]]; then
+  fail "SA missing required roles/datastore.user (Admin SDK needs it to talk to Firestore)"
+fi
+pass "SA has roles/datastore.user and no broader Firestore roles"
 
 echo
 echo "==> ALL CHECKS PASSED"

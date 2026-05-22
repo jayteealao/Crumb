@@ -1,6 +1,10 @@
 import { setGlobalOptions } from "firebase-functions/v2/options";
 
-setGlobalOptions({ region: "europe-west2", maxInstances: 10 });
+setGlobalOptions({
+  region: "europe-west2",
+  maxInstances: 10,
+  serviceAccount: "crumb-twitter-poller@crumbs-a4fdb.iam.gserviceaccount.com",
+});
 
 export { mintOAuthState } from "./handlers/mintOAuthState";
 export { oauthCallback } from "./handlers/oauthCallback";
