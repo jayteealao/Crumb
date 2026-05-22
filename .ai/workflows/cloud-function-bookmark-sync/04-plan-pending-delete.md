@@ -24,8 +24,8 @@ refs:
     - 04-plan-poll-correctness.md
     - 04-plan-android-reader.md
   implement: 05-implement-pending-delete.md
-next-command: wf-verify
-next-invocation: "/wf verify cloud-function-bookmark-sync pending-delete"
+next-command: wf-review
+next-invocation: "/wf review cloud-function-bookmark-sync"
 ---
 
 # Plan: pending-delete

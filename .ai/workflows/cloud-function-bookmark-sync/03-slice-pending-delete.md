@@ -22,6 +22,7 @@ refs:
   plan: 04-plan-pending-delete.md
   implement: 05-implement-pending-delete.md
 status-implement: complete
+status-verify: partial-converged
 ---
 
 # Slice: pending-delete

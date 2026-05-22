@@ -4,10 +4,10 @@ type: index
 slug: cloud-function-bookmark-sync
 title: "Cloud Function bookmark sync (Option D from investigate-sync-architecture)"
 status: active
-current-stage: implement
-stage-number: 5
+current-stage: verify
+stage-number: 6
 created-at: "2026-05-19T11:39:20Z"
-updated-at: "2026-05-22T20:14:35Z"
+updated-at: "2026-05-22T21:28:40Z"
 selected-slice: pending-delete
 branch-strategy: shared
 branch: "feat/brutalist-redesign"
@@ -45,8 +45,8 @@ stack:
     - {name: zai-mcp-server, hint: "Screenshot/diagram analysis for client UX changes"}
     - {name: scheduled-tasks, hint: "OS-level scheduled tasks (NOT Cloud Scheduler)"}
   user-confirmed: true
-next-command: wf-verify
-next-invocation: "/wf verify cloud-function-bookmark-sync pending-delete"
+next-command: wf-review
+next-invocation: "/wf review cloud-function-bookmark-sync"
 runtime-evidence-deferrals:
   - slice: auth-foundation
     reason: "Live Google sign-in + collision-link Maestro flow `sign_in_google.yaml` depends on navigation past LoginScreen owned by android-reader slice. Operator prereqs (Firebase Console provider enable + 3 SHA-1 registrations + Type-3 OAuth client in google-services.json + FIREBASE_WEB_OAUTH_CLIENT_ID env) are external manual steps."
@@ -63,6 +63,10 @@ runtime-evidence-deferrals:
   - slice: android-reader
     reason: "Live device + emulator + jayteealao@gmail.com Google account + redeployed mintOAuthState/oauthCallback + live X account round-trip required for AC1 (Maestro sign_in_google.yaml + UID capture), AC2 (Maestro connect_x_blocking.yaml), AC2-live (manual Custom Tab + deep-link round-trip + Cloud Logging oauth_callback_linked -> daily_poll_completed capture), AC5 (Maestro pull_to_refresh.yaml + lazylogcat triggerPoll capture), AC8 (Maestro reconnect_banner.yaml), and NFR (cold/warm Firestore one-shot + triggerPoll round-trip timing samples). All seven automated checks pass green at commit cd107da (jest 29/29, Android lint clean, Robolectric green, Roborazzi green vs. 7 PNG references, assembleDebug clean). Clearing event: /wf-quick probe captures evidence under verify-evidence/android-reader/ after operator runs `firebase deploy --only functions:crumb-oauth:mintOAuthState,functions:crumb-oauth:oauthCallback` and executes the four Maestro flows + manual Custom Tab cycle. The same probe pass also clears the auth-foundation and functions-oauth deferrals (they share the same live OAuth + bookmarks session)."
     deferred-at: "2026-05-22T19:17:44Z"
+    cleared-by: null
+  - slice: pending-delete
+    reason: "AC4 instrumented MigrationTest (v9 -> v10) cannot run live because androidx.room:room-testing 2.8.4 + the project's transitive kotlinx-serialization-core fail with AbstractMethodError at GeneratedSerializer.typeParametersSerializers() during SchemaBundle JSON deserialization. The failure is inside helper.createDatabase(TEST_DB, 9), BEFORE runMigrationsAndValidate even runs, so ALL seven existing MigrationTest cases (3->4 through 9->10) are equally affected. Not a pending-delete regression. Independent code-path proof: app/schemas/com.github.jayteealao.crumbs.db.AppDatabase/10.json regenerated cleanly by KSP at implement-time, :app:assembleDebug clean, projection extension proven by SwipeHandlerTest. Live evidence for AC1/AC2/AC3/AC5(Roborazzi)/AC6 captured via maestro pending_delete_swipe.yaml SUCCESS on Medium_Phone_API_36.0 emulator + three screenshots under verify-evidence/pending-delete/. The signed-in Firestore round-trip side of AC2/AC3 is implicitly owed to the same /wf-quick probe session that clears android-reader. Clearing event: align kotlinx-serialization-core/json in app/build.gradle.kts androidTest dependencies (e.g. explicit androidTestImplementation pin or resolutionStrategy.force on the artifact), then re-run `:app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.github.jayteealao.crumbs.db.MigrationTest#migrate9To10_addsPendingDeleteColumn`."
+    deferred-at: "2026-05-22T21:28:40Z"
     cleared-by: null
 slices:
   - slug: auth-foundation
@@ -88,7 +92,7 @@ slices:
     complexity: l
     depends-on: [auth-foundation, daily-poll, poll-correctness]
   - slug: pending-delete
-    status: implemented
+    status: verified
     complexity: m
     depends-on: [android-reader]
   - slug: cutover-migration
@@ -127,6 +131,7 @@ workflow-files:
   - 06-verify-functions-oauth.md
   - 06-verify-daily-poll.md
   - 06-verify-android-reader.md
+  - 06-verify-pending-delete.md
   - po-answers.md
 progress:
   intake: complete
@@ -134,7 +139,7 @@ progress:
   slice: complete   # 7 slices defined (auth-foundation, functions-oauth, daily-poll, poll-correctness, android-reader, pending-delete, cutover-migration); sequential dependency chain
   plan: in-progress   # auth-foundation + functions-oauth + daily-poll + poll-correctness + android-reader + pending-delete planned (6/7); 1 slice remains to plan (cutover-migration)
   implement: in-progress   # auth-foundation + functions-oauth + daily-poll + poll-correctness + android-reader + pending-delete implemented (6/7); 1 slice remains (cutover-migration)
-  verify: in-progress   # auth-foundation + functions-oauth + daily-poll + poll-correctness + android-reader verified (5/7); auth-foundation + functions-oauth + android-reader result: partial (runtime-evidence deferred — all three clear via a single /wf-quick probe operator session that runs the four Maestro flows + manual Custom Tab + deep-link cycle); daily-poll result: partial + convergence: escalated (4 defects surfaced and substantively closed by poll-correctness); poll-correctness result: partial + convergence: not-needed (8/9 AC met live; 1 AC deferred for X.com UI interaction). 2 slices remain.
+  verify: in-progress   # auth-foundation + functions-oauth + daily-poll + poll-correctness + android-reader + pending-delete verified (6/7); auth-foundation + functions-oauth + android-reader + pending-delete result: partial (runtime-evidence deferred); pending-delete result: partial + convergence: converged (5/6 user-observable AC met live via Maestro on Medium_Phone_API_36.0 emulator; AC4 instrumented MigrationTest deferred for a pre-existing kotlinx-serialization classpath mismatch in androidx.room:room-testing that affects ALL MigrationTest cases); daily-poll result: partial + convergence: escalated (4 defects surfaced and substantively closed by poll-correctness); poll-correctness result: partial + convergence: not-needed (8/9 AC met live; 1 AC deferred for X.com UI interaction). 1 slice remains.
   review: not-started
   handoff: not-started
   ship: not-started
