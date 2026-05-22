@@ -12,7 +12,7 @@ metric-lines-added: 289
 metric-lines-removed: 7
 metric-deviations-from-plan: 2
 metric-review-fixes-applied: 0
-commit-sha: "afebec8"
+commit-sha: "c0c9564"
 tags: [android, room, migration, compose, swipe-to-dismiss, brutalist, strikethrough, accessibility, firestore, maestro, roborazzi, mockk, debug-seed]
 refs:
   index: 00-index.md
