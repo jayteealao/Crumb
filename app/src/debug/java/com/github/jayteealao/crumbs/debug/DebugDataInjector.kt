@@ -83,6 +83,7 @@ class DebugDataInjector @Inject constructor(
      * live daily-poll round-trip. Author row is reused from [seedTwitter].
      */
     suspend fun seedPendingDelete() = withContext(Dispatchers.IO) {
+        seedAuthTokens()
         val dao = db.tweetDao()
         val user = TwitterUserEntity(
             id = "debug-user-twitter",

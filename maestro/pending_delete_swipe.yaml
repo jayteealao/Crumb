@@ -1,19 +1,33 @@
+# Pending-delete swipe round-trip — strikethrough renders, swipe LEFT confirms (row leaves),
+# swipe RIGHT cancels (strikethrough vanishes). Two seeded `pending_delete = true` rows.
+# Login wall bypassed via the existing `login-skip-auth` debug branch, same pattern as
+# happy_path.yaml / long_press.yaml / _probe.yaml.
 appId: com.github.jayteealao.crumbs
 ---
 - launchApp:
     clearState: true
     arguments:
-      debug_action: "seed_sync_status"
-      linked: "true"
-- launchApp:
-    arguments:
       debug_action: "seed_pending_delete"
+- runFlow:
+    when:
+      visible:
+        id: "login-screen"
+    commands:
+      - tapOn:
+          id: "login-skip-auth"
+- extendedWaitUntil:
+    visible:
+      id: "home-screen"
+    timeout: 10000
+- tapOn:
+    id: "nav-tab-twitter"
 - extendedWaitUntil:
     visible:
       id: "twitter-bookmarks-screen"
     timeout: 10000
 - assertVisible:
     id: "bookmark-card-strikethrough"
+- takeScreenshot: pending_delete_01_strikethrough
 - swipe:
     direction: LEFT
     from:
@@ -22,6 +36,7 @@ appId: com.github.jayteealao.crumbs
     notVisible:
       id: "bookmark-card-pending-debug-pending-1"
     timeout: 5000
+- takeScreenshot: pending_delete_02_after_confirm_swipe
 - swipe:
     direction: RIGHT
     from:
@@ -30,3 +45,4 @@ appId: com.github.jayteealao.crumbs
     notVisible:
       id: "bookmark-card-strikethrough"
     timeout: 5000
+- takeScreenshot: pending_delete_03_after_cancel_swipe

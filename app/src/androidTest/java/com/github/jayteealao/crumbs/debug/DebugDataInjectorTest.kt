@@ -6,6 +6,9 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.github.jayteealao.crumbs.db.AppDatabase
 import com.github.jayteealao.reddit.data.RedditPrefs
 import com.github.jayteealao.twitter.data.Prefs
+import com.github.jayteealao.twitter.data.SyncStatusRepository
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -38,6 +41,10 @@ class DebugDataInjectorTest {
             db = db,
             twitterPrefs = Prefs(ctx),
             redditPrefs = RedditPrefs(ctx),
+            syncStatusRepository = SyncStatusRepository(
+                firestore = FirebaseFirestore.getInstance(),
+                auth = FirebaseAuth.getInstance(),
+            ),
         )
     }
 
