@@ -27,6 +27,8 @@ import com.github.jayteealao.crumbs.data.SyncErrorEvent
 import com.github.jayteealao.crumbs.designsystem.components.BottomNavTab
 import com.github.jayteealao.reddit.screens.RedditBookmarksRoute
 import com.github.jayteealao.reddit.screens.RedditViewModel
+import com.github.jayteealao.crumbs.Screens
+import com.github.jayteealao.twitter.data.SnackbarEvent as TwitterSnackbarEvent
 import com.github.jayteealao.twitter.screens.BookmarksViewModel
 import com.github.jayteealao.twitter.screens.LoginViewModel
 import com.github.jayteealao.twitter.screens.TwitterBookmarksRoute
@@ -72,6 +74,41 @@ fun HomeRoute(
     val redditFilter by redditViewModel.filter.collectAsStateWithLifecycle()
     val twitterAccess by loginViewModel.isAccessTokenAvailable.collectAsStateWithLifecycle()
     val redditAccess by redditViewModel.isAccessTokenAvailable.collectAsStateWithLifecycle()
+    val syncStatus by bookmarksViewModel.syncStatus.collectAsStateWithLifecycle()
+
+    // Reconnect banner reflects sync_status.linked from the server doc; takes
+    // precedence over the legacy 401 banner because the new server-driven
+    // flow makes the device's access-token state irrelevant.
+    LaunchedEffect(syncStatus?.linked) {
+        val linked = syncStatus?.linked
+        if (linked == false) {
+            twitterBanner = BannerState(
+                source = BookmarkSource.Twitter,
+                kicker = "RECONNECT X",
+                detail = "Your X connection needs renewing",
+                ctaLabel = "RECONNECT",
+            )
+        } else if (linked == true) {
+            twitterBanner = null
+        }
+    }
+
+    // Surface triggerPoll feedback (debounce / in-progress) as snackbars on
+    // the home host so the user sees pull-to-refresh outcomes.
+    LaunchedEffect(Unit) {
+        bookmarksViewModel.snackbarEvents.collect { event ->
+            val message = when (event) {
+                is TwitterSnackbarEvent.Debounced ->
+                    "Just polled. Try again in ${event.retryAfterSeconds ?: 60}s"
+                is TwitterSnackbarEvent.InProgress -> "Sync already in progress"
+                is TwitterSnackbarEvent.GenericFailure -> "Sync failed (${event.reason})"
+            }
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Short,
+            )
+        }
+    }
 
     LaunchedEffect(twitterAccess) {
         if (twitterAccess) {
@@ -174,23 +211,27 @@ fun HomeRoute(
         },
         onSortClick = { /* sort dialog deferred to a follow-up slice */ },
         onBannerCta = {
-            val intent: Intent? = when (activeBanner?.source) {
-                BookmarkSource.Twitter -> loginViewModel.authIntent()
-                BookmarkSource.Reddit -> redditViewModel.authIntent()
-                null -> null
-            }
-            intent?.let {
-                try {
-                    context.startActivity(it)
-                } catch (e: ActivityNotFoundException) {
-                    Timber.e(e, "No activity to handle OAuth intent")
-                    snackbarScope.launch {
-                        snackbarHostState.showSnackbar(
-                            message = "NO BROWSER FOUND",
-                            duration = SnackbarDuration.Short,
-                        )
+            when (activeBanner?.source) {
+                // X reconnect routes through the dedicated ConnectX destination
+                // so the Custom Tabs + deep-link round-trip lives in one place.
+                BookmarkSource.Twitter -> navController.navigate(Screens.CONNECTX.name)
+                BookmarkSource.Reddit -> {
+                    val intent: Intent? = redditViewModel.authIntent()
+                    intent?.let {
+                        try {
+                            context.startActivity(it)
+                        } catch (e: ActivityNotFoundException) {
+                            Timber.e(e, "No activity to handle OAuth intent")
+                            snackbarScope.launch {
+                                snackbarHostState.showSnackbar(
+                                    message = "NO BROWSER FOUND",
+                                    duration = SnackbarDuration.Short,
+                                )
+                            }
+                        }
                     }
                 }
+                null -> Unit
             }
         },
         snackbarHostState = snackbarHostState,

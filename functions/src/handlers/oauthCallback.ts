@@ -16,9 +16,8 @@ export const oauthCallback = onRequest(async (req, res) => {
   try {
     const code = firstQueryValue(req.query.code);
     const state = firstQueryValue(req.query.state);
-    const codeVerifier = firstQueryValue(req.query.code_verifier);
 
-    if (!code || !state || !codeVerifier) {
+    if (!code || !state) {
       res.status(400).send("missing params");
       return;
     }
@@ -31,6 +30,8 @@ export const oauthCallback = onRequest(async (req, res) => {
       res.status(400).send("invalid state");
       return;
     }
+
+    const codeVerifier = claims.cv;
 
     const { getXClientCredentials, setRefreshToken } = await import("../lib/secrets");
     const { db } = await import("../lib/admin");
@@ -104,6 +105,24 @@ export const oauthCallback = onRequest(async (req, res) => {
     );
 
     logger.info("oauth_callback_linked", { uid: claims.uid });
+
+    // Fan out to runPoll so the first bookmarks land within ~30s of OAuth
+    // completion. Fire-and-forget — the redirect is never delayed by poll
+    // latency. Errors are logged but do not affect the user-facing flow.
+    const fanOut = (async () => {
+      try {
+        const { runPoll } = await import("../lib/poll");
+        const result = await runPoll(claims.uid);
+        logger.info("oauth_callback_fanout_poll", { uid: claims.uid, result });
+      } catch (err) {
+        logger.error("oauth_callback_fanout_poll_failed", {
+          uid: claims.uid,
+          error: (err as Error).message,
+        });
+      }
+    })();
+    void fanOut;
+
     res.redirect(302, DEEP_LINK_SUCCESS);
   } catch (e) {
     logger.error("oauth_callback_unexpected", { code: (e as Error).message });

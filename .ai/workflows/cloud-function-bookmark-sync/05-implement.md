@@ -5,23 +5,23 @@ slug: cloud-function-bookmark-sync
 status: in-progress
 stage-number: 5
 created-at: "2026-05-19T22:51:34Z"
-updated-at: "2026-05-22T12:52:17Z"
-slices-implemented: 4
+updated-at: "2026-05-22T18:18:00Z"
+slices-implemented: 5
 slices-total: 7
-metric-total-files-changed: 53
-metric-total-lines-added: 3274
-metric-total-lines-removed: 133
+metric-total-files-changed: 83
+metric-total-lines-added: 4724
+metric-total-lines-removed: 233
 tags: [firebase-auth, credential-manager, google-sign-in, account-linking, android, hilt, robolectric, roborazzi, cloud-functions, typescript, jose, secret-manager, oauth-pkce, jest, firestore-rules, onschedule, oncall, twitter-api, firestore-transactions, lease, debounce, refresh-token-rotation, iam-verification, bigint-comparison, firestore-in-query, finally-block, migration-backfill]
 refs:
   index: 00-index.md
   plan-index: 04-plan.md
 next-command: wf-verify
-next-invocation: "/wf verify cloud-function-bookmark-sync poll-correctness"
+next-invocation: "/wf verify cloud-function-bookmark-sync android-reader"
 ---
 
 # Implement Index
 
-Master index for the seven-slice implementation chain. Four slices implemented (`auth-foundation`, `functions-oauth`, `daily-poll`, `poll-correctness`); three slices remain (`android-reader`, `pending-delete`, `cutover-migration`).
+Master index for the seven-slice implementation chain. Five slices implemented (`auth-foundation`, `functions-oauth`, `daily-poll`, `poll-correctness`, `android-reader`); two slices remain (`pending-delete`, `cutover-migration`).
 
 ## Slice Implementation Summaries
 
@@ -61,9 +61,19 @@ Master index for the seven-slice implementation chain. Four slices implemented (
 - **Deviations from plan:** 2 — see [05-implement-poll-correctness.md § Deviations from Plan](05-implement-poll-correctness.md). Backfill script colocated with `scripts/firestore-migrate/` for `firebase-admin` dep reuse; defensive BigInt helpers fall back to string equality for non-numeric test fixtures.
 - **Details:** [05-implement-poll-correctness.md](05-implement-poll-correctness.md).
 
-### `android-reader`, `pending-delete`, `cutover-migration` *(not implemented this round)*
+### `android-reader` *(implemented this round)*
 
-Each remains in `defined` slice state with no plan yet. `android-reader` consumes the `triggerPoll` return-shape contract + the `users/{uid}/sync_status/state` doc path defined by `daily-poll`. `pending-delete` consumes the `pending_delete: true` server flag. `cutover-migration` consumes `lib/secrets.setRefreshToken` and is also responsible for deleting any orphan docs at the legacy `users/{uid}/twitter/...` subtree.
+- **Status:** code complete; `:app:assembleDebug` BUILD SUCCESSFUL; 8 new Robolectric tests green (5 SyncStatusRepository + 3 TwitterOAuthCoordinator); 7 new Roborazzi PNGs recorded + verified; functions/ jest 29/29 green (27 baseline + 2 new state-cv tests).
+- **Surface:** Android-side read surface for the server-written Firestore data. New: `SyncStatusRepository` (one-shot `Source.SERVER`, 5s throttle, debug seed mutator), `TwitterOAuthCoordinator` (Singleton; PKCE local + warmUp ping + `mintOAuthState` + Custom Tab launch + deep-link parse), `SyncStatus` DTO, `SnackbarEvent` typed channel, `ConnectXOnboardingScreen` + Route, `SettingsScreen` + Route. Modified: `FirestoreRepository` (sub-collection paths under `users/{uid}/...`), `Repository.refreshBookmarks` (now invokes `triggerPoll` callable), `BookmarksViewModel` (exposes `syncStatus` + `snackbarEvents`), `HomeRoute` (banner translator + snackbar collector + ConnectX nav), `LoginRoute` (X branch navigates to ConnectX), `Crumbs.kt` NavHost (lifecycle ON_START → refresh sync_status), `MainActivity.onNewIntent` (OAuth deep-link dispatch), `FirebaseModule` (provides `FirebaseFirestore` + `FirebaseFunctions europe-west2`), 4 new Maestro flows, debug-seed wiring for Maestro pre-state.
+- **Function-side amendments:** `lib/state.ts` gains `cv: string` claim; `mintOAuthState` validates + accepts `code_verifier` per RFC 7636 §4.1; `oauthCallback` reads the verifier from `claims.cv` (drops the redirect-URL query param) and fans out to `runPoll(uid)` fire-and-forget after the success-path sync_status write. The fan-out makes the first bookmarks visible within ~30s of OAuth completion.
+- **Boundary:** the client never sees the X refresh token; the device-side X HTTP loop is dead code post-refreshBookmarks. `cutover-migration` deletes the dead symbols.
+- **Foundations introduced:** the PKCE-in-state-JWT pattern + the `runPoll` fan-out hook + `seedForDebug` debug-seed mutator. `pending-delete` consumes the same `users/{uid}/tweets/...` path layout and the new `SyncStatus` shape (extends with `pending_delete` field on tweet docs).
+- **Deviations from plan:** 5 — see [05-implement-android-reader.md § Deviations from Plan](05-implement-android-reader.md). Most consequential: `FirebaseAuth` injected directly into feature/twitter classes instead of `AuthGateway` (module-boundary forced); OAuth deep-link handled in `MainActivity.onNewIntent` instead of via `navDeepLink` composable; 7 Roborazzi PNGs recorded instead of 14 (focus on the two new screens end-to-end).
+- **Details:** [05-implement-android-reader.md](05-implement-android-reader.md).
+
+### `pending-delete`, `cutover-migration` *(not implemented this round)*
+
+Each remains in `defined` slice state with no plan yet. `pending-delete` consumes the `pending_delete: true` server flag and the path layout `android-reader` established. `cutover-migration` consumes `lib/secrets.setRefreshToken` and is also responsible for deleting any orphan docs at the legacy `users/{uid}/twitter/...` subtree, plus removing the dead device-side X HTTP wiring left in `Repository.kt` by this slice.
 
 ## Cross-Slice Integration Notes
 
@@ -80,7 +90,6 @@ Each remains in `defined` slice state with no plan yet. `android-reader` consume
 
 ## Recommended Next Stage
 
-- **Option A (default):** `/wf verify cloud-function-bookmark-sync poll-correctness` — run the 8-item operator checklist (ADC sign-in → dry-run backfill → live backfill → redeploy → triggerPoll → debounce → un-bookmark round-trip), confirm the four daily-poll AC reach pass on a fresh corpus. Run `/compact` first.
-- **Option B:** `/wf verify cloud-function-bookmark-sync daily-poll` — re-verify the original daily-poll slice; the four escalated issues should now converge.
-- **Option C:** `/wf plan cloud-function-bookmark-sync android-reader` — start the next slice's plan in parallel with verify execution.
-- **Option D:** `/wf review cloud-function-bookmark-sync` — slug-wide review against `main...HEAD` covering all four implemented slices.
+- **Option A (default):** `/wf verify cloud-function-bookmark-sync android-reader` — deploy the amended `mintOAuthState` + `oauthCallback`, run the four Maestro flows under `scripts/run-maestro.ps1`, capture lazylogcat evidence, confirm AC1/AC2/AC5/AC8 against the live device. Run `/compact` first. This verify also closes the open `auth-foundation` + `functions-oauth` runtime-evidence-deferrals.
+- **Option B:** `/wf plan cloud-function-bookmark-sync pending-delete` — start the next slice's plan in parallel with verify.
+- **Option C:** `/wf review cloud-function-bookmark-sync` — slug-wide review against `main...HEAD` covering all five implemented slices.

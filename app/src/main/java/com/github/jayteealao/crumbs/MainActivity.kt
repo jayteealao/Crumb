@@ -8,19 +8,26 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
+import com.github.jayteealao.twitter.oauth.TwitterOAuthCoordinator
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject lateinit var twitterOAuthCoordinator: TwitterOAuthCoordinator
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         dispatchDebugIntent(intent)
+        dispatchOAuthDeepLink(intent)
         setContent {
             CrumbsTheme {
                 CrumbsNavHost(
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    twitterOAuthCoordinator = twitterOAuthCoordinator,
                 )
             }
         }
@@ -30,6 +37,20 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         dispatchDebugIntent(intent)
+        dispatchOAuthDeepLink(intent)
+    }
+
+    /**
+     * Forward the X OAuth deep-link URI to the coordinator. The path
+     * `crumbs://graphitenerd.xyz/x-oauth-*` is owned end-to-end here, not by
+     * navDeepLink, so the coordinator can run before any nav transition.
+     */
+    private fun dispatchOAuthDeepLink(intent: Intent?) {
+        val data = intent?.data ?: return
+        val path = data.path ?: return
+        if (path == TwitterOAuthCoordinator.PATH_COMPLETE || path == TwitterOAuthCoordinator.PATH_ERROR) {
+            twitterOAuthCoordinator.handleDeepLink(data)
+        }
     }
 
     /**

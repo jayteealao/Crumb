@@ -100,6 +100,11 @@ dependencies {
 //    firebase
     implementation platform(libs.firebase.bom)
     implementation libs.firebase.firestore
+    implementation libs.firebase.auth
+    implementation libs.firebase.functions
+
+//    chrome custom tabs (for X OAuth Custom Tab launch)
+    implementation libs.androidx.browser
 
 //    arrow-optics
     implementation(libs.arrow.optics)
@@ -107,9 +112,6 @@ dependencies {
 //    media3-exoplayer
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.ui)
-
-//    chrome custom tabs
-//    implementation "androidx.browser:browser:1.4.0"
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation(libs.roborazzi.core)
@@ -119,6 +121,9 @@ dependencies {
     testImplementation(platform(libs.compose.bom))
     testImplementation 'androidx.compose.ui:ui-test-junit4'
     testImplementation 'androidx.activity:activity-compose:1.8.2'
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation 'io.mockk:mockk-android:1.13.10'
+    testImplementation 'io.mockk:mockk:1.13.10'
     androidTestImplementation 'androidx.test.ext:junit:1.1.4'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.0'
     androidTestImplementation(platform(libs.compose.bom))

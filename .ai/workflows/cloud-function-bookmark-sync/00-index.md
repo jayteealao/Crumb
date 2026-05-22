@@ -7,16 +7,15 @@ status: active
 current-stage: implement
 stage-number: 5
 created-at: "2026-05-19T11:39:20Z"
-updated-at: "2026-05-22T12:52:17Z"
-selected-slice: poll-correctness
+updated-at: "2026-05-22T18:18:00Z"
+selected-slice: android-reader
 branch-strategy: shared
 branch: "feat/brutalist-redesign"
 base-branch: "main"
 review-scope: slug-wide
 pr-url: ""
 pr-number: 0
-open-questions:
-  - "Maestro coverage strategy for the X authorize step on emulator (Custom Tab simulation vs mocked redirect) — owned by android-reader plan"
+open-questions: []
 tags: [sync, cloud-functions, firestore, twitter, server-side, oauth]
 stack:
   detected-at: "2026-05-19T11:39:20Z"
@@ -47,7 +46,7 @@ stack:
     - {name: scheduled-tasks, hint: "OS-level scheduled tasks (NOT Cloud Scheduler)"}
   user-confirmed: true
 next-command: wf-verify
-next-invocation: "/wf verify cloud-function-bookmark-sync poll-correctness"
+next-invocation: "/wf verify cloud-function-bookmark-sync android-reader"
 runtime-evidence-deferrals:
   - slice: auth-foundation
     reason: "Live Google sign-in + collision-link Maestro flow `sign_in_google.yaml` depends on navigation past LoginScreen owned by android-reader slice. Operator prereqs (Firebase Console provider enable + 3 SHA-1 registrations + Type-3 OAuth client in google-services.json + FIREBASE_WEB_OAUTH_CLIENT_ID env) are external manual steps."
@@ -56,6 +55,10 @@ runtime-evidence-deferrals:
   - slice: functions-oauth
     reason: "Live evidence for AC-1, AC-2, AC-5, AC-6, AC-7 originally deferred behind a 12-item operator checklist. Operator checklist executed during the daily-poll verify on 2026-05-22 (Tier 0-2: APIs enabled, SA + bindings created, secrets seeded, redirect_uri registered, functions deployed, warmup scheduler created, invokers granted, IAM verifier ALL PASS live). Functions-oauth's AC-1/AC-5/AC-6/AC-7 are now indirectly proven by the live 5-function deploy + verify-function-iam.sh exit-0; AC-2 (end-to-end OAuth round-trip) is also proven via the local-redirect bootstrap and the curl-based handshake against the deployed oauthCallback (302 -> crumbs://x-oauth-complete + RT in Secret Manager + sync_status linked:true). Remaining clearing event: an `android-reader` Custom Tab + deep-link round-trip via the production Android client, captured via /wf-quick probe."
     deferred-at: "2026-05-20T18:57:07Z"
+    cleared-by: null
+  - slice: poll-correctness
+    reason: "AC7-server pending_delete round-trip (un-bookmark a tweet in X.com -> poll -> doc transitions to pending_delete:true -> re-bookmark -> poll -> doc transitions to pending_delete:false) requires a manual interaction in the X.com web/app UI. CLI-driven operator commands cannot drive the X bookmark toggle. The code path is proven by jest test (l) (chunked `in` precondition reads + deletedSet skip) and the production poll's `itemsFlaggedPendingDelete: 0` is internally consistent with stop-on-overlap firing on the correctly-computed BigInt-max boundary. Clearing event: /wf-quick probe after operator manually toggles bookmark state on a sample tweet, confirms doc transitions through pending_delete:true -> false."
+    deferred-at: "2026-05-22T13:45:36Z"
     cleared-by: null
 slices:
   - slug: auth-foundation
@@ -71,13 +74,13 @@ slices:
     complexity: l
     depends-on: [functions-oauth]
   - slug: poll-correctness
-    status: implemented
+    status: verified
     complexity: m
     depends-on: [daily-poll]
     source: extension
     extension-round: 1
   - slug: android-reader
-    status: defined
+    status: implemented
     complexity: l
     depends-on: [auth-foundation, daily-poll, poll-correctness]
   - slug: pending-delete
@@ -105,11 +108,14 @@ workflow-files:
   - 04-plan-functions-oauth.md
   - 04-plan-daily-poll.md
   - 04-plan-poll-correctness.md
+  - 04-plan-android-reader.md
   - 05-implement.md
   - 05-implement-auth-foundation.md
   - 05-implement-functions-oauth.md
   - 05-implement-daily-poll.md
   - 05-implement-poll-correctness.md
+  - 05-implement-android-reader.md
+  - 06-verify-poll-correctness.md
   - 06-verify.md
   - 06-verify-auth-foundation.md
   - 06-verify-functions-oauth.md
@@ -118,10 +124,10 @@ workflow-files:
 progress:
   intake: complete
   shape: complete
-  slice: complete   # 6 slices defined (auth-foundation, functions-oauth, daily-poll, android-reader, pending-delete, cutover-migration); sequential dependency chain
-  plan: in-progress   # auth-foundation + functions-oauth + daily-poll + poll-correctness planned (4/7); 3 slices remain to plan (android-reader, pending-delete, cutover-migration)
-  implement: in-progress   # auth-foundation + functions-oauth + daily-poll + poll-correctness implemented (4/7); 3 slices remain (android-reader, pending-delete, cutover-migration)
-  verify: in-progress   # auth-foundation + functions-oauth + daily-poll verified (06-verify-*.md); auth-foundation + functions-oauth result: partial (runtime-evidence deferred); daily-poll result: partial + convergence: escalated (4 defects surfaced for tracking, see 06-verify-daily-poll.md Issues Found). 3 slices remain after that.
+  slice: complete   # 7 slices defined (auth-foundation, functions-oauth, daily-poll, poll-correctness, android-reader, pending-delete, cutover-migration); sequential dependency chain
+  plan: in-progress   # auth-foundation + functions-oauth + daily-poll + poll-correctness + android-reader planned (5/7); 2 slices remain to plan (pending-delete, cutover-migration)
+  implement: in-progress   # auth-foundation + functions-oauth + daily-poll + poll-correctness + android-reader implemented (5/7); 2 slices remain (pending-delete, cutover-migration)
+  verify: in-progress   # auth-foundation + functions-oauth + daily-poll + poll-correctness verified (4/7); auth-foundation + functions-oauth result: partial (runtime-evidence deferred — both clear during android-reader verify); daily-poll result: partial + convergence: escalated (4 defects surfaced and closed by poll-correctness); poll-correctness result: partial + convergence: not-needed (8/9 AC met live; 1 AC deferred for X.com UI interaction). 3 slices remain.
   review: not-started
   handoff: not-started
   ship: not-started

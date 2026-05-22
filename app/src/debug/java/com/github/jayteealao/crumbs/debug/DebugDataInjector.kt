@@ -7,6 +7,8 @@ import com.github.jayteealao.pref.writeString
 import com.github.jayteealao.reddit.data.RedditPrefs
 import com.github.jayteealao.reddit.models.RedditPostEntity
 import com.github.jayteealao.twitter.data.Prefs
+import com.github.jayteealao.twitter.data.SyncStatusRepository
+import com.github.jayteealao.twitter.data.dto.SyncStatus
 import com.github.jayteealao.twitter.models.TagEntity
 import com.github.jayteealao.twitter.models.TweetEntity
 import com.github.jayteealao.twitter.models.TweetTagCrossRef
@@ -28,7 +30,18 @@ class DebugDataInjector @Inject constructor(
     private val db: AppDatabase,
     private val twitterPrefs: Prefs,
     private val redditPrefs: RedditPrefs,
+    private val syncStatusRepository: SyncStatusRepository,
 ) {
+
+    /**
+     * Pushes a synthesized SyncStatus into SyncStatusRepository so Maestro
+     * flows can deterministically drive the reconnect banner and Connect-X
+     * route-guard without a live Firestore round-trip.
+     */
+    fun seedSyncStatus(linked: Boolean) {
+        syncStatusRepository.seedForDebug(SyncStatus(linked = linked))
+    }
+
     suspend fun run(wipe: Boolean) = withContext(Dispatchers.IO) {
         if (wipe) {
             // Tombstones survive the debug seed wipe so a developer doing

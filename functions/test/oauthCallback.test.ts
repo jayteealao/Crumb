@@ -7,6 +7,11 @@ jest.mock("../src/lib/secrets", () => ({
   setRefreshToken: jest.fn(),
 }));
 
+const mockRunPoll = jest.fn(async () => ({ ok: true, itemsAdded: 0, itemsFlaggedPendingDelete: 0 }));
+jest.mock("../src/lib/poll", () => ({
+  runPoll: mockRunPoll,
+}));
+
 const mockDocSet = jest.fn(async () => undefined);
 const mockDoc = jest.fn(() => ({ set: mockDocSet }));
 
@@ -96,7 +101,7 @@ describe("oauthCallback", () => {
     (verifyOAuthState as jest.Mock).mockRejectedValue(new Error("invalid_state_missing"));
     const fetchSpy = jest.spyOn(globalThis, "fetch");
 
-    const req = makeReq({ code: "c", state: "forged", code_verifier: "v" });
+    const req = makeReq({ code: "c", state: "forged" });
     const res = makeRes();
     await invoke(req, res);
 
@@ -104,24 +109,28 @@ describe("oauthCallback", () => {
     expect(setRefreshToken).not.toHaveBeenCalled();
     expect(mockDocSet).not.toHaveBeenCalled();
     expect(fetchSpy).not.toHaveBeenCalled();
+    expect(mockRunPoll).not.toHaveBeenCalled();
   });
 
-  it("happy path: persists refresh token, writes sync_status, redirects to success deep link", async () => {
+  it("happy path: reads cv from state claims, persists refresh token, writes sync_status, fans out runPoll, redirects to success deep link", async () => {
     (verifyOAuthState as jest.Mock).mockResolvedValue({
       uid: "uid1",
       nonce: "n",
       iat: Math.floor(Date.now() / 1000),
+      cv: "cv-from-state-jwt",
     });
-    jest.spyOn(globalThis, "fetch").mockResolvedValue(
+    const fetchSpy = jest.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ refresh_token: "rt-secret", access_token: "at" }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       }),
     );
 
-    const req = makeReq({ code: "c", state: "valid", code_verifier: "v" });
+    const req = makeReq({ code: "c", state: "valid" });
     const res = makeRes();
     await invoke(req, res);
+    // Allow the fan-out microtask to schedule.
+    await new Promise((r) => setImmediate(r));
 
     expect(setRefreshToken).toHaveBeenCalledWith("uid1", "rt-secret");
     expect(mockDoc).toHaveBeenCalledWith("users/uid1/sync_status/state");
@@ -133,13 +142,19 @@ describe("oauthCallback", () => {
       status: 302,
       url: "crumbs://graphitenerd.xyz/x-oauth-complete",
     });
+    expect(mockRunPoll).toHaveBeenCalledWith("uid1");
+    const tokenCall = fetchSpy.mock.calls.find(([url]) => String(url).includes("oauth2/token"));
+    expect(tokenCall).toBeDefined();
+    const bodyParams = new URLSearchParams((tokenCall![1] as RequestInit).body as string);
+    expect(bodyParams.get("code_verifier")).toBe("cv-from-state-jwt");
   });
 
-  it("X returns invalid_grant: writes lastError, no Secret Manager write, redirects to error deep link", async () => {
+  it("X returns invalid_grant: writes lastError, no Secret Manager write, no runPoll fan-out, redirects to error deep link", async () => {
     (verifyOAuthState as jest.Mock).mockResolvedValue({
       uid: "uid1",
       nonce: "n",
       iat: Math.floor(Date.now() / 1000),
+      cv: "cv",
     });
     jest.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ error: "invalid_grant" }), {
@@ -148,9 +163,10 @@ describe("oauthCallback", () => {
       }),
     );
 
-    const req = makeReq({ code: "c", state: "valid", code_verifier: "v" });
+    const req = makeReq({ code: "c", state: "valid" });
     const res = makeRes();
     await invoke(req, res);
+    await new Promise((r) => setImmediate(r));
 
     expect(setRefreshToken).not.toHaveBeenCalled();
     expect(mockDocSet).toHaveBeenCalledWith(
@@ -161,5 +177,6 @@ describe("oauthCallback", () => {
       status: 302,
       url: "crumbs://graphitenerd.xyz/x-oauth-error?reason=invalid_grant",
     });
+    expect(mockRunPoll).not.toHaveBeenCalled();
   });
 });

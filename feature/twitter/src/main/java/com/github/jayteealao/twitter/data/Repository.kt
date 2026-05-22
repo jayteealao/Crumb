@@ -20,10 +20,14 @@ import com.github.jayteealao.twitter.models.TweetTagCrossRef
 import com.github.jayteealao.twitter.models.tweetEntitiesToOrderLens
 import com.github.jayteealao.twitter.services.TwitterApiClient
 import com.github.jayteealao.twitter.services.TwitterAuthClient
+import com.google.firebase.functions.FirebaseFunctions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -31,6 +35,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.tasks.await
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -44,6 +49,7 @@ class Repository @Inject constructor(
     private val firestoreRepository: FirestoreRepository,
     private val deletedBookmarkRepository: DeletedBookmarkRepository,
     private val syncErrorBus: SyncErrorBus,
+    private val functions: FirebaseFunctions,
     private val scope: CoroutineScope
 ) : TagRepository {
     private var latestBookmarkInDatabase: TweetEntity? = null
@@ -56,6 +62,10 @@ class Repository @Inject constructor(
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    private val _snackbarEvents = MutableSharedFlow<SnackbarEvent>(replay = 0, extraBufferCapacity = 4)
+    val snackbarEvents: SharedFlow<SnackbarEvent> = _snackbarEvents.asSharedFlow()
+
     companion object {
         const val BUFFER = 250
     }
@@ -135,8 +145,53 @@ class Repository @Inject constructor(
         }
     }
 
+    /**
+     * Pull-to-refresh entry point. Replaces the device-side polling loop with
+     * a `triggerPoll` callable invocation against the server. On `{ok: true}`
+     * re-runs the Firestore one-shot read to surface any new docs. On
+     * `{ok: false}` emits a [SnackbarEvent] so the VM can show user feedback
+     * without bleeding callable details into Compose.
+     *
+     * The on-device `refreshBookmarksInternal` path is retained for the
+     * `buildDatabase()` initial seed during the cutover period and will be
+     * deleted by the `cutover-migration` slice.
+     */
     suspend fun refreshBookmarks() {
-        refreshBookmarksInternal()
+        if (!fetchMutex.tryLock()) {
+            Timber.d("refreshBookmarks: another refresh in flight, skipping")
+            return
+        }
+        _isRefreshing.value = true
+        try {
+            val result = runCatching {
+                functions.getHttpsCallable("triggerPoll").call(emptyMap<String, Any>()).await()
+            }
+            val payload = result.getOrNull()?.data as? Map<*, *>
+            if (payload == null) {
+                Timber.w("triggerPoll returned no payload; assuming failure")
+                _snackbarEvents.tryEmit(
+                    SnackbarEvent.GenericFailure(result.exceptionOrNull()?.message ?: "no_response")
+                )
+                return
+            }
+
+            val ok = payload["ok"] as? Boolean ?: false
+            if (ok) {
+                syncFromFirestore()
+            } else {
+                val reason = payload["reason"] as? String
+                val retryAfter = (payload["retryAfter"] as? Number)?.toInt()
+                val event = when (reason) {
+                    "debounced" -> SnackbarEvent.Debounced(retryAfter)
+                    "in_progress" -> SnackbarEvent.InProgress
+                    else -> SnackbarEvent.GenericFailure(reason ?: "unknown")
+                }
+                _snackbarEvents.tryEmit(event)
+            }
+        } finally {
+            _isRefreshing.value = false
+            fetchMutex.unlock()
+        }
     }
 
     private suspend fun refreshBookmarksInternal() {

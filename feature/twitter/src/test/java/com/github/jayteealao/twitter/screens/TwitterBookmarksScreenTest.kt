@@ -38,6 +38,7 @@ class TwitterBookmarksScreenTest {
                     onCardClick = {},
                     onLongPress = { _, _ -> },
                     onLoadTags = {},
+                    onLoadTagsForIds = {},
                     onRefresh = {},
                     onConnectClick = {},
                 )
@@ -57,6 +58,7 @@ class TwitterBookmarksScreenTest {
                     onCardClick = {},
                     onLongPress = { _, _ -> },
                     onLoadTags = {},
+                    onLoadTagsForIds = {},
                     onRefresh = {},
                     onConnectClick = {},
                 )

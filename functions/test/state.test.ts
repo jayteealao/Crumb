@@ -15,16 +15,17 @@ describe("oauth state token", () => {
     (secrets.getOAuthStateSecret as jest.Mock).mockResolvedValue(TEST_KEY);
   });
 
-  it("signs and verifies a round-trip", async () => {
-    const token = await signOAuthState("uid1", "nonce1");
+  it("signs and verifies a round-trip including cv claim", async () => {
+    const token = await signOAuthState("uid1", "nonce1", "verifier-43chars-AAAAAAAAAAAAAAAAAAAAAAAA");
     const claims = await verifyOAuthState(token);
     expect(claims.uid).toBe("uid1");
     expect(claims.nonce).toBe("nonce1");
+    expect(claims.cv).toBe("verifier-43chars-AAAAAAAAAAAAAAAAAAAAAAAA");
     expect(typeof claims.iat).toBe("number");
   });
 
   it("rejects a token signed with the wrong key", async () => {
-    const forged = await new SignJWT({ uid: "uid1", nonce: "n" })
+    const forged = await new SignJWT({ uid: "uid1", nonce: "n", cv: "cv" })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuer("crumb-functions")
       .setAudience("crumb-oauth-callback")
@@ -39,7 +40,7 @@ describe("oauth state token", () => {
   });
 
   it("rejects an expired token (issued > 10 minutes ago)", async () => {
-    const expired = await new SignJWT({ uid: "uid1", nonce: "n" })
+    const expired = await new SignJWT({ uid: "uid1", nonce: "n", cv: "cv" })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuer("crumb-functions")
       .setAudience("crumb-oauth-callback")
@@ -50,7 +51,7 @@ describe("oauth state token", () => {
   });
 
   it("rejects malformed claims (uid not a string)", async () => {
-    const malformed = await new SignJWT({ uid: 42, nonce: "n" })
+    const malformed = await new SignJWT({ uid: 42, nonce: "n", cv: "cv" })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuer("crumb-functions")
       .setAudience("crumb-oauth-callback")
@@ -60,9 +61,31 @@ describe("oauth state token", () => {
     await expect(verifyOAuthState(malformed)).rejects.toThrow("invalid_state_claims");
   });
 
+  it("rejects a token missing the cv claim", async () => {
+    const noCv = await new SignJWT({ uid: "uid1", nonce: "n" })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuer("crumb-functions")
+      .setAudience("crumb-oauth-callback")
+      .setIssuedAt()
+      .setExpirationTime("600s")
+      .sign(TEST_KEY);
+    await expect(verifyOAuthState(noCv)).rejects.toThrow("invalid_state_claims");
+  });
+
+  it("rejects a token with an empty cv claim", async () => {
+    const emptyCv = await new SignJWT({ uid: "uid1", nonce: "n", cv: "" })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuer("crumb-functions")
+      .setAudience("crumb-oauth-callback")
+      .setIssuedAt()
+      .setExpirationTime("600s")
+      .sign(TEST_KEY);
+    await expect(verifyOAuthState(emptyCv)).rejects.toThrow("invalid_state_claims");
+  });
+
   it("rejects a future-dated token (iat beyond 5s clock tolerance)", async () => {
     const future = Math.floor(Date.now() / 1000) + 120;
-    const futureToken = await new SignJWT({ uid: "uid1", nonce: "n" })
+    const futureToken = await new SignJWT({ uid: "uid1", nonce: "n", cv: "cv" })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuer("crumb-functions")
       .setAudience("crumb-oauth-callback")

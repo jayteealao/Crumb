@@ -83,7 +83,14 @@ fun LoginRoute(
             emailDialogVisible = emailEntryVisible,
             authErrorMessage = errorMessage,
         ),
-        onConnectTwitter = { context.startActivity(loginViewModel.authIntent()) },
+        onConnectTwitter = {
+            // Route X-OAuth through the dedicated Connect-X destination, which
+            // owns the Custom Tabs + deep-link round-trip via
+            // [TwitterOAuthCoordinator]. The legacy on-device authIntent() is
+            // kept on LoginViewModel for parity with Reddit but is no longer
+            // used by the live flow.
+            navController.navigate(Screens.CONNECTX.name)
+        },
         onConnectReddit = { context.startActivity(redditViewModel.authIntent()) },
         onSkipAuth = {
             navController.navigate(Screens.HOMESCREEN.screenRoute(false)) {

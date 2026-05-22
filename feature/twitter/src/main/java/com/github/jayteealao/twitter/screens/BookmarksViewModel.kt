@@ -8,6 +8,9 @@ import androidx.paging.cachedIn
 import com.github.jayteealao.crumbs.data.FilterState
 import com.github.jayteealao.crumbs.data.TypeFilter
 import com.github.jayteealao.twitter.data.Repository
+import com.github.jayteealao.twitter.data.SnackbarEvent
+import com.github.jayteealao.twitter.data.SyncStatusRepository
+import com.github.jayteealao.twitter.data.dto.SyncStatus
 import com.github.jayteealao.twitter.models.TweetData
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.persistentSetOf
@@ -15,6 +18,7 @@ import kotlinx.collections.immutable.toPersistentSet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,14 +33,22 @@ import javax.inject.Inject
 @HiltViewModel
 class BookmarksViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
-    private val repository: Repository
+    private val repository: Repository,
+    private val syncStatusRepository: SyncStatusRepository,
 ) : ViewModel() {
 
     init {
         repository.buildDatabase()
+        // Kick off an initial sync_status read so the reconnect banner can
+        // render before the user touches anything.
+        viewModelScope.launch { syncStatusRepository.refresh() }
     }
 
     val isRefreshing: StateFlow<Boolean> = repository.isRefreshing
+
+    val syncStatus: StateFlow<SyncStatus?> = syncStatusRepository.flow
+
+    val snackbarEvents: SharedFlow<SnackbarEvent> = repository.snackbarEvents
 
     private val _filter = MutableStateFlow(FilterState())
     val filter: StateFlow<FilterState> = _filter.asStateFlow()
@@ -53,8 +65,15 @@ class BookmarksViewModel @Inject constructor(
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 repository.refreshBookmarks()
+                // Re-read sync_status so a freshly-linked user sees lastPolledAt
+                // advance without waiting for the next foreground transition.
+                syncStatusRepository.refresh(force = true)
             }
         }
+    }
+
+    fun refreshSyncStatus() {
+        viewModelScope.launch { syncStatusRepository.refresh() }
     }
 
     fun onTypeChipToggled(typeId: String) {

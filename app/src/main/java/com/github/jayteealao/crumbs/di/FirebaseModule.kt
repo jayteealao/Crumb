@@ -7,6 +7,9 @@ import com.github.jayteealao.crumbs.auth.RealCredentialManagerCoordinator
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.firestore
+import com.google.firebase.functions.FirebaseFunctions
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -24,6 +27,17 @@ object FirebaseProviders {
     @Provides
     @Singleton
     fun provideFirebaseAuth(): FirebaseAuth = Firebase.auth
+
+    @Provides
+    @Singleton
+    fun provideFirebaseFirestore(): FirebaseFirestore = Firebase.firestore
+
+    // Region must match the deployed functions; the X OAuth + dailyPoll +
+    // triggerPoll surface lives in europe-west2.
+    @Provides
+    @Singleton
+    fun provideFirebaseFunctions(): FirebaseFunctions =
+        FirebaseFunctions.getInstance("europe-west2")
 }
 
 @Module
