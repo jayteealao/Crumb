@@ -1,11 +1,8 @@
 package com.github.jayteealao.twitter.data
 
 import com.github.jayteealao.crumbs.data.DeletedBookmarkRepository
-import com.github.jayteealao.crumbs.data.SyncErrorBus
 import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.twitter.data.firestore.FirestoreRepository
-import com.github.jayteealao.twitter.services.TwitterApiClient
-import com.github.jayteealao.twitter.services.TwitterAuthClient
 import com.google.firebase.functions.FirebaseFunctions
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -34,11 +31,8 @@ class SwipeHandlerTest {
 
     private lateinit var tweetDao: TweetDao
     private lateinit var prefs: Prefs
-    private lateinit var apiClient: TwitterApiClient
-    private lateinit var authClient: TwitterAuthClient
     private lateinit var firestoreRepository: FirestoreRepository
     private lateinit var deletedBookmarkRepository: DeletedBookmarkRepository
-    private lateinit var syncErrorBus: SyncErrorBus
     private lateinit var functions: FirebaseFunctions
     private lateinit var scope: CoroutineScope
 
@@ -46,11 +40,8 @@ class SwipeHandlerTest {
     fun setUp() {
         tweetDao = mockk(relaxed = true)
         prefs = mockk(relaxed = true)
-        apiClient = mockk(relaxed = true)
-        authClient = mockk(relaxed = true)
         firestoreRepository = mockk()
         deletedBookmarkRepository = mockk()
-        syncErrorBus = mockk(relaxed = true)
         functions = mockk(relaxed = true)
         scope = TestScope(StandardTestDispatcher())
     }
@@ -58,11 +49,8 @@ class SwipeHandlerTest {
     private fun newRepository(): Repository = Repository(
         tweetDao = tweetDao,
         authPref = prefs,
-        twitterApiClient = apiClient,
-        twitterAuthClient = authClient,
         firestoreRepository = firestoreRepository,
         deletedBookmarkRepository = deletedBookmarkRepository,
-        syncErrorBus = syncErrorBus,
         functions = functions,
         scope = scope,
     )

@@ -109,3 +109,17 @@ export async function getRefreshToken(uid: string): Promise<string | null> {
     throw err;
   }
 }
+
+// One call removes the secret + every version atomically. NOT_FOUND (code 5) is
+// swallowed so the disconnect flow stays idempotent when the user never linked
+// or has already disconnected.
+export async function deleteRefreshToken(uid: string): Promise<void> {
+  const secretId = refreshTokenSecretName(uid);
+  const name = `projects/${PROJECT_ID}/secrets/${secretId}`;
+  try {
+    await client().deleteSecret({ name });
+  } catch (err) {
+    if (isNotFound(err)) return;
+    throw err;
+  }
+}

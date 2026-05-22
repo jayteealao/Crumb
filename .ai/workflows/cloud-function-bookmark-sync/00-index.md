@@ -7,8 +7,8 @@ status: active
 current-stage: verify
 stage-number: 6
 created-at: "2026-05-19T11:39:20Z"
-updated-at: "2026-05-22T21:28:40Z"
-selected-slice: pending-delete
+updated-at: "2026-05-22T22:45:28Z"
+selected-slice: cutover-migration
 branch-strategy: shared
 branch: "feat/brutalist-redesign"
 base-branch: "main"
@@ -45,8 +45,8 @@ stack:
     - {name: zai-mcp-server, hint: "Screenshot/diagram analysis for client UX changes"}
     - {name: scheduled-tasks, hint: "OS-level scheduled tasks (NOT Cloud Scheduler)"}
   user-confirmed: true
-next-command: wf-review
-next-invocation: "/wf review cloud-function-bookmark-sync"
+next-command: wf-verify
+next-invocation: "/wf verify cloud-function-bookmark-sync cutover-migration"
 runtime-evidence-deferrals:
   - slice: auth-foundation
     reason: "Live Google sign-in + collision-link Maestro flow `sign_in_google.yaml` depends on navigation past LoginScreen owned by android-reader slice. Operator prereqs (Firebase Console provider enable + 3 SHA-1 registrations + Type-3 OAuth client in google-services.json + FIREBASE_WEB_OAUTH_CLIENT_ID env) are external manual steps."
@@ -96,7 +96,7 @@ slices:
     complexity: m
     depends-on: [android-reader]
   - slug: cutover-migration
-    status: defined
+    status: implemented
     complexity: m
     depends-on: [pending-delete]
 workflow-files:
@@ -118,6 +118,7 @@ workflow-files:
   - 04-plan-poll-correctness.md
   - 04-plan-android-reader.md
   - 04-plan-pending-delete.md
+  - 04-plan-cutover-migration.md
   - 05-implement.md
   - 05-implement-auth-foundation.md
   - 05-implement-functions-oauth.md
@@ -125,6 +126,7 @@ workflow-files:
   - 05-implement-poll-correctness.md
   - 05-implement-android-reader.md
   - 05-implement-pending-delete.md
+  - 05-implement-cutover-migration.md
   - 06-verify-poll-correctness.md
   - 06-verify.md
   - 06-verify-auth-foundation.md
@@ -137,8 +139,8 @@ progress:
   intake: complete
   shape: complete
   slice: complete   # 7 slices defined (auth-foundation, functions-oauth, daily-poll, poll-correctness, android-reader, pending-delete, cutover-migration); sequential dependency chain
-  plan: in-progress   # auth-foundation + functions-oauth + daily-poll + poll-correctness + android-reader + pending-delete planned (6/7); 1 slice remains to plan (cutover-migration)
-  implement: in-progress   # auth-foundation + functions-oauth + daily-poll + poll-correctness + android-reader + pending-delete implemented (6/7); 1 slice remains (cutover-migration)
+  plan: complete   # all 7 slices planned (auth-foundation, functions-oauth, daily-poll, poll-correctness, android-reader, pending-delete, cutover-migration)
+  implement: complete   # all 7 slices implemented (auth-foundation + functions-oauth + daily-poll + poll-correctness + android-reader + pending-delete + cutover-migration)
   verify: in-progress   # auth-foundation + functions-oauth + daily-poll + poll-correctness + android-reader + pending-delete verified (6/7); auth-foundation + functions-oauth + android-reader + pending-delete result: partial (runtime-evidence deferred); pending-delete result: partial + convergence: converged (5/6 user-observable AC met live via Maestro on Medium_Phone_API_36.0 emulator; AC4 instrumented MigrationTest deferred for a pre-existing kotlinx-serialization classpath mismatch in androidx.room:room-testing that affects ALL MigrationTest cases); daily-poll result: partial + convergence: escalated (4 defects surfaced and substantively closed by poll-correctness); poll-correctness result: partial + convergence: not-needed (8/9 AC met live; 1 AC deferred for X.com UI interaction). 1 slice remains.
   review: not-started
   handoff: not-started

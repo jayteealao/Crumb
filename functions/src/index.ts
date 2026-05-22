@@ -11,3 +11,5 @@ export { oauthCallback } from "./handlers/oauthCallback";
 export { warmUp } from "./handlers/warmUp";
 export { dailyPoll } from "./handlers/dailyPoll";
 export { triggerPoll } from "./handlers/triggerPoll";
+export { migrateXToken } from "./handlers/migrateXToken";
+export { disconnectX } from "./handlers/disconnectX";

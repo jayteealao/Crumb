@@ -162,6 +162,9 @@ dependencies {
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.ui)
 
+//    workmanager (one-shot migration runner for cutover)
+    implementation(libs.androidx.work.runtime.ktx)
+
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation(libs.roborazzi.core)
@@ -175,6 +178,9 @@ dependencies {
     testImplementation(libs.hilt.android.testing)
     kspTest(libs.hilt.compiler)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.androidx.work.testing)
+    testImplementation 'io.mockk:mockk-android:1.13.10'
+    testImplementation 'io.mockk:mockk:1.13.10'
     androidTestImplementation 'androidx.test.ext:junit:1.1.3'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.4.0'
     androidTestImplementation(platform(libs.compose.bom))
@@ -189,6 +195,76 @@ dependencies {
 //kapt {
 //    correctErrorTypes true
 //}
+
+// Cutover deletion gate — fails the build if any Twitter HTTP symbol or
+// retired Prefs constant reappears in Android source after the
+// `cutover-migration` slice. Mirrors `verifyReleaseDebugInjectorAbsent` style.
+// Phase 1 ships with an empty `symbols` list (gate wired, no-op); the list is
+// populated at Step 19 after the deletion sweep + migration files land so the
+// project compiles continuously.
+tasks.register("verifyCutoverDeletions") {
+    doLast {
+        def symbols = [
+            "TwitterApiClient",
+            "TwitterApiClientImpl",
+            "TwitterApiService",
+            "TwitterAuthClient",
+            "TwitterAuthClientImpl",
+            "TwitterAuthService",
+            /\bACCESS_CODE\b/,
+            /\bREFRESH_CODE\b/,
+            /\bAPP_ACCESS_CODE\b/,
+            /\bAPP_REFRESH_CODE\b/,
+        ]
+        def searchRoots = [
+            file("$rootDir/app/src"),
+            file("$rootDir/feature/twitter/src"),
+        ]
+        // Retained source-of-truth for the legacy Prefs keys so the one-shot
+        // migration worker can read them once. Excluded from the gate to avoid
+        // false positives — the gate's job is to prevent reintroduction in
+        // *new* call sites.
+        def excludedFileNames = [
+            "MigrationKeys.kt",
+            "XTokenMigrationWorker.kt",
+            "MigrationEntryPoint.kt",
+            "Prefs.kt",
+            "constants.kt",
+            // Debug-only seed for the migration worker — needs to write
+            // synthetic legacy tokens to exercise the upgrade-install path.
+            "DebugDataInjector.kt",
+        ] as Set
+        def excludedDirSegments = [".ai", "Crumbs-handoff", "scripts", "node_modules", "build"]
+        def found = []
+        searchRoots.each { root ->
+            if (!root.isDirectory()) return
+            root.eachFileRecurse { f ->
+                if (!f.isFile()) return
+                if (f.name.endsWith(".kt") == false) return
+                if (f.name in excludedFileNames) return
+                if (excludedDirSegments.any { f.path.contains(it) }) return
+                def text = f.text
+                symbols.each { pattern ->
+                    def matched = pattern instanceof java.util.regex.Pattern
+                        ? text =~ pattern
+                        : text.contains(pattern)
+                    def hit = (pattern instanceof java.util.regex.Pattern) ? matched.find() : matched
+                    if (hit) {
+                        found << "${rootDir.toPath().relativize(f.toPath())}: ${pattern}"
+                    }
+                }
+            }
+        }
+        if (!found.isEmpty()) {
+            throw new GradleException(
+                "Cutover deletion gate FAILED. Forbidden symbols reappeared:\n" +
+                found.collect { "  - $it" }.join("\n")
+            )
+        }
+        logger.lifecycle("verifyCutoverDeletions: PASS")
+    }
+}
+tasks.named("check") { dependsOn("verifyCutoverDeletions") }
 
 tasks.register("verifyReleaseDebugInjectorAbsent") {
     dependsOn("assembleRelease")

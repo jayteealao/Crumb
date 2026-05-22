@@ -181,15 +181,12 @@ fun TwitterBookmarksRoute(
 
     val lps = rememberLongPressState()
 
+    // Server-side polling owns initial fetch (dailyPoll / triggerPoll fan-out
+    // from oauthCallback). The local Firestore one-shot read in Repository.init
+    // hydrates the UI on app start.
     LaunchedEffect(loggedIn) {
         if (loggedIn) {
-            Timber.d("Triggering buildDatabase after login")
-            bookmarksViewModel.buildDatabase()
-        }
-    }
-    LaunchedEffect(twitterAuthCode) {
-        if (!twitterAuthCode.isNullOrBlank()) {
-            loginViewModel.getAccessToken(twitterAuthCode.split("code=").last())
+            bookmarksViewModel.refresh()
         }
     }
 
@@ -211,7 +208,10 @@ fun TwitterBookmarksRoute(
         onLoadTags = { id -> bookmarksViewModel.loadTagsForTweet(id) },
         onLoadTagsForIds = { ids -> bookmarksViewModel.loadTagsForItems(ids) },
         onRefresh = { bookmarksViewModel.refresh() },
-        onConnectClick = { context.startActivity(loginViewModel.authIntent()) },
+        // Server-side OAuth: navigate to the dedicated CONNECTX route so the
+        // Custom Tabs + deep-link round-trip lives in one place. Route name
+        // mirrors the app-level Screens.CONNECTX enum.
+        onConnectClick = { navController.navigate("CONNECTX") },
         onConfirmDeletePending = { id -> bookmarksViewModel.confirmDeletePending(id) },
         onCancelDeletePending = { id -> bookmarksViewModel.cancelDeletePending(id) },
         contentPadding = contentPadding,

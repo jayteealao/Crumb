@@ -1,11 +1,9 @@
 package com.github.jayteealao.twitter.screens
 
-import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.jayteealao.twitter.data.AuthRepository
 import com.github.jayteealao.twitter.data.Prefs
-import com.github.jayteealao.twitter.models.TokenResponse
 import com.github.jayteealao.twitter.models.TwitterUser
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,6 +11,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+// Post-cutover compatibility surface. The real "logged in" signal is
+// Firebase Auth + sync_status.linked; the legacy isAccessTokenAvailable flow
+// resolves to false once the migration worker clears Prefs.
 @HiltViewModel
 class LoginViewModel @Inject constructor(
     private val authRepository: AuthRepository,
@@ -43,18 +44,12 @@ class LoginViewModel @Inject constructor(
     }
 
     suspend fun refreshToken(): Boolean {
-        val refreshed = authRepository.refreshAccessToken() ?: false
+        val refreshed = authRepository.refreshAccessToken()
         refreshedTokens = refreshed
         return refreshed
     }
 
-    suspend fun getAppOnlyAccess(): TokenResponse? = authRepository.getAppOnlyAccess()
-
     suspend fun revokeToken() = authRepository.revokeToken()
-
-    fun authIntent(): Intent {
-        return authRepository.getAuthorizationCodeIntent()
-    }
 
     fun logout() {
         viewModelScope.launch {

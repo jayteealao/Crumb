@@ -64,6 +64,9 @@ jobs:
             echo "SIGNING_KEY_PASSWORD=${{ secrets.SIGNING_KEY_PASSWORD }}"
           } >> $GITHUB_ENV
 
+      - name: Verify cutover deletions
+        run: ./gradlew --no-daemon :app:verifyCutoverDeletions
+
       # --- Build both variants. Release goes through the debug-injector
       # absence gate; debug ships alongside for sideloaders who want the
       # in-app debug surface. Same signing key applies to both when the

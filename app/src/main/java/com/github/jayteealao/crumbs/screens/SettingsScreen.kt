@@ -1,18 +1,28 @@
 package com.github.jayteealao.crumbs.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.github.jayteealao.crumbs.designsystem.components.ButtonStyle
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsButton
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
@@ -38,6 +48,7 @@ fun SettingsScreen(
 ) {
     val colors = LocalCrumbsColors.current
     val typography = LocalCrumbsTypography.current
+    var showConfirm by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -88,11 +99,58 @@ fun SettingsScreen(
         }
         Spacer(Modifier.height(16.dp))
         CrumbsButton(
-            onClick = onDisconnectClick,
+            onClick = { showConfirm = true },
             text = "DISCONNECT X",
             style = ButtonStyle.Secondary,
             modifier = Modifier.testTag("settings-disconnect-x"),
         )
+    }
+
+    if (showConfirm) {
+        Dialog(onDismissRequest = { showConfirm = false }) {
+            Column(
+                modifier = Modifier
+                    .background(colors.surface)
+                    .border(BorderStroke(2.dp, colors.ink))
+                    .padding(20.dp)
+                    .testTag("settings-disconnect-confirm-dialog"),
+            ) {
+                Text(
+                    text = "DISCONNECT X",
+                    style = typography.displaySmall,
+                    color = colors.ink,
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Your bookmarks stay on this device.",
+                    style = typography.bodyMono,
+                    color = colors.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(20.dp))
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    CrumbsButton(
+                        onClick = { showConfirm = false },
+                        text = "CANCEL",
+                        style = ButtonStyle.Secondary,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("settings-disconnect-confirm-cancel"),
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    CrumbsButton(
+                        onClick = {
+                            showConfirm = false
+                            onDisconnectClick()
+                        },
+                        text = "DISCONNECT",
+                        style = ButtonStyle.Primary,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("settings-disconnect-confirm-yes"),
+                    )
+                }
+            }
+        }
     }
 }
 

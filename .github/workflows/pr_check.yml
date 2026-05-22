@@ -68,6 +68,9 @@ jobs:
             echo "SIGNING_KEY_PASSWORD=${{ secrets.SIGNING_KEY_PASSWORD }}"
           } >> $GITHUB_ENV
 
+      - name: Verify cutover deletions
+        run: ./gradlew --no-daemon :app:verifyCutoverDeletions
+
       - name: Build, lint, and verify screenshot goldens
         id: build
         continue-on-error: true

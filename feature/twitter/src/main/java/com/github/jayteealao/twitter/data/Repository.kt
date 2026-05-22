@@ -6,11 +6,7 @@ import androidx.paging.PagingData
 import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.data.DeletedBookmarkRepository
 import com.github.jayteealao.crumbs.data.FilterState
-import com.github.jayteealao.crumbs.data.SyncErrorBus
-import com.github.jayteealao.crumbs.data.SyncErrorEvent
 import com.github.jayteealao.crumbs.data.TagRepository
-import com.github.jayteealao.crumbs.data.withAuthRefreshSingleFlight
-import com.github.jayteealao.crumbs.utils.produceTweetResponseEntities
 import com.github.jayteealao.twitter.data.firestore.FirestoreRepository
 import com.github.jayteealao.twitter.models.TagEntity
 import com.github.jayteealao.twitter.models.TweetData
@@ -18,18 +14,13 @@ import com.github.jayteealao.twitter.models.TweetEntities
 import com.github.jayteealao.twitter.models.TweetEntity
 import com.github.jayteealao.twitter.models.TweetTagCrossRef
 import com.github.jayteealao.twitter.models.tweetEntitiesToOrderLens
-import com.github.jayteealao.twitter.services.TwitterApiClient
-import com.github.jayteealao.twitter.services.TwitterAuthClient
 import com.google.firebase.functions.FirebaseFunctions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -44,21 +35,14 @@ import javax.inject.Singleton
 class Repository @Inject constructor(
     private val tweetDao: TweetDao,
     private val authPref: Prefs,
-    private val twitterApiClient: TwitterApiClient,
-    private val twitterAuthClient: TwitterAuthClient,
     private val firestoreRepository: FirestoreRepository,
     private val deletedBookmarkRepository: DeletedBookmarkRepository,
-    private val syncErrorBus: SyncErrorBus,
     private val functions: FirebaseFunctions,
     private val scope: CoroutineScope
 ) : TagRepository {
     private var latestBookmarkInDatabase: TweetEntity? = null
     private var orderOfLastBookmark: Int = 1000
-    private var needsRefresh = false
     private val fetchMutex = Mutex()
-    // Guards concurrent token refresh attempts; pairs with [refreshTokenSingleFlight]
-    // so a 401 storm from parallel paginations does not spawn duplicate refresh calls.
-    private val refreshMutex = Mutex()
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
@@ -139,22 +123,11 @@ class Repository @Inject constructor(
         }
     }
 
-    fun buildDatabase() {
-        scope.launch(Dispatchers.IO) {
-            refreshBookmarksInternal()
-        }
-    }
-
     /**
-     * Pull-to-refresh entry point. Replaces the device-side polling loop with
-     * a `triggerPoll` callable invocation against the server. On `{ok: true}`
-     * re-runs the Firestore one-shot read to surface any new docs. On
-     * `{ok: false}` emits a [SnackbarEvent] so the VM can show user feedback
-     * without bleeding callable details into Compose.
-     *
-     * The on-device `refreshBookmarksInternal` path is retained for the
-     * `buildDatabase()` initial seed during the cutover period and will be
-     * deleted by the `cutover-migration` slice.
+     * Pull-to-refresh entry point. Invokes the `triggerPoll` callable against
+     * the server; on `{ok: true}` re-runs the Firestore one-shot read to
+     * surface any new docs. On `{ok: false}` emits a [SnackbarEvent] so the VM
+     * can show user feedback.
      */
     suspend fun refreshBookmarks() {
         if (!fetchMutex.tryLock()) {
@@ -194,77 +167,23 @@ class Repository @Inject constructor(
         }
     }
 
-    private suspend fun refreshBookmarksInternal() {
-        // Single-flight: tryLock fails fast if another fetch holds the mutex.
-        // Mutex + try/finally ensures the lock is released even on cancellation,
-        // unlike the prior split-lock pattern that could orphan an `isFetching=true`.
-        if (!fetchMutex.tryLock()) {
-            Timber.d("buildDatabase: Already fetching, skipping")
-            return
+    /**
+     * Server-side disconnect. Deletes the Secret Manager refresh token and
+     * flips sync_status.linked=false; on success the local Prefs are cleared
+     * so the device never carries the X credential again.
+     */
+    suspend fun disconnectX(): Result<Unit> = runCatching {
+        val response = functions
+            .getHttpsCallable("disconnectX")
+            .call(emptyMap<String, Any>())
+            .await()
+        val payload = response.data as? Map<*, *>
+        val ok = payload?.get("ok") as? Boolean ?: false
+        if (!ok) {
+            throw IllegalStateException(payload?.get("reason") as? String ?: "disconnect_failed")
         }
-        _isRefreshing.value = true
-
-        try {
-            latestBookmarkInDatabase = tweetDao.getLatestBookmark()
-            Timber.d("latest bookmark in database: $latestBookmarkInDatabase")
-            if (latestBookmarkInDatabase != null) {
-                orderOfLastBookmark = latestBookmarkInDatabase!!.order
-            }
-
-            // Resolve userId + refreshToken once; accessCode must be re-read
-            // on every API call so the refresh-first auth recovery actually
-            // takes effect. Capturing accessCode once meant a successful
-            // silent refresh still left the loop using the stale token,
-            // producing an infinite 401 retry with no UI feedback.
-            val (userId, refreshToken) = combine(
-                authPref.userId,
-                authPref.refreshCode
-            ) { user, refresh -> user to refresh }
-                .first()
-
-            if (refreshToken.isNotBlank() && userId.isNotBlank()) {
-                Timber.d("building database: fetching new bookmarks incrementally")
-                val tombstones = deletedBookmarkRepository.deletedIdsSnapshot(BookmarkSource.Twitter)
-                val tweetEntitiesChannel =
-                    scope.produceTweetResponseEntities(
-                        refreshToken,
-                        latestIdInDb = latestBookmarkInDatabase?.id,
-                        onError = {
-                            // Refresh-first: silent recovery beats an alarming banner if
-                            // the token is merely stale. Only surface to the user when the
-                            // refresh itself fails (true loss of session).
-                            val recovered = refreshTokenSingleFlight(refreshToken)
-                            if (!recovered) {
-                                syncErrorBus.emit(SyncErrorEvent.TwitterAuth401())
-                            }
-                        }
-                    ) {
-                        // Re-read accessCode on every call so a refresh that
-                        // landed via refreshTokenSingleFlight is actually used.
-                        val currentAccessCode = authPref.accessCode.first()
-                        twitterApiClient.getBookmarks(
-                            "Bearer $currentAccessCode",
-                            userId,
-                            it
-                        )
-                    }
-                var orderStart = orderOfLastBookmark + BUFFER
-                tweetEntitiesChannel.consumeEach {
-                    it.data.forEach {
-                        val order = orderStart
-                        if (it.tweetEntity.id !in tombstones) {
-                            scope.launch(Dispatchers.IO) {
-                                saveTweetEntities(tweetEntitiesToOrderLens.modify(it) { order })
-                            }
-                        }
-                        orderStart--
-                    }
-                }
-            }
-        } finally {
-            _isRefreshing.value = false
-            fetchMutex.unlock()
-        }
+        authPref.clearAllTokens()
+        Timber.d("Twitter tokens cleared after server-side disconnect")
     }
 
     private val pager = Pager(
@@ -364,30 +283,7 @@ class Repository @Inject constructor(
     }
 
     /**
-     * Single-flight access-token refresh. Delegates the mutex/log/catch
-     * scaffolding to [withAuthRefreshSingleFlight] so this method only owns
-     * the Twitter-specific bits: re-reading the refreshToken from Prefs and
-     * persisting both tokens after a successful call (the Twitter auth
-     * client does not persist by itself).
-     */
-    private suspend fun refreshTokenSingleFlight(currentRefreshToken: String): Boolean =
-        withAuthRefreshSingleFlight(refreshMutex, tag = "twitter-refresh") {
-            // Re-read inside the lock; a previous holder may have rotated the
-            // refreshToken before we got here.
-            val tokenToUse = authPref.refreshCode.first().ifBlank { currentRefreshToken }
-            val tokenResponse = twitterAuthClient.refreshAccessToken(tokenToUse)
-            val access = tokenResponse?.accessToken
-            val refresh = tokenResponse?.refreshToken
-            if (!access.isNullOrBlank() && !refresh.isNullOrBlank()) {
-                authPref.setAccessAndRefreshToken(access, refresh)
-                true
-            } else {
-                false
-            }
-        }
-
-    /**
-     * Clear all Twitter tokens to force re-authentication
+     * Clear all Twitter tokens to force re-authentication.
      */
     suspend fun logout() {
         authPref.clearAllTokens()

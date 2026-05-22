@@ -17,13 +17,11 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Validates the [withAuthRefreshSingleFlight] contract that both
- * [Repository.refreshTokenSingleFlight] (Twitter) and
- * [RedditRepository.refreshTokenSingleFlight] (Reddit) delegate to.
+ * Validates the [withAuthRefreshSingleFlight] contract that Reddit's auth
+ * refresh wrapper still delegates to (Twitter's wrapper was removed by the
+ * server-side cutover).
  *
- * The helper landed in round 2 after the prior `tryLock`-skip-and-claim-
- * success implementation suppressed banners on concurrent 401s while the
- * loop kept 401-ing. Tests pin the four invariants of the new contract:
+ * Tests pin the four invariants of the contract:
  *  1. doRefresh return value is faithfully propagated
  *  2. Exceptions are caught and converted to `false` (mutex still released)
  *  3. Two concurrent callers serialize on the mutex (single-flight)

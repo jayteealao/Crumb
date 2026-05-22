@@ -25,6 +25,7 @@ object DebugIntentHandler {
     private const val ACTION_CORRUPT_TOKEN = "corrupt_token"
     private const val ACTION_SEED_SYNC_STATUS = "seed_sync_status"
     private const val ACTION_SEED_PENDING_DELETE = "seed_pending_delete"
+    private const val ACTION_SEED_LEGACY_X_TOKENS = "seed_legacy_x_tokens"
 
     @JvmStatic
     fun handleIntent(activity: ComponentActivity, intent: Intent?) {
@@ -61,6 +62,12 @@ object DebugIntentHandler {
                 activity.lifecycleScope.launch {
                     runCatching { injector.seedPendingDelete() }
                         .onFailure { Timber.e(it, "DebugDataInjector.seedPendingDelete failed") }
+                }
+            }
+            ACTION_SEED_LEGACY_X_TOKENS -> {
+                activity.lifecycleScope.launch {
+                    runCatching { injector.seedLegacyXTokens() }
+                        .onFailure { Timber.e(it, "DebugDataInjector.seedLegacyXTokens failed") }
                 }
             }
             else -> Timber.w("DebugIntentHandler: unknown debug_action=%s", action)

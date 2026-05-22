@@ -2,26 +2,26 @@
 schema: sdlc/v1
 type: implement-index
 slug: cloud-function-bookmark-sync
-status: in-progress
+status: complete
 stage-number: 5
 created-at: "2026-05-19T22:51:34Z"
-updated-at: "2026-05-22T20:14:35Z"
-slices-implemented: 6
+updated-at: "2026-05-22T22:45:28Z"
+slices-implemented: 7
 slices-total: 7
-metric-total-files-changed: 99
-metric-total-lines-added: 5050
-metric-total-lines-removed: 240
+metric-total-files-changed: 132
+metric-total-lines-added: 5800
+metric-total-lines-removed: 560
 tags: [firebase-auth, credential-manager, google-sign-in, account-linking, android, hilt, robolectric, roborazzi, cloud-functions, typescript, jose, secret-manager, oauth-pkce, jest, firestore-rules, onschedule, oncall, twitter-api, firestore-transactions, lease, debounce, refresh-token-rotation, iam-verification, bigint-comparison, firestore-in-query, finally-block, migration-backfill, room-migration, swipe-to-dismiss, brutalist-strikethrough, accessibility, drawWithContent, mockk]
 refs:
   index: 00-index.md
   plan-index: 04-plan.md
 next-command: wf-verify
-next-invocation: "/wf verify cloud-function-bookmark-sync pending-delete"
+next-invocation: "/wf verify cloud-function-bookmark-sync cutover-migration"
 ---
 
 # Implement Index
 
-Master index for the seven-slice implementation chain. Six slices implemented (`auth-foundation`, `functions-oauth`, `daily-poll`, `poll-correctness`, `android-reader`, `pending-delete`); one slice remains (`cutover-migration`).
+Master index for the seven-slice implementation chain. All seven slices implemented (`auth-foundation`, `functions-oauth`, `daily-poll`, `poll-correctness`, `android-reader`, `pending-delete`, `cutover-migration`).
 
 ## Slice Implementation Summaries
 
@@ -80,9 +80,14 @@ Master index for the seven-slice implementation chain. Six slices implemented (`
 - **Deviations from plan:** 2 — see [05-implement-pending-delete.md § Deviations from Plan](05-implement-pending-delete.md). Most consequential: the new Roborazzi PNGs are named `feedNoPendingDelete_*` rather than `signedInLinked_*` (the plan's tentative name) because the test renders the feed body in isolation rather than the full signed-in screen; the cumulative re-record of unrelated `core/designsystem` PNGs (banner, filterbar, icon buttons) was required after the `CrumbsBookmarkCard` refactor caused a 2px shift on the thread variant and the re-record cycle picked up incidental rendering noise on neighbor goldens.
 - **Details:** [05-implement-pending-delete.md](05-implement-pending-delete.md).
 
-### `cutover-migration` *(not implemented this round)*
+### `cutover-migration` *(implemented this round)*
 
-Remains in `defined` slice state with no plan yet. Consumes `lib/secrets.setRefreshToken`, the typed `FirestoreRepository.markDeleted` + `cancelPendingDelete` helpers introduced this round, and is also responsible for deleting any orphan docs at the legacy `users/{uid}/twitter/...` subtree, plus removing the dead device-side X HTTP wiring left in `Repository.kt` by `android-reader`.
+- **Status:** code complete; `:app:assembleDebug` BUILD SUCCESSFUL; `:app:testDebugUnitTest` green (5 new `XTokenMigrationWorkerTest` cases); `:feature:twitter:testDebugUnitTest` green; `:app:verifyCutoverDeletions` PASS (10 forbidden symbols across `app/` + `feature/twitter/`); functions/ lint + tsc + jest green (39 cases including 10 new — 6 `migrate-token`, 4 `disconnect`).
+- **Surface:** Two new server-side callables — `migrateXToken` (validates a legacy refresh token against X, persists it via `setRefreshToken`, flips sync_status.linked=true, fans out runPoll) and `disconnectX` (deletes the Secret Manager refresh token + flips sync_status.linked=false, no X-side revoke). Android one-shot `XTokenMigrationWorker` enqueued from `CrumbApplication.onCreate` with KEEP policy + DataStore idempotency flag, Hilt-resolved via `MigrationEntryPoint` `@EntryPoint`. Brutalist inline confirm Dialog wired to `Repository.disconnectX()`; post-disconnect navigation routes to `Screens.CONNECTX`. Gradle `verifyCutoverDeletions` task wired into `check`, `pr_check.yml`, and `release.yml`. Maestro `upgrade_install.yaml` drives the synthetic legacy-token cold-launch path. 7 dead service files deleted (TwitterApi*/TwitterAuth* + ApiResponseExt) + 3 dead Hilt modules deleted (NetworkModule×2 + ServiceModule).
+- **Boundary:** the device no longer holds nor uses X HTTP code; the migration worker is the last reader of legacy Prefs constants. `OkHttpClient` Hilt binding relocated to `RedditNetworkModule` (Reddit is now the only HTTP consumer).
+- **Foundations introduced:** WorkManager dep (`androidx.work:work-runtime-ktx` 2.10.0); WorkManager-testing dep; MockK test deps in `app/`; the EntryPointAccessors pattern for Hilt-resolved CoroutineWorker.
+- **Deviations from plan:** 5 — see [05-implement-cutover-migration.md § Deviations from Plan](05-implement-cutover-migration.md). Most consequential: `AuthRepository.kt` + `LoginViewModel.kt` stripped/stubbed (plan listed only `Repository.kt`) to honor the spirit of the deletion sweep without expanding scope; `feature/twitter/.../di/NetworkModule.kt` deleted (plan listed only `ServiceModule.kt`); `runXTokenMigration` extracted as a testable top-level suspend to unblock Robolectric unit tests.
+- **Details:** [05-implement-cutover-migration.md](05-implement-cutover-migration.md).
 
 ## Cross-Slice Integration Notes
 
@@ -100,6 +105,6 @@ Remains in `defined` slice state with no plan yet. Consumes `lib/secrets.setRefr
 
 ## Recommended Next Stage
 
-- **Option A (default):** `/wf verify cloud-function-bookmark-sync pending-delete` — run unit + Roborazzi gates, triage the AC6 (interactive Maestro swipe round-trip + operator MigrationTest) deferral, and confirm the live AC4-AC5 round-trip on an emulator. Run `/compact` first to drop implementation noise.
-- **Option B:** `/wf plan cloud-function-bookmark-sync cutover-migration` — start the final slice's plan in parallel with verify.
-- **Option C:** `/wf review cloud-function-bookmark-sync` — slug-wide review against `main...HEAD` covering all six implemented slices.
+- **Option A (default):** `/wf verify cloud-function-bookmark-sync cutover-migration` — run automated gates (jest, Android unit, Roborazzi, assembleDebug, verifyCutoverDeletions), apply the AC gate, and triage the three deferred live ACs (`migrateXToken` upgrade-install round-trip + `disconnectX` user flow + CI gate enforcement via synthetic-reintroduction PR). Run `/compact` first.
+- **Option B:** `/wf review cloud-function-bookmark-sync` — slug-wide review against `main...HEAD` covering all seven implemented slices.
+- **Option C:** `/wf-quick probe cloud-function-bookmark-sync` — clear the four open runtime-evidence deferrals (auth-foundation, functions-oauth, android-reader, pending-delete AC4) in one operator pass alongside the cutover-migration verify.

@@ -13,8 +13,12 @@ import com.github.jayteealao.twitter.models.TagEntity
 import com.github.jayteealao.twitter.models.TweetEntity
 import com.github.jayteealao.twitter.models.TweetTagCrossRef
 import com.github.jayteealao.twitter.models.TwitterUserEntity
+import com.github.jayteealao.crumbs.migration.MigrationKeys
+import com.github.jayteealao.pref.readString
 import com.github.jayteealao.twitter.utils.ACCESS_CODE
+import com.github.jayteealao.twitter.utils.REFRESH_CODE
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
@@ -76,6 +80,21 @@ class DebugDataInjector @Inject constructor(
     suspend fun corruptTwitterToken() = withContext(Dispatchers.IO) {
         context.writeString(ACCESS_CODE, "INVALID_DEBUG_TOKEN")
     }
+
+    /**
+     * Seeds a synthetic legacy access/refresh-token pair and clears the
+     * X_TOKEN_MIGRATED flag so the migration WorkManager runner fires on the
+     * next cold launch. Used by maestro/upgrade_install.yaml.
+     */
+    suspend fun seedLegacyXTokens() = withContext(Dispatchers.IO) {
+        context.writeString(ACCESS_CODE, "DEBUG_LEGACY_ACCESS")
+        context.writeString(REFRESH_CODE, "DEBUG_LEGACY_REFRESH")
+        context.writeString(MigrationKeys.X_TOKEN_MIGRATED, "")
+    }
+
+    /** Reads the X_TOKEN_MIGRATED flag for Maestro readback. */
+    suspend fun readXTokenMigrationFlag(): String =
+        context.readString(MigrationKeys.X_TOKEN_MIGRATED).first()
 
     /**
      * Seeds two `pendingDelete = true` tweet rows so Maestro can drive the

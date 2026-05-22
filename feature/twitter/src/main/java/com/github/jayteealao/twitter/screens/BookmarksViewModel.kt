@@ -18,9 +18,9 @@ import kotlinx.collections.immutable.toPersistentSet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -38,9 +38,9 @@ class BookmarksViewModel @Inject constructor(
 ) : ViewModel() {
 
     init {
-        repository.buildDatabase()
         // Kick off an initial sync_status read so the reconnect banner can
-        // render before the user touches anything.
+        // render before the user touches anything. Server-side polling owns
+        // the actual bookmark fetching post-cutover.
         viewModelScope.launch { syncStatusRepository.refresh() }
     }
 
@@ -58,8 +58,6 @@ class BookmarksViewModel @Inject constructor(
         .cachedIn(viewModelScope)
 
     fun pagingFlowData(order: String = "default"): Flow<PagingData<TweetData>> = pagingFlow
-
-    fun buildDatabase() = repository.buildDatabase()
 
     fun refresh() {
         viewModelScope.launch {
@@ -162,4 +160,25 @@ class BookmarksViewModel @Inject constructor(
             repository.logout()
         }
     }
+
+    private val _disconnectEvents = MutableSharedFlow<DisconnectEvent>(replay = 0, extraBufferCapacity = 1)
+    val disconnectEvents: SharedFlow<DisconnectEvent> = _disconnectEvents
+
+    fun disconnectX() {
+        viewModelScope.launch {
+            repository.disconnectX()
+                .onSuccess {
+                    syncStatusRepository.refresh(force = true)
+                    _disconnectEvents.tryEmit(DisconnectEvent.Success)
+                }
+                .onFailure { e ->
+                    _disconnectEvents.tryEmit(DisconnectEvent.Failure(e.message ?: "disconnect_failed"))
+                }
+        }
+    }
+}
+
+sealed interface DisconnectEvent {
+    data object Success : DisconnectEvent
+    data class Failure(val reason: String) : DisconnectEvent
 }
