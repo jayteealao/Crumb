@@ -64,4 +64,12 @@ object TestCrumbsTypography {
         lineHeight = 14.sp,
         fontWeight = FontWeight.Medium,
     )
+
+    val labelLarge = TextStyle(
+        fontFamily = FontFamily.Monospace,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.7.sp,
+    )
 }

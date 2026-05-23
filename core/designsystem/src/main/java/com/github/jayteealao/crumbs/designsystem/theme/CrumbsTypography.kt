@@ -76,4 +76,17 @@ object CrumbsTypography {
         lineHeight = 14.sp,
         fontWeight = FontWeight.Medium,
     )
+
+    // Interpretive scale (not defined in handoff-tokens.jsx token table — only
+    // referenced by name in handoff-components.jsx CrumbsButton spec for the
+    // Small/inline variant). Derived by proportional scale from captionMono:
+    // letterSpacing 1.4 × (12/10) ≈ 1.7. Pending maintainer adjudication via
+    // the handoff-fidelity audit (AC-K4 extension).
+    val labelLarge = TextStyle(
+        fontFamily = IBMPlexMono,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.7.sp,
+    )
 }

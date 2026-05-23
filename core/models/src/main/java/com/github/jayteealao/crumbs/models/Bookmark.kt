@@ -30,7 +30,12 @@ data class Bookmark(
     val pendingDelete: Boolean = false,
 
     // Original source URL
-    val sourceUrl: String
+    val sourceUrl: String,
+
+    // Source engagement count (likes/score). `null` when not yet wired from
+    // the data layer; rendered as part of the meta row (e.g. "IMAGE · ↑ 2.4k")
+    // and degrades gracefully to type-only when absent.
+    val engagementCount: Int? = null,
 )
 
 /**
