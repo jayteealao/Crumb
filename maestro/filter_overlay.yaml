@@ -1,5 +1,6 @@
-# Filter behavior — Type instant chip, Tags chip (hedged — see Blocker 1),
-# Collection chip (hedged), backdrop dismiss on overlay shell.
+# Filter behavior — open FilterOverlay from the FILTER cell, toggle chips
+# inside, apply / dismiss. Replaces the old in-bar chip-row selectors with
+# the new overlay-mounted picker.
 appId: com.github.jayteealao.crumbs
 ---
 - launchApp:
@@ -24,32 +25,34 @@ appId: com.github.jayteealao.crumbs
       id: "all-bookmarks-feed"
     timeout: 5000
 
-# --- Type filter chips render in main tree — testTag selectors work here ---
+# --- Open the FilterOverlay from the FILTER cell ---
 - tapOn:
-    id: "filter-bar-chip-article"
-- assertVisible:
-    id: "filter-bar-chip-article"
-- tapOn:
-    id: "filter-bar-chip-all"
-- assertVisible:
-    id: "filter-bar-chip-all"
+    id: "filter-bar-cell"
+- extendedWaitUntil:
+    visible:
+      id: "filter-overlay"
+    timeout: 3000
 
-# --- Tags + Collection chips deferred per Blocker 1 (behaviors AC-line-96 OverlayShell tag picker gap).
-# When the Tags overlay UI lands, assertions expand to: tapOn tags-chip → assert overlay-shell visible
-# → tapOn tag list items → tapOn overlay-shell-apply → assert filter applied.
+# --- Toggle a chip inside the overlay ---
 - tapOn:
-    id: "filter-bar-chip-video"
+    id: "filter-overlay-chip-article"
 - assertVisible:
-    id: "filter-bar-chip-video"
+    id: "filter-overlay-chip-article"
 
-# --- Backdrop dismiss on overlay shell (when an overlay is open) ---
-# Overlay also uses Popup-style rendering; gated by future overlay UI delivery.
-- runFlow:
-    when:
-      visible:
-        id: "overlay-shell"
-    commands:
-      - tapOn:
-          id: "overlay-shell-backdrop"
-      - assertNotVisible:
-          id: "overlay-shell"
+# --- Apply + dismiss ---
+- tapOn:
+    id: "filter-overlay-apply"
+- assertNotVisible:
+    id: "filter-overlay"
+
+# --- Re-open and exercise backdrop dismiss ---
+- tapOn:
+    id: "filter-bar-cell"
+- extendedWaitUntil:
+    visible:
+      id: "filter-overlay"
+    timeout: 3000
+- tapOn:
+    id: "overlay-shell-backdrop"
+- assertNotVisible:
+    id: "filter-overlay"

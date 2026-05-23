@@ -1,4 +1,4 @@
-# Happy path — splash → login (auto-skipped via seeded tokens) → all 4 tabs → long-press → filter chip.
+# Happy path — splash → login (auto-skipped via seeded tokens) → all 4 tabs → long-press → filter overlay.
 # Cold-start seeds via launchApp.arguments (Maestro 2.4+); seed action also writes fake auth tokens
 # so the empty-state branch (which is auth-gated, not data-gated) doesn't fire.
 appId: com.github.jayteealao.crumbs
@@ -67,8 +67,16 @@ appId: com.github.jayteealao.crumbs
     timeout: 3000
 - tapOn: "DELETE"
 
-# --- Filter chip toggle ---
+# --- Filter overlay toggle ---
 - tapOn:
-    id: "filter-bar-chip-article"
-- assertVisible:
-    id: "filter-bar-chip-article"
+    id: "filter-bar-cell"
+- extendedWaitUntil:
+    visible:
+      id: "filter-overlay"
+    timeout: 3000
+- tapOn:
+    id: "filter-overlay-chip-article"
+- tapOn:
+    id: "filter-overlay-apply"
+- assertNotVisible:
+    id: "filter-overlay"

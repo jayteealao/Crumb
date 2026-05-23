@@ -4,6 +4,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
@@ -16,7 +21,8 @@ import com.github.jayteealao.crumbs.designsystem.components.CrumbsFilterBar
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsSnackbar
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsTopBar
 import com.github.jayteealao.crumbs.designsystem.components.FilterChipItem
-import com.github.jayteealao.crumbs.designsystem.components.FilterMode
+import com.github.jayteealao.crumbs.designsystem.components.FilterOverlay
+import com.github.jayteealao.crumbs.designsystem.components.FilterOverlaySection
 import com.github.jayteealao.crumbs.designsystem.layouts.HomeScaffold
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import kotlinx.collections.immutable.ImmutableList
@@ -29,6 +35,7 @@ data class HomeUiState(
     val searchQuery: String = "",
     val selectedFilterChipIds: Set<String> = emptySet(),
     val bannerState: BannerState? = null,
+    val itemCount: Int = 0,
 )
 
 internal val HomeFilterChips: ImmutableList<FilterChipItem> = persistentListOf(
@@ -38,6 +45,10 @@ internal val HomeFilterChips: ImmutableList<FilterChipItem> = persistentListOf(
     FilterChipItem("image", "IMAGES"),
     FilterChipItem("thread", "THREADS"),
     FilterChipItem("text", "TEXT"),
+)
+
+private val HomeFilterSections: ImmutableList<FilterOverlaySection> = persistentListOf(
+    FilterOverlaySection(title = "Type", chips = HomeFilterChips),
 )
 
 @Composable
@@ -53,12 +64,24 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     tabContent: @Composable (BottomNavTab, PaddingValues) -> Unit,
 ) {
+    var showFilterOverlay by rememberSaveable { mutableStateOf(false) }
+
+    val filterLabel = remember(uiState.selectedFilterChipIds) {
+        val ids = uiState.selectedFilterChipIds
+        when {
+            ids.isEmpty() || ids == setOf("all") -> "FILTER: ALL"
+            ids.size == 1 -> "FILTER: ${HomeFilterChips.firstOrNull { it.id == ids.first() }?.label ?: ids.first().uppercase()}"
+            else -> "FILTER: ${ids.size} ACTIVE"
+        }
+    }
+    val countLabel = remember(uiState.itemCount) { "%03d SAVED".format(uiState.itemCount) }
+    val sortLabel = remember { "SORT ↓ NEW" }
+
     HomeScaffold(
         modifier = modifier.testTag("home-screen"),
         topBar = {
             CrumbsTopBar(
-                kickerText = "CRUMBS",
-                wordmark = "crumbs•",
+                kickerText = "↳ personal index",
                 searchQuery = uiState.searchQuery,
                 onSearchQueryChange = onSearchQueryChange,
                 isSearchActive = uiState.isSearchActive,
@@ -77,13 +100,11 @@ fun HomeScreen(
         },
         filterBar = {
             CrumbsFilterBar(
-                count = 0,
-                chips = HomeFilterChips,
-                selectedChipIds = uiState.selectedFilterChipIds,
-                onChipToggled = onChipToggled,
-                sortLabel = "RECENT",
+                countLabel = countLabel,
+                filterLabel = filterLabel,
+                sortLabel = sortLabel,
+                onFilterClick = { showFilterOverlay = true },
                 onSortClick = onSortClick,
-                mode = FilterMode.Single,
             )
         },
         snackbarHost = {
@@ -98,13 +119,21 @@ fun HomeScreen(
         },
         bottomBar = {
             CrumbsBottomNav(
-                selectedTab = uiState.selectedTab,
+                selected = uiState.selectedTab,
                 onTabSelected = onTabSelected,
             )
         },
     ) { padding ->
         tabContent(uiState.selectedTab, padding)
     }
+
+    FilterOverlay(
+        visible = showFilterOverlay,
+        sections = HomeFilterSections,
+        selectedChipIds = uiState.selectedFilterChipIds,
+        onChipToggled = onChipToggled,
+        onDismiss = { showFilterOverlay = false },
+    )
 }
 
 @Preview(name = "Home Twitter Light", showBackground = true)
