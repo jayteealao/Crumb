@@ -8,18 +8,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
@@ -31,7 +26,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.onClick
@@ -43,6 +37,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.github.jayteealao.crumbs.designsystem.modifiers.brutalistStrikethrough
+import com.github.jayteealao.crumbs.designsystem.modifiers.dashedDivider
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsShapes
@@ -54,13 +49,11 @@ import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.models.ContentType
 import com.github.jayteealao.crumbs.models.toRelativeTime
 
-// Brutalist CrumbsBookmarkCard — Material3 Surface wrapper stripped. Sharp
-// 1.5dp ink border on paper-surface background. detectTapGestures replaces
-// combinedClickable so long-press surfaces the fingertip Offset (consumed by
-// CrumbsLongPressPopup in the behaviors slice). onLongPress signature widened
-// to `(Bookmark, Offset) -> Unit`.
-//
-// Caller migration: pass `Offset.Zero` if real popup wiring is deferred.
+// Brutalist CrumbsBookmarkCard — composition follows handoff-components.jsx
+// :395-405: media (aspect 16:7) → hairline → CrumbsIndexStrip header →
+// padding(14.dp) Column [ title (UPPERCASE, displayHeadline) → spacer 8 →
+// preview (bodyMono, maxLines=3) → dashed footer divider → engagement meta
+// row → tag FlowRow using CrumbsTagChip ].
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -68,14 +61,13 @@ fun CrumbsBookmarkCard(
     bookmark: Bookmark,
     onCardClick: (String) -> Unit,
     onLongPress: (Bookmark, Offset) -> Unit = { _, _ -> },
+    index: Int = 0,
     isExpanded: Boolean = false,
     onConfirmDeletePending: ((String) -> Unit)? = null,
     onCancelDeletePending: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     if (bookmark.pendingDelete) {
-        // `confirmValueChange` returns `false` so the box snaps back; actual row
-        // removal is driven by the paging Flow once Room updates land.
         val dismissState = rememberSwipeToDismissBoxState(
             confirmValueChange = { value ->
                 when (value) {
@@ -95,13 +87,19 @@ fun CrumbsBookmarkCard(
             modifier = modifier.testTag("bookmark-card-pending-${bookmark.id}"),
             backgroundContent = {},
         ) {
-            BookmarkCardContent(bookmark = bookmark, onCardClick = onCardClick, onLongPress = onLongPress)
+            BookmarkCardContent(
+                bookmark = bookmark,
+                onCardClick = onCardClick,
+                onLongPress = onLongPress,
+                index = index,
+            )
         }
     } else {
         BookmarkCardContent(
             bookmark = bookmark,
             onCardClick = onCardClick,
             onLongPress = onLongPress,
+            index = index,
             modifier = modifier,
         )
     }
@@ -112,6 +110,7 @@ private fun BookmarkCardContent(
     bookmark: Bookmark,
     onCardClick: (String) -> Unit,
     onLongPress: (Bookmark, Offset) -> Unit,
+    index: Int,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalCrumbsColors.current
@@ -136,16 +135,13 @@ private fun BookmarkCardContent(
                 onClick(label = "Open bookmark") { onCardClick(bookmark.sourceUrl); true }
                 onLongClick(label = "Show actions") { onLongPress(bookmark, Offset.Zero); true }
                 if (bookmark.pendingDelete) {
-                    // `stateDescription` layers after the visible title for
-                    // TalkBack instead of replacing it, and the polite live
-                    // region auto-announces when the row enters this state.
                     stateDescription = "Pending removal — swipe to confirm or cancel"
                     liveRegion = LiveRegionMode.Polite
                 }
             },
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Full-width media (image or video thumbnail) at top
+            // Optional media at top (16:7 aspect per handoff-components.jsx:367).
             val mediaUrl = bookmark.imageUrl
             if (mediaUrl != null &&
                 (bookmark.contentType == ContentType.Image || bookmark.contentType == ContentType.Video)
@@ -155,7 +151,7 @@ private fun BookmarkCardContent(
                     contentDescription = null,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(200.dp),
+                        .aspectRatio(16f / 7f),
                     contentScale = ContentScale.Crop,
                 )
                 Box(
@@ -166,53 +162,14 @@ private fun BookmarkCardContent(
                 )
             }
 
-            // Header row: source icon + author kicker + separator + age
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = spacing.md, vertical = spacing.sm),
-                horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    painter = painterResource(
-                        id = when (bookmark.source) {
-                            BookmarkSource.Twitter -> com.github.jayteealao.crumbs.designsystem.R.drawable.fatwitter
-                            BookmarkSource.Reddit -> com.github.jayteealao.crumbs.designsystem.R.drawable.fareddit
-                        },
-                    ),
-                    contentDescription = bookmark.source.displayName(),
-                    modifier = Modifier.size(16.dp),
-                    tint = colors.ink,
-                )
-                Text(
-                    text = bookmark.author.uppercase(),
-                    style = typography.captionMono,
-                    color = colors.ink,
-                    modifier = Modifier.testTag("card-source"),
-                )
-                Box(
-                    modifier = Modifier
-                        .width(stroke.hairline)
-                        .height(12.dp)
-                        .background(colors.ink),
-                )
-                Text(
-                    text = bookmark.savedAt.toRelativeTime().uppercase(),
-                    style = typography.captionMono,
-                    color = colors.onSurfaceVariant,
-                )
-                if (bookmark.contentType == ContentType.Link) {
-                    Icon(
-                        imageVector = Icons.Default.Link,
-                        contentDescription = "Link",
-                        modifier = Modifier.size(14.dp),
-                        tint = colors.onSurfaceVariant,
-                    )
-                }
-            }
-
-            // 1.5dp hairline separator between header and body
+            // CrumbsIndexStrip header replaces the inline source/author/age row.
+            CrumbsIndexStrip(
+                index = "%03d".format(index),
+                source = bookmark.source,
+                author = bookmark.author,
+                trailing = bookmark.savedAt.toRelativeTime(),
+            )
+            // 1.5dp hairline separator below the strip.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -220,14 +177,13 @@ private fun BookmarkCardContent(
                     .background(colors.ink),
             )
 
-            // Body column — title, preview, optional thread, tags
+            // Body column — title, preview, dashed footer, meta, tags.
             Column(
-                modifier = Modifier.padding(spacing.md),
-                verticalArrangement = Arrangement.spacedBy(spacing.sm),
+                modifier = Modifier.padding(spacing.md + 2.dp), // 14dp
             ) {
                 Text(
-                    text = bookmark.title,
-                    style = typography.displaySmall,
+                    text = bookmark.title.uppercase(),
+                    style = typography.displayHeadline,
                     color = colors.ink,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -235,44 +191,54 @@ private fun BookmarkCardContent(
                         .testTag(if (bookmark.pendingDelete) "bookmark-card-strikethrough" else "card-title")
                         .brutalistStrikethrough(active = bookmark.pendingDelete, color = colors.ink),
                 )
+                Spacer(Modifier.height(spacing.sm))
                 Text(
                     text = bookmark.previewText,
                     style = typography.bodyMono,
                     color = colors.ink,
-                    maxLines = 6,
+                    maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (bookmark.isThread) {
-                    // Accent yellow on surface fails WCAG AA at caption size in
-                    // light mode (contrast ≈3.4:1). Switch to ink and keep the
-                    // visual hierarchy via the ↳ glyph + uppercase mono so the
-                    // indicator still reads as a "thread badge" without relying
-                    // on color alone (also satisfies WCAG 1.4.1 Use of Color).
+                    Spacer(Modifier.height(spacing.xs))
                     Text(
                         text = "↳ + ${bookmark.threadCount} MORE",
                         style = typography.captionMono,
                         color = colors.ink,
                     )
                 }
+                Spacer(Modifier.height(spacing.sm))
+                // Dashed 1dp footer divider — per handoff-components.jsx:114, 370.
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(2.dp)
+                        .dashedDivider(
+                            color = colors.ink,
+                            strokeWidth = stroke.hairline,
+                            dashLengthDp = 4.dp,
+                            gapDp = 3.dp,
+                        ),
+                )
+                Spacer(Modifier.height(spacing.xs))
+                // Engagement meta row — "IMAGE · ↑ 2.4k" / "TEXT" (when null).
+                val typeLabel = bookmark.contentType.name.uppercase()
+                val meta = bookmark.engagementCount?.let { "$typeLabel · ↑ ${formatCount(it)}" } ?: typeLabel
+                Text(
+                    text = meta,
+                    style = typography.metaMono,
+                    color = colors.onSurfaceVariant,
+                    modifier = Modifier.testTag("card-meta"),
+                )
                 if (bookmark.tags.isNotEmpty()) {
+                    Spacer(Modifier.height(spacing.sm))
                     FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(spacing.xs),
+                        horizontalArrangement = Arrangement.spacedBy(spacing.md),
                         verticalArrangement = Arrangement.spacedBy(spacing.xs),
                         modifier = Modifier.testTag("card-actions"),
                     ) {
                         bookmark.tags.forEach { tag ->
-                            Box(
-                                modifier = Modifier
-                                    .border(stroke.hairline, colors.ink, shapes.cardSmall)
-                                    .background(colors.surface)
-                                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                            ) {
-                                Text(
-                                    text = "#$tag",
-                                    style = typography.tagMono,
-                                    color = colors.ink,
-                                )
-                            }
+                            CrumbsTagChip(label = tag, onClick = { /* future: filter by tag */ })
                         }
                     }
                 }
@@ -296,6 +262,14 @@ private fun BookmarkCardContent(
     }
 }
 
+// k/m suffix formatter matching the JS demo at handoff-components.jsx:117.
+private fun formatCount(n: Int): String = when {
+    n >= 1_000_000 -> "%.1fm".format(n / 1_000_000.0).removeSuffix(".0m") + if (n % 1_000_000 == 0) "m" else ""
+    n >= 10_000 -> "${n / 1000}k"
+    n >= 1_000 -> "%.1fk".format(n / 1000.0)
+    else -> n.toString()
+}
+
 // Sample data for previews
 private val sampleTwitterText = Bookmark(
     id = "1",
@@ -307,6 +281,7 @@ private val sampleTwitterText = Bookmark(
     savedAt = System.currentTimeMillis() - 3600000,
     tags = listOf("programming", "design"),
     sourceUrl = "https://twitter.com/i/web/status/123",
+    engagementCount = 247,
 )
 
 private val sampleTwitterImage = Bookmark(
@@ -320,6 +295,7 @@ private val sampleTwitterImage = Bookmark(
     savedAt = System.currentTimeMillis() - 7200000,
     tags = listOf("kotlin", "compose", "multiplatform"),
     sourceUrl = "https://twitter.com/i/web/status/124",
+    engagementCount = 2400,
 )
 
 private val sampleTwitterThread = Bookmark(
@@ -364,7 +340,7 @@ private val sampleDeletedBookmark = Bookmark(
 @Composable
 private fun PreviewTwitterTextLight() {
     CrumbsTheme(darkTheme = false) {
-        CrumbsBookmarkCard(bookmark = sampleTwitterText, onCardClick = {})
+        CrumbsBookmarkCard(bookmark = sampleTwitterText, onCardClick = {}, index = 1)
     }
 }
 
@@ -372,7 +348,7 @@ private fun PreviewTwitterTextLight() {
 @Composable
 private fun PreviewTwitterTextDark() {
     CrumbsTheme(darkTheme = true) {
-        CrumbsBookmarkCard(bookmark = sampleTwitterText, onCardClick = {})
+        CrumbsBookmarkCard(bookmark = sampleTwitterText, onCardClick = {}, index = 1)
     }
 }
 
@@ -380,7 +356,7 @@ private fun PreviewTwitterTextDark() {
 @Composable
 private fun PreviewTwitterImageLight() {
     CrumbsTheme(darkTheme = false) {
-        CrumbsBookmarkCard(bookmark = sampleTwitterImage, onCardClick = {})
+        CrumbsBookmarkCard(bookmark = sampleTwitterImage, onCardClick = {}, index = 2)
     }
 }
 
@@ -388,7 +364,7 @@ private fun PreviewTwitterImageLight() {
 @Composable
 private fun PreviewTwitterThreadLight() {
     CrumbsTheme(darkTheme = false) {
-        CrumbsBookmarkCard(bookmark = sampleTwitterThread, onCardClick = {})
+        CrumbsBookmarkCard(bookmark = sampleTwitterThread, onCardClick = {}, index = 3)
     }
 }
 
@@ -396,7 +372,7 @@ private fun PreviewTwitterThreadLight() {
 @Composable
 private fun PreviewRedditPostLight() {
     CrumbsTheme(darkTheme = false) {
-        CrumbsBookmarkCard(bookmark = sampleRedditPost, onCardClick = {})
+        CrumbsBookmarkCard(bookmark = sampleRedditPost, onCardClick = {}, index = 4)
     }
 }
 
@@ -404,6 +380,6 @@ private fun PreviewRedditPostLight() {
 @Composable
 private fun PreviewDeletedBookmarkLight() {
     CrumbsTheme(darkTheme = false) {
-        CrumbsBookmarkCard(bookmark = sampleDeletedBookmark, onCardClick = {})
+        CrumbsBookmarkCard(bookmark = sampleDeletedBookmark, onCardClick = {}, index = 5)
     }
 }

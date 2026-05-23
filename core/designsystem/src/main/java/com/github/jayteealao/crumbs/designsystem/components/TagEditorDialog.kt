@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -45,10 +46,9 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toPersistentList
 
-// Brutalist TagEditorDialog — Material3 AlertDialog + OutlinedTextField stripped.
-// Custom Dialog with sharp-edged Box, 1.5dp ink border. Mono kicker, Funnel
-// Display title, autocomplete suggestions list, FlowRow of selected-tag chips,
-// BasicTextField input, Row { Cancel | Save } actions.
+// Cap on the autocomplete suggestions list height so a wide candidate set
+// doesn't push the input + actions off-screen.
+private val SUGGESTION_LIST_MAX_HEIGHT: Dp = 120.dp
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -57,7 +57,8 @@ fun TagEditorDialog(
     currentTags: ImmutableList<String>,
     availableTags: ImmutableList<String>,
     onDismiss: () -> Unit,
-    onSave: (ImmutableList<String>) -> Unit
+    onSave: (ImmutableList<String>) -> Unit,
+    kicker: String = "↳ Add Tags",
 ) {
     if (!isVisible) return
 
@@ -87,7 +88,8 @@ fun TagEditorDialog(
     ) {
         Box(
             modifier = Modifier
-                .fillMaxWidth(0.9f)
+                .fillMaxWidth()
+                .padding(horizontal = spacing.lg)
                 .background(colors.surface)
                 .border(stroke.regular, colors.ink, shapes.dialog)
                 .testTag("tag-editor-dialog")
@@ -95,7 +97,7 @@ fun TagEditorDialog(
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "↳ Add Tags".uppercase(),
+                    text = kicker.uppercase(),
                     style = typography.captionMono,
                     color = colors.onSurfaceVariant,
                 )
@@ -133,7 +135,7 @@ fun TagEditorDialog(
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(120.dp)
+                            .height(SUGGESTION_LIST_MAX_HEIGHT)
                             .padding(vertical = spacing.xs),
                     ) {
                         items(filteredSuggestions) { suggestion ->
@@ -174,25 +176,17 @@ fun TagEditorDialog(
                         color = colors.onSurfaceVariant,
                     )
                     Spacer(modifier = Modifier.height(spacing.xs))
-                    FlowRow(modifier = Modifier.fillMaxWidth()) {
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+                        verticalArrangement = Arrangement.spacedBy(spacing.xs),
+                    ) {
                         selectedTags.forEach { tag ->
                             Row(
-                                modifier = Modifier.padding(end = spacing.xs, bottom = spacing.xs),
+                                modifier = Modifier.testTag("tag-editor-chip-$tag"),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .border(stroke.hairline, colors.ink, shapes.cardSmall)
-                                        .background(colors.surface)
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                        .testTag("tag-editor-chip-$tag"),
-                                ) {
-                                    Text(
-                                        text = "#$tag",
-                                        style = typography.tagMono,
-                                        color = colors.ink,
-                                    )
-                                }
+                                CrumbsTagChip(label = tag, onClick = { })
                                 Icon(
                                     imageVector = Icons.Default.Close,
                                     contentDescription = "Remove tag",
@@ -216,7 +210,7 @@ fun TagEditorDialog(
                     CrumbsButton(
                         onClick = onDismiss,
                         text = "Cancel",
-                        style = ButtonStyle.Secondary,
+                        style = CrumbsButtonVariant.Secondary,
                         modifier = Modifier
                             .weight(1f)
                             .testTag("tag-editor-cancel"),
