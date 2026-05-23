@@ -28,10 +28,12 @@ class LongPressPopupTest {
     fun popup_default_light() {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = false) {
+                val bundle = defaultPopupActions()
                 CrumbsLongPressPopup(
                     visible = true,
                     onDismiss = {},
-                    actions = defaultPopupActions(),
+                    actions = bundle.actions,
+                    onSelect = bundle.onSelect,
                     headerKicker = "Twitter",
                     headerHandle = "@designpatterns",
                     headerAge = "1h",
@@ -46,10 +48,12 @@ class LongPressPopupTest {
     fun popup_default_dark() {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = true) {
+                val bundle = defaultPopupActions()
                 CrumbsLongPressPopup(
                     visible = true,
                     onDismiss = {},
-                    actions = defaultPopupActions(),
+                    actions = bundle.actions,
+                    onSelect = bundle.onSelect,
                     headerKicker = "Reddit",
                     headerHandle = "u/androiddev",
                     headerAge = "2d",
@@ -62,25 +66,22 @@ class LongPressPopupTest {
 
     @Test
     fun popup_action_clicks_invoke_callbacks_and_dismiss() {
-        // The popup is the only escape from a long-press in the brutalist
-        // redesign. Screenshot tests prove its appearance but not that the
-        // taps actually wire through to per-action lambdas + the dismiss
-        // callback. This test pins both contracts: each cell's onClick must
-        // fire its own callback once and trigger dismissal.
         val firedActions = mutableListOf<String>()
         var dismissCount = 0
 
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = false) {
+                val bundle = bookmarkPopupActions(
+                    onTag = { firedActions += "tag" },
+                    onOpen = { firedActions += "open" },
+                    onShare = { firedActions += "share" },
+                    onDelete = { firedActions += "delete" },
+                )
                 CrumbsLongPressPopup(
                     visible = true,
                     onDismiss = { dismissCount++ },
-                    actions = bookmarkPopupActions(
-                        onTag = { firedActions += "tag" },
-                        onOpen = { firedActions += "open" },
-                        onShare = { firedActions += "share" },
-                        onDelete = { firedActions += "delete" },
-                    ),
+                    actions = bundle.actions,
+                    onSelect = bundle.onSelect,
                 )
             }
         }

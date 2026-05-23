@@ -218,34 +218,36 @@ fun TwitterBookmarksRoute(
     )
 
     lps.bookmark?.let { bookmark ->
+        val bundle = bookmarkPopupActions(
+            onTag = {
+                Timber.d("Twitter long-press: TAG")
+                lps.showTagEditor = true
+            },
+            onOpen = {
+                Timber.d("Twitter long-press: OPEN")
+                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(bookmark.sourceUrl))
+                context.startActivity(intent)
+            },
+            onShare = {
+                Timber.d("Twitter long-press: SHARE")
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, bookmark.sourceUrl)
+                }
+                context.startActivity(Intent.createChooser(shareIntent, "Share tweet"))
+            },
+            onDelete = {
+                Timber.d("Twitter long-press: DELETE")
+                bookmarksViewModel.softDelete(bookmark.id)
+                lps.bookmark = null
+            },
+        )
         CrumbsLongPressPopup(
             visible = true,
             onDismiss = { lps.bookmark = null },
             anchorOffsetPx = lps.anchor,
-            actions = bookmarkPopupActions(
-                onTag = {
-                    Timber.d("Twitter long-press: TAG")
-                    lps.showTagEditor = true
-                },
-                onOpen = {
-                    Timber.d("Twitter long-press: OPEN")
-                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(bookmark.sourceUrl))
-                    context.startActivity(intent)
-                },
-                onShare = {
-                    Timber.d("Twitter long-press: SHARE")
-                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, bookmark.sourceUrl)
-                    }
-                    context.startActivity(Intent.createChooser(shareIntent, "Share tweet"))
-                },
-                onDelete = {
-                    Timber.d("Twitter long-press: DELETE")
-                    bookmarksViewModel.softDelete(bookmark.id)
-                    lps.bookmark = null
-                },
-            ),
+            actions = bundle.actions,
+            onSelect = bundle.onSelect,
         )
     }
 

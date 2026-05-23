@@ -3,16 +3,20 @@ package com.github.jayteealao.crumbs.designsystem.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LocalOffer
@@ -44,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import com.github.jayteealao.crumbs.designsystem.theme.CrumbsStroke
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsShapes
@@ -55,37 +60,42 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlin.math.roundToInt
 
-// Brutalist CrumbsLongPressPopup — anchored long-press contextual menu
-// matching handoff Screen 5. A 2×2 grid of actions (TAG / SHARE / ARCHIVE /
-// DELETE) over an optional source-header row. Anchored at a fingertip Offset
-// (window-relative pixels). Container: surface bg, 1.5dp ink border, 6dp ink
-// offset shadow.
-//
-// State-machine wiring (visibility toggle, fingertip Offset capture, action
-// dispatch including ARCHIVE behavior) is owned by the behaviors slice; this
-// component ships the visual shell only.
+// Brutalist CrumbsLongPressPopup — anchored long-press contextual menu per
+// handoff-components.jsx:608-635. 2×2 grid of action cells with an 8dp
+// horizontal+vertical gap, per-cell ink borders (red error border on
+// destructive), surface fill on non-primary cells, native Compose dropShadow
+// at +6dp/+6dp offset, full-screen scrim. Anchored at a fingertip Offset.
 
+// JS-spec data class (handoff-components.jsx:628-634). No `icon` field — the
+// per-cell ImageVector is a deliberate Compose enhancement sourced separately
+// (see `actionIcon` below) so the data shape stays byte-stable with JS.
 @androidx.compose.runtime.Immutable
-data class PopupAction(
+data class CrumbsAction(
     val id: String,
     val label: String,
     val hint: String = "",
-    val icon: ImageVector? = null,
-    val isPrimary: Boolean = false,
-    val isDanger: Boolean = false,
-    val onClick: () -> Unit,
+    val primary: Boolean = false,
+    val danger: Boolean = false,
+)
+
+// Bundle a list of actions with their dispatcher so call sites stay compact.
+@androidx.compose.runtime.Immutable
+data class LongPressActions(
+    val actions: ImmutableList<CrumbsAction>,
+    val onSelect: (CrumbsAction) -> Unit,
 )
 
 @Composable
 fun CrumbsLongPressPopup(
     visible: Boolean,
     onDismiss: () -> Unit,
-    actions: ImmutableList<PopupAction>,
+    actions: ImmutableList<CrumbsAction>,
+    onSelect: (CrumbsAction) -> Unit,
     anchorOffsetPx: Offset = Offset.Zero,
     headerKicker: String? = null,
     headerHandle: String? = null,
     headerAge: String? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     if (!visible) return
     val colors = LocalCrumbsColors.current
@@ -105,15 +115,34 @@ fun CrumbsLongPressPopup(
             focusable = true,
             dismissOnBackPress = true,
             dismissOnClickOutside = true,
-            clippingEnabled = true,
+            clippingEnabled = false,
         ),
     ) {
-        Column(
-            modifier = modifier
-                .background(colors.surface)
-                .border(stroke.regular, colors.ink, shapes.dialog)
-                .testTag("popup"),
-        ) {
+        // Full-screen 32% black scrim — handoff-components.jsx:619.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.32f))
+                .testTag("popup-scrim"),
+        )
+        // Wrap popup + shadow in a Box so the shadow rectangle can matchParentSize
+        // and sit behind the popup, offset 6dp down + 6dp right. Brutalist look —
+        // no blur, no spread, just a solid ink rectangle (handoff-tokens.jsx
+        // :273-274). Avoids dependency on the still-experimental Compose 1.11
+        // Modifier.dropShadow API.
+        Box(modifier = modifier) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .offset(x = CrumbsStroke.offsetX, y = CrumbsStroke.offsetY)
+                    .background(colors.offsetShadow),
+            )
+            Column(
+                modifier = Modifier
+                    .background(colors.surface)
+                    .border(stroke.regular, colors.ink, shapes.dialog)
+                    .testTag("popup"),
+            ) {
             if (headerKicker != null || headerHandle != null || headerAge != null) {
                 Row(
                     modifier = Modifier
@@ -165,48 +194,45 @@ fun CrumbsLongPressPopup(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .height(stroke.hairline)
                         .background(colors.ink),
                 )
             }
-            // 2x2 grid: top row (2 cells), bottom row (2 cells)
-            val pairs = actions.chunked(2)
-            pairs.forEachIndexed { rowIndex, rowActions ->
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    rowActions.forEachIndexed { colIndex, action ->
-                        PopupActionCell(
-                            action = action,
-                            modifier = Modifier
-                                .weight(1f)
-                                // Mixed-case label as a single semantic node so
-                                // TalkBack pronounces "Tag" / "Open" instead of
-                                // spelling the uppercase glyphs T-A-G letter by
-                                // letter. The visual still uppercases inside.
-                                .semantics(mergeDescendants = true) {
-                                    role = Role.Button
-                                    contentDescription = action.label
-                                }
-                                .clickable {
-                                    action.onClick()
-                                    onDismiss()
-                                }
-                                .testTag("popup-action-${action.id}"),
-                        )
-                        if (colIndex < rowActions.size - 1) {
-                            Box(
+            // 2×2 grid with 8dp gaps between cells (handoff-components.jsx:614).
+            Column(
+                modifier = Modifier.padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                val pairs = actions.chunked(2)
+                pairs.forEach { rowActions ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        rowActions.forEach { action ->
+                            PopupActionCell(
+                                action = action,
                                 modifier = Modifier
-                                    .width(stroke.hairline)
-                                    .background(colors.ink),
+                                    .weight(1f)
+                                    .semantics(mergeDescendants = true) {
+                                        role = Role.Button
+                                        contentDescription = action.label
+                                    }
+                                    .clickable {
+                                        onSelect(action)
+                                        onDismiss()
+                                    }
+                                    .testTag("popup-action-${action.id}"),
                             )
+                        }
+                        // Pad short final row with an empty weighted spacer to
+                        // keep cell widths consistent across rows.
+                        if (rowActions.size == 1) {
+                            Spacer(Modifier.weight(1f))
                         }
                     }
                 }
-                if (rowIndex < pairs.size - 1) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(colors.ink),
-                    )
-                }
+            }
             }
         }
     }
@@ -214,34 +240,36 @@ fun CrumbsLongPressPopup(
 
 @Composable
 private fun PopupActionCell(
-    action: PopupAction,
+    action: CrumbsAction,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalCrumbsColors.current
+    val stroke = LocalCrumbsStroke.current
     val typography = LocalCrumbsTypography.current
     val spacing = LocalCrumbsSpacing.current
+    val shapes = LocalCrumbsShapes.current
 
-    val bg = if (action.isPrimary) colors.accent else Color.Transparent
+    val bg = if (action.primary) colors.accent else colors.surface
+    val borderColor = if (action.danger) colors.error else colors.ink
     val labelColor = when {
-        action.isDanger -> colors.error
-        action.isPrimary -> colors.onAccent
+        action.danger -> colors.error
+        action.primary -> colors.onAccent
         else -> colors.ink
     }
-    val hintColor = if (action.isPrimary) colors.onAccent.copy(alpha = 0.65f) else colors.ink.copy(alpha = 0.65f)
+    val hintColor = if (action.primary) colors.onAccent.copy(alpha = 0.65f) else colors.ink.copy(alpha = 0.65f)
+    val icon = actionIcon(action.id)
 
     Column(
         modifier = modifier
             .background(bg)
+            .border(stroke.regular, borderColor, shapes.dialog)
             .padding(horizontal = spacing.md, vertical = spacing.sm),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        action.icon?.let { iv ->
+        if (icon != null) {
             Icon(
-                imageVector = iv,
-                // Icon is decorative — the clickable cell above merges a
-                // contentDescription on the action, so a duplicate label here
-                // would cause TalkBack to read the action name twice.
+                imageVector = icon,
                 contentDescription = null,
                 tint = labelColor,
                 modifier = Modifier.size(18.dp),
@@ -260,6 +288,16 @@ private fun PopupActionCell(
             )
         }
     }
+}
+
+// Per-action icon — JS spec carries no icon field on CrumbsAction so the
+// mapping lives here as a Compose-only enhancement.
+private fun actionIcon(id: String): ImageVector? = when (id) {
+    "tag" -> Icons.Default.LocalOffer
+    "open" -> Icons.Default.Language
+    "share" -> Icons.Default.Share
+    "delete" -> Icons.Default.Delete
+    else -> null
 }
 
 // Anchors the popup near the fingertip Offset (window pixels); clamps to
@@ -288,11 +326,6 @@ private class FingertipPopupPositionProvider(
 // Long-press state holder — shared across all bookmark route composables.
 // ---------------------------------------------------------------------------
 
-/** Holds the three pieces of state that every bookmark route needs for the
- *  long-press popup: which bookmark was pressed, where on screen, and whether
- *  the tag editor is open. Call [dismiss] to close both the popup and the
- *  tag editor at once.
- */
 @Stable
 class LongPressState {
     var bookmark by mutableStateOf<Bookmark?>(null)
@@ -310,8 +343,8 @@ fun rememberLongPressState(): LongPressState = remember { LongPressState() }
 
 // ---------------------------------------------------------------------------
 // Canonical 4-action list — TAG / OPEN / SHARE / DELETE — used by every
-// bookmark route.  The caller provides lambdas so per-route intent logic
-// stays in the route composable.
+// bookmark route. Returns a LongPressActions bundle that keeps the action
+// list immutable and the dispatcher closed over the per-route lambdas.
 // ---------------------------------------------------------------------------
 
 fun bookmarkPopupActions(
@@ -319,86 +352,59 @@ fun bookmarkPopupActions(
     onOpen: () -> Unit,
     onShare: () -> Unit,
     onDelete: () -> Unit,
-): ImmutableList<PopupAction> = persistentListOf(
-    PopupAction(
-        id = "tag",
-        label = "Tag",
-        hint = "Add",
-        icon = Icons.Default.LocalOffer,
-        isPrimary = true,
-        onClick = onTag,
-    ),
-    PopupAction(
-        id = "open",
-        label = "Open",
-        hint = "Url",
-        icon = Icons.Default.Language,
-        onClick = onOpen,
-    ),
-    PopupAction(
-        id = "share",
-        label = "Share",
-        hint = "Link",
-        icon = Icons.Default.Share,
-        onClick = onShare,
-    ),
-    PopupAction(
-        id = "delete",
-        label = "Delete",
-        hint = "Remove",
-        icon = Icons.Default.Delete,
-        isDanger = true,
-        onClick = onDelete,
-    ),
-)
+): LongPressActions {
+    val actions = persistentListOf(
+        CrumbsAction(id = "tag", label = "Tag", hint = "Add", primary = true),
+        CrumbsAction(id = "open", label = "Open", hint = "Url"),
+        CrumbsAction(id = "share", label = "Share", hint = "Link"),
+        CrumbsAction(id = "delete", label = "Delete", hint = "Remove", danger = true),
+    )
+    val onSelect: (CrumbsAction) -> Unit = { action ->
+        when (action.id) {
+            "tag" -> onTag()
+            "open" -> onOpen()
+            "share" -> onShare()
+            "delete" -> onDelete()
+        }
+    }
+    return LongPressActions(actions, onSelect)
+}
 
-// Default 4-action set matching handoff Screen 5.
+// Default 4-action set matching handoff Screen 5 — TAG / SHARE / ARCHIVE /
+// DELETE (kept for design-system previews + legacy callers).
 fun defaultPopupActions(
     onTag: () -> Unit = {},
     onShare: () -> Unit = {},
     onArchive: () -> Unit = {},
     onDelete: () -> Unit = {},
-): ImmutableList<PopupAction> = persistentListOf(
-    PopupAction(
-        id = "tag",
-        label = "Tag",
-        hint = "Add",
-        icon = Icons.Default.LocalOffer,
-        isPrimary = true,
-        onClick = onTag,
-    ),
-    PopupAction(
-        id = "share",
-        label = "Share",
-        hint = "Link",
-        icon = Icons.Default.Share,
-        onClick = onShare,
-    ),
-    PopupAction(
-        id = "archive",
-        label = "Archive",
-        hint = "Hide",
-        icon = Icons.Default.Archive,
-        onClick = onArchive,
-    ),
-    PopupAction(
-        id = "delete",
-        label = "Delete",
-        hint = "Remove",
-        icon = Icons.Default.Delete,
-        isDanger = true,
-        onClick = onDelete,
-    ),
-)
+): LongPressActions {
+    val actions = persistentListOf(
+        CrumbsAction(id = "tag", label = "Tag", hint = "Add", primary = true),
+        CrumbsAction(id = "share", label = "Share", hint = "Link"),
+        CrumbsAction(id = "archive", label = "Archive", hint = "Hide"),
+        CrumbsAction(id = "delete", label = "Delete", hint = "Remove", danger = true),
+    )
+    val onSelect: (CrumbsAction) -> Unit = { action ->
+        when (action.id) {
+            "tag" -> onTag()
+            "share" -> onShare()
+            "archive" -> onArchive()
+            "delete" -> onDelete()
+        }
+    }
+    return LongPressActions(actions, onSelect)
+}
 
 @Preview(name = "Default Light", showBackground = true)
 @Composable
 private fun PreviewLongPressPopupLight() {
     CrumbsTheme(darkTheme = false) {
+        val bundle = defaultPopupActions()
         CrumbsLongPressPopup(
             visible = true,
             onDismiss = {},
-            actions = defaultPopupActions(),
+            actions = bundle.actions,
+            onSelect = bundle.onSelect,
             headerKicker = "Twitter",
             headerHandle = "@designpatterns",
             headerAge = "1h",
@@ -410,10 +416,12 @@ private fun PreviewLongPressPopupLight() {
 @Composable
 private fun PreviewLongPressPopupDark() {
     CrumbsTheme(darkTheme = true) {
+        val bundle = defaultPopupActions()
         CrumbsLongPressPopup(
             visible = true,
             onDismiss = {},
-            actions = defaultPopupActions(),
+            actions = bundle.actions,
+            onSelect = bundle.onSelect,
             headerKicker = "Reddit",
             headerHandle = "u/androiddev",
             headerAge = "2d",
