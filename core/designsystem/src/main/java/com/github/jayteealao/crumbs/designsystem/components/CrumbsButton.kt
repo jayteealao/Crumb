@@ -95,9 +95,16 @@ fun CrumbsButton(
         ButtonSize.Medium -> 56.dp to PaddingValues(horizontal = 24.dp, vertical = 12.dp)
     }
 
-    val baseModifier = modifier
+    val borderModifier: Modifier = if (style == CrumbsButtonVariant.Ghost) {
+        Modifier.dashedBorder(width = stroke.regular, color = borderColor)
+    } else {
+        Modifier.border(stroke.regular, borderColor)
+    }
+
+    val buttonModifier = modifier
         .defaultMinSize(minHeight = minHeight)
         .background(containerColor)
+        .then(borderModifier)
         .clickable(
             enabled = enabled,
             interactionSource = interaction,
@@ -106,14 +113,8 @@ fun CrumbsButton(
         .padding(contentPadding)
         .testTag("btn-${style.name.lowercase()}-${size.name.lowercase()}")
 
-    val borderedModifier = if (style == CrumbsButtonVariant.Ghost) {
-        baseModifier.dashedBorder(width = stroke.regular, color = borderColor)
-    } else {
-        baseModifier.border(stroke.regular, borderColor)
-    }
-
     Row(
-        modifier = borderedModifier,
+        modifier = buttonModifier,
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
