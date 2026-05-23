@@ -32,6 +32,7 @@ object TestCrumbsTypography {
         fontSize = 11.sp,
         lineHeight = 16.sp,
         fontWeight = FontWeight.Bold,
+        letterSpacing = 1.5.sp,
     )
 
     val bodyMono = TextStyle(

@@ -34,6 +34,7 @@ fun CrumbsTheme(
         LocalCrumbsSpacing provides CrumbsSpacing,
         LocalCrumbsTypography provides CrumbsTypography,
         LocalCrumbsStroke provides CrumbsStroke,
+        LocalCrumbsShapes provides CrumbsShapes,
     ) {
         Box(
             Modifier

@@ -28,7 +28,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
@@ -46,6 +45,7 @@ import coil.compose.AsyncImage
 import com.github.jayteealao.crumbs.designsystem.modifiers.brutalistStrikethrough
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsShapes
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsSpacing
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsTypography
@@ -117,13 +117,14 @@ private fun BookmarkCardContent(
     val colors = LocalCrumbsColors.current
     val spacing = LocalCrumbsSpacing.current
     val stroke = LocalCrumbsStroke.current
+    val shapes = LocalCrumbsShapes.current
     val typography = LocalCrumbsTypography.current
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .background(colors.surface)
-            .border(stroke.regular, colors.ink, RectangleShape)
+            .border(stroke.regular, colors.ink, shapes.card)
             .testTag("bookmark-card")
             .pointerInput(bookmark.id) {
                 detectTapGestures(
@@ -262,7 +263,7 @@ private fun BookmarkCardContent(
                         bookmark.tags.forEach { tag ->
                             Box(
                                 modifier = Modifier
-                                    .border(stroke.hairline, colors.ink, RectangleShape)
+                                    .border(stroke.hairline, colors.ink, shapes.cardSmall)
                                     .background(colors.surface)
                                     .padding(horizontal = 6.dp, vertical = 2.dp),
                             ) {

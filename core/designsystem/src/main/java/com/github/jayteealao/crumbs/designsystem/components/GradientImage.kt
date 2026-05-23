@@ -13,7 +13,6 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
@@ -21,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsShapes
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsTypography
 
@@ -58,10 +58,11 @@ fun GradientImage(
 ) {
     val colors = LocalCrumbsColors.current
     val stroke = LocalCrumbsStroke.current
+    val shapes = LocalCrumbsShapes.current
 
     Box(
         modifier = modifier
-            .border(stroke.hairline, colors.ink, RectangleShape)
+            .border(stroke.hairline, colors.ink, shapes.rectangle)
             .testTag("gradient-image"),
     ) {
         AsyncImage(

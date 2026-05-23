@@ -23,13 +23,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsShapes
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 
 // Brutalist bottom-anchored overlay shell. In-tree composition (Box +
@@ -51,6 +51,7 @@ fun OverlayShell(
 ) {
     val colors = LocalCrumbsColors.current
     val stroke = LocalCrumbsStroke.current
+    val shapes = LocalCrumbsShapes.current
     val backdropInteraction = remember { MutableInteractionSource() }
 
     Box(
@@ -86,7 +87,7 @@ fun OverlayShell(
             Surface(
                 color = colors.surface,
                 contentColor = colors.ink,
-                shape = RectangleShape,
+                shape = shapes.dialog,
                 border = BorderStroke(stroke.regular, colors.ink),
                 modifier = Modifier
                     .fillMaxWidth()

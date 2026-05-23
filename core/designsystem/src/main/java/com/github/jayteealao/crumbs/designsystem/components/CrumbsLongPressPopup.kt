@@ -29,7 +29,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -47,6 +46,7 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsShapes
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsSpacing
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsTypography
@@ -90,6 +90,7 @@ fun CrumbsLongPressPopup(
     if (!visible) return
     val colors = LocalCrumbsColors.current
     val stroke = LocalCrumbsStroke.current
+    val shapes = LocalCrumbsShapes.current
     val typography = LocalCrumbsTypography.current
     val spacing = LocalCrumbsSpacing.current
 
@@ -110,7 +111,7 @@ fun CrumbsLongPressPopup(
         Column(
             modifier = modifier
                 .background(colors.surface)
-                .border(stroke.regular, colors.ink, RectangleShape)
+                .border(stroke.regular, colors.ink, shapes.dialog)
                 .testTag("popup"),
         ) {
             if (headerKicker != null || headerHandle != null || headerAge != null) {

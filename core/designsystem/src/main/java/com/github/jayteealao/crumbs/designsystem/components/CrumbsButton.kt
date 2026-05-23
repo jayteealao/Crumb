@@ -8,12 +8,12 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsShapes
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsTypography
 
@@ -41,6 +41,7 @@ fun CrumbsButton(
 ) {
     val colors = LocalCrumbsColors.current
     val stroke = LocalCrumbsStroke.current
+    val shapes = LocalCrumbsShapes.current
     val typography = LocalCrumbsTypography.current
 
     val containerColor = when (style) {
@@ -63,7 +64,7 @@ fun CrumbsButton(
             .defaultMinSize(minHeight = minHeight)
             .testTag("btn-${style.name.lowercase()}-${size.name.lowercase()}"),
         enabled = enabled,
-        shape = RectangleShape,
+        shape = shapes.button,
         colors = ButtonDefaults.buttonColors(
             containerColor = containerColor,
             contentColor = contentColor,

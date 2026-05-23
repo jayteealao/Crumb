@@ -15,7 +15,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -25,6 +24,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsShapes
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 
 // Brutalist CrumbsIconButton — Material3 wrappers stripped. Single Box-based
@@ -57,6 +57,7 @@ fun CrumbsIconButton(
 ) {
     val colors = LocalCrumbsColors.current
     val stroke = LocalCrumbsStroke.current
+    val shapes = LocalCrumbsShapes.current
 
     val square = when (size) {
         IconButtonSize.Small -> 36.dp
@@ -79,7 +80,7 @@ fun CrumbsIconButton(
         .minimumInteractiveComponentSize()
         .size(square)
         .background(backgroundColor)
-    if (showBorder) inner = inner.border(stroke.regular, colors.ink, RectangleShape)
+    if (showBorder) inner = inner.border(stroke.regular, colors.ink, shapes.button)
     // Apply contentDescription + Role.Button at the clickable layer so TalkBack
     // reads a meaningful label even when the inner Icon was created with
     // contentDescription=null. Without this, the `contentDescription` parameter

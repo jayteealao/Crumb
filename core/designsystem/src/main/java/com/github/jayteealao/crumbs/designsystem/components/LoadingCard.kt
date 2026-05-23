@@ -19,12 +19,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsShapes
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsSpacing
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 
@@ -44,6 +44,7 @@ fun LoadingCard(
     val colors = LocalCrumbsColors.current
     val spacing = LocalCrumbsSpacing.current
     val stroke = LocalCrumbsStroke.current
+    val shapes = LocalCrumbsShapes.current
 
     val transition = rememberInfiniteTransition(label = "loading-card")
     val animatedFraction by transition.animateFloat(
@@ -61,7 +62,7 @@ fun LoadingCard(
         modifier = modifier
             .fillMaxWidth()
             .background(colors.surface)
-            .border(stroke.regular, colors.ink, RectangleShape)
+            .border(stroke.regular, colors.ink, shapes.card)
             .testTag("loading-card")
             .drawBehind {
                 val y = size.height * fraction

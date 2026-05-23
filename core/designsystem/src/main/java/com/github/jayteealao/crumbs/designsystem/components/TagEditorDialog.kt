@@ -29,7 +29,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -37,6 +36,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsShapes
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsSpacing
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsTypography
@@ -64,6 +64,7 @@ fun TagEditorDialog(
     val colors = LocalCrumbsColors.current
     val spacing = LocalCrumbsSpacing.current
     val stroke = LocalCrumbsStroke.current
+    val shapes = LocalCrumbsShapes.current
     val typography = LocalCrumbsTypography.current
 
     var selectedTags by remember(currentTags) { mutableStateOf(currentTags.toPersistentList()) }
@@ -88,7 +89,7 @@ fun TagEditorDialog(
             modifier = Modifier
                 .fillMaxWidth(0.9f)
                 .background(colors.surface)
-                .border(stroke.regular, colors.ink, RectangleShape)
+                .border(stroke.regular, colors.ink, shapes.dialog)
                 .testTag("tag-editor-dialog")
                 .padding(spacing.md),
         ) {
@@ -108,7 +109,7 @@ fun TagEditorDialog(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(stroke.hairline, colors.ink, RectangleShape)
+                        .border(stroke.hairline, colors.ink, shapes.cardSmall)
                         .padding(horizontal = spacing.sm, vertical = spacing.sm),
                 ) {
                     BasicTextField(
@@ -181,7 +182,7 @@ fun TagEditorDialog(
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .border(stroke.hairline, colors.ink, RectangleShape)
+                                        .border(stroke.hairline, colors.ink, shapes.cardSmall)
                                         .background(colors.surface)
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                         .testTag("tag-editor-chip-$tag"),

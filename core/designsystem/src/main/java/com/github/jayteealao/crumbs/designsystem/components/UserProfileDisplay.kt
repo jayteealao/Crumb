@@ -15,7 +15,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
@@ -24,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsShapes
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsSpacing
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsTypography
@@ -60,6 +60,7 @@ fun UserProfileDisplay(
     val colors = LocalCrumbsColors.current
     val spacing = LocalCrumbsSpacing.current
     val stroke = LocalCrumbsStroke.current
+    val shapes = LocalCrumbsShapes.current
     val typography = LocalCrumbsTypography.current
 
     var rowMod: Modifier = modifier.testTag("user-profile")
@@ -70,7 +71,7 @@ fun UserProfileDisplay(
             modifier = Modifier
                 .size(size.avatarSize)
                 .background(colors.surface)
-                .border(stroke.regular, colors.ink, RectangleShape),
+                .border(stroke.regular, colors.ink, shapes.rectangle),
         ) {
             AsyncImage(
                 model = profile.avatarUrl,
