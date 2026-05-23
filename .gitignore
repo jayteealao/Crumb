@@ -18,3 +18,10 @@
 local.properties
 .worktrees/
 *.db
+Crumbs-handoff
+scripts/firestore-migrate/node_modules/
+*.xml
+*.log
+.ai/**/*
+.claude/scheduled_tasks.lock
+Crumbs-handoff.zip
