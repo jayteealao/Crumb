@@ -5,10 +5,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
-import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -103,7 +105,9 @@ class OverlayShellTest {
                 }
             }
         }
-        composeTestRule.onNodeWithTag("overlay-shell-backdrop").performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithTag("overlay-shell-backdrop")
+            .performTouchInput { click(position = Offset(10f, 10f)) }
         assertTrue(dismissed)
     }
 }
