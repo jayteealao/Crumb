@@ -22,8 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.github.jayteealao.crumbs.designsystem.components.ButtonStyle
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsButton
+import com.github.jayteealao.crumbs.designsystem.components.CrumbsButtonVariant
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsSpacing
@@ -35,8 +35,10 @@ import kotlinx.collections.immutable.persistentListOf
 // ImmutableList of @Composable () -> Unit pages so callers cannot accidentally
 // mutate the list and trigger over-recomposition.
 //
-// Footer is a single Row(SpaceBetween) with a shell-owned 3-pill page
-// indicator on the left and an optional CrumbsButton CTA on the right.
+// Footer is a single Row(SpaceBetween) with an optional sign-in link slot on
+// the far left, a shell-owned 3-pill page indicator in the center-left, and
+// an optional CrumbsButton CTA on the right. Per handoff-layouts-pages.jsx
+// :186-187 the link reads "or sign in →" but the slot is unopinionated.
 
 @Composable
 fun OnboardingShell(
@@ -44,6 +46,7 @@ fun OnboardingShell(
     modifier: Modifier = Modifier,
     pagerState: PagerState = rememberPagerState(pageCount = { pages.size }),
     header: (@Composable () -> Unit)? = null,
+    signInLink: (@Composable () -> Unit)? = null,
     footerCtaText: String? = null,
     onFooterCtaClick: (() -> Unit)? = null,
 ) {
@@ -78,12 +81,15 @@ fun OnboardingShell(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (signInLink != null) {
+                Box(Modifier.testTag("onboarding-shell-signin-link")) { signInLink() }
+            }
             OnboardingPageIndicator(pagerState = pagerState)
             if (footerCtaText != null && onFooterCtaClick != null) {
                 CrumbsButton(
                     onClick = onFooterCtaClick,
                     text = footerCtaText,
-                    style = ButtonStyle.Primary,
+                    style = CrumbsButtonVariant.Primary,
                 )
             }
         }

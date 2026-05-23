@@ -55,6 +55,34 @@ class OnboardingShellTest {
 
     @OptIn(ExperimentalTestApi::class)
     @Test
+    fun onboardingShell_withSignInLink_light() {
+        composeTestRule.mainClock.autoAdvance = false
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = false) {
+                OnboardingShell(
+                    pages = persistentListOf(
+                        { StubPage(label = "Page 0") },
+                        { StubPage(label = "Page 1") },
+                        { StubPage(label = "Page 2") },
+                    ),
+                    signInLink = {
+                        androidx.compose.material3.Text(
+                            text = "or sign in →",
+                            color = LocalCrumbsColors.current.ink,
+                        )
+                    },
+                    footerCtaText = "NEXT",
+                    onFooterCtaClick = {},
+                )
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/OnboardingShell_withSignInLink_light.png")
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
     fun onboardingShell_page1_dark() {
         composeTestRule.mainClock.autoAdvance = false
         composeTestRule.setContent {

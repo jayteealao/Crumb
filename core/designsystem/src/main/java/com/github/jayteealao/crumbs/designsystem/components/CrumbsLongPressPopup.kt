@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,7 +31,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -42,6 +43,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -125,24 +127,23 @@ fun CrumbsLongPressPopup(
                 .background(Color.Black.copy(alpha = 0.32f))
                 .testTag("popup-scrim"),
         )
-        // Wrap popup + shadow in a Box so the shadow rectangle can matchParentSize
-        // and sit behind the popup, offset 6dp down + 6dp right. Brutalist look —
-        // no blur, no spread, just a solid ink rectangle (handoff-tokens.jsx
-        // :273-274). Avoids dependency on the still-experimental Compose 1.11
-        // Modifier.dropShadow API.
-        Box(modifier = modifier) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .offset(x = CrumbsStroke.offsetX, y = CrumbsStroke.offsetY)
-                    .background(colors.offsetShadow),
-            )
-            Column(
-                modifier = Modifier
-                    .background(colors.surface)
-                    .border(stroke.regular, colors.ink, shapes.dialog)
-                    .testTag("popup"),
-            ) {
+        // Brutalist hard offset shadow via Compose 1.11.x native Modifier.dropShadow —
+        // radius=0, spread=0, +6dp/+6dp offset, ink color (handoff-tokens.jsx:273-274).
+        Column(
+            modifier = modifier
+                .dropShadow(
+                    shape = shapes.dialog,
+                    shadow = Shadow(
+                        radius = 0.dp,
+                        spread = 0.dp,
+                        color = colors.offsetShadow,
+                        offset = DpOffset(CrumbsStroke.offsetX, CrumbsStroke.offsetY),
+                    ),
+                )
+                .background(colors.surface)
+                .border(stroke.regular, colors.ink, shapes.dialog)
+                .testTag("popup"),
+        ) {
             if (headerKicker != null || headerHandle != null || headerAge != null) {
                 Row(
                     modifier = Modifier
@@ -232,7 +233,6 @@ fun CrumbsLongPressPopup(
                         }
                     }
                 }
-            }
             }
         }
     }
