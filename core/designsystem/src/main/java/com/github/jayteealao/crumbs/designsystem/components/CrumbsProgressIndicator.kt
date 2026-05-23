@@ -29,6 +29,10 @@ import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 // progressFraction as an optional parameter so tests can pin a frame
 // (avoids infinite-transition test hangs documented in roborazzi#413).
 
+// Indeterminate-mode visible arc proportion of the full circle (0..1). 0.27
+// matches the original demo's swept-arc fraction.
+private const val INDETERMINATE_ARC_SWEEP_FRACTION = 0.27f
+
 enum class ProgressSize { Small, Medium, Large }
 enum class ProgressStyle { Circular, Linear }
 
@@ -82,7 +86,7 @@ fun CrumbsProgressIndicator(
                     size = Size(this.size.width - px, this.size.height - px),
                     style = outline,
                 )
-                val sweep = (progress?.coerceIn(0f, 1f) ?: 0.27f) * 360f
+                val sweep = (progress?.coerceIn(0f, 1f) ?: INDETERMINATE_ARC_SWEEP_FRACTION) * 360f
                 val startAngle = if (progress != null) -90f else (fraction * 360f - 90f)
                 drawArc(
                     color = indicatorColor,

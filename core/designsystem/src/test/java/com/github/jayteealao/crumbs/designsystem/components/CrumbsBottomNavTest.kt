@@ -25,7 +25,7 @@ class CrumbsBottomNavTest {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = false) {
                 CrumbsBottomNav(
-                    selectedTab = BottomNavTab.TWITTER,
+                    selected = BottomNavTab.TWITTER,
                     onTabSelected = {}
                 )
             }
@@ -40,7 +40,7 @@ class CrumbsBottomNavTest {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = true) {
                 CrumbsBottomNav(
-                    selectedTab = BottomNavTab.TWITTER,
+                    selected = BottomNavTab.TWITTER,
                     onTabSelected = {}
                 )
             }
@@ -55,7 +55,7 @@ class CrumbsBottomNavTest {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = false) {
                 CrumbsBottomNav(
-                    selectedTab = BottomNavTab.REDDIT,
+                    selected = BottomNavTab.REDDIT,
                     onTabSelected = {}
                 )
             }
@@ -70,7 +70,7 @@ class CrumbsBottomNavTest {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = false) {
                 CrumbsBottomNav(
-                    selectedTab = BottomNavTab.ALL,
+                    selected = BottomNavTab.ALL,
                     onTabSelected = {}
                 )
             }
@@ -85,7 +85,7 @@ class CrumbsBottomNavTest {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = false) {
                 CrumbsBottomNav(
-                    selectedTab = BottomNavTab.MAP,
+                    selected = BottomNavTab.MAP,
                     onTabSelected = {}
                 )
             }

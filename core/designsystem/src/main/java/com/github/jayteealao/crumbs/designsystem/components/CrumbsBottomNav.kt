@@ -45,7 +45,7 @@ enum class BottomNavTab(val label: String) {
 
 @Composable
 fun CrumbsBottomNav(
-    selectedTab: BottomNavTab,
+    selected: BottomNavTab,
     onTabSelected: (BottomNavTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -67,7 +67,7 @@ fun CrumbsBottomNav(
         )
         Row(modifier = Modifier.fillMaxWidth().height(52.dp)) {
             BottomNavTab.entries.forEachIndexed { index, tab ->
-                val isSelected = tab == selectedTab
+                val isSelected = tab == selected
                 val interactionSource = remember { MutableInteractionSource() }
                 Box(
                     modifier = Modifier
@@ -111,7 +111,7 @@ fun CrumbsBottomNav(
 @Composable
 private fun PreviewBottomNavTwitterLight() {
     CrumbsTheme(darkTheme = false) {
-        CrumbsBottomNav(selectedTab = BottomNavTab.TWITTER, onTabSelected = {})
+        CrumbsBottomNav(selected =BottomNavTab.TWITTER, onTabSelected = {})
     }
 }
 
@@ -119,7 +119,7 @@ private fun PreviewBottomNavTwitterLight() {
 @Composable
 private fun PreviewBottomNavTwitterDark() {
     CrumbsTheme(darkTheme = true) {
-        CrumbsBottomNav(selectedTab = BottomNavTab.TWITTER, onTabSelected = {})
+        CrumbsBottomNav(selected =BottomNavTab.TWITTER, onTabSelected = {})
     }
 }
 
@@ -127,7 +127,7 @@ private fun PreviewBottomNavTwitterDark() {
 @Composable
 private fun PreviewBottomNavAllLight() {
     CrumbsTheme(darkTheme = false) {
-        CrumbsBottomNav(selectedTab = BottomNavTab.ALL, onTabSelected = {})
+        CrumbsBottomNav(selected =BottomNavTab.ALL, onTabSelected = {})
     }
 }
 
@@ -135,6 +135,6 @@ private fun PreviewBottomNavAllLight() {
 @Composable
 private fun PreviewBottomNavMapLight() {
     CrumbsTheme(darkTheme = false) {
-        CrumbsBottomNav(selectedTab = BottomNavTab.MAP, onTabSelected = {})
+        CrumbsBottomNav(selected =BottomNavTab.MAP, onTabSelected = {})
     }
 }

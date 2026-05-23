@@ -3,6 +3,7 @@ package com.github.jayteealao.crumbs.designsystem.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -12,6 +13,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -76,6 +78,7 @@ fun CrumbsIconButton(
         IconButtonStyle.FilledTonal, IconButtonStyle.Outlined, IconButtonStyle.Standard -> colors.ink
     }
 
+    val interaction = remember { MutableInteractionSource() }
     var inner: Modifier = modifier
         .minimumInteractiveComponentSize()
         .size(square)
@@ -90,7 +93,13 @@ fun CrumbsIconButton(
             role = Role.Button
             contentDescription?.let { this.contentDescription = it }
         }
-        .clickable(enabled = enabled) { onClick() }
+        // indication = null suppresses the default Material ripple; brutalist
+        // surfaces stay flat.
+        .clickable(
+            enabled = enabled,
+            interactionSource = interaction,
+            indication = null,
+        ) { onClick() }
         .testTag("icon-btn-${style.name.lowercase()}")
 
     Box(modifier = inner, contentAlignment = Alignment.Center) {
@@ -103,6 +112,25 @@ fun CrumbsIconButton(
 }
 
 // Previews
+// Render a CrumbsIconButton configured from a TopBarAction — Small=36dp for
+// the Search variant (matches handoff-components.jsx:152), with Filled style
+// when Search, Outlined for the others.
+@Composable
+fun CrumbsIconButtonFromTopBarAction(
+    action: TopBarAction,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    CrumbsIconButton(
+        onClick = onClick,
+        icon = { Icon(action.icon, contentDescription = action.label) },
+        modifier = modifier,
+        contentDescription = action.label,
+        size = if (action == TopBarAction.Search) IconButtonSize.Small else IconButtonSize.Medium,
+        style = if (action == TopBarAction.Search) IconButtonStyle.Filled else IconButtonStyle.Outlined,
+    )
+}
+
 @Preview(name = "Filled Medium Light", showBackground = true)
 @Composable
 private fun PreviewIconButtonFilledMediumLight() {
