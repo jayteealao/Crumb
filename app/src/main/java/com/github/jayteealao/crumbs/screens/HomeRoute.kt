@@ -202,7 +202,12 @@ fun HomeRoute(
         ),
         onTabSelected = { selectedTab = it },
         onSearchQueryChange = { searchQuery = it },
-        onSearchActiveChange = { isSearchActive = it },
+        onSearchActiveChange = { active ->
+            isSearchActive = active
+            if (active) {
+                navController.navigate(Screens.SEARCHSCREEN.name)
+            }
+        },
         onChipToggled = { id ->
             when (selectedTab) {
                 BottomNavTab.TWITTER, BottomNavTab.ALL, BottomNavTab.MAP -> bookmarksViewModel.onTypeChipToggled(id)

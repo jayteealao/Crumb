@@ -26,13 +26,11 @@ import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
+import com.github.jayteealao.crumbs.designsystem.components.BookmarkActionsOverlay
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsBookmarkCard
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsButton
-import com.github.jayteealao.crumbs.designsystem.components.CrumbsLongPressPopup
 import com.github.jayteealao.crumbs.designsystem.components.EmptyState
 import com.github.jayteealao.crumbs.designsystem.components.LoadingCard
-import com.github.jayteealao.crumbs.designsystem.components.TagEditorDialog
-import com.github.jayteealao.crumbs.designsystem.components.bookmarkPopupActions
 import com.github.jayteealao.crumbs.designsystem.components.rememberLongPressState
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.models.Bookmark
@@ -217,53 +215,40 @@ fun TwitterBookmarksRoute(
         contentPadding = contentPadding,
     )
 
-    lps.bookmark?.let { bookmark ->
-        val bundle = bookmarkPopupActions(
-            onTag = {
-                Timber.d("Twitter long-press: TAG")
-                lps.showTagEditor = true
-            },
-            onOpen = {
-                Timber.d("Twitter long-press: OPEN")
-                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(bookmark.sourceUrl))
-                context.startActivity(intent)
-            },
-            onShare = {
-                Timber.d("Twitter long-press: SHARE")
-                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, bookmark.sourceUrl)
+    val activeBookmark = lps.bookmark
+    BookmarkActionsOverlay(
+        visible = activeBookmark != null,
+        bookmark = activeBookmark,
+        currentTags = (tagsMap[activeBookmark?.id] ?: emptyList()).toImmutableList(),
+        availableTags = allTags.toImmutableList(),
+        onDismiss = { lps.dismiss() },
+        onActionSelect = { action ->
+            val b = activeBookmark ?: return@BookmarkActionsOverlay
+            when (action.id) {
+                "open" -> {
+                    Timber.d("Twitter long-press: OPEN")
+                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(b.sourceUrl))
+                    context.startActivity(intent)
                 }
-                context.startActivity(Intent.createChooser(shareIntent, "Share tweet"))
-            },
-            onDelete = {
-                Timber.d("Twitter long-press: DELETE")
-                bookmarksViewModel.softDelete(bookmark.id)
-                lps.bookmark = null
-            },
-        )
-        CrumbsLongPressPopup(
-            visible = true,
-            onDismiss = { lps.bookmark = null },
-            anchorOffsetPx = lps.anchor,
-            actions = bundle.actions,
-            onSelect = bundle.onSelect,
-        )
-    }
-
-    if (lps.showTagEditor && lps.bookmark != null) {
-        val current = (tagsMap[lps.bookmark!!.id] ?: emptyList()).toImmutableList()
-        TagEditorDialog(
-            isVisible = lps.showTagEditor,
-            currentTags = current,
-            availableTags = allTags.toImmutableList(),
-            onDismiss = { lps.dismiss() },
-            onSave = { tags ->
-                bookmarksViewModel.saveTags(lps.bookmark!!.id, tags.toList())
-                lps.dismiss()
-            },
-        )
-    }
+                "share" -> {
+                    Timber.d("Twitter long-press: SHARE")
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, b.sourceUrl)
+                    }
+                    context.startActivity(Intent.createChooser(shareIntent, "Share tweet"))
+                }
+                "delete" -> {
+                    Timber.d("Twitter long-press: DELETE")
+                    bookmarksViewModel.softDelete(b.id)
+                }
+            }
+        },
+        onTagsSave = { tags ->
+            val b = activeBookmark ?: return@BookmarkActionsOverlay
+            bookmarksViewModel.saveTags(b.id, tags.toList())
+        },
+    )
 }
 
 /**

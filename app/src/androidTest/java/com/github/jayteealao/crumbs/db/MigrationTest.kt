@@ -9,6 +9,7 @@ import com.github.jayteealao.crumbs.db.MIGRATION_6_7
 import com.github.jayteealao.crumbs.db.MIGRATION_7_8
 import com.github.jayteealao.crumbs.db.MIGRATION_8_9
 import com.github.jayteealao.crumbs.db.MIGRATION_9_10
+import com.github.jayteealao.crumbs.db.MIGRATION_10_11
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -243,6 +244,89 @@ class MigrationTest {
         db.query("SELECT pending_delete FROM tweetEntity WHERE id = 'tweet-1'").use { cursor ->
             assertTrue("Seed row missing after 9→10 migration", cursor.moveToFirst())
             assertEquals(0, cursor.getInt(0))
+        }
+
+        db.close()
+    }
+
+    @Test
+    fun migrate10To11_createsFtsTablesAndIndexesExistingRows() {
+        // Seed v10 with one tweet and one reddit row whose text/title contain a
+        // distinctive token. The migration must (a) create both FTS shadow
+        // tables, (b) rebuild them so the seeded rows are searchable
+        // immediately, and (c) install the content-sync triggers so future
+        // INSERTs into the parent tables flow through.
+        helper.createDatabase(TEST_DB, 10).apply {
+            execSQL(
+                """
+                INSERT INTO tweetEntity
+                    (id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete)
+                VALUES
+                    ('tweet-1', 'jetpack compose brutalist redesign', '2026-05-23T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0)
+                """.trimIndent()
+            )
+            execSQL(
+                """
+                INSERT INTO reddit_posts
+                    (id, name, title, selftext, author, subreddit, subreddit_prefixed, created_utc, url, permalink, thumbnail, num_comments, score, is_self, is_video, domain, link_flair_text, gilded, over_18, `order`)
+                VALUES
+                    ('post-1', 't3_post-1', 'jetpack compose tips', 'thoughts on a brutalist UI', 'redditor', 'androiddev', 'r/androiddev', 1730000000, 'https://example.com', '/r/androiddev/post-1', NULL, 5, 12, 1, 0, 'self.androiddev', NULL, 0, 0, 1)
+                """.trimIndent()
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB,
+            11,
+            true,
+            MIGRATION_10_11,
+        )
+
+        // Both FTS virtual tables exist.
+        val expectedTables = setOf("tweet_fts", "reddit_fts")
+        val foundTables = mutableSetOf<String>()
+        db.query(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('tweet_fts', 'reddit_fts')"
+        ).use { cursor ->
+            while (cursor.moveToNext()) foundTables += cursor.getString(0)
+        }
+        assertEquals(
+            "Both FTS shadow tables should exist after 10→11 migration",
+            expectedTables,
+            foundTables,
+        )
+
+        // MATCH query against the seeded tweet row returns it.
+        db.query(
+            "SELECT t.id FROM tweetEntity t JOIN tweet_fts f ON t.rowid = f.rowid WHERE tweet_fts MATCH 'compose'"
+        ).use { cursor ->
+            assertTrue("Seeded tweet should match 'compose' after rebuild", cursor.moveToFirst())
+            assertEquals("tweet-1", cursor.getString(0))
+        }
+
+        // MATCH against reddit_fts spans both title + selftext columns.
+        db.query(
+            "SELECT r.id FROM reddit_posts r JOIN reddit_fts f ON r.rowid = f.rowid WHERE reddit_fts MATCH 'brutalist'"
+        ).use { cursor ->
+            assertTrue("Seeded reddit row should match 'brutalist' in selftext", cursor.moveToFirst())
+            assertEquals("post-1", cursor.getString(0))
+        }
+
+        // AFTER INSERT trigger keeps the FTS shadow live for new parent rows.
+        db.execSQL(
+            """
+            INSERT INTO tweetEntity
+                (id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete)
+            VALUES
+                ('tweet-2', 'fresh searchable content', '2026-05-23T01:00:00Z', 'u1', 'tweet-2', NULL, 'en', 0, 2, 0)
+            """.trimIndent()
+        )
+        db.query(
+            "SELECT t.id FROM tweetEntity t JOIN tweet_fts f ON t.rowid = f.rowid WHERE tweet_fts MATCH 'searchable'"
+        ).use { cursor ->
+            assertTrue("AFTER INSERT trigger should propagate to tweet_fts", cursor.moveToFirst())
+            assertEquals("tweet-2", cursor.getString(0))
         }
 
         db.close()

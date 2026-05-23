@@ -65,6 +65,7 @@ fun CrumbsBookmarkCard(
     isExpanded: Boolean = false,
     onConfirmDeletePending: ((String) -> Unit)? = null,
     onCancelDeletePending: ((String) -> Unit)? = null,
+    indexOverride: String? = null,
     modifier: Modifier = Modifier,
 ) {
     if (bookmark.pendingDelete) {
@@ -92,6 +93,7 @@ fun CrumbsBookmarkCard(
                 onCardClick = onCardClick,
                 onLongPress = onLongPress,
                 index = index,
+                indexOverride = indexOverride,
             )
         }
     } else {
@@ -100,6 +102,7 @@ fun CrumbsBookmarkCard(
             onCardClick = onCardClick,
             onLongPress = onLongPress,
             index = index,
+            indexOverride = indexOverride,
             modifier = modifier,
         )
     }
@@ -111,6 +114,7 @@ private fun BookmarkCardContent(
     onCardClick: (String) -> Unit,
     onLongPress: (Bookmark, Offset) -> Unit,
     index: Int,
+    indexOverride: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalCrumbsColors.current
@@ -163,8 +167,12 @@ private fun BookmarkCardContent(
             }
 
             // CrumbsIndexStrip header replaces the inline source/author/age row.
+            // `indexOverride` lets callers swap the default `%03d` numeral for a
+            // context-specific label such as `HIT/03` (search results) or
+            // `THREAD · 12 ↕` (thread root card). Default behavior preserved
+            // when null.
             CrumbsIndexStrip(
-                index = "%03d".format(index),
+                index = indexOverride ?: "%03d".format(index),
                 source = bookmark.source,
                 author = bookmark.author,
                 trailing = bookmark.savedAt.toRelativeTime(),

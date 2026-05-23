@@ -5,6 +5,7 @@ coroutinesTest = "1.10.2"
 roborazzi = "1.60.0"
 robolectric = "4.16"
 kotlinxCollectionsImmutable = "0.3.8"
+kotlinxSerialization = "1.7.3"
 accompanist = "0.22.0-rc"
 arrow = "1.1.4-alpha.10"
 lifecycle = "2.6.0-alpha01"
@@ -57,6 +58,7 @@ room-paging = {module = "androidx.room:room-paging", version.ref = "room"}
 room-testing = {module = "androidx.room:room-testing", version.ref = "room"}
 #kotlinx
 kotlinx-collections-immutable = { module = "org.jetbrains.kotlinx:kotlinx-collections-immutable", version.ref = "kotlinxCollectionsImmutable" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 #timber
 timber = {module = "com.jakewharton.timber:timber", version = "5.0.1"}
 #roborazzi

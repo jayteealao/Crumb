@@ -38,6 +38,7 @@ class RedditBookmarksScreenTest {
                     onCardClick = {},
                     onLongPress = { _, _ -> },
                     onLoadTags = {},
+                    onLoadTagsForIds = {},
                     onConnectClick = {},
                 )
             }
@@ -56,6 +57,7 @@ class RedditBookmarksScreenTest {
                     onCardClick = {},
                     onLongPress = { _, _ -> },
                     onLoadTags = {},
+                    onLoadTagsForIds = {},
                     onConnectClick = {},
                 )
             }

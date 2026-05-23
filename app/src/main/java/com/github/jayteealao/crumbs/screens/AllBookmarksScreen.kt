@@ -27,11 +27,9 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import com.github.jayteealao.crumbs.Screens
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsBookmarkCard
-import com.github.jayteealao.crumbs.designsystem.components.CrumbsLongPressPopup
 import com.github.jayteealao.crumbs.designsystem.components.EmptyState
 import com.github.jayteealao.crumbs.designsystem.components.LoadingCard
-import com.github.jayteealao.crumbs.designsystem.components.TagEditorDialog
-import com.github.jayteealao.crumbs.designsystem.components.bookmarkPopupActions
+import com.github.jayteealao.crumbs.designsystem.components.BookmarkActionsOverlay
 import com.github.jayteealao.crumbs.designsystem.components.rememberLongPressState
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
@@ -261,61 +259,48 @@ fun AllBookmarksRoute(
         contentPadding = contentPadding,
     )
 
-    lps.bookmark?.let { bookmark ->
-        val bundle = bookmarkPopupActions(
-            onTag = {
-                Timber.d("AllBookmarks long-press: TAG")
-                lps.showTagEditor = true
-            },
-            onOpen = {
-                Timber.d("AllBookmarks long-press: OPEN")
-                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(bookmark.sourceUrl))
-                context.startActivity(intent)
-            },
-            onShare = {
-                Timber.d("AllBookmarks long-press: SHARE")
-                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, bookmark.sourceUrl)
+    val activeBookmark = lps.bookmark
+    BookmarkActionsOverlay(
+        visible = activeBookmark != null,
+        bookmark = activeBookmark,
+        currentTags = (tagsMap[activeBookmark?.id] ?: emptyList()).toImmutableList(),
+        availableTags = allTags.toImmutableList(),
+        onDismiss = { lps.dismiss() },
+        onActionSelect = { action ->
+            val b = activeBookmark ?: return@BookmarkActionsOverlay
+            when (action.id) {
+                "open" -> {
+                    Timber.d("AllBookmarks long-press: OPEN")
+                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(b.sourceUrl))
+                    context.startActivity(intent)
                 }
-                context.startActivity(Intent.createChooser(shareIntent, "Share bookmark"))
-            },
-            onDelete = {
-                Timber.d("AllBookmarks long-press: DELETE")
-                when (bookmark.source) {
-                    BookmarkSource.Twitter -> bookmarksViewModel.softDelete(bookmark.id)
-                    BookmarkSource.Reddit -> redditViewModel.softDelete(bookmark.id)
+                "share" -> {
+                    Timber.d("AllBookmarks long-press: SHARE")
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, b.sourceUrl)
+                    }
+                    context.startActivity(Intent.createChooser(shareIntent, "Share bookmark"))
                 }
-                lps.bookmark = null
-            },
-        )
-        CrumbsLongPressPopup(
-            visible = true,
-            onDismiss = { lps.bookmark = null },
-            anchorOffsetPx = lps.anchor,
-            actions = bundle.actions,
-            onSelect = bundle.onSelect,
-        )
-    }
-
-    if (lps.showTagEditor && lps.bookmark != null) {
-        val current = (tagsMap[lps.bookmark!!.id] ?: emptyList()).toImmutableList()
-        TagEditorDialog(
-            isVisible = lps.showTagEditor,
-            currentTags = current,
-            availableTags = allTags.toImmutableList(),
-            onDismiss = { lps.dismiss() },
-            onSave = { tags ->
-                // Source-route the save so Reddit tags do not land in the
-                // Twitter cross-ref (whose FK to tweetEntity would crash).
-                when (lps.bookmark!!.source) {
-                    BookmarkSource.Twitter -> bookmarksViewModel.saveTags(lps.bookmark!!.id, tags.toList())
-                    BookmarkSource.Reddit -> redditViewModel.saveTags(lps.bookmark!!.id, tags.toList())
+                "delete" -> {
+                    Timber.d("AllBookmarks long-press: DELETE")
+                    when (b.source) {
+                        BookmarkSource.Twitter -> bookmarksViewModel.softDelete(b.id)
+                        BookmarkSource.Reddit -> redditViewModel.softDelete(b.id)
+                    }
                 }
-                lps.dismiss()
-            },
-        )
-    }
+            }
+        },
+        onTagsSave = { tags ->
+            // Source-route the save so Reddit tags do not land in the Twitter
+            // cross-ref (whose FK to tweetEntity would crash).
+            val b = activeBookmark ?: return@BookmarkActionsOverlay
+            when (b.source) {
+                BookmarkSource.Twitter -> bookmarksViewModel.saveTags(b.id, tags.toList())
+                BookmarkSource.Reddit -> redditViewModel.saveTags(b.id, tags.toList())
+            }
+        },
+    )
 }
 
 // `RedditPostData.toBookmark` lives in feature/reddit

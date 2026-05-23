@@ -21,11 +21,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import com.github.jayteealao.crumbs.designsystem.components.ButtonStyle
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsButton
+import com.github.jayteealao.crumbs.designsystem.layouts.OverlayShell
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsSpacing
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsTypography
 import com.github.jayteealao.twitter.data.dto.SyncStatus
 import java.text.SimpleDateFormat
@@ -48,13 +49,15 @@ fun SettingsScreen(
 ) {
     val colors = LocalCrumbsColors.current
     val typography = LocalCrumbsTypography.current
+    val spacing = LocalCrumbsSpacing.current
+    val stroke = LocalCrumbsStroke.current
     var showConfirm by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(colors.surface)
-            .padding(horizontal = 24.dp, vertical = 24.dp)
+            .background(colors.background)
+            .padding(horizontal = spacing.xl, vertical = spacing.xl)
             .testTag("settings-screen"),
         horizontalAlignment = Alignment.Start,
         verticalArrangement = Arrangement.Top,
@@ -64,7 +67,7 @@ fun SettingsScreen(
             style = typography.displaySmall,
             color = colors.ink,
         )
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(spacing.xl))
 
         // ── X sync-status row ──────────────────────────────────────────────
         Text(
@@ -73,14 +76,14 @@ fun SettingsScreen(
             color = colors.ink,
             modifier = Modifier.testTag("settings-x-kicker"),
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(spacing.xs))
         Text(
             text = if (syncStatus?.linked == true) "CONNECTED" else "DISCONNECTED",
             style = typography.bodyMono,
             color = if (syncStatus?.linked == true) colors.success else colors.error,
             modifier = Modifier.testTag("settings-x-state"),
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(spacing.xs))
         Text(
             text = "Last polled: ${formatTimestamp(syncStatus?.lastPolledAt?.toDate())}",
             style = typography.metaMono,
@@ -89,7 +92,7 @@ fun SettingsScreen(
         )
         val err = syncStatus?.lastError
         if (!err.isNullOrBlank()) {
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(spacing.xs))
             Text(
                 text = "ERROR · ${err.uppercase()}",
                 style = typography.captionMono,
@@ -97,7 +100,7 @@ fun SettingsScreen(
                 modifier = Modifier.testTag("settings-x-error"),
             )
         }
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(spacing.lg))
         CrumbsButton(
             onClick = { showConfirm = true },
             text = "DISCONNECT X",
@@ -106,13 +109,16 @@ fun SettingsScreen(
         )
     }
 
-    if (showConfirm) {
-        Dialog(onDismissRequest = { showConfirm = false }) {
+    OverlayShell(
+        visible = showConfirm,
+        onDismiss = { showConfirm = false },
+        modifier = Modifier.testTag("settings-disconnect-overlay"),
+        body = {
             Column(
                 modifier = Modifier
                     .background(colors.surface)
-                    .border(BorderStroke(2.dp, colors.ink))
-                    .padding(20.dp)
+                    .border(BorderStroke(stroke.regular, colors.ink))
+                    .padding(spacing.xl)
                     .testTag("settings-disconnect-confirm-dialog"),
             ) {
                 Text(
@@ -120,13 +126,13 @@ fun SettingsScreen(
                     style = typography.displaySmall,
                     color = colors.ink,
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(spacing.sm))
                 Text(
                     text = "Your bookmarks stay on this device.",
                     style = typography.bodyMono,
                     color = colors.onSurfaceVariant,
                 )
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(spacing.xl))
                 Row(modifier = Modifier.fillMaxWidth()) {
                     CrumbsButton(
                         onClick = { showConfirm = false },
@@ -136,7 +142,7 @@ fun SettingsScreen(
                             .weight(1f)
                             .testTag("settings-disconnect-confirm-cancel"),
                     )
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(spacing.md))
                     CrumbsButton(
                         onClick = {
                             showConfirm = false
@@ -150,8 +156,8 @@ fun SettingsScreen(
                     )
                 }
             }
-        }
-    }
+        },
+    )
 }
 
 private val timestampFormat: SimpleDateFormat by lazy {

@@ -204,6 +204,82 @@ val MIGRATION_9_10: Migration = object : Migration(9, 10) {
     }
 }
 
+/**
+ * v10 → v11: add `tweet_fts` and `reddit_fts` virtual tables (FTS4, unicode61
+ * tokenizer) backed by `tweetEntity.text` and `reddit_posts.title` +
+ * `reddit_posts.selftext`. The content-sync triggers mirror what Room's
+ * generated `createAllTables` would emit on a fresh install — they keep the
+ * FTS shadow tables aligned with the parent rows on every INSERT/UPDATE/DELETE
+ * (Room only writes those triggers at fresh-DB creation time, so a migration
+ * has to author them itself). The closing `INSERT INTO <fts>(<fts>) VALUES
+ * ('rebuild')` repopulates the indices from the existing parent rows in one
+ * pass; subsequent writes ride the triggers.
+ *
+ * The FTS row identifier is SQLite's implicit `rowid` on the parent table, not
+ * the entities' String PK — `@Fts4(contentEntity = ...)` relies on this
+ * linkage. DAO joins use `JOIN <fts> ON parent.rowid = <fts>.rowid`.
+ */
+val MIGRATION_10_11: Migration = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // tweet_fts — single `text` column from tweetEntity.text
+        db.execSQL(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS `tweet_fts` USING FTS4(" +
+                "`text` TEXT NOT NULL, content=`tweetEntity`, tokenize=unicode61)"
+        )
+        db.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_tweet_fts_BEFORE_UPDATE` " +
+                "BEFORE UPDATE ON `tweetEntity` " +
+                "BEGIN DELETE FROM `tweet_fts` WHERE `docid`=OLD.`rowid`; END"
+        )
+        db.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_tweet_fts_BEFORE_DELETE` " +
+                "BEFORE DELETE ON `tweetEntity` " +
+                "BEGIN DELETE FROM `tweet_fts` WHERE `docid`=OLD.`rowid`; END"
+        )
+        db.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_tweet_fts_AFTER_UPDATE` " +
+                "AFTER UPDATE ON `tweetEntity` " +
+                "BEGIN INSERT INTO `tweet_fts`(`docid`, `text`) VALUES (NEW.`rowid`, NEW.`text`); END"
+        )
+        db.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_tweet_fts_AFTER_INSERT` " +
+                "AFTER INSERT ON `tweetEntity` " +
+                "BEGIN INSERT INTO `tweet_fts`(`docid`, `text`) VALUES (NEW.`rowid`, NEW.`text`); END"
+        )
+        db.execSQL("INSERT INTO `tweet_fts`(`tweet_fts`) VALUES('rebuild')")
+
+        // reddit_fts — `title` + `selftext` columns from reddit_posts
+        db.execSQL(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS `reddit_fts` USING FTS4(" +
+                "`title` TEXT NOT NULL, `selftext` TEXT NOT NULL, " +
+                "content=`reddit_posts`, tokenize=unicode61)"
+        )
+        db.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_reddit_fts_BEFORE_UPDATE` " +
+                "BEFORE UPDATE ON `reddit_posts` " +
+                "BEGIN DELETE FROM `reddit_fts` WHERE `docid`=OLD.`rowid`; END"
+        )
+        db.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_reddit_fts_BEFORE_DELETE` " +
+                "BEFORE DELETE ON `reddit_posts` " +
+                "BEGIN DELETE FROM `reddit_fts` WHERE `docid`=OLD.`rowid`; END"
+        )
+        db.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_reddit_fts_AFTER_UPDATE` " +
+                "AFTER UPDATE ON `reddit_posts` " +
+                "BEGIN INSERT INTO `reddit_fts`(`docid`, `title`, `selftext`) " +
+                "VALUES (NEW.`rowid`, NEW.`title`, NEW.`selftext`); END"
+        )
+        db.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_reddit_fts_AFTER_INSERT` " +
+                "AFTER INSERT ON `reddit_posts` " +
+                "BEGIN INSERT INTO `reddit_fts`(`docid`, `title`, `selftext`) " +
+                "VALUES (NEW.`rowid`, NEW.`title`, NEW.`selftext`); END"
+        )
+        db.execSQL("INSERT INTO `reddit_fts`(`reddit_fts`) VALUES('rebuild')")
+    }
+}
+
 /** Full list registered by the DI module's `addMigrations(*ALL_MIGRATIONS)`. */
 val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_2_3,
@@ -214,4 +290,5 @@ val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_7_8,
     MIGRATION_8_9,
     MIGRATION_9_10,
+    MIGRATION_10_11,
 )

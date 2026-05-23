@@ -5,6 +5,8 @@ import androidx.room.Room
 import com.github.jayteealao.crumbs.data.DeletedBookmarkDao
 import com.github.jayteealao.crumbs.db.ALL_MIGRATIONS
 import com.github.jayteealao.crumbs.db.AppDatabase
+import com.github.jayteealao.crumbs.db.RedditFtsDao
+import com.github.jayteealao.crumbs.db.TweetFtsDao
 import com.github.jayteealao.reddit.data.RedditDao
 import com.github.jayteealao.twitter.data.TweetDao
 import dagger.Module
@@ -41,4 +43,12 @@ class DatabaseModule {
     @Singleton
     @Provides
     fun providesDeletedBookmarkDao(appDatabase: AppDatabase): DeletedBookmarkDao = appDatabase.deletedBookmarkDao()
+
+    @Singleton
+    @Provides
+    fun providesTweetFtsDao(appDatabase: AppDatabase): TweetFtsDao = appDatabase.tweetFtsDao()
+
+    @Singleton
+    @Provides
+    fun providesRedditFtsDao(appDatabase: AppDatabase): RedditFtsDao = appDatabase.redditFtsDao()
 }

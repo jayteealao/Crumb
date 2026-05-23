@@ -17,8 +17,10 @@ import androidx.navigation.navDeepLink
 import com.github.jayteealao.crumbs.screens.ConnectXRoute
 import com.github.jayteealao.crumbs.screens.HomeRoute
 import com.github.jayteealao.crumbs.screens.OnboardingRoute
+import com.github.jayteealao.crumbs.screens.SearchRoute
 import com.github.jayteealao.crumbs.screens.SettingsRoute
 import com.github.jayteealao.crumbs.screens.SplashRoute
+import com.github.jayteealao.crumbs.screens.ThreadDetailRoute
 import com.github.jayteealao.crumbs.screens.login.LoginRoute
 import com.github.jayteealao.twitter.oauth.TwitterOAuthCoordinator
 import com.github.jayteealao.twitter.screens.BookmarksViewModel
@@ -102,6 +104,22 @@ fun CrumbsNavHost(
                 loginViewModel = loginViewModel,
             )
         }
+
+        composable(Screens.SEARCHSCREEN.name) {
+            SearchRoute(navController = navController)
+        }
+
+        composable(
+            "${Screens.THREADDETAIL.name}?bookmarkId={bookmarkId}",
+            arguments = listOf(
+                navArgument("bookmarkId") {
+                    type = NavType.StringType
+                    nullable = true
+                },
+            ),
+        ) {
+            ThreadDetailRoute(navController = navController)
+        }
     }
 }
 
@@ -111,6 +129,8 @@ enum class Screens {
     LOGINSCREEN,
     CONNECTX,
     SETTINGS,
+    SEARCHSCREEN,
+    THREADDETAIL,
     HOMESCREEN {
         override fun screenRoute(refreshed: Boolean) = "${this.name}/$refreshed"
     };

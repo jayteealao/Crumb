@@ -1,0 +1,57 @@
+# Thread-detail happy path — splash → home → ALL tab → tap into a bookmark
+# card → confirm thread-detail screen → close back to feed.
+#
+# The seed action does not guarantee a thread-bearing TweetEntity yet; this
+# flow is tolerant of either reaching ThreadDetailScreen (via a thread card
+# tap) or hitting the source-URL Custom Tabs path (non-thread card → no
+# thread-detail). The "ThreadDetail reachable" half is gated by `optional:`.
+appId: com.github.jayteealao.crumbs
+---
+- launchApp:
+    arguments:
+      debug_action: "seed"
+      wipe: true
+- extendedWaitUntil:
+    visible:
+      id: "splash-screen"
+    timeout: 5000
+- runFlow:
+    when:
+      visible:
+        id: "login-screen"
+    commands:
+      - tapOn:
+          id: "login-skip-auth"
+- extendedWaitUntil:
+    visible:
+      id: "home-screen"
+    timeout: 10000
+
+# --- Walk to the ALL feed where threaded items surface ---
+- tapOn:
+    id: "nav-tab-all"
+- extendedWaitUntil:
+    visible:
+      id: "all-bookmarks-feed"
+    timeout: 5000
+
+# --- Tap the first bookmark card. Threaded cards open ThreadDetailScreen;
+#     non-threaded cards launch the source URL via Custom Tabs.
+- tapOn:
+    id: "bookmark-card"
+    index: 0
+
+# --- Optional thread-detail half of the round-trip ---
+- runFlow:
+    when:
+      visible:
+        id: "thread-detail-screen"
+    commands:
+      - assertVisible:
+          id: "thread-root-card"
+      - tapOn:
+          id: "top-bar-trailing"
+      - extendedWaitUntil:
+          visible:
+            id: "all-bookmarks-feed"
+          timeout: 5000

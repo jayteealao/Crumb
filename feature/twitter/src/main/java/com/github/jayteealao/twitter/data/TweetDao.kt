@@ -19,6 +19,7 @@ import com.github.jayteealao.twitter.models.TweetReferencedTweets
 import com.github.jayteealao.twitter.models.TweetTagCrossRef
 import com.github.jayteealao.twitter.models.TweetTextEntityAnnotation
 import com.github.jayteealao.twitter.models.TwitterUserEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface TweetDao {
@@ -131,6 +132,44 @@ interface TweetDao {
 
     @Query("SELECT * FROM tweetEntity WHERE referenced = false ORDER BY `order` DESC LIMIT 1")
     fun getLatestBookmark(): TweetEntity?
+
+    /**
+     * Single-bookmark fetch used by ThreadDetail navigation. Returns the full
+     * [TweetData] aggregate so the caller can render the root card without a
+     * second author/media round trip. Tombstoned and referenced rows are
+     * excluded — opening a thread for a deleted bookmark falls through to a
+     * caller-side empty state.
+     */
+    @Transaction
+    @Query(
+        """
+        SELECT t.* FROM tweetEntity t
+        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
+        WHERE t.id = :id
+          AND t.referenced = 0
+          AND d.bookmarkId IS NULL
+        LIMIT 1
+        """
+    )
+    suspend fun getTweetById(id: String): TweetData?
+
+    /**
+     * All bookmarked tweets sharing the given Twitter conversation id, ordered
+     * chronologically. Backs the ThreadDetail reply rendering — the root is
+     * filtered out at the VM layer (the conversation includes the root tweet
+     * by definition). Tombstone-aware so deleted replies do not surface.
+     */
+    @Transaction
+    @Query(
+        """
+        SELECT t.* FROM tweetEntity t
+        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
+        WHERE t.conversation_id = :conversationId
+          AND d.bookmarkId IS NULL
+        ORDER BY t.created_at ASC
+        """
+    )
+    fun tweetsByConversationId(conversationId: String): Flow<List<TweetData>>
 
     @Query("SELECT id FROM tweetEntity WHERE referenced = false")
     suspend fun getAllTweetIds(): List<String>

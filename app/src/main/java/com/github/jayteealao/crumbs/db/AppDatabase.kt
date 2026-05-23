@@ -38,12 +38,16 @@ import com.github.jayteealao.twitter.models.TwitterUserEntity
         RedditPostEntity::class,
         RedditTagCrossRef::class,
         DeletedBookmark::class,
+        TweetFts::class,
+        RedditFts::class,
     ],
-    version = 10,
+    version = 11,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun tweetDao(): TweetDao
     abstract fun redditDao(): RedditDao
     abstract fun deletedBookmarkDao(): DeletedBookmarkDao
+    abstract fun tweetFtsDao(): TweetFtsDao
+    abstract fun redditFtsDao(): RedditFtsDao
 }

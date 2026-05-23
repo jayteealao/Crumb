@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import com.github.jayteealao.crumbs.designsystem.components.ButtonStyle
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsButton
+import com.github.jayteealao.crumbs.designsystem.components.HatchedScrim
 import com.github.jayteealao.crumbs.designsystem.components.ProfileSize
 import com.github.jayteealao.crumbs.designsystem.components.UserProfile
 import com.github.jayteealao.crumbs.designsystem.components.UserProfileDisplay
@@ -262,12 +263,18 @@ private fun EmailPasswordSignInDialog(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.6f))
             // Tap-outside-to-dismiss; matches the brutalist no-chrome aesthetic.
             .clickable(onClick = onDismiss)
             .testTag("login-email-dialog-scrim"),
         contentAlignment = Alignment.Center,
     ) {
+        // Hatched-scrim brush replaces the plain alpha-60 black backdrop so
+        // the email-dialog backdrop matches the rest of the design system
+        // (OverlayShell + filter overlay both use the same 32% alpha hatch).
+        HatchedScrim(
+            modifier = Modifier.fillMaxSize(),
+            baseAlpha = 0.32f,
+        )
         Column(
             modifier = Modifier
                 .fillMaxWidth(0.86f)
