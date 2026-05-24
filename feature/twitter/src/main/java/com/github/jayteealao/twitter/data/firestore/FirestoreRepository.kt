@@ -157,8 +157,8 @@ class FirestoreRepository @Inject constructor(
                 Timber.d("getAllTweetIdsWithCreatedAt: ${result.size} ids in $docsRead docs (page-hops=$safetyHops)")
                 result
             } catch (e: Exception) {
-                Timber.e(e, "Error fetching tweet IDs+createdAt from Firestore")
-                emptyList()
+                Timber.tag("IncrementalSync").e(e, "incremental_sync_failed reason=fetch_ids exception=${e.javaClass.simpleName}")
+                throw e
             }
         }
 
@@ -337,7 +337,12 @@ class FirestoreRepository @Inject constructor(
                         tweetPublicMetrics = metrics[tweetId]?.toTweetPublicMetrics()
                             ?: com.github.jayteealao.twitter.models.tweetPublicMetrics().copy(tweetId = tweetId),
                         tweetMediaEntity = media[tweetId]?.map { it.toTweetMediaEntity() } ?: emptyList(),
-                        tweetIncludesEntity = includes[tweetId]?.map { it.toTweetIncludesEntity() } ?: emptyList(),
+                        // Firestore-side `includes` rows carry mention/reply/quoted-tweet user ids that
+                        // are not in this tweet's per-row TwitterUserEntity batch (which only contains
+                        // the author). Persisting them trips the TweetIncludesEntity → twitterUser /
+                        // tweetEntity / tweetMedia foreign keys and rolls back the whole batch insert.
+                        // The UI never reads TweetData.includes; drop the rows here.
+                        tweetIncludesEntity = emptyList(),
                         tweetReferencedTweets = emptyList(),
                         tweetContextAnnotationEntity = emptyList(),
                         tweetTextEntity = textAnnotations[tweetId]?.map { it.toTweetTextEntityAnnotation() } ?: emptyList(),
