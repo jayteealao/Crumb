@@ -5,7 +5,7 @@ coroutinesTest = "1.10.2"
 roborazzi = "1.60.0"
 robolectric = "4.16"
 kotlinxCollectionsImmutable = "0.3.8"
-kotlinxSerialization = "1.7.3"
+kotlinxSerialization = "1.8.1"
 accompanist = "0.22.0-rc"
 arrow = "1.1.4-alpha.10"
 lifecycle = "2.6.0-alpha01"
@@ -19,7 +19,7 @@ hilt = "2.59.2"
 coil = "2.5.0"
 coilTransformations = "2.0.2"
 media3 = "1.2.0"
-work = "2.10.0"
+work = "2.11.2"
 
 [libraries]
 #compose BOM (governs all androidx.compose.* artifacts below)

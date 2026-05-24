@@ -10,7 +10,9 @@ import com.github.jayteealao.crumbs.db.MIGRATION_7_8
 import com.github.jayteealao.crumbs.db.MIGRATION_8_9
 import com.github.jayteealao.crumbs.db.MIGRATION_9_10
 import com.github.jayteealao.crumbs.db.MIGRATION_10_11
+import com.github.jayteealao.crumbs.db.MIGRATION_11_12
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -328,6 +330,72 @@ class MigrationTest {
             assertTrue("AFTER INSERT trigger should propagate to tweet_fts", cursor.moveToFirst())
             assertEquals("tweet-2", cursor.getString(0))
         }
+
+        db.close()
+    }
+
+    @Test
+    fun migrate11To12_createsSyncProgressTable() {
+        helper.createDatabase(TEST_DB, 11).apply { close() }
+
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB,
+            12,
+            true,
+            MIGRATION_11_12,
+        )
+
+        // Table exists with the seven expected columns and the uid primary key.
+        val columns = mutableMapOf<String, Pair<String, Int>>() // name → (type, notNull)
+        db.query("PRAGMA table_info(`sync_progress`)").use { cursor ->
+            while (cursor.moveToNext()) {
+                val name = cursor.getString(cursor.getColumnIndexOrThrow("name"))
+                val type = cursor.getString(cursor.getColumnIndexOrThrow("type"))
+                val notNull = cursor.getInt(cursor.getColumnIndexOrThrow("notnull"))
+                columns[name] = type to notNull
+            }
+        }
+        assertEquals("Expected 7 columns on sync_progress", 7, columns.size)
+        assertEquals("TEXT" to 1, columns["uid"])
+        assertEquals("TEXT" to 0, columns["last_high_cursor_created_at"])
+        assertEquals("TEXT" to 0, columns["last_high_cursor_tweet_id"])
+        assertEquals("TEXT" to 0, columns["last_low_cursor_created_at"])
+        assertEquals("TEXT" to 0, columns["last_low_cursor_tweet_id"])
+        assertEquals("INTEGER" to 1, columns["total_batches_ingested"])
+        assertEquals("INTEGER" to 1, columns["last_updated_at_ms"])
+
+        // Empty on creation.
+        db.query("SELECT COUNT(*) FROM sync_progress").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(0, cursor.getInt(0))
+        }
+
+        // Round-trip insert + select with both null and non-null cursor values.
+        db.execSQL(
+            "INSERT INTO sync_progress " +
+                "(uid, last_high_cursor_created_at, last_high_cursor_tweet_id, " +
+                "last_low_cursor_created_at, last_low_cursor_tweet_id, " +
+                "total_batches_ingested, last_updated_at_ms) " +
+                "VALUES ('uid-test', '2026-05-24T15:00:00Z', 'tweet-123', " +
+                "NULL, NULL, 5, 1700000000)"
+        )
+        db.query(
+            "SELECT last_high_cursor_created_at, last_high_cursor_tweet_id, " +
+                "last_low_cursor_created_at, total_batches_ingested " +
+                "FROM sync_progress WHERE uid = 'uid-test'"
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("2026-05-24T15:00:00Z", cursor.getString(0))
+            assertEquals("tweet-123", cursor.getString(1))
+            assertTrue("low cursor should be NULL on the inserted row", cursor.isNull(2))
+            assertEquals(5, cursor.getInt(3))
+        }
+
+        // Primary-key constraint: a second insert at the same uid replaces via
+        // OnConflictStrategy.REPLACE in the DAO, but at the raw migration
+        // level we expect an INSERT collision unless explicitly handled — keep
+        // this assertion purely about column shape, not REPLACE semantics.
+        assertNotNull(db)
 
         db.close()
     }

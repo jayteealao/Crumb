@@ -4,6 +4,8 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.github.jayteealao.crumbs.data.DeletedBookmark
 import com.github.jayteealao.crumbs.data.DeletedBookmarkDao
+import com.github.jayteealao.crumbs.data.SyncProgress
+import com.github.jayteealao.crumbs.data.SyncProgressDao
 import com.github.jayteealao.reddit.data.RedditDao
 import com.github.jayteealao.reddit.models.RedditPostEntity
 import com.github.jayteealao.reddit.models.RedditTagCrossRef
@@ -40,8 +42,9 @@ import com.github.jayteealao.twitter.models.TwitterUserEntity
         DeletedBookmark::class,
         TweetFts::class,
         RedditFts::class,
+        SyncProgress::class,
     ],
-    version = 11,
+    version = 12,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -50,4 +53,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun deletedBookmarkDao(): DeletedBookmarkDao
     abstract fun tweetFtsDao(): TweetFtsDao
     abstract fun redditFtsDao(): RedditFtsDao
+    abstract fun syncProgressDao(): SyncProgressDao
 }

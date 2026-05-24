@@ -26,6 +26,8 @@ object DebugIntentHandler {
     private const val ACTION_SEED_SYNC_STATUS = "seed_sync_status"
     private const val ACTION_SEED_PENDING_DELETE = "seed_pending_delete"
     private const val ACTION_SEED_LEGACY_X_TOKENS = "seed_legacy_x_tokens"
+    private const val ACTION_SEED_INCREMENTAL_SYNC_CORPUS = "seed_incremental_sync_corpus"
+    private const val ACTION_SEED_PARTIAL_SYNC_PROGRESS = "seed_partial_sync_progress"
 
     @JvmStatic
     fun handleIntent(activity: ComponentActivity, intent: Intent?) {
@@ -68,6 +70,20 @@ object DebugIntentHandler {
                 activity.lifecycleScope.launch {
                     runCatching { injector.seedLegacyXTokens() }
                         .onFailure { Timber.e(it, "DebugDataInjector.seedLegacyXTokens failed") }
+                }
+            }
+            ACTION_SEED_INCREMENTAL_SYNC_CORPUS -> {
+                val tweetCount = intent.getStringExtra("tweet_count")?.toIntOrNull() ?: 75
+                activity.lifecycleScope.launch {
+                    runCatching { injector.seedIncrementalSyncCorpus(tweetCount) }
+                        .onFailure { Timber.e(it, "DebugDataInjector.seedIncrementalSyncCorpus failed") }
+                }
+            }
+            ACTION_SEED_PARTIAL_SYNC_PROGRESS -> {
+                val batchK = intent.getStringExtra("batch_k")?.toIntOrNull() ?: 3
+                activity.lifecycleScope.launch {
+                    runCatching { injector.seedPartialSyncProgress(batchK) }
+                        .onFailure { Timber.e(it, "DebugDataInjector.seedPartialSyncProgress failed") }
                 }
             }
             else -> Timber.w("DebugIntentHandler: unknown debug_action=%s", action)

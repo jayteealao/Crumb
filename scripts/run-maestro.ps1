@@ -44,7 +44,9 @@ $flows = @(
     "maestro\filter_overlay.yaml",
     "maestro\sync_error.yaml",
     "maestro\search_screen.yaml",
-    "maestro\thread_detail.yaml"
+    "maestro\thread_detail.yaml",
+    "maestro\incremental_sync_visibility.yaml",
+    "maestro\incremental_sync_resume.yaml"
 )
 & maestro test @flows
 $maestroExit = $LASTEXITCODE

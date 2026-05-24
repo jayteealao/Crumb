@@ -3,11 +3,13 @@ package com.github.jayteealao.crumbs.auth
 import android.content.Context
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
+import com.github.jayteealao.twitter.data.TwitterSyncEnqueuer
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.GoogleAuthProvider
+import dagger.Lazy
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -21,6 +23,9 @@ import timber.log.Timber
 class FirebaseAuthGateway @Inject constructor(
     private val auth: FirebaseAuth,
     @ApplicationContext private val appContext: Context,
+    // Lazy because TwitterSyncEnqueuerImpl injects AuthGateway — without
+    // Lazy this would be a circular construction cycle at Hilt graph init.
+    private val twitterSyncEnqueuer: Lazy<TwitterSyncEnqueuer>,
 ) : AuthGateway {
 
     // AuthStateListener is registered for the process lifetime. The gateway is
@@ -30,7 +35,17 @@ class FirebaseAuthGateway @Inject constructor(
 
     init {
         auth.addAuthStateListener { fa ->
-            _currentUser.value = fa.currentUser?.toCurrentUser()
+            val prior = _currentUser.value?.uid
+            val next = fa.currentUser?.toCurrentUser()
+            _currentUser.value = next
+            // Fresh sign-in (null→uid or uid swap) kicks off the cold-start
+            // sync. WorkManager's KEEP policy makes redundant enqueues a no-op,
+            // so this is safe even on initial restore.
+            val nextUid = next?.uid
+            if (!nextUid.isNullOrEmpty() && nextUid != prior) {
+                runCatching { twitterSyncEnqueuer.get().enqueueColdStart() }
+                    .onFailure { Timber.w(it, "sign-in sync enqueue failed") }
+            }
         }
     }
 

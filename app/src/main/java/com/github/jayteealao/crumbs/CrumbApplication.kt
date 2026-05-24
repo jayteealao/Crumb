@@ -1,6 +1,8 @@
 package com.github.jayteealao.crumbs
 
 import android.app.Application
+import androidx.core.app.NotificationChannelCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
@@ -12,6 +14,9 @@ import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import coil.request.CachePolicy
 import com.github.jayteealao.crumbs.migration.XTokenMigrationWorker
+import com.github.jayteealao.crumbs.sync.SyncEntryPoint
+import com.github.jayteealao.crumbs.sync.TwitterSyncWorker
+import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.HiltAndroidApp
 import timber.log.Timber
 
@@ -20,6 +25,8 @@ class CrumbApplication : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         Timber.plant(Timber.DebugTree())
+
+        registerSyncNotificationChannel()
 
         // One-shot upload-and-clear of the legacy X refresh token. KEEP policy
         // + the worker's internal idempotency flag ensure this is a true
@@ -41,6 +48,35 @@ class CrumbApplication : Application(), ImageLoaderFactory {
         } catch (e: IllegalStateException) {
             Timber.w(e, "WorkManager not initialized; skipping migration enqueue")
         }
+
+        // Cold-start Twitter bookmark sync. Gated on the user already being
+        // signed in (a fresh sign-in fires its own enqueue via the auth
+        // gateway). KEEP policy coalesces against any worker still alive from
+        // a prior process; the worker promotes itself to a foreground service
+        // so a large backlog drain survives backgrounding.
+        try {
+            val sync = EntryPointAccessors.fromApplication(this, SyncEntryPoint::class.java)
+            sync.authGateway().currentUser.value?.uid?.let { uid ->
+                WorkManager.getInstance(this).enqueueUniqueWork(
+                    TwitterSyncWorker.uniqueName(uid),
+                    ExistingWorkPolicy.KEEP,
+                    TwitterSyncWorker.buildRequest(uid, runAsForegroundService = true),
+                )
+            }
+        } catch (e: Exception) {
+            Timber.w(e, "TwitterSyncWorker initial enqueue failed (likely Robolectric or pre-auth)")
+        }
+    }
+
+    private fun registerSyncNotificationChannel() {
+        val channel = NotificationChannelCompat.Builder(
+            TwitterSyncWorker.NOTIFICATION_CHANNEL_ID,
+            NotificationManagerCompat.IMPORTANCE_LOW,
+        )
+            .setName("Bookmark sync")
+            .setDescription("Progress while syncing your X bookmarks")
+            .build()
+        NotificationManagerCompat.from(this).createNotificationChannel(channel)
     }
 
     // Project-wide Coil singleton. Crossfade smooths the placeholder→image

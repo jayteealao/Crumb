@@ -9,8 +9,10 @@ import com.github.jayteealao.reddit.models.RedditPostEntity
 import com.github.jayteealao.twitter.data.Prefs
 import com.github.jayteealao.twitter.data.SyncStatusRepository
 import com.github.jayteealao.twitter.data.dto.SyncStatus
+import com.github.jayteealao.crumbs.data.SyncProgress
 import com.github.jayteealao.twitter.models.TagEntity
 import com.github.jayteealao.twitter.models.TweetEntity
+import com.github.jayteealao.twitter.models.TweetPublicMetrics
 import com.github.jayteealao.twitter.models.TweetTagCrossRef
 import com.github.jayteealao.twitter.models.TwitterUserEntity
 import com.github.jayteealao.crumbs.migration.MigrationKeys
@@ -311,5 +313,80 @@ class DebugDataInjector @Inject constructor(
         ).forEach { dao.insertTag(it) }
         dao.insertTweetTag(TweetTagCrossRef("debug-tweet-1", "design"))
         dao.insertTweetTag(TweetTagCrossRef("debug-tweet-2", "tech"))
+    }
+
+    /**
+     * Hydrate a synthetic local corpus of `tweetCount` tweets with monotonically
+     * decreasing `createdAt` values so the `incremental_sync_visibility.yaml`
+     * Maestro flow can assert that the newest cards paint quickly. The operator
+     * Firestore is the source-of-truth in production verify runs; this helper
+     * exists so the flow can run as a smoke check without a live Firestore.
+     */
+    suspend fun seedIncrementalSyncCorpus(tweetCount: Int) = withContext(Dispatchers.IO) {
+        val tweetDao = db.tweetDao()
+        val baseEpochMs = System.currentTimeMillis()
+        val author = TwitterUserEntity(
+            id = "debug-author-incremental",
+            name = "Crumbs Incremental Sync Tester",
+            username = "crumbs_incremental",
+            profileImageUrl = "https://example.com/avatar.png",
+            verified = false,
+            verifiedType = null,
+            description = null,
+            mentionedIn = null,
+        )
+        tweetDao.insertTwitterUser(author)
+        var order = (tweetDao.getMaxOrder() ?: 1000) + 1
+        repeat(tweetCount) { idx ->
+            // 60s apart so the lexicographic ISO-8601 sort is unambiguous; the
+            // first tweet (idx=0) is the newest.
+            val createdAt = java.time.Instant.ofEpochMilli(baseEpochMs - (idx * 60_000L)).toString()
+            val tweetId = "debug-incremental-${"%04d".format(idx)}"
+            val tweet = TweetEntity(
+                id = tweetId,
+                text = "Brutalist sync seed #$idx — synthetic for AC2 visibility flow.",
+                createdAt = createdAt,
+                authorId = author.id,
+                conversationId = tweetId,
+                inReplyToUserId = null,
+                lang = "en",
+                referenced = false,
+                order = order++,
+                pendingDelete = false,
+            )
+            val metrics = TweetPublicMetrics(
+                retweetCount = 0,
+                replyCount = 0,
+                likeCount = 0,
+                quoteCount = 0,
+                viewCount = 0,
+                tweetId = tweetId,
+            )
+            tweetDao.insertTweet(tweet)
+            tweetDao.insertTweetPublicMetrics(metrics)
+        }
+    }
+
+    /**
+     * Pre-seed a `sync_progress` row at batch K so the
+     * `incremental_sync_resume.yaml` Maestro flow can assert that the next
+     * worker invocation reports `resumed_from_cursor batchIdx=K` (visible in
+     * the lazylogcat capture) instead of starting from zero.
+     */
+    suspend fun seedPartialSyncProgress(batchK: Int) = withContext(Dispatchers.IO) {
+        val uid = "debug-user-twitter"
+        val nowMs = System.currentTimeMillis()
+        val cursorCreatedAt = java.time.Instant.ofEpochMilli(nowMs - (batchK * 30L * 60_000L)).toString()
+        db.syncProgressDao().upsert(
+            SyncProgress(
+                uid = uid,
+                lastHighCursorCreatedAt = cursorCreatedAt,
+                lastHighCursorTweetId = "debug-cursor-tweet",
+                lastLowCursorCreatedAt = cursorCreatedAt,
+                lastLowCursorTweetId = "debug-cursor-tweet",
+                totalBatchesIngested = batchK,
+                lastUpdatedAtMs = nowMs,
+            )
+        )
     }
 }

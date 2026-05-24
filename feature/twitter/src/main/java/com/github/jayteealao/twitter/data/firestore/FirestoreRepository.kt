@@ -13,6 +13,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -111,6 +114,97 @@ class FirestoreRepository @Inject constructor(
             emptySet()
         }
     }
+
+    /**
+     * Sibling of [getAllTweetIds] that lifts each doc's `createdAt` alongside the
+     * tweet id, so the orchestrator can sort missing ids by `createdAt DESC`
+     * before chunking — newest tweets land in Room first and the Twitter tab
+     * paints within seconds of sign-in instead of waiting for the whole drain.
+     *
+     * Orders by `createdAt DESC, __name__ ASC` so the secondary order key
+     * disambiguates docs sharing the same server timestamp (common when a
+     * single poll batch lands 30 docs with identical `serverTimestamp()`
+     * values). The DocumentSnapshot-based `startAfter(lastDoc)` is stable
+     * across pages.
+     */
+    suspend fun getAllTweetIdsWithCreatedAt(): List<Pair<String, String>> =
+        withContext(Dispatchers.IO) {
+            val uid = requireUid()
+            try {
+                val result = mutableListOf<Pair<String, String>>()
+                var lastDoc: com.google.firebase.firestore.DocumentSnapshot? = null
+                var safetyHops = 0
+                var docsRead = 0
+                while (docsRead < MAX_BOOKMARK_READ && safetyHops < MAX_PAGE_HOPS) {
+                    val pageQuery = tweetsCol(uid)
+                        .orderBy("createdAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                        .orderBy(FieldPath.documentId(), com.google.firebase.firestore.Query.Direction.ASCENDING)
+                        .let { q -> if (lastDoc != null) q.startAfter(lastDoc) else q }
+                        .limit(READ_PAGE_SIZE.toLong())
+
+                    val snapshot = pageQuery.get().await()
+                    if (snapshot.isEmpty) break
+                    docsRead += snapshot.documents.size
+                    snapshot.documents.forEach { doc ->
+                        val id = doc.getString("tweetId") ?: return@forEach
+                        val createdAt = doc.getString("createdAt") ?: ""
+                        result.add(id to createdAt)
+                    }
+                    lastDoc = snapshot.documents.last()
+                    safetyHops++
+                    if (snapshot.documents.size < READ_PAGE_SIZE) break
+                }
+                Timber.d("getAllTweetIdsWithCreatedAt: ${result.size} ids in $docsRead docs (page-hops=$safetyHops)")
+                result
+            } catch (e: Exception) {
+                Timber.e(e, "Error fetching tweet IDs+createdAt from Firestore")
+                emptyList()
+            }
+        }
+
+    /**
+     * Streaming variant of [fetchTweetsNotInLocal]. Emits each batch's joined
+     * `List<TweetEntities>` as soon as the per-batch parallel fan-out lands,
+     * so a downstream collector (the WorkManager worker) can write to Room
+     * incrementally — Room's `InvalidationTracker` then fires per batch and
+     * the Paging source paints the newest tweets within seconds.
+     *
+     * Ordering: missing ids are sorted `createdAt DESC` before chunking so the
+     * head-of-feed paints first. Same-millisecond ties are broken by tweet id
+     * to keep the cursor encoding stable. Deleted-bookmark tombstones are
+     * subtracted up front so we never spend a batch fetching a doc the user
+     * already swiped away.
+     *
+     * The `flow { … }` builder is cold by design — each `collect` re-runs the
+     * read, which matches the WorkManager `doWork()` contract (one collect
+     * per invocation). Do NOT add `.buffer()` or `.flatMapMerge(...)` on the
+     * consumer side: cursor advancement assumes sequential per-batch commits.
+     */
+    fun fetchTweetsNotInLocalStream(
+        localIds: Set<String>,
+        deletedIds: Set<String> = emptySet(),
+    ): Flow<List<TweetEntities>> = flow {
+        val allWithCreatedAt = getAllTweetIdsWithCreatedAt()
+        val missing = allWithCreatedAt
+            .filter { (id, _) -> id !in localIds && id !in deletedIds }
+            .sortedWith(
+                compareByDescending<Pair<String, String>> { it.second }
+                    .thenBy { it.first }
+            )
+        if (missing.isEmpty()) {
+            Timber.tag("IncrementalSync").d("stream_empty localIds=${localIds.size} firestoreIds=${allWithCreatedAt.size}")
+            return@flow
+        }
+        val batches = missing.chunked(30)
+        Timber.tag("IncrementalSync").d("stream_start total_missing=${missing.size} batches=${batches.size}")
+        batches.forEachIndexed { idx, batch ->
+            val ids = batch.map { it.first }
+            val entities = fetchTweetEntitiesByIds(ids)
+            Timber.tag("IncrementalSync")
+                .d("batch_fetched batchIdx=$idx total=${batches.size} requested=${ids.size} returned=${entities.size}")
+            emit(entities)
+        }
+    }.flowOn(Dispatchers.IO)
 
     suspend fun fetchTweetsNotInLocal(localIds: Set<String>): List<TweetEntities> = withContext(Dispatchers.IO) {
         try {

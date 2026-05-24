@@ -106,6 +106,17 @@ kotlin {
     }
 }
 
+// Force kotlinx-serialization-core to 1.8.1 on every classpath. Room 2.8.4's
+// room-testing SchemaBundle deserializer invokes KSerializer.typeParametersSerializers(),
+// which does not exist in 1.7.x and trips AbstractMethodError inside
+// MigrationTestHelper.createDatabase. Pinning belt-and-braces here defends against
+// any transitive that wants 1.7.x.
+configurations.all {
+    resolutionStrategy {
+        force 'org.jetbrains.kotlinx:kotlinx-serialization-core:1.8.1'
+    }
+}
+
 dependencies {
 
     implementation(project(":feature:twitter"))

@@ -3,6 +3,7 @@ package com.github.jayteealao.crumbs.di
 import android.content.Context
 import androidx.room.Room
 import com.github.jayteealao.crumbs.data.DeletedBookmarkDao
+import com.github.jayteealao.crumbs.data.SyncProgressDao
 import com.github.jayteealao.crumbs.db.ALL_MIGRATIONS
 import com.github.jayteealao.crumbs.db.AppDatabase
 import com.github.jayteealao.crumbs.db.RedditFtsDao
@@ -51,4 +52,8 @@ class DatabaseModule {
     @Singleton
     @Provides
     fun providesRedditFtsDao(appDatabase: AppDatabase): RedditFtsDao = appDatabase.redditFtsDao()
+
+    @Singleton
+    @Provides
+    fun providesSyncProgressDao(appDatabase: AppDatabase): SyncProgressDao = appDatabase.syncProgressDao()
 }

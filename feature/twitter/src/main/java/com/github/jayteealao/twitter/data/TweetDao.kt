@@ -11,6 +11,7 @@ import com.github.jayteealao.twitter.models.PollIds
 import com.github.jayteealao.twitter.models.TagEntity
 import com.github.jayteealao.twitter.models.TweetContextAnnotationEntity
 import com.github.jayteealao.twitter.models.TweetData
+import com.github.jayteealao.twitter.models.TweetEntities
 import com.github.jayteealao.twitter.models.TweetEntity
 import com.github.jayteealao.twitter.models.TweetIncludesEntity
 import com.github.jayteealao.twitter.models.TweetMediaEntity
@@ -101,6 +102,32 @@ interface TweetDao {
             mediaKeys,
         )
         pollIds?.let { insertPollId(it) }
+    }
+
+    /**
+     * Insert a whole batch of tweet aggregates in one Room transaction so the
+     * Paging source's `InvalidationTracker` fires exactly once per batch (not
+     * once per row). Used by the streaming sync worker; the orchestrator
+     * wraps this call + `SyncProgressDao.upsert(...)` in `db.withTransaction`
+     * so cursor advancement and the batch insert commit atomically.
+     */
+    @Transaction
+    fun insertTweetEntitiesBatch(batch: List<TweetEntities>) {
+        batch.forEach { entities ->
+            insertTweetEntitiesAtomic(
+                entities.tweetEntity,
+                entities.tweetReferencedTweets.mapNotNull { it.tweet },
+                entities.twitterUserEntity,
+                entities.tweetPublicMetrics,
+                entities.tweetMediaEntity,
+                entities.tweetIncludesEntity,
+                entities.tweetReferencedTweets.map { it.referencedTweets },
+                entities.tweetContextAnnotationEntity,
+                entities.tweetTextEntity,
+                entities.mediaKeys,
+                entities.pollIds,
+            )
+        }
     }
 
     @Transaction

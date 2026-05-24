@@ -280,6 +280,28 @@ val MIGRATION_10_11: Migration = object : Migration(10, 11) {
     }
 }
 
+/**
+ * v11 → v12: per-uid cursor checkpoint for the streaming Twitter sync.
+ * `sync_progress` stores the high-watermark (newest createdAt seen) and the
+ * low-watermark (oldest createdAt successfully written) as `(createdAt,
+ * tweetId)` tuples so the worker can resume mid-stream after process death.
+ */
+val MIGRATION_11_12: Migration = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `sync_progress` (" +
+                "`uid` TEXT NOT NULL, " +
+                "`last_high_cursor_created_at` TEXT, " +
+                "`last_high_cursor_tweet_id` TEXT, " +
+                "`last_low_cursor_created_at` TEXT, " +
+                "`last_low_cursor_tweet_id` TEXT, " +
+                "`total_batches_ingested` INTEGER NOT NULL, " +
+                "`last_updated_at_ms` INTEGER NOT NULL, " +
+                "PRIMARY KEY(`uid`))"
+        )
+    }
+}
+
 /** Full list registered by the DI module's `addMigrations(*ALL_MIGRATIONS)`. */
 val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_2_3,
@@ -291,4 +313,5 @@ val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_8_9,
     MIGRATION_9_10,
     MIGRATION_10_11,
+    MIGRATION_11_12,
 )

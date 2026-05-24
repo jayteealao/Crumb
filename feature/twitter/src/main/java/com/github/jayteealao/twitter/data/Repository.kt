@@ -13,14 +13,17 @@ import com.github.jayteealao.twitter.models.TweetData
 import com.github.jayteealao.twitter.models.TweetEntities
 import com.github.jayteealao.twitter.models.TweetEntity
 import com.github.jayteealao.twitter.models.TweetTagCrossRef
-import com.github.jayteealao.twitter.models.tweetEntitiesToOrderLens
 import com.google.firebase.functions.FirebaseFunctions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -38,15 +41,26 @@ class Repository @Inject constructor(
     private val firestoreRepository: FirestoreRepository,
     private val deletedBookmarkRepository: DeletedBookmarkRepository,
     private val functions: FirebaseFunctions,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val syncEnqueuer: TwitterSyncEnqueuer,
 ) : TagRepository {
     private var latestBookmarkInDatabase: TweetEntity? = null
     private var orderOfLastBookmark: Int = 1000
     private val fetchMutex = Mutex()
-    private val syncMutex = Mutex()
 
     private val _isRefreshing = MutableStateFlow(false)
-    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+    /**
+     * Combines the brief in-flight `triggerPoll` flag with the long-running
+     * WorkManager state for the unique sync worker. The UI spinner therefore
+     * stays up across backgrounding, recreation, and process death — driven
+     * by `WorkInfo.State.{ENQUEUED, RUNNING}` for the duration of the worker
+     * + the local `_isRefreshing` window while we wait on `triggerPoll`.
+     */
+    val isRefreshing: StateFlow<Boolean> = combine(
+        _isRefreshing.asStateFlow(),
+        syncEnqueuer.observeIsRunning(),
+    ) { triggering, syncing -> triggering || syncing }
+        .stateIn(scope, SharingStarted.WhileSubscribed(5_000), false)
 
     private val _snackbarEvents = MutableSharedFlow<SnackbarEvent>(replay = 0, extraBufferCapacity = 4)
     val snackbarEvents: SharedFlow<SnackbarEvent> = _snackbarEvents.asSharedFlow()
@@ -63,61 +77,9 @@ class Repository @Inject constructor(
                 if (latestBookmarkInDatabase != null) {
                     orderOfLastBookmark = latestBookmarkInDatabase!!.order
                 }
-                // Sync from Firestore on startup
-                syncFromFirestore()
             } catch (e: Exception) {
                 Timber.e(e, "Error in Repository init")
             }
-        }
-    }
-
-    /**
-     * Sync bookmarks from Firestore that are not in the local database.
-     *
-     * Single-flight: concurrent callers (cold-start init {}, pull-to-refresh,
-     * any future re-call) are coalesced via [syncMutex]. If a sync is already
-     * in flight, this returns immediately with a debug log. Callers that
-     * already hold an outer lock (e.g. [refreshBookmarks] under [fetchMutex])
-     * MUST call [syncFromFirestoreLocked] directly to avoid deadlocking
-     * themselves on a redundant guard.
-     */
-    suspend fun syncFromFirestore() {
-        if (!syncMutex.tryLock()) {
-            Timber.d("syncFromFirestore: another sync in flight, skipping")
-            return
-        }
-        try {
-            syncFromFirestoreLocked()
-        } finally {
-            syncMutex.unlock()
-        }
-    }
-
-    private suspend fun syncFromFirestoreLocked() {
-        try {
-            Timber.d("Starting Firestore sync...")
-            val localIds = tweetDao.getAllTweetIds().toSet()
-            Timber.d("Local database has ${localIds.size} tweets")
-
-            val firestoreTweets = firestoreRepository.fetchTweetsNotInLocal(localIds)
-            Timber.d("Fetched ${firestoreTweets.size} tweets from Firestore")
-
-            if (firestoreTweets.isNotEmpty()) {
-                // Get the current max order to assign new orders
-                var currentOrder = tweetDao.getMaxOrder() ?: 1000
-                val tombstones = deletedBookmarkRepository.deletedIdsSnapshot(BookmarkSource.Twitter)
-
-                firestoreTweets.forEach { tweetEntities ->
-                    currentOrder++
-                    val orderedEntities = tweetEntitiesToOrderLens.modify(tweetEntities) { currentOrder }
-                    if (orderedEntities.tweetEntity.id !in tombstones) {
-                        saveTweetEntities(orderedEntities, uploadToFirestore = false)
-                    }
-                }
-                Timber.d("Synced ${firestoreTweets.size} tweets from Firestore to local database")
-            }
-        } catch (e: Exception) {
-            Timber.e(e, "Error syncing from Firestore")
         }
     }
 
@@ -144,10 +106,20 @@ class Repository @Inject constructor(
     }
 
     /**
-     * Pull-to-refresh entry point. Invokes the `triggerPoll` callable against
-     * the server; on `{ok: true}` re-runs the Firestore one-shot read to
-     * surface any new docs. On `{ok: false}` emits a [SnackbarEvent] so the VM
-     * can show user feedback.
+     * Pull-to-refresh entry point. Calls the server-side `triggerPoll` callable
+     * to wake the daily-poll function, then enqueues the local
+     * `TwitterSyncWorker` so any newly-arrived Firestore docs are streamed
+     * into Room. The worker is enqueued unique-by-uid with `KEEP` policy so
+     * back-to-back pull gestures coalesce instead of stacking.
+     *
+     * The `isRefreshing` state surfaced to the UI is driven by the worker's
+     * `WorkInfo` (see `BookmarksViewModel`) so it survives backgrounding and
+     * activity recreation. This method's `_isRefreshing` flag only covers the
+     * brief `triggerPoll` callable window; once the callable returns and the
+     * worker is enqueued, the WorkInfo flow takes over.
+     *
+     * `triggerPoll` failures still flow through `_snackbarEvents` so the UI
+     * can surface "debounced" / "in progress" / generic-failure copy.
      */
     suspend fun refreshBookmarks() {
         if (!fetchMutex.tryLock()) {
@@ -159,6 +131,12 @@ class Repository @Inject constructor(
             val result = runCatching {
                 functions.getHttpsCallable("triggerPoll").call(emptyMap<String, Any>()).await()
             }
+            // Always enqueue the local sync, even if triggerPoll failed — the
+            // prior poll (e.g., the oauthCallback fan-out) may have written
+            // docs the device hasn't synced locally yet. This is the recovery
+            // path when cold-start enqueue raced Firebase Auth restoration.
+            syncEnqueuer.enqueueRefresh()
+
             val payload = result.getOrNull()?.data as? Map<*, *>
             if (payload == null) {
                 Timber.w("triggerPoll returned no payload; assuming failure")
@@ -169,15 +147,6 @@ class Repository @Inject constructor(
             }
 
             val ok = payload["ok"] as? Boolean ?: false
-            // Always pull from Firestore — even when the server says "debounced"
-            // or "in_progress", the prior poll (e.g., the oauthCallback fan-out)
-            // may have written docs the device hasn't synced locally yet. This
-            // is the recovery path when Repository.init's startup sync raced
-            // Firebase Auth restoration and silently failed.
-            // Call the locked variant directly: we already hold fetchMutex, and
-            // the public syncFromFirestore would skip on a parallel init {}
-            // sync — exactly the case where we most need the pull to land.
-            syncFromFirestoreLocked()
             if (!ok) {
                 val reason = payload["reason"] as? String
                 val retryAfter = (payload["retryAfter"] as? Number)?.toInt()
