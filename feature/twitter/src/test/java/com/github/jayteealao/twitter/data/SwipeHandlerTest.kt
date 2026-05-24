@@ -11,6 +11,8 @@ import io.mockk.coVerifyOrder
 import io.mockk.just
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
@@ -35,6 +37,11 @@ class SwipeHandlerTest {
     private lateinit var deletedBookmarkRepository: DeletedBookmarkRepository
     private lateinit var functions: FirebaseFunctions
     private lateinit var scope: CoroutineScope
+    private val noOpSyncEnqueuer = object : TwitterSyncEnqueuer {
+        override fun enqueueColdStart() = Unit
+        override fun enqueueRefresh() = Unit
+        override fun observeIsRunning(): Flow<Boolean> = flowOf(false)
+    }
 
     @Before
     fun setUp() {
@@ -53,6 +60,7 @@ class SwipeHandlerTest {
         deletedBookmarkRepository = deletedBookmarkRepository,
         functions = functions,
         scope = scope,
+        syncEnqueuer = noOpSyncEnqueuer,
     )
 
     @Test
