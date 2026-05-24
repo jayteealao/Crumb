@@ -38,7 +38,15 @@ class FirestoreRepository @Inject constructor(
         private const val MAX_BOOKMARK_READ = 10_000
         private const val READ_PAGE_SIZE = 500
         private const val MAX_PAGE_HOPS = 50
-        private const val BATCH_TIMEOUT_MS = 30_000L
+        // Bumped from 30s → 120s. The 30s budget was getting blown on
+        // mid-range Android devices when a batch returned ~30 metrics docs:
+        // CustomClassMapper logs ~50 warnings per doc for unrecognized
+        // snake_case overlay keys (like_count, retweet_count, etc.) the
+        // server poll's pass-through writes — 1500+ logcat lines per batch
+        // serialized on the IO thread, enough to stall deserialization past
+        // 30s on a Samsung Galaxy class device. Either silence the warnings
+        // OR widen the window; widening is the least-invasive while we ship.
+        private const val BATCH_TIMEOUT_MS = 120_000L
     }
 
     private fun requireUid(): String =

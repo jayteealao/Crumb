@@ -365,24 +365,59 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
 
     for (const { tweet, includes } of collected) {
       const { public_metrics, ...tweetWithoutMetrics } = tweet;
+      // Tweet doc: spread the raw X-API snake_case payload first (preserves
+      // every field for future readers), then overlay camelCase aliases the
+      // Android FirestoreTweet / FirestoreRepository.getAllTweetIds reader
+      // requires. Without these, getAllTweetIds() returns 0 ids and the
+      // device's Room cache never hydrates from server-written docs.
       const tweetDoc: Record<string, unknown> = {
         ...tweetWithoutMetrics,
+        tweetId: tweet.id,
+        authorId: (tweet as Record<string, unknown>).author_id,
+        createdAt: (tweet as Record<string, unknown>).created_at,
+        conversationId: (tweet as Record<string, unknown>).conversation_id,
+        inReplyToUserId: (tweet as Record<string, unknown>).in_reply_to_user_id,
         pending_delete: false,
         updatedAt: FieldValue.serverTimestamp(),
       };
       enqueue(database.doc(`users/${uid}/tweets/${tweet.id}`), tweetDoc);
 
       if (public_metrics && typeof public_metrics === "object") {
+        // Metrics doc: same shape contract — snake_case raw + camelCase aliases
+        // the Android FirestoreMetrics reader expects (likeCount, retweetCount,
+        // replyCount, quoteCount, bookmarkCount, impressionCount).
+        const pm = public_metrics as Record<string, unknown>;
         enqueue(database.doc(`users/${uid}/metrics/${tweet.id}`), {
-          ...(public_metrics as Record<string, unknown>),
+          ...pm,
+          tweetId: tweet.id,
+          likeCount: pm.like_count,
+          retweetCount: pm.retweet_count,
+          replyCount: pm.reply_count,
+          quoteCount: pm.quote_count,
+          bookmarkCount: pm.bookmark_count,
+          impressionCount: pm.impression_count,
           updatedAt: FieldValue.serverTimestamp(),
         });
       }
 
       const includesUsers = includes?.users ?? [];
       for (const u of includesUsers) {
+        // User doc: snake_case raw + camelCase aliases for Android FirestoreUser
+        // (userId, profileImageUrl, verifiedType, followersCount, etc.).
+        const ur = u as Record<string, unknown>;
+        const userPublicMetrics =
+          (ur.public_metrics as Record<string, unknown> | undefined) ?? {};
         enqueue(database.doc(`users/${uid}/twitter_users/${u.id}`), {
-          ...u,
+          ...ur,
+          userId: u.id,
+          profileImageUrl: ur.profile_image_url,
+          verifiedType: ur.verified_type,
+          pinnedTweetId: ur.pinned_tweet_id,
+          createdAt: ur.created_at,
+          followersCount: userPublicMetrics.followers_count,
+          followingCount: userPublicMetrics.following_count,
+          tweetCount: userPublicMetrics.tweet_count,
+          listedCount: userPublicMetrics.listed_count,
           updatedAt: FieldValue.serverTimestamp(),
         });
         enqueue(database.doc(`users/${uid}/includes/${tweet.id}_user_${u.id}`), {
@@ -394,8 +429,15 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
 
       const includesMedia = includes?.media ?? [];
       for (const m of includesMedia) {
+        // Media doc: snake_case raw + camelCase aliases for Android
+        // FirestoreMedia (mediaKey, previewImageUrl, durationMs, altText).
+        const mr = m as Record<string, unknown>;
         enqueue(database.doc(`users/${uid}/media/${m.media_key}`), {
-          ...m,
+          ...mr,
+          mediaKey: m.media_key,
+          previewImageUrl: mr.preview_image_url,
+          durationMs: mr.duration_ms,
+          altText: mr.alt_text,
           updatedAt: FieldValue.serverTimestamp(),
         });
         enqueue(database.doc(`users/${uid}/includes/${tweet.id}_media_${m.media_key}`), {
@@ -410,6 +452,7 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
         enqueue(database.doc(`users/${uid}/includes/${tweet.id}_ref_${r.id}`), {
           tweetId: tweet.id,
           referencedId: r.id,
+          referencedTweetId: r.id,
           type: r.type,
           kind: "referenced_tweet",
         });

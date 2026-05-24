@@ -172,7 +172,12 @@ fun TwitterBookmarksRoute(
 ) {
     val context = LocalContext.current
     val pagedBookmarks = bookmarksViewModel.pagingFlowData().collectAsLazyPagingItems()
-    val loggedIn by loginViewModel.isAccessTokenAvailable.collectAsStateWithLifecycle()
+    // Server-driven gate: sync_status.linked is the authoritative source after the
+    // server-side cutover. The legacy isAccessTokenAvailable read Prefs.accessCode,
+    // which is permanently empty post-cutover and would freeze the screen on the
+    // "CONNECT TO TWITTER" empty state even after a successful server-side link.
+    val syncStatus by bookmarksViewModel.syncStatus.collectAsStateWithLifecycle()
+    val loggedIn = syncStatus?.linked == true
     val tagsMap by bookmarksViewModel.tagsForTweet.collectAsStateWithLifecycle()
     val allTags by bookmarksViewModel.allTags.collectAsStateWithLifecycle()
     val isRefreshing by bookmarksViewModel.isRefreshing.collectAsStateWithLifecycle()
