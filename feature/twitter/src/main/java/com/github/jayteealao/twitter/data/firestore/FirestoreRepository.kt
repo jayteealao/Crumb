@@ -10,13 +10,16 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.cancellation.CancellationException
 
 @Singleton
 class FirestoreRepository @Inject constructor(
@@ -35,6 +38,7 @@ class FirestoreRepository @Inject constructor(
         private const val MAX_BOOKMARK_READ = 10_000
         private const val READ_PAGE_SIZE = 500
         private const val MAX_PAGE_HOPS = 50
+        private const val BATCH_TIMEOUT_MS = 30_000L
     }
 
     private fun requireUid(): String =
@@ -110,12 +114,16 @@ class FirestoreRepository @Inject constructor(
                 return@withContext emptyList()
             }
 
-            Timber.d("Fetching ${missingIds.size} tweets from Firestore")
-
             // Firestore "in" query cap is 30.
-            missingIds.chunked(30).flatMap { batch ->
-                fetchTweetEntitiesByIds(batch)
-            }
+            val batches = missingIds.chunked(30)
+            val batchCount = batches.size
+            Timber.d("Fetching ${missingIds.size} tweets from Firestore in $batchCount batch(es)")
+
+            batches.mapIndexed { idx, batch ->
+                val results = fetchTweetEntitiesByIds(batch)
+                Timber.d("Synced batch ${idx + 1}/$batchCount: requested=${batch.size} returned=${results.size}")
+                results
+            }.flatten()
         } catch (e: Exception) {
             Timber.e(e, "Error fetching tweets from Firestore")
             emptyList()
@@ -127,89 +135,122 @@ class FirestoreRepository @Inject constructor(
         val uid = requireUid()
 
         try {
-            val tweetsDeferred = async {
-                tweetsCol(uid)
-                    .whereIn("tweetId", tweetIds)
-                    .get()
-                    .await()
-                    .toObjects(FirestoreTweet::class.java)
-                    .associateBy { it.tweetId }
-            }
-
-            val usersDeferred = async {
-                val tweets = tweetsDeferred.await()
-                val authorIds = tweets.values.map { it.authorId }.distinct()
-                if (authorIds.isEmpty()) return@async emptyMap()
-
-                authorIds.chunked(30).flatMap { batch ->
-                    twitterUsersCol(uid)
-                        .whereIn("userId", batch)
+            withTimeout(BATCH_TIMEOUT_MS) {
+                val tweetsDeferred = async {
+                    tweetsCol(uid)
+                        .whereIn("tweetId", tweetIds)
                         .get()
                         .await()
-                        .toObjects(FirestoreUser::class.java)
-                }.associateBy { it.userId }
+                        .toObjects(FirestoreTweet::class.java)
+                        .associateBy { it.tweetId }
+                }
+
+                val usersDeferred = async {
+                    val tweets = tweetsDeferred.await()
+                    val authorIds = tweets.values.map { it.authorId }.distinct()
+                    if (authorIds.isEmpty()) return@async emptyMap()
+
+                    authorIds.chunked(30).flatMap { batch ->
+                        twitterUsersCol(uid)
+                            .whereIn("userId", batch)
+                            .get()
+                            .await()
+                            .toObjects(FirestoreUser::class.java)
+                    }.associateBy { it.userId }
+                }
+
+                val metricsDeferred = async {
+                    metricsCol(uid)
+                        .whereIn("tweetId", tweetIds)
+                        .get()
+                        .await()
+                        .toObjects(FirestoreMetrics::class.java)
+                        .associateBy { it.tweetId }
+                }
+
+                val includesDeferred = async {
+                    includesCol(uid)
+                        .whereIn("tweetId", tweetIds)
+                        .get()
+                        .await()
+                        .toObjects(FirestoreIncludes::class.java)
+                        .groupBy { it.tweetId }
+                }
+
+                // Media docs are keyed by `mediaKey` (the document id), not by
+                // `tweetId` (no such field exists on the doc). The tweet→media
+                // join lives in the includes collection: each includes doc that
+                // represents a media attachment carries both `tweetId` and
+                // `mediaKey`. So we await includes, collect the mediaKey set,
+                // and fetch media by document id in chunks of 30.
+                val mediaDeferred = async {
+                    val includesByTweet = includesDeferred.await()
+                    val mediaKeys = includesByTweet.values.asSequence()
+                        .flatten()
+                        .mapNotNull { it.mediaKey }
+                        .filter { it.isNotEmpty() }
+                        .distinct()
+                        .toList()
+                    if (mediaKeys.isEmpty()) return@async emptyMap<String, List<FirestoreMedia>>()
+
+                    val mediaByKey = mediaKeys.chunked(30).flatMap { batch ->
+                        mediaCol(uid)
+                            .whereIn(FieldPath.documentId(), batch)
+                            .get()
+                            .await()
+                            .toObjects(FirestoreMedia::class.java)
+                    }.associateBy { it.documentId }
+
+                    // Re-key from mediaKey → tweetId using the includes join.
+                    includesByTweet.mapValues { (_, includesForTweet) ->
+                        includesForTweet.mapNotNull { inc ->
+                            inc.mediaKey?.takeIf { it.isNotEmpty() }?.let { mediaByKey[it] }
+                        }
+                    }
+                }
+
+                val textAnnotationsDeferred = async {
+                    textAnnotationsCol(uid)
+                        .whereIn("tweetId", tweetIds)
+                        .get()
+                        .await()
+                        .toObjects(FirestoreTextAnnotation::class.java)
+                        .groupBy { it.tweetId }
+                }
+
+                val tweets = tweetsDeferred.await()
+                val users = usersDeferred.await()
+                val metrics = metricsDeferred.await()
+                val includes = includesDeferred.await()
+                val media = mediaDeferred.await()
+                val textAnnotations = textAnnotationsDeferred.await()
+
+                tweets.values.mapNotNull { firestoreTweet ->
+                    val tweetId = firestoreTweet.tweetId
+                    val user = users[firestoreTweet.authorId] ?: return@mapNotNull null
+
+                    TweetEntities(
+                        tweetEntity = firestoreTweet.toTweetEntity(),
+                        twitterUserEntity = listOf(user.toTwitterUserEntity()),
+                        tweetPublicMetrics = metrics[tweetId]?.toTweetPublicMetrics()
+                            ?: com.github.jayteealao.twitter.models.tweetPublicMetrics().copy(tweetId = tweetId),
+                        tweetMediaEntity = media[tweetId]?.map { it.toTweetMediaEntity() } ?: emptyList(),
+                        tweetIncludesEntity = includes[tweetId]?.map { it.toTweetIncludesEntity() } ?: emptyList(),
+                        tweetReferencedTweets = emptyList(),
+                        tweetContextAnnotationEntity = emptyList(),
+                        tweetTextEntity = textAnnotations[tweetId]?.map { it.toTweetTextEntityAnnotation() } ?: emptyList(),
+                        mediaKeys = media[tweetId]?.map { MediaKeys(tweetId, it.mediaKey) } ?: emptyList()
+                    )
+                }
             }
-
-            val metricsDeferred = async {
-                metricsCol(uid)
-                    .whereIn("tweetId", tweetIds)
-                    .get()
-                    .await()
-                    .toObjects(FirestoreMetrics::class.java)
-                    .associateBy { it.tweetId }
-            }
-
-            val mediaDeferred = async {
-                mediaCol(uid)
-                    .whereIn("tweetId", tweetIds)
-                    .get()
-                    .await()
-                    .toObjects(FirestoreMedia::class.java)
-                    .groupBy { it.tweetId ?: "" }
-            }
-
-            val includesDeferred = async {
-                includesCol(uid)
-                    .whereIn("tweetId", tweetIds)
-                    .get()
-                    .await()
-                    .toObjects(FirestoreIncludes::class.java)
-                    .groupBy { it.tweetId }
-            }
-
-            val textAnnotationsDeferred = async {
-                textAnnotationsCol(uid)
-                    .whereIn("tweetId", tweetIds)
-                    .get()
-                    .await()
-                    .toObjects(FirestoreTextAnnotation::class.java)
-                    .groupBy { it.tweetId }
-            }
-
-            val tweets = tweetsDeferred.await()
-            val users = usersDeferred.await()
-            val metrics = metricsDeferred.await()
-            val media = mediaDeferred.await()
-            val includes = includesDeferred.await()
-            val textAnnotations = textAnnotationsDeferred.await()
-
-            tweets.values.mapNotNull { firestoreTweet ->
-                val tweetId = firestoreTweet.tweetId
-                val user = users[firestoreTweet.authorId] ?: return@mapNotNull null
-
-                TweetEntities(
-                    tweetEntity = firestoreTweet.toTweetEntity(),
-                    twitterUserEntity = listOf(user.toTwitterUserEntity()),
-                    tweetPublicMetrics = metrics[tweetId]?.toTweetPublicMetrics()
-                        ?: com.github.jayteealao.twitter.models.tweetPublicMetrics().copy(tweetId = tweetId),
-                    tweetMediaEntity = media[tweetId]?.map { it.toTweetMediaEntity() } ?: emptyList(),
-                    tweetIncludesEntity = includes[tweetId]?.map { it.toTweetIncludesEntity() } ?: emptyList(),
-                    tweetReferencedTweets = emptyList(),
-                    tweetContextAnnotationEntity = emptyList(),
-                    tweetTextEntity = textAnnotations[tweetId]?.map { it.toTweetTextEntityAnnotation() } ?: emptyList(),
-                    mediaKeys = media[tweetId]?.map { MediaKeys(tweetId, it.mediaKey) } ?: emptyList()
-                )
-            }
+        } catch (e: TimeoutCancellationException) {
+            // Per-batch timeout fired — log and return empty so the next batch
+            // can proceed. Structural cancellation (parent scope cancelling) is
+            // handled by the next catch arm.
+            Timber.w("Batch timed out after ${BATCH_TIMEOUT_MS}ms, returning empty for ${tweetIds.size} IDs")
+            emptyList()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Timber.e(e, "Error fetching tweet entities by IDs")
             emptyList()

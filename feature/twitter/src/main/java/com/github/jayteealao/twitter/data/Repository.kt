@@ -43,6 +43,7 @@ class Repository @Inject constructor(
     private var latestBookmarkInDatabase: TweetEntity? = null
     private var orderOfLastBookmark: Int = 1000
     private val fetchMutex = Mutex()
+    private val syncMutex = Mutex()
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
@@ -71,9 +72,28 @@ class Repository @Inject constructor(
     }
 
     /**
-     * Sync bookmarks from Firestore that are not in the local database
+     * Sync bookmarks from Firestore that are not in the local database.
+     *
+     * Single-flight: concurrent callers (cold-start init {}, pull-to-refresh,
+     * any future re-call) are coalesced via [syncMutex]. If a sync is already
+     * in flight, this returns immediately with a debug log. Callers that
+     * already hold an outer lock (e.g. [refreshBookmarks] under [fetchMutex])
+     * MUST call [syncFromFirestoreLocked] directly to avoid deadlocking
+     * themselves on a redundant guard.
      */
     suspend fun syncFromFirestore() {
+        if (!syncMutex.tryLock()) {
+            Timber.d("syncFromFirestore: another sync in flight, skipping")
+            return
+        }
+        try {
+            syncFromFirestoreLocked()
+        } finally {
+            syncMutex.unlock()
+        }
+    }
+
+    private suspend fun syncFromFirestoreLocked() {
         try {
             Timber.d("Starting Firestore sync...")
             val localIds = tweetDao.getAllTweetIds().toSet()
@@ -149,9 +169,16 @@ class Repository @Inject constructor(
             }
 
             val ok = payload["ok"] as? Boolean ?: false
-            if (ok) {
-                syncFromFirestore()
-            } else {
+            // Always pull from Firestore — even when the server says "debounced"
+            // or "in_progress", the prior poll (e.g., the oauthCallback fan-out)
+            // may have written docs the device hasn't synced locally yet. This
+            // is the recovery path when Repository.init's startup sync raced
+            // Firebase Auth restoration and silently failed.
+            // Call the locked variant directly: we already hold fetchMutex, and
+            // the public syncFromFirestore would skip on a parallel init {}
+            // sync — exactly the case where we most need the pull to land.
+            syncFromFirestoreLocked()
+            if (!ok) {
                 val reason = payload["reason"] as? String
                 val retryAfter = (payload["retryAfter"] as? Number)?.toInt()
                 val event = when (reason) {

@@ -128,7 +128,7 @@ data class FirestoreMedia(
     var width: Int = 0,
     var height: Int = 0,
     @get:PropertyName("durationMs") @set:PropertyName("durationMs")
-    var durationMs: Int = 0,
+    var durationMs: Int? = 0,
     @get:PropertyName("altText") @set:PropertyName("altText")
     var altText: String? = null,
     @get:PropertyName("tweetId") @set:PropertyName("tweetId")
@@ -141,7 +141,7 @@ data class FirestoreMedia(
         previewImageUrl = previewImageUrl,
         width = width,
         height = height,
-        durationMs = durationMs,
+        durationMs = durationMs ?: 0,
         altText = altText,
         tweetId = tweetId
     )
@@ -164,20 +164,29 @@ data class FirestoreMedia(
 /**
  * Firestore document model for metrics collection
  */
+// Field names are camelCase: the Android client is the writer of record for
+// metrics docs post-cutover, so its keys (likeCount, …) are the canonical
+// wire format. The server poll's snake_case overlay (like_count, …) is
+// best-effort additive and appears on only a subset of docs; CustomClassMapper
+// logs a one-time warning per unknown key and ignores it. Count fields are
+// nullable Int because some docs in the wild store these as explicit `null`
+// (impressionCount in particular is null on 100% of sampled docs); a primitive
+// `Int` setter would throw `IllegalArgumentException` on deserialize and
+// abort the whole tweet batch.
 data class FirestoreMetrics(
     @DocumentId val documentId: String = "",
     @get:PropertyName("tweetId") @set:PropertyName("tweetId")
     var tweetId: String = "",
     @get:PropertyName("likeCount") @set:PropertyName("likeCount")
-    var likeCount: Int = 0,
+    var likeCount: Int? = 0,
     @get:PropertyName("retweetCount") @set:PropertyName("retweetCount")
-    var retweetCount: Int = 0,
+    var retweetCount: Int? = 0,
     @get:PropertyName("replyCount") @set:PropertyName("replyCount")
-    var replyCount: Int = 0,
+    var replyCount: Int? = 0,
     @get:PropertyName("quoteCount") @set:PropertyName("quoteCount")
-    var quoteCount: Int = 0,
+    var quoteCount: Int? = 0,
     @get:PropertyName("bookmarkCount") @set:PropertyName("bookmarkCount")
-    var bookmarkCount: Int = 0,
+    var bookmarkCount: Int? = 0,
     @get:PropertyName("impressionCount") @set:PropertyName("impressionCount")
     var impressionCount: Int? = null
 ) {
