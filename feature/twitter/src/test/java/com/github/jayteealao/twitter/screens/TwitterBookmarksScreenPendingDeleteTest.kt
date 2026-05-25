@@ -6,7 +6,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
 import com.dropbox.differ.SimpleImageComparator
@@ -83,6 +86,12 @@ class TwitterBookmarksScreenPendingDeleteTest {
                 Feed(showPending = true)
             }
         }
+        // Behavioral: the pending card is rendered with a strikethrough indicator and the kept card is
+        // also visible. Both titles are displayed (cards rendered the expected content).
+        composeTestRule.onNodeWithTag("bookmark-card-pending-${pendingBookmark.id}").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("bookmark-card-strikethrough").assertIsDisplayed()
+        composeTestRule.onNodeWithText(pendingBookmark.title.uppercase()).assertIsDisplayed()
+        composeTestRule.onNodeWithText(keptBookmark.title.uppercase()).assertIsDisplayed()
         composeTestRule.onRoot()
             .captureRoboImage(
                 "src/test/screenshots/TwitterBookmarksScreen_pendingDelete_light.png",
@@ -97,6 +106,11 @@ class TwitterBookmarksScreenPendingDeleteTest {
                 Feed(showPending = true)
             }
         }
+        // Behavioral: pending card strikethrough and both titles are visible in dark theme.
+        composeTestRule.onNodeWithTag("bookmark-card-pending-${pendingBookmark.id}").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("bookmark-card-strikethrough").assertIsDisplayed()
+        composeTestRule.onNodeWithText(pendingBookmark.title.uppercase()).assertIsDisplayed()
+        composeTestRule.onNodeWithText(keptBookmark.title.uppercase()).assertIsDisplayed()
         composeTestRule.onRoot()
             .captureRoboImage(
                 "src/test/screenshots/TwitterBookmarksScreen_pendingDelete_dark.png",
@@ -111,6 +125,10 @@ class TwitterBookmarksScreenPendingDeleteTest {
                 Feed(showPending = false)
             }
         }
+        // Behavioral: when there are no pending-delete rows, a normal bookmark card is displayed with
+        // the "card-title" test tag (not the strikethrough variant).
+        composeTestRule.onNodeWithTag("card-title").assertIsDisplayed()
+        composeTestRule.onNodeWithText(keptBookmark.title.uppercase()).assertIsDisplayed()
         composeTestRule.onRoot()
             .captureRoboImage(
                 "src/test/screenshots/TwitterBookmarksScreen_feedNoPendingDelete_light.png",
@@ -125,6 +143,9 @@ class TwitterBookmarksScreenPendingDeleteTest {
                 Feed(showPending = false)
             }
         }
+        // Behavioral: when there are no pending-delete rows, a normal bookmark card is displayed (dark theme).
+        composeTestRule.onNodeWithTag("card-title").assertIsDisplayed()
+        composeTestRule.onNodeWithText(keptBookmark.title.uppercase()).assertIsDisplayed()
         composeTestRule.onRoot()
             .captureRoboImage(
                 "src/test/screenshots/TwitterBookmarksScreen_feedNoPendingDelete_dark.png",

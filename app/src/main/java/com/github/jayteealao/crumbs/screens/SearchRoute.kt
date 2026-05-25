@@ -11,12 +11,12 @@ import androidx.navigation.NavController
 import com.github.jayteealao.crumbs.Screens
 
 /**
- * Thin wrapper that hoists [SearchViewModel] state into [SearchScreen] and
- * routes user actions back to the VM or the navigation graph. Bookmark taps
- * navigate to ThreadDetail when the bookmark is a Twitter thread; otherwise
- * the canonical source URL opens through Intent.ACTION_VIEW (same handoff
- * shape used by the feed screens — no Custom Tabs indirection so the install
- * stays consistent).
+ * Navigation entry point for the search destination. Hoists [SearchViewModel] state into
+ * [SearchScreen] and routes user actions back to the VM or the navigation graph. Bookmark taps
+ * navigate to ThreadDetail for Twitter threads; all other bookmarks open via Intent.ACTION_VIEW.
+ *
+ * @param navController Used to pop back to the home feed or navigate forward to ThreadDetail.
+ * @param viewModel Provides query state, search results, and recent-search history.
  */
 @Composable
 fun SearchRoute(

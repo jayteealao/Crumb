@@ -74,13 +74,14 @@ fun CrumbsBookmarkCard(
                 when (value) {
                     SwipeToDismissBoxValue.StartToEnd -> {
                         onCancelDeletePending?.invoke(bookmark.id)
+                        true
                     }
                     SwipeToDismissBoxValue.EndToStart -> {
                         onConfirmDeletePending?.invoke(bookmark.id)
+                        true
                     }
-                    SwipeToDismissBoxValue.Settled -> Unit
+                    SwipeToDismissBoxValue.Settled -> false
                 }
-                false
             },
         )
         SwipeToDismissBox(
@@ -145,26 +146,10 @@ private fun BookmarkCardContent(
             },
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Optional media at top (16:7 aspect per handoff-components.jsx:367).
-            val mediaUrl = bookmark.imageUrl
-            if (mediaUrl != null &&
-                (bookmark.contentType == ContentType.Image || bookmark.contentType == ContentType.Video)
-            ) {
-                AsyncImage(
-                    model = mediaUrl,
-                    contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(16f / 7f),
-                    contentScale = ContentScale.Crop,
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(stroke.hairline)
-                        .background(colors.ink),
-                )
-            }
+            BookmarkCardMedia(
+                imageUrl = bookmark.imageUrl,
+                contentType = bookmark.contentType,
+            )
 
             // CrumbsIndexStrip header replaces the inline source/author/age row.
             // `indexOverride` lets callers swap the default `%03d` numeral for a
@@ -189,67 +174,9 @@ private fun BookmarkCardContent(
             Column(
                 modifier = Modifier.padding(spacing.md + 2.dp), // 14dp
             ) {
-                Text(
-                    text = bookmark.title.uppercase(),
-                    style = typography.displayHeadline,
-                    color = colors.ink,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .testTag(if (bookmark.pendingDelete) "bookmark-card-strikethrough" else "card-title")
-                        .brutalistStrikethrough(active = bookmark.pendingDelete, color = colors.ink),
-                )
+                BookmarkCardBody(bookmark = bookmark)
                 Spacer(Modifier.height(spacing.sm))
-                Text(
-                    text = bookmark.previewText,
-                    style = typography.bodyMono,
-                    color = colors.ink,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (bookmark.isThread) {
-                    Spacer(Modifier.height(spacing.xs))
-                    Text(
-                        text = "↳ + ${bookmark.threadCount} MORE",
-                        style = typography.captionMono,
-                        color = colors.ink,
-                    )
-                }
-                Spacer(Modifier.height(spacing.sm))
-                // Dashed 1dp footer divider — per handoff-components.jsx:114, 370.
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(2.dp)
-                        .dashedDivider(
-                            color = colors.ink,
-                            strokeWidth = stroke.hairline,
-                            dashLengthDp = 4.dp,
-                            gapDp = 3.dp,
-                        ),
-                )
-                Spacer(Modifier.height(spacing.xs))
-                // Engagement meta row — "IMAGE · ↑ 2.4k" / "TEXT" (when null).
-                val typeLabel = bookmark.contentType.name.uppercase()
-                val meta = bookmark.engagementCount?.let { "$typeLabel · ↑ ${formatCount(it)}" } ?: typeLabel
-                Text(
-                    text = meta,
-                    style = typography.metaMono,
-                    color = colors.onSurfaceVariant,
-                    modifier = Modifier.testTag("card-meta"),
-                )
-                if (bookmark.tags.isNotEmpty()) {
-                    Spacer(Modifier.height(spacing.sm))
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(spacing.md),
-                        verticalArrangement = Arrangement.spacedBy(spacing.xs),
-                        modifier = Modifier.testTag("card-actions"),
-                    ) {
-                        bookmark.tags.forEach { tag ->
-                            CrumbsTagChip(label = tag, onClick = { /* future: filter by tag */ })
-                        }
-                    }
-                }
+                BookmarkCardFooter(bookmark = bookmark)
             }
         }
 
@@ -265,6 +192,123 @@ private fun BookmarkCardContent(
                     style = typography.captionMono,
                     color = colors.ink,
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Optional media banner at the top of the card (16:7 aspect ratio).
+ * Rendered only when [imageUrl] is non-null and [contentType] is Image or Video.
+ */
+@Composable
+private fun BookmarkCardMedia(
+    imageUrl: String?,
+    contentType: ContentType,
+) {
+    val colors = LocalCrumbsColors.current
+    val stroke = LocalCrumbsStroke.current
+
+    if (imageUrl != null &&
+        (contentType == ContentType.Image || contentType == ContentType.Video)
+    ) {
+        AsyncImage(
+            model = imageUrl,
+            contentDescription = null,
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 7f),
+            contentScale = ContentScale.Crop,
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(stroke.hairline)
+                .background(colors.ink),
+        )
+    }
+}
+
+/**
+ * Title and preview-text section of the card, including the optional thread
+ * continuation indicator ("↳ + N MORE").
+ */
+@Composable
+private fun BookmarkCardBody(bookmark: Bookmark) {
+    val colors = LocalCrumbsColors.current
+    val spacing = LocalCrumbsSpacing.current
+    val typography = LocalCrumbsTypography.current
+
+    Text(
+        text = bookmark.title.uppercase(),
+        style = typography.displayHeadline,
+        color = colors.ink,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .testTag(if (bookmark.pendingDelete) "bookmark-card-strikethrough" else "card-title")
+            .brutalistStrikethrough(active = bookmark.pendingDelete, color = colors.ink),
+    )
+    Spacer(Modifier.height(spacing.sm))
+    Text(
+        text = bookmark.previewText,
+        style = typography.bodyMono,
+        color = colors.ink,
+        maxLines = 3,
+        overflow = TextOverflow.Ellipsis,
+    )
+    if (bookmark.isThread) {
+        Spacer(Modifier.height(spacing.xs))
+        Text(
+            text = "↳ + ${bookmark.threadCount} MORE",
+            style = typography.captionMono,
+            color = colors.ink,
+        )
+    }
+}
+
+/**
+ * Footer section: dashed divider, engagement meta row, and tag chip FlowRow.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BookmarkCardFooter(bookmark: Bookmark) {
+    val colors = LocalCrumbsColors.current
+    val spacing = LocalCrumbsSpacing.current
+    val stroke = LocalCrumbsStroke.current
+    val typography = LocalCrumbsTypography.current
+
+    // Dashed 1dp footer divider — per handoff-components.jsx:114, 370.
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(2.dp)
+            .dashedDivider(
+                color = colors.ink,
+                strokeWidth = stroke.hairline,
+                dashLengthDp = 4.dp,
+                gapDp = 3.dp,
+            ),
+    )
+    Spacer(Modifier.height(spacing.xs))
+    // Engagement meta row — "IMAGE · ↑ 2.4k" / "TEXT" (when null).
+    val typeLabel = bookmark.contentType.name.uppercase()
+    val meta = bookmark.engagementCount?.let { "$typeLabel · ↑ ${formatCount(it)}" } ?: typeLabel
+    Text(
+        text = meta,
+        style = typography.metaMono,
+        color = colors.onSurfaceVariant,
+        modifier = Modifier.testTag("card-meta"),
+    )
+    if (bookmark.tags.isNotEmpty()) {
+        Spacer(Modifier.height(spacing.sm))
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(spacing.md),
+            verticalArrangement = Arrangement.spacedBy(spacing.xs),
+            modifier = Modifier.testTag("card-actions"),
+        ) {
+            bookmark.tags.forEach { tag ->
+                CrumbsTagChip(label = tag, onClick = { /* future: filter by tag */ })
             }
         }
     }

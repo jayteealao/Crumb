@@ -10,10 +10,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 
 /**
- * Resolves [ThreadDetailViewModel] from the Hilt graph and forwards its
- * state into [ThreadDetailScreen]. Root-card taps open the canonical
- * source URL through Intent.ACTION_VIEW — the thread surface is read-only,
- * there is no nested-thread navigation from within it.
+ * Navigation entry point for the thread-detail destination. Resolves [ThreadDetailViewModel]
+ * from the Hilt graph and forwards its state into [ThreadDetailScreen]. Root-card taps open
+ * the canonical source URL via Intent.ACTION_VIEW — the thread surface is read-only.
+ *
+ * @param navController Used to pop back to the search or feed when the user closes the thread.
+ * @param viewModel Loads the root tweet and its replies and exposes them as [ThreadDetailUiState].
  */
 @Composable
 fun ThreadDetailRoute(

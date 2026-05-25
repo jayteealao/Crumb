@@ -3,6 +3,8 @@ package com.github.jayteealao.crumbs.db
 import androidx.room.testing.MigrationTestHelper
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.github.jayteealao.crumbs.db.MIGRATION_2_3
+import com.github.jayteealao.crumbs.db.MIGRATION_3_4
 import com.github.jayteealao.crumbs.db.MIGRATION_4_5
 import com.github.jayteealao.crumbs.db.MIGRATION_5_6
 import com.github.jayteealao.crumbs.db.MIGRATION_6_7
@@ -26,6 +28,208 @@ class MigrationTest {
         InstrumentationRegistry.getInstrumentation(),
         AppDatabase::class.java,
     )
+
+    @Test
+    fun migrate2To3_createsTagsAndTweetTagsTablesWithIndexes() {
+        // Create a v2 database with a tweetEntity row so we can later verify
+        // that tweet_tags respects its FK back to tweetEntity.
+        helper.createDatabase(TEST_DB, 2).apply {
+            execSQL(
+                "INSERT INTO tweetEntity " +
+                    "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`) " +
+                    "VALUES ('tweet-1', 'hello', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1)"
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB,
+            3,
+            true,
+            MIGRATION_2_3,
+        )
+
+        // Both tables were created.
+        val expectedTables = setOf("tags", "tweet_tags")
+        val foundTables = mutableSetOf<String>()
+        db.query(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('tags', 'tweet_tags')"
+        ).use { cursor ->
+            while (cursor.moveToNext()) foundTables += cursor.getString(0)
+        }
+        assertEquals(
+            "Both tags and tweet_tags tables should exist after 2→3 migration",
+            expectedTables,
+            foundTables,
+        )
+
+        // tags schema: single 'name' column, TEXT NOT NULL, primary key.
+        db.query("PRAGMA table_info(tags)").use { cursor ->
+            val columns = mutableSetOf<String>()
+            while (cursor.moveToNext()) columns += cursor.getString(cursor.getColumnIndexOrThrow("name"))
+            assertEquals(setOf("name"), columns)
+        }
+
+        // tweet_tags schema: tweetId + tagName columns.
+        db.query("PRAGMA table_info(tweet_tags)").use { cursor ->
+            val columns = mutableSetOf<String>()
+            while (cursor.moveToNext()) columns += cursor.getString(cursor.getColumnIndexOrThrow("name"))
+            assertEquals(setOf("tweetId", "tagName"), columns)
+        }
+
+        // Both indexes are present.
+        val expectedIndexes = setOf("index_tweet_tags_tweetId", "index_tweet_tags_tagName")
+        val foundIndexes = mutableSetOf<String>()
+        db.query(
+            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='tweet_tags'"
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val name = cursor.getString(0)
+                if (!name.startsWith("sqlite_autoindex_")) foundIndexes += name
+            }
+        }
+        assertEquals(
+            "Both tweet_tags indexes should exist after 2→3 migration",
+            expectedIndexes,
+            foundIndexes,
+        )
+
+        // End-to-end write: insert a tag and a tweet_tags cross-reference row.
+        db.execSQL("INSERT INTO tags (name) VALUES ('android')")
+        db.execSQL(
+            "INSERT INTO tweet_tags (tweetId, tagName) VALUES ('tweet-1', 'android')"
+        )
+        db.query(
+            "SELECT tweetId, tagName FROM tweet_tags WHERE tweetId = 'tweet-1'"
+        ).use { cursor ->
+            assertTrue("tweet_tags row should be queryable after 2→3 migration", cursor.moveToFirst())
+            assertEquals("tweet-1", cursor.getString(0))
+            assertEquals("android", cursor.getString(1))
+        }
+
+        db.close()
+    }
+
+    @Test
+    fun migrate3To4_fixesTweetTagsFkCaseAndCreatesRedditPostsTable() {
+        // Seed v3 with a tweetEntity + tag + tweet_tags cross-reference so that
+        // the data-preservation leg of the migration is exercised.
+        helper.createDatabase(TEST_DB, 3).apply {
+            execSQL(
+                "INSERT INTO tweetEntity " +
+                    "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`) " +
+                    "VALUES ('tweet-1', 'test tweet', '2024-06-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1)"
+            )
+            execSQL("INSERT INTO tags (name) VALUES ('kotlin')")
+            execSQL(
+                "INSERT INTO tweet_tags (tweetId, tagName) VALUES ('tweet-1', 'kotlin')"
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB,
+            4,
+            true,
+            MIGRATION_3_4,
+        )
+
+        // Pre-existing tweet_tags row survives the table rebuild.
+        db.query(
+            "SELECT tweetId, tagName FROM tweet_tags WHERE tweetId = 'tweet-1'"
+        ).use { cursor ->
+            assertTrue(
+                "tweet_tags row must survive the 3→4 table-rebuild migration",
+                cursor.moveToFirst(),
+            )
+            assertEquals("tweet-1", cursor.getString(0))
+            assertEquals("kotlin", cursor.getString(1))
+        }
+
+        // tweet_tags now references 'tweetEntity' (mixed-case) — validate via
+        // the sqlite_master DDL rather than just trusting MigrationTestHelper.
+        db.query(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='tweet_tags'"
+        ).use { cursor ->
+            assertTrue("tweet_tags must be present in sqlite_master", cursor.moveToFirst())
+            val ddl = cursor.getString(0)
+            assertTrue(
+                "tweet_tags FK must reference 'tweetEntity' (mixed-case) after 3→4 migration; got: $ddl",
+                ddl.contains("REFERENCES `tweetEntity`"),
+            )
+        }
+
+        // reddit_posts table was created with the expected 20 columns.
+        db.query("PRAGMA table_info(reddit_posts)").use { cursor ->
+            val columns = mutableSetOf<String>()
+            while (cursor.moveToNext()) columns += cursor.getString(cursor.getColumnIndexOrThrow("name"))
+            val expectedColumns = setOf(
+                "id", "name", "title", "selftext", "author",
+                "subreddit", "subreddit_prefixed", "created_utc", "url",
+                "permalink", "thumbnail", "num_comments", "score",
+                "is_self", "is_video", "domain", "link_flair_text",
+                "gilded", "over_18", "order",
+            )
+            assertEquals(
+                "reddit_posts should have exactly the 20 schema columns after 3→4 migration",
+                expectedColumns,
+                columns,
+            )
+        }
+
+        // reddit_posts author + subreddit indexes are present.
+        val expectedRedditIndexes = setOf(
+            "index_reddit_posts_author",
+            "index_reddit_posts_subreddit",
+        )
+        val foundRedditIndexes = mutableSetOf<String>()
+        db.query(
+            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='reddit_posts'"
+        ).use { cursor ->
+            while (cursor.moveToNext()) foundRedditIndexes += cursor.getString(0)
+        }
+        assertEquals(
+            "Both reddit_posts indexes should exist after 3→4 migration",
+            expectedRedditIndexes,
+            foundRedditIndexes,
+        )
+
+        // tweet_tags indexes were recreated correctly.
+        val expectedTagIndexes = setOf("index_tweet_tags_tweetId", "index_tweet_tags_tagName")
+        val foundTagIndexes = mutableSetOf<String>()
+        db.query(
+            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='tweet_tags'"
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val name = cursor.getString(0)
+                if (!name.startsWith("sqlite_autoindex_")) foundTagIndexes += name
+            }
+        }
+        assertEquals(
+            "Both tweet_tags indexes should be recreated after 3→4 migration",
+            expectedTagIndexes,
+            foundTagIndexes,
+        )
+
+        // End-to-end insert into reddit_posts works after migration.
+        db.execSQL(
+            "INSERT INTO reddit_posts " +
+                "(id, name, title, selftext, author, subreddit, subreddit_prefixed, created_utc, " +
+                "url, permalink, thumbnail, num_comments, score, is_self, is_video, domain, " +
+                "link_flair_text, gilded, over_18, `order`) " +
+                "VALUES ('post-1', 't3_post-1', 'Hello Reddit', 'body text', 'user1', " +
+                "'androiddev', 'r/androiddev', 1700000000, 'https://example.com', " +
+                "'/r/androiddev/post-1', NULL, 3, 7, 1, 0, 'self.androiddev', NULL, 0, 0, 1)"
+        )
+        db.query(
+            "SELECT id, title FROM reddit_posts WHERE id = 'post-1'"
+        ).use { cursor ->
+            assertTrue("reddit_posts insert should succeed after 3→4 migration", cursor.moveToFirst())
+            assertEquals("Hello Reddit", cursor.getString(1))
+        }
+
+        db.close()
+    }
 
     @Test
     fun migrate4To5_createsDeletedBookmarksTable() {

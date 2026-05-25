@@ -47,6 +47,18 @@ class HomeServicesViewModel @Inject constructor(
     val snackbarBus: SnackbarBus,
 ) : ViewModel()
 
+/**
+ * Navigation entry point for the home destination. Wires Hilt ViewModels to [HomeScreen] and
+ * coordinates cross-tab concerns such as reconnect banners, snackbar feedback, and filter state.
+ *
+ * @param navController Used to navigate to Search, ConnectX, and OAuth redirect destinations.
+ * @param twitterAuthCode OAuth authorization code forwarded from the deep-link intent, if present.
+ * @param loginViewModel Provides Twitter access-token availability and user info.
+ * @param redditViewModel Provides Reddit access-token availability, filter state, and auth intent.
+ * @param bookmarksViewModel Provides Twitter bookmark paging, filter state, and sync status.
+ * @param services Hilt-scoped holder for [SyncErrorBus] and [SnackbarBus] whose lifetimes must
+ *   outlive individual tab recompositions.
+ */
 @Composable
 fun HomeRoute(
     navController: NavController,
@@ -99,9 +111,9 @@ fun HomeRoute(
         bookmarksViewModel.snackbarEvents.collect { event ->
             val message = when (event) {
                 is TwitterSnackbarEvent.Debounced ->
-                    "Just polled. Try again in ${event.retryAfterSeconds ?: 60}s"
-                is TwitterSnackbarEvent.InProgress -> "Sync already in progress"
-                is TwitterSnackbarEvent.GenericFailure -> "Sync failed (${event.reason})"
+                    "Bookmark fetch paused. Try again in ${event.retryAfterSeconds ?: 60}s"
+                is TwitterSnackbarEvent.InProgress -> "Fetching your bookmarks..."
+                is TwitterSnackbarEvent.GenericFailure -> "Couldn't fetch bookmarks. Please try again."
             }
             snackbarHostState.showSnackbar(
                 message = message,
@@ -177,7 +189,7 @@ fun HomeRoute(
             when (event) {
                 is SnackbarEvent.UndoableDelete -> {
                     val result = snackbarHostState.showSnackbar(
-                        message = "DELETED",
+                        message = "BOOKMARK DELETED",
                         actionLabel = "UNDO",
                         duration = SnackbarDuration.Short,
                     )
@@ -229,7 +241,7 @@ fun HomeRoute(
                             Timber.e(e, "No activity to handle OAuth intent")
                             snackbarScope.launch {
                                 snackbarHostState.showSnackbar(
-                                    message = "NO BROWSER FOUND",
+                                    message = "NO BROWSER FOUND. INSTALL A WEB BROWSER TO OPEN LINKS.",
                                     duration = SnackbarDuration.Short,
                                 )
                             }

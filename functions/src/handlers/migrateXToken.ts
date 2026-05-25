@@ -3,16 +3,32 @@ import { logger } from "firebase-functions/v2";
 
 const X_TOKEN_ENDPOINT = "https://api.x.com/2/oauth2/token";
 
-// One-shot callable invoked by the on-device migration worker after the
-// server-side cutover. The client uploads its locally-stored refresh token; we
-// validate it against X (grant_type=refresh_token), persist the rotated token
-// in Secret Manager, flip sync_status.linked=true, and fan out runPoll so the
-// first server-driven bookmarks land within ~30s.
-//
-// Returns { ok: false, reason: "invalid" } when X rejects the upload — the
-// worker treats that as terminal (no retry) and the reconnect banner becomes
-// the UX. Network failures bubble up as HttpsError("internal") so WorkManager
-// retries with backoff.
+/**
+ * Validates and migrates a locally-stored X/Twitter refresh token to server-side custody.
+ *
+ * @remarks
+ * Called once by the on-device `XTokenMigrationWorker` after the server-side OAuth
+ * cutover. The worker uploads the refresh token it previously stored in Android
+ * SharedPreferences. This function:
+ * 1. Validates the token against the X token endpoint (`grant_type=refresh_token`).
+ * 2. Persists the rotated token (or the original if X does not rotate) in Secret Manager
+ *    via `setRefreshToken`, which uses add-then-disable-previous semantics.
+ * 3. Writes `sync_status/state.linked = true` to Firestore for the user.
+ * 4. Fire-and-forgets `runPoll` so the first server-driven bookmarks arrive within ~30 s.
+ *
+ * A `{ ok: false, reason: "invalid" }` response signals a terminal failure — the worker
+ * should not retry and the reconnect banner becomes the user-facing recovery path.
+ * Network errors are rethrown as `HttpsError("internal")` so WorkManager retries with
+ * exponential backoff.
+ *
+ * @param request - Callable request. `request.data.refreshToken` (string, required) is
+ *   the X OAuth 2.0 refresh token obtained during the previous on-device PKCE flow.
+ * @returns `{ ok: true }` on success, or `{ ok: false, reason: "invalid" }` when X
+ *   rejects the provided token (terminal — no client retry).
+ * @throws {HttpsError} `"unauthenticated"` – when `request.auth` is absent.
+ * @throws {HttpsError} `"invalid-argument"` – when `request.data.refreshToken` is missing or empty.
+ * @throws {HttpsError} `"internal"` – on network failure reaching the X token endpoint.
+ */
 export const migrateXToken = onCall(async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Sign-in required");

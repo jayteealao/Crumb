@@ -17,6 +17,16 @@ import com.github.jayteealao.twitter.screens.LoginViewModel
 import kotlinx.coroutines.delay
 import timber.log.Timber
 
+/**
+ * Navigation entry point for the login destination. Wires ViewModels into [LoginScreen] and
+ * handles auto-navigation to Home once any auth method succeeds (Twitter, Reddit, or Firebase).
+ *
+ * @param navController Used to navigate forward to Home or ConnectX after authentication.
+ * @param authorizationCode OAuth code forwarded from the deep-link intent; triggers Twitter token exchange.
+ * @param loginViewModel Provides Twitter access-token availability and the token-exchange call.
+ * @param redditViewModel Provides Reddit access-token availability and the auth intent.
+ * @param authViewModel Manages Firebase sign-in state (Google, email/password, and sign-out).
+ */
 @Composable
 fun LoginRoute(
     navController: NavController,

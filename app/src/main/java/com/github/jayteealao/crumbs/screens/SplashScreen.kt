@@ -21,6 +21,27 @@ data class SplashUiState(
     val isLoggedIn: Boolean,
 )
 
+@Deprecated(
+    message = "Use SplashScreen(uiState, modifier) instead",
+    replaceWith = ReplaceWith("SplashScreen(uiState = SplashUiState(isLoggedIn = isLoggedIn), modifier = modifier)"),
+)
+@Composable
+@Suppress("UNUSED_PARAMETER")
+fun SplashScreen(
+    isLoggedIn: Boolean,
+    navController: androidx.navigation.NavController,
+    loginViewModel: com.github.jayteealao.twitter.screens.LoginViewModel,
+) {
+    SplashScreen(uiState = SplashUiState(isLoggedIn = isLoggedIn))
+}
+
+/**
+ * Splash / launch screen shown while the app determines navigation destination. Displays only
+ * the wordmark on the theme background; the [SplashRoute] drives the timed redirect to Login
+ * or Home based on [SplashUiState.isLoggedIn].
+ *
+ * @param uiState Holds [SplashUiState.isLoggedIn] so the route can read auth state before navigating.
+ */
 @Composable
 fun SplashScreen(
     uiState: SplashUiState,

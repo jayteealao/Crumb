@@ -27,6 +27,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -63,6 +67,23 @@ data class LoginUiState(
     val authErrorMessage: String? = null,
 )
 
+/**
+ * Account-connection screen shown before the user has completed authentication. Offers Firebase
+ * sign-in (Google or email/password) alongside Twitter and Reddit OAuth buttons, and surfaces
+ * an inline email/password dialog when needed.
+ *
+ * @param uiState Snapshot of connection state, Firebase auth progress, and dialog visibility flags.
+ * @param onConnectTwitter Called when the user taps the Twitter connect button; navigates to ConnectX.
+ * @param onConnectReddit Called when the user taps the Reddit connect button; launches the OAuth intent.
+ * @param onSkipAuth Called when the user taps "Skip Auth (Debug)"; only visible in debug builds.
+ * @param onLogoutTwitter Called when the user taps the logout button on a connected Twitter profile.
+ * @param onLogoutReddit Called when the user taps the logout button on a connected Reddit profile.
+ * @param onSignInWithGoogle Called to launch the Credential Manager Google sign-in sheet.
+ * @param onSignInWithEmail Called to show the email/password entry dialog.
+ * @param onEmailPasswordSubmit Called with the entered email and password when the dialog is submitted.
+ * @param onDismissAuthDialog Called when the email/password dialog is dismissed.
+ * @param onSignOutFirebase Called when the user taps "Sign Out" while Firebase-authenticated.
+ */
 @Composable
 fun LoginScreen(
     uiState: LoginUiState,
@@ -264,7 +285,8 @@ private fun EmailPasswordSignInDialog(
         modifier = Modifier
             .fillMaxSize()
             // Tap-outside-to-dismiss; matches the brutalist no-chrome aesthetic.
-            .clickable(onClick = onDismiss)
+            .semantics { role = Role.Button; contentDescription = "Dismiss dialog" }
+            .clickable(onClickLabel = "Dismiss", onClick = onDismiss)
             .testTag("login-email-dialog-scrim"),
         contentAlignment = Alignment.Center,
     ) {
@@ -313,6 +335,7 @@ private fun EmailPasswordSignInDialog(
                     .fillMaxWidth()
                     .border(stroke.regular, colors.ink)
                     .padding(horizontal = spacing.sm, vertical = spacing.sm)
+                    .semantics { contentDescription = "Email" }
                     .testTag("login-email-field"),
             )
             Spacer(modifier = Modifier.height(spacing.sm))
@@ -328,6 +351,7 @@ private fun EmailPasswordSignInDialog(
                     .fillMaxWidth()
                     .border(stroke.regular, colors.ink)
                     .padding(horizontal = spacing.sm, vertical = spacing.sm)
+                    .semantics { contentDescription = "Password" }
                     .testTag("login-password-field"),
             )
 
@@ -348,7 +372,8 @@ private fun EmailPasswordSignInDialog(
                 color = colors.ink,
                 modifier = Modifier
                     .testTag("login-email-cancel")
-                    .clickable(onClick = onDismiss)
+                    .semantics { role = Role.Button }
+                    .clickable(onClickLabel = "Cancel", onClick = onDismiss)
                     .padding(vertical = spacing.xs),
             )
         }

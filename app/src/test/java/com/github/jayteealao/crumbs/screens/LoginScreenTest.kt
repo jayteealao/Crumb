@@ -2,7 +2,9 @@ package com.github.jayteealao.crumbs.screens
 
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
@@ -45,6 +47,11 @@ class LoginScreenTest {
                 )
             }
         }
+        // Behavioral: the wordmark and both connect CTAs are visible in the default unauthenticated state.
+        composeTestRule.onNodeWithTag("login-wordmark").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("login-google-cta").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("login-twitter-cta").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("login-reddit-cta").assertIsDisplayed()
         composeTestRule.onRoot()
             .captureRoboImage("src/test/screenshots/LoginScreen_default_light.png", options)
     }
@@ -61,6 +68,11 @@ class LoginScreenTest {
                 )
             }
         }
+        // Behavioral: the wordmark and both connect CTAs are visible in the default unauthenticated state (dark theme).
+        composeTestRule.onNodeWithTag("login-wordmark").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("login-google-cta").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("login-twitter-cta").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("login-reddit-cta").assertIsDisplayed()
         composeTestRule.onRoot()
             .captureRoboImage("src/test/screenshots/LoginScreen_default_dark.png", options)
     }
@@ -133,6 +145,9 @@ class LoginScreenTest {
                 )
             }
         }
+        // Behavioral: Google CTA is the primary button and is enabled by default.
+        composeTestRule.onNodeWithTag("login-google-cta").assertIsDisplayed()
+        composeTestRule.onNodeWithText("CONTINUE WITH GOOGLE").assertIsDisplayed()
         composeTestRule.onRoot()
             .captureRoboImage("src/test/screenshots/LoginScreen_googlePrimary_light.png", options)
     }
@@ -149,6 +164,9 @@ class LoginScreenTest {
                 )
             }
         }
+        // Behavioral: Google CTA is the primary button and is enabled by default (dark theme).
+        composeTestRule.onNodeWithTag("login-google-cta").assertIsDisplayed()
+        composeTestRule.onNodeWithText("CONTINUE WITH GOOGLE").assertIsDisplayed()
         composeTestRule.onRoot()
             .captureRoboImage("src/test/screenshots/LoginScreen_googlePrimary_dark.png", options)
     }
@@ -165,6 +183,9 @@ class LoginScreenTest {
                 )
             }
         }
+        // Behavioral: collision dialog is shown with the "EXISTING ACCOUNT FOUND" heading.
+        composeTestRule.onNodeWithTag("login-email-dialog").assertIsDisplayed()
+        composeTestRule.onNodeWithText("EXISTING ACCOUNT FOUND").assertIsDisplayed()
         composeTestRule.onRoot()
             .captureRoboImage("src/test/screenshots/LoginScreen_collisionPrompt_light.png", options)
     }
@@ -181,6 +202,9 @@ class LoginScreenTest {
                 )
             }
         }
+        // Behavioral: collision dialog is shown with the "EXISTING ACCOUNT FOUND" heading (dark theme).
+        composeTestRule.onNodeWithTag("login-email-dialog").assertIsDisplayed()
+        composeTestRule.onNodeWithText("EXISTING ACCOUNT FOUND").assertIsDisplayed()
         composeTestRule.onRoot()
             .captureRoboImage("src/test/screenshots/LoginScreen_collisionPrompt_dark.png", options)
     }
@@ -197,6 +221,11 @@ class LoginScreenTest {
                 )
             }
         }
+        // Behavioral: email dialog is shown with the correct heading and input fields.
+        composeTestRule.onNodeWithTag("login-email-dialog").assertIsDisplayed()
+        composeTestRule.onNodeWithText("SIGN IN WITH EMAIL").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("login-email-field").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("login-password-field").assertIsDisplayed()
         composeTestRule.onRoot()
             .captureRoboImage("src/test/screenshots/LoginScreen_emailDialog_light.png", options)
     }
@@ -213,6 +242,11 @@ class LoginScreenTest {
                 )
             }
         }
+        // Behavioral: email dialog is shown with the correct heading and input fields (dark theme).
+        composeTestRule.onNodeWithTag("login-email-dialog").assertIsDisplayed()
+        composeTestRule.onNodeWithText("SIGN IN WITH EMAIL").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("login-email-field").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("login-password-field").assertIsDisplayed()
         composeTestRule.onRoot()
             .captureRoboImage("src/test/screenshots/LoginScreen_emailDialog_dark.png", options)
     }
@@ -229,6 +263,9 @@ class LoginScreenTest {
                 )
             }
         }
+        // Behavioral: when signed in, the "SIGN OUT" button replaces the Google CTA.
+        composeTestRule.onNodeWithTag("login-firebase-signout").assertIsDisplayed()
+        composeTestRule.onNodeWithText("SIGN OUT").assertIsDisplayed()
         composeTestRule.onRoot()
             .captureRoboImage("src/test/screenshots/LoginScreen_signedIn_light.png", options)
     }
@@ -245,6 +282,9 @@ class LoginScreenTest {
                 )
             }
         }
+        // Behavioral: when signed in, the "SIGN OUT" button replaces the Google CTA (dark theme).
+        composeTestRule.onNodeWithTag("login-firebase-signout").assertIsDisplayed()
+        composeTestRule.onNodeWithText("SIGN OUT").assertIsDisplayed()
         composeTestRule.onRoot()
             .captureRoboImage("src/test/screenshots/LoginScreen_signedIn_dark.png", options)
     }

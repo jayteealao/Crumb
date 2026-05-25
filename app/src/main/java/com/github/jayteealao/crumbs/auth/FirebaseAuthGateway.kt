@@ -33,7 +33,10 @@ class FirebaseAuthGateway @Inject constructor(
     private val _currentUser = MutableStateFlow<CurrentUser?>(auth.currentUser?.toCurrentUser())
     override val currentUser: StateFlow<CurrentUser?> = _currentUser.asStateFlow()
 
-    init {
+    // Called once by CrumbApplication.onCreate() — not in init — so that the
+    // side effect (listener registration) is deferred until after construction.
+    // This makes the class testable without needing to capture the listener.
+    override fun initialize() {
         auth.addAuthStateListener { fa ->
             val prior = _currentUser.value?.uid
             val next = fa.currentUser?.toCurrentUser()

@@ -21,7 +21,7 @@ class FilterOverlayTest {
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-    private val sections = persistentListOf(
+    private val typeSections = persistentListOf(
         FilterOverlaySection(
             "Type",
             persistentListOf(
@@ -33,13 +33,70 @@ class FilterOverlayTest {
         ),
     )
 
+    private val multiSections = persistentListOf(
+        FilterOverlaySection(
+            "Type",
+            persistentListOf(
+                FilterChipItem("all", "ALL"),
+                FilterChipItem("article", "ARTICLES"),
+                FilterChipItem("video", "VIDEOS"),
+                FilterChipItem("thread", "THREADS"),
+            ),
+        ),
+        FilterOverlaySection(
+            "Tags",
+            persistentListOf(
+                FilterChipItem("android", "ANDROID"),
+                FilterChipItem("compose", "COMPOSE"),
+                FilterChipItem("kotlin", "KOTLIN"),
+                FilterChipItem("ux", "UX"),
+            ),
+        ),
+    )
+
+    /** M-06: default state — no chips selected, filter type = ALL (all unselected). */
+    @Test
+    fun filterOverlay_default() {
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = false) {
+                FilterOverlay(
+                    visible = true,
+                    sections = typeSections,
+                    selectedChipIds = emptySet(),
+                    onChipToggled = {},
+                    onDismiss = {},
+                )
+            }
+        }
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/FilterOverlay_default.png")
+    }
+
+    /** M-06: tags section active — Type=ARTICLES and two tag chips selected. */
+    @Test
+    fun filterOverlay_withTagsSelected() {
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = false) {
+                FilterOverlay(
+                    visible = true,
+                    sections = multiSections,
+                    selectedChipIds = setOf("article", "android", "compose"),
+                    onChipToggled = {},
+                    onDismiss = {},
+                )
+            }
+        }
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/FilterOverlay_withTagsSelected.png")
+    }
+
     @Test
     fun filterOverlay_visible_withSelection_light() {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = false) {
                 FilterOverlay(
                     visible = true,
-                    sections = sections,
+                    sections = typeSections,
                     selectedChipIds = setOf("article"),
                     onChipToggled = {},
                     onDismiss = {},
@@ -56,7 +113,7 @@ class FilterOverlayTest {
             CrumbsTheme(darkTheme = false) {
                 FilterOverlay(
                     visible = true,
-                    sections = sections,
+                    sections = typeSections,
                     selectedChipIds = emptySet(),
                     onChipToggled = {},
                     onDismiss = {},
@@ -73,7 +130,7 @@ class FilterOverlayTest {
             CrumbsTheme(darkTheme = true) {
                 FilterOverlay(
                     visible = true,
-                    sections = sections,
+                    sections = typeSections,
                     selectedChipIds = setOf("article", "video"),
                     onChipToggled = {},
                     onDismiss = {},

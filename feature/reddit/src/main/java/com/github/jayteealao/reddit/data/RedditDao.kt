@@ -53,9 +53,9 @@ interface RedditDao {
     @Query("""
         SELECT p.* FROM reddit_posts p
         LEFT JOIN deleted_bookmarks d ON p.id = d.bookmarkId AND d.source = 'reddit'
-        INNER JOIN tweet_tags tt ON tt.tweetId = p.id
+        INNER JOIN reddit_tag_crossref rtc ON rtc.postId = p.id
         WHERE d.bookmarkId IS NULL
-          AND tt.tagName IN (:tagNames)
+          AND rtc.tagName IN (:tagNames)
         GROUP BY p.id
         ORDER BY p.`order` DESC
     """)

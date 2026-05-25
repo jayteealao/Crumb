@@ -25,6 +25,12 @@ import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsSpacing
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsTypography
 
+/**
+ * Placeholder screen for the Map tab inside [HomeScreen]. Displays a "COMING SOON" notice with
+ * a decorative empty canvas; no interactive controls.
+ *
+ * @param contentPadding Padding from the parent scaffold applied to the root column.
+ */
 @Composable
 fun MapViewScreen(
     contentPadding: PaddingValues = PaddingValues(0.dp),
@@ -67,6 +73,12 @@ fun MapViewScreen(
     }
 }
 
+/**
+ * Navigation entry point for the Map tab. Thin wrapper that forwards scaffold padding to
+ * [MapViewScreen]; no ViewModels or state are needed while this tab is a placeholder.
+ *
+ * @param contentPadding Padding from the parent scaffold passed directly to [MapViewScreen].
+ */
 @Composable
 fun MapViewRoute(contentPadding: PaddingValues) {
     MapViewScreen(contentPadding = contentPadding)

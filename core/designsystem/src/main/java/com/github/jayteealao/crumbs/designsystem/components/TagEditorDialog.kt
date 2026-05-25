@@ -28,6 +28,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
@@ -121,6 +125,7 @@ fun TagEditorDialog(
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
+                            .semantics { contentDescription = "Add tag" }
                             .testTag("tag-editor-input"),
                     )
                     if (tagInput.isBlank()) {
@@ -145,7 +150,10 @@ fun TagEditorDialog(
                                 color = colors.ink,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable {
+                                    .clickable(
+                                        role = Role.Button,
+                                        onClickLabel = "Add tag: $suggestion",
+                                    ) {
                                         if (suggestion !in selectedTags) {
                                             selectedTags = (selectedTags + suggestion).toPersistentList()
                                         }
@@ -189,11 +197,14 @@ fun TagEditorDialog(
                                 CrumbsTagChip(label = tag, onClick = { })
                                 Icon(
                                     imageVector = Icons.Default.Close,
-                                    contentDescription = "Remove tag",
+                                    contentDescription = "Remove tag: $tag",
                                     tint = colors.ink,
                                     modifier = Modifier
                                         .size(16.dp)
-                                        .clickable {
+                                        .clickable(
+                                            role = Role.Button,
+                                            onClickLabel = "Remove tag: $tag",
+                                        ) {
                                             selectedTags = (selectedTags - tag).toPersistentList()
                                         }
                                         .padding(start = 2.dp),

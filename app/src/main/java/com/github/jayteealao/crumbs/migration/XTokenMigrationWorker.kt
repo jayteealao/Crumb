@@ -8,9 +8,13 @@ import com.github.jayteealao.pref.writeString
 import com.github.jayteealao.twitter.data.Prefs
 import com.google.firebase.functions.FirebaseFunctions
 import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeout
 import timber.log.Timber
+
+private const val TIMEOUT_MS = 30_000L
 
 // One-shot runner that uploads the on-device X refresh token to the
 // server-side `migrateXToken` callable, then clears the local Prefs so the
@@ -57,10 +61,12 @@ internal suspend fun runXTokenMigration(
     }
 
     return try {
-        val result = functions
-            .getHttpsCallable("migrateXToken")
-            .call(mapOf("refreshToken" to refreshToken))
-            .await()
+        val result = withTimeout(TIMEOUT_MS) {
+            functions
+                .getHttpsCallable("migrateXToken")
+                .call(mapOf("refreshToken" to refreshToken))
+                .await()
+        }
         val payload = result.data as? Map<*, *>
         val ok = payload?.get("ok") as? Boolean ?: false
         when {
@@ -82,6 +88,9 @@ internal suspend fun runXTokenMigration(
                 androidx.work.ListenableWorker.Result.retry()
             }
         }
+    } catch (e: TimeoutCancellationException) {
+        Timber.w(e, "XTokenMigrationWorker: callable timed out after ${TIMEOUT_MS}ms, failing")
+        androidx.work.ListenableWorker.Result.failure()
     } catch (e: Exception) {
         Timber.w(e, "XTokenMigrationWorker: transient failure, retrying")
         androidx.work.ListenableWorker.Result.retry()

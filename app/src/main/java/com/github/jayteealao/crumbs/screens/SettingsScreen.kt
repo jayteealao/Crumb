@@ -21,6 +21,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import com.github.jayteealao.crumbs.designsystem.components.ButtonStyle
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsButton
 import com.github.jayteealao.crumbs.designsystem.layouts.OverlayShell
@@ -35,11 +37,13 @@ import java.util.Locale
 import java.util.TimeZone
 
 /**
- * Stateless brutalist Settings screen. The only live data is the X sync-status
- * row; everything else (disconnect, etc.) is a placeholder until
- * cutover-migration ships the real callable.
+ * Displays app configuration options, currently focused on the X (Twitter) sync connection.
+ * Shows the live sync-status (connected / disconnected, last-polled timestamp, and any error),
+ * and offers a "Disconnect X" action protected by a confirmation dialog.
  *
- * testTag: `settings-screen`.
+ * @param syncStatus Server-reported sync state, or `null` while loading; drives the connection
+ *   status label, last-polled timestamp, and error row.
+ * @param onDisconnectClick Called after the user confirms the disconnect action in the dialog.
  */
 @Composable
 fun SettingsScreen(
@@ -81,7 +85,15 @@ fun SettingsScreen(
             text = if (syncStatus?.linked == true) "CONNECTED" else "DISCONNECTED",
             style = typography.bodyMono,
             color = if (syncStatus?.linked == true) colors.success else colors.error,
-            modifier = Modifier.testTag("settings-x-state"),
+            modifier = Modifier
+                .testTag("settings-x-state")
+                .semantics {
+                    stateDescription = if (syncStatus?.linked == true) {
+                        "X sync enabled"
+                    } else {
+                        "X sync disabled"
+                    }
+                },
         )
         Spacer(Modifier.height(spacing.xs))
         Text(

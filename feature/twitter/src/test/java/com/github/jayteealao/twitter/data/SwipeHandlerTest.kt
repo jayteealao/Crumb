@@ -3,7 +3,6 @@ package com.github.jayteealao.twitter.data
 import com.github.jayteealao.crumbs.data.DeletedBookmarkRepository
 import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.twitter.data.firestore.FirestoreRepository
-import com.google.firebase.functions.FirebaseFunctions
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -35,7 +34,7 @@ class SwipeHandlerTest {
     private lateinit var prefs: Prefs
     private lateinit var firestoreRepository: FirestoreRepository
     private lateinit var deletedBookmarkRepository: DeletedBookmarkRepository
-    private lateinit var functions: FirebaseFunctions
+    private lateinit var callableService: TwitterCallableService
     private lateinit var scope: CoroutineScope
     private val noOpSyncEnqueuer = object : TwitterSyncEnqueuer {
         override fun enqueueColdStart() = Unit
@@ -49,7 +48,7 @@ class SwipeHandlerTest {
         prefs = mockk(relaxed = true)
         firestoreRepository = mockk()
         deletedBookmarkRepository = mockk()
-        functions = mockk(relaxed = true)
+        callableService = mockk(relaxed = true)
         scope = TestScope(StandardTestDispatcher())
     }
 
@@ -58,7 +57,7 @@ class SwipeHandlerTest {
         authPref = prefs,
         firestoreRepository = firestoreRepository,
         deletedBookmarkRepository = deletedBookmarkRepository,
-        functions = functions,
+        callableService = callableService,
         scope = scope,
         syncEnqueuer = noOpSyncEnqueuer,
     )

@@ -28,6 +28,13 @@ class CrumbApplication : Application(), ImageLoaderFactory {
 
         registerSyncNotificationChannel()
 
+        // Register the Firebase Auth state listener. This is done explicitly
+        // here rather than inside FirebaseAuthGateway's constructor so that the
+        // side effect is decoupled from construction (M-03).
+        EntryPointAccessors.fromApplication(this, SyncEntryPoint::class.java)
+            .authGateway()
+            .initialize()
+
         // One-shot upload-and-clear of the legacy X refresh token. KEEP policy
         // + the worker's internal idempotency flag ensure this is a true
         // singleton across the install lifetime.
@@ -63,7 +70,7 @@ class CrumbApplication : Application(), ImageLoaderFactory {
                     TwitterSyncWorker.buildRequest(uid, runAsForegroundService = true),
                 )
             }
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
             Timber.w(e, "TwitterSyncWorker initial enqueue failed (likely Robolectric or pre-auth)")
         }
     }

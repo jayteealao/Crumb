@@ -13,10 +13,8 @@ import com.github.jayteealao.twitter.models.TweetData
 import com.github.jayteealao.twitter.models.TweetEntities
 import com.github.jayteealao.twitter.models.TweetEntity
 import com.github.jayteealao.twitter.models.TweetTagCrossRef
-import com.google.firebase.functions.FirebaseFunctions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -29,7 +27,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.tasks.await
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -40,7 +37,7 @@ class Repository @Inject constructor(
     private val authPref: Prefs,
     private val firestoreRepository: FirestoreRepository,
     private val deletedBookmarkRepository: DeletedBookmarkRepository,
-    private val functions: FirebaseFunctions,
+    private val callableService: TwitterCallableService,
     private val scope: CoroutineScope,
     private val syncEnqueuer: TwitterSyncEnqueuer,
 ) : TagRepository {
@@ -128,16 +125,14 @@ class Repository @Inject constructor(
         }
         _isRefreshing.value = true
         try {
-            val result = runCatching {
-                functions.getHttpsCallable("triggerPoll").call(emptyMap<String, Any>()).await()
-            }
+            val result = runCatching { callableService.triggerPoll() }
             // Always enqueue the local sync, even if triggerPoll failed — the
             // prior poll (e.g., the oauthCallback fan-out) may have written
             // docs the device hasn't synced locally yet. This is the recovery
             // path when cold-start enqueue raced Firebase Auth restoration.
             syncEnqueuer.enqueueRefresh()
 
-            val payload = result.getOrNull()?.data as? Map<*, *>
+            val payload = result.getOrNull()
             if (payload == null) {
                 Timber.w("triggerPoll returned no payload; assuming failure")
                 _snackbarEvents.tryEmit(
@@ -169,15 +164,7 @@ class Repository @Inject constructor(
      * so the device never carries the X credential again.
      */
     suspend fun disconnectX(): Result<Unit> = runCatching {
-        val response = functions
-            .getHttpsCallable("disconnectX")
-            .call(emptyMap<String, Any>())
-            .await()
-        val payload = response.data as? Map<*, *>
-        val ok = payload?.get("ok") as? Boolean ?: false
-        if (!ok) {
-            throw IllegalStateException(payload?.get("reason") as? String ?: "disconnect_failed")
-        }
+        callableService.disconnectX()
         authPref.clearAllTokens()
         Timber.d("Twitter tokens cleared after server-side disconnect")
     }

@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.github.jayteealao.crumbs.designsystem.modifiers.dashedBorder
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
@@ -109,6 +110,7 @@ fun CrumbsButton(
             enabled = enabled,
             interactionSource = interaction,
             indication = null,
+            role = Role.Button,
         ) { onClick() }
         .padding(contentPadding)
         .testTag("btn-${style.name.lowercase()}-${size.name.lowercase()}")

@@ -5,12 +5,12 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.github.jayteealao.crumbs.db.AppDatabase
 import com.github.jayteealao.crumbs.models.BookmarkSource
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.yield
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -30,6 +30,7 @@ import org.robolectric.annotation.Config
  * the data-layer side: softDelete writes a tombstone that isDeleted observes, and
  * undoDelete clears it.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class DeletedBookmarkRepositoryTest {
@@ -54,7 +55,7 @@ class DeletedBookmarkRepositoryTest {
     }
 
     @Test
-    fun softDelete_insertsTombstone_isDeletedReturnsTrue() = runBlocking {
+    fun softDelete_insertsTombstone_isDeletedReturnsTrue() = runTest {
         repo.softDelete("tweet-123", BookmarkSource.Twitter)
 
         assertTrue(
@@ -68,7 +69,7 @@ class DeletedBookmarkRepositoryTest {
     }
 
     @Test
-    fun undoDelete_removesTombstone_isDeletedReturnsFalse() = runBlocking {
+    fun undoDelete_removesTombstone_isDeletedReturnsFalse() = runTest {
         repo.softDelete("tweet-456", BookmarkSource.Twitter)
         assertTrue(repo.isDeleted("tweet-456", BookmarkSource.Twitter))
 
@@ -81,19 +82,17 @@ class DeletedBookmarkRepositoryTest {
     }
 
     @Test
-    fun softDelete_emitsUndoableDeleteEvent() = runBlocking {
+    fun softDelete_emitsUndoableDeleteEvent() = runTest(UnconfinedTestDispatcher()) {
         // snackbarBus.events is a MutableSharedFlow with replay = 0, so the collector
-        // must be started before the emission. Launch the collector first, yield to let
-        // it subscribe, then trigger softDelete.
-        val scope = CoroutineScope(Dispatchers.Default)
-        val deferredEvent = scope.async { snackbarBus.events.first() }
-        // Give the collector a chance to subscribe before we emit.
-        yield()
-        // Small busy-wait fallback in case the dispatcher hasn't scheduled the
-        // collector yet (sharedFlow.first() must be active when emit runs).
-        repeat(20) { yield() }
+        // must be subscribed before the emission. UnconfinedTestDispatcher starts the
+        // async block eagerly (before the next suspension point), guaranteeing the
+        // collector is active when softDelete emits — no yield() busy-waits needed.
+        val deferredEvent = async { snackbarBus.events.first() }
 
         repo.softDelete("reddit-abc", BookmarkSource.Reddit)
+
+        // Drain any pending coroutine work (e.g. the collector processing the emission).
+        advanceUntilIdle()
 
         val event = deferredEvent.await()
 

@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsBookmarkCard
@@ -37,17 +38,19 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 
 /**
- * Stateless search surface. Per the JS handoff (handoff-layouts-pages.jsx
- * SearchScreen row + option-d-screens.jsx DSearch lines 278-393):
- *  - HomeScaffold topBar slot receives `CrumbsSearchField` directly; there is
- *    no `CrumbsTopBar` wrapper, no wordmark — this is a dedicated route, not
- *    the in-place HomeScreen search-mode swap.
- *  - bottomBar/filterBar/banner slots are intentionally empty.
- *  - Idle/empty state shows a `↳ Recent searches` header (mixed-case, not
- *    UPPERCASE) over dashed-separator query rows.
- *  - Results state shows `Showing results in title + body` over a feed of
- *    CrumbsBookmarkCard hits whose index strip is overridden to `HIT/{idx}`
- *    per the spec (option-d-screens.jsx DSearch line 290).
+ * Full-screen search surface. Replaces the in-place search mode on [HomeScreen] with a dedicated
+ * route that owns its own top bar (`CrumbsSearchField`) and renders either recent-search history
+ * or live bookmark results depending on [uiState].
+ *
+ * @param query Current text in the search field, controlled by the caller.
+ * @param uiState One of [SearchUiState.Idle], [SearchUiState.Loading], [SearchUiState.Empty], or
+ *   [SearchUiState.Results]; drives which body panel is rendered.
+ * @param recentSearches Ordered list of previously submitted queries shown in the idle state.
+ * @param onQueryChange Called on every keystroke with the updated query text.
+ * @param onSubmit Called when the user submits the current query (keyboard action or recent tap).
+ * @param onBack Called when the user taps the back arrow to pop this destination.
+ * @param onRecentSelected Called with the tapped query string when the user selects a recent search.
+ * @param onBookmarkClick Called with the [Bookmark] when the user taps a result card.
  */
 @Composable
 fun SearchScreen(
@@ -180,7 +183,10 @@ private fun RecentSearchesPane(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onSelected(entry) }
+                            .clickable(
+                                role = Role.Button,
+                                onClickLabel = "Search for $entry",
+                            ) { onSelected(entry) }
                             .padding(horizontal = spacing.lg, vertical = spacing.md)
                             .testTag("search-recent-item"),
                     ) {

@@ -20,11 +20,13 @@ import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsSpacing
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsTypography
 
 /**
- * Blocking onboarding surface shown when the user is signed in but has not
- * yet linked X. Reuses brutalist primitives (CrumbsButton); no Material3
- * leaks.
+ * Blocking onboarding surface shown when the user is signed in but has not yet linked their X
+ * account. Prompts the user to start the X OAuth flow or skip for now.
  *
- * testTag: `connect-x-screen` — Maestro pivots on this.
+ * @param onConnect Called when the user taps "Connect X"; the route launches Custom Tabs OAuth.
+ * @param onSkip Called when the user taps "Skip for now"; sets the session skip flag and navigates home.
+ * @param connecting `true` while the OAuth flow is in progress; disables the connect button and
+ *   updates its label to "CONNECTING...".
  */
 @Composable
 fun ConnectXOnboardingScreen(

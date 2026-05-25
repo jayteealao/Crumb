@@ -54,6 +54,20 @@ data class AllBookmarksUiState(
     val tagsMap: Map<String, List<String>> = emptyMap(),
 )
 
+/**
+ * Unified feed that interleaves Twitter and Reddit bookmarks in a single scrollable list.
+ * Shows an empty-state prompt when neither source is connected, or per-section loading /
+ * error states as paged data loads.
+ *
+ * @param uiState Connection flags for each source and the shared tag map.
+ * @param twitterItems Paged Twitter bookmark data, or `null` when Twitter is not connected.
+ * @param redditItems Paged Reddit bookmark data, or `null` when Reddit is not connected.
+ * @param onCardClick Called with the source URL when the user taps a bookmark card.
+ * @param onLongPress Called with the [Bookmark] and screen-space anchor when the user long-presses a card.
+ * @param onConnectAccountClick Called when the user taps the connect-account CTA in the empty state.
+ * @param onLoadTags Called with a single bookmark id to lazily load its tags (legacy path).
+ * @param onLoadTagsForIds Called with a batch of bookmark ids when a new page snapshot is available.
+ */
 @Composable
 fun AllBookmarksScreen(
     uiState: AllBookmarksUiState,
@@ -215,6 +229,17 @@ private fun <T : Any> androidx.compose.foundation.lazy.LazyListScope.renderPagin
 
 // Route — owns Hilt ViewModel injection, paging, popup state, tag editor.
 
+/**
+ * Navigation entry point for the "All" tab inside [HomeScreen]. Injects ViewModels, collects
+ * paged data from both sources, and manages the long-press [BookmarkActionsOverlay] for open,
+ * share, delete, and tag-edit actions.
+ *
+ * @param contentPadding Padding from the parent scaffold passed down to the lazy list.
+ * @param loginViewModel Provides Twitter login state.
+ * @param redditViewModel Provides Reddit login state and paging data.
+ * @param bookmarksViewModel Provides Twitter paging data and tag operations.
+ * @param navController Used to navigate to the login screen from the empty-state CTA.
+ */
 @Composable
 fun AllBookmarksRoute(
     contentPadding: PaddingValues,

@@ -49,6 +49,22 @@ data class TwitterBookmarksUiState(
     val tagsMap: Map<String, List<String>> = emptyMap(),
 )
 
+/**
+ * Paged feed of Twitter bookmarks with pull-to-refresh. Shows a connect-account prompt when the
+ * user is not linked to Twitter, skeleton loading cards while the first page loads, and an error
+ * state on failure.
+ *
+ * @param uiState Snapshot of login state, refresh indicator, and the tag map.
+ * @param pagedBookmarks Paged [TweetData] from the database, or `null` when the user is not logged in.
+ * @param onCardClick Called with the source URL when the user taps a bookmark card.
+ * @param onLongPress Called with the [Bookmark] and screen-space anchor on long-press for the action overlay.
+ * @param onLoadTags Called with a single tweet id to lazily load its tags (legacy single-item path).
+ * @param onLoadTagsForIds Called with a batch of tweet ids when a new page snapshot is visible.
+ * @param onRefresh Called when the user pulls to refresh; triggers a server-side bookmark poll.
+ * @param onConnectClick Called when the user taps the connect CTA in the logged-out empty state.
+ * @param onConfirmDeletePending Called with the tweet id when the user confirms a swipe-to-delete.
+ * @param onCancelDeletePending Called with the tweet id when the user cancels a pending delete.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TwitterBookmarksScreen(
@@ -162,6 +178,17 @@ fun TwitterBookmarksScreen(
 
 // Route — owns Hilt ViewModel injection, paging, popup state, tag editor.
 
+/**
+ * Navigation entry point for the Twitter tab inside [HomeScreen]. Injects ViewModels, collects
+ * paged bookmark data, and manages the long-press [BookmarkActionsOverlay] for open, share,
+ * delete, and tag-edit actions.
+ *
+ * @param navController Used to navigate to the ConnectX destination from the logged-out empty state.
+ * @param contentPadding Padding from the parent scaffold passed down to the lazy list.
+ * @param twitterAuthCode OAuth auth code forwarded from the deep-link intent, if present.
+ * @param bookmarksViewModel Provides paging data, sync status, and tag/delete operations.
+ * @param loginViewModel Provides legacy access-token state (kept for parity with the Reddit path).
+ */
 @Composable
 fun TwitterBookmarksRoute(
     navController: NavController,

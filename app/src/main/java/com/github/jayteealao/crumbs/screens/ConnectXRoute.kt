@@ -37,6 +37,15 @@ class ConnectXViewModel @Inject constructor(
     val skipState: ConnectXSkipState,
 ) : ViewModel()
 
+/**
+ * Navigation entry point for the ConnectX destination. Launches the Twitter OAuth Custom Tabs
+ * flow via [TwitterOAuthCoordinator] and navigates home on success or shows a toast on failure.
+ *
+ * @param navController Used to navigate back to Home on OAuth success or after the user skips.
+ * @param twitterOAuthCoordinator Drives the Custom Tabs OAuth launch and emits [OAuthResult] events.
+ * @param bookmarksViewModel Refreshes sync status after a successful connection.
+ * @param viewModel Holds the session-scoped [ConnectXSkipState] flag written on skip.
+ */
 @Composable
 fun ConnectXRoute(
     navController: NavHostController,

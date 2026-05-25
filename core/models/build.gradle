@@ -1,27 +1,10 @@
 plugins {
-    id 'com.android.library'
+    id 'crumbs.android.library'
     id 'org.jetbrains.kotlin.plugin.compose'
 }
 
 android {
     namespace 'com.github.jayteealao.crumbs.models'
-    compileSdk 35
-
-    defaultConfig {
-        minSdk 24
-        targetSdk 35
-    }
-
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
-    }
-}
-
-kotlin {
-    compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
-    }
 }
 
 dependencies {

@@ -21,6 +21,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.github.jayteealao.crumbs.designsystem.layouts.OverlayShell
@@ -90,7 +93,10 @@ fun FilterOverlay(
                     .background(colors.background)
                     .border(stroke.hairline, colors.ink)
                     .padding(spacing.md)
-                    .clickable { onApply() }
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = "Apply filters"
+                    }
+                    .clickable(role = Role.Button) { onApply() }
                     .testTag("filter-overlay-apply"),
                 horizontalArrangement = Arrangement.Center,
             ) {
@@ -124,9 +130,13 @@ fun FilterOverlay(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp)
+                            .semantics(mergeDescendants = true) {
+                                contentDescription = if (selected) "Remove ${chip.label} filter" else "Add ${chip.label} filter"
+                            }
                             .clickable(
                                 interactionSource = interaction,
                                 indication = null,
+                                role = Role.Button,
                             ) { onChipToggled(chip.id) }
                             .testTag("filter-overlay-chip-${chip.id}"),
                     ) {

@@ -6,7 +6,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -36,7 +35,23 @@ data class HomeUiState(
     val selectedFilterChipIds: Set<String> = emptySet(),
     val bannerState: BannerState? = null,
     val itemCount: Int = 0,
-)
+) {
+    /** Label shown on the filter pill in the filter bar. Computed from state, not in the UI. */
+    val filterLabel: String get() {
+        val ids = selectedFilterChipIds
+        return when {
+            ids.isEmpty() || ids == setOf("all") -> "FILTER: ALL"
+            ids.size == 1 -> "FILTER: ${HomeFilterChips.firstOrNull { it.id == ids.first() }?.label ?: ids.first().uppercase()}"
+            else -> "FILTER: ${ids.size} ACTIVE"
+        }
+    }
+
+    /** Formatted bookmark count shown in the filter bar. Computed from state, not in the UI. */
+    val countLabel: String get() = "%03d SAVED".format(itemCount)
+
+    /** Sort pill label. Currently static; extracted here so it is testable and overridable. */
+    val sortLabel: String get() = "SORT ↓ NEW"
+}
 
 internal val HomeFilterChips: ImmutableList<FilterChipItem> = persistentListOf(
     FilterChipItem("all", "ALL"),
@@ -51,6 +66,20 @@ private val HomeFilterSections: ImmutableList<FilterOverlaySection> = persistent
     FilterOverlaySection(title = "Type", chips = HomeFilterChips),
 )
 
+/**
+ * Root scaffold for the bookmark feed. Hosts the top bar, filter bar, bottom nav, and an
+ * optional reconnect banner, then delegates the inner tab content to the [tabContent] slot.
+ *
+ * @param uiState Snapshot of tab selection, search state, active filter chips, and banner data.
+ * @param onTabSelected Called when the user switches between Twitter, Reddit, All, or Map tabs.
+ * @param onSearchQueryChange Called on every keystroke while the search bar is active.
+ * @param onSearchActiveChange Called when search mode opens or closes; navigates to SearchScreen when `true`.
+ * @param onChipToggled Called with the chip id when the user toggles a filter chip in the overlay.
+ * @param onSortClick Called when the user taps the sort pill (handler currently deferred).
+ * @param onBannerCta Called when the user taps the reconnect CTA on the service-error banner.
+ * @param snackbarHostState Shared [SnackbarHostState] used to show undo-delete and sync feedback.
+ * @param tabContent Slot that renders the active tab content given the selected [BottomNavTab] and scaffold padding.
+ */
 @Composable
 fun HomeScreen(
     uiState: HomeUiState,
@@ -65,17 +94,6 @@ fun HomeScreen(
     tabContent: @Composable (BottomNavTab, PaddingValues) -> Unit,
 ) {
     var showFilterOverlay by rememberSaveable { mutableStateOf(false) }
-
-    val filterLabel = remember(uiState.selectedFilterChipIds) {
-        val ids = uiState.selectedFilterChipIds
-        when {
-            ids.isEmpty() || ids == setOf("all") -> "FILTER: ALL"
-            ids.size == 1 -> "FILTER: ${HomeFilterChips.firstOrNull { it.id == ids.first() }?.label ?: ids.first().uppercase()}"
-            else -> "FILTER: ${ids.size} ACTIVE"
-        }
-    }
-    val countLabel = remember(uiState.itemCount) { "%03d SAVED".format(uiState.itemCount) }
-    val sortLabel = remember { "SORT ↓ NEW" }
 
     HomeScaffold(
         modifier = modifier.testTag("home-screen"),
@@ -100,9 +118,9 @@ fun HomeScreen(
         },
         filterBar = {
             CrumbsFilterBar(
-                countLabel = countLabel,
-                filterLabel = filterLabel,
-                sortLabel = sortLabel,
+                countLabel = uiState.countLabel,
+                filterLabel = uiState.filterLabel,
+                sortLabel = uiState.sortLabel,
                 onFilterClick = { showFilterOverlay = true },
                 onSortClick = onSortClick,
             )

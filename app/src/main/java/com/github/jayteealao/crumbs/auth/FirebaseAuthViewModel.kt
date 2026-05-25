@@ -42,12 +42,12 @@ class FirebaseAuthViewModel @Inject constructor(
                 is AuthResult.CollisionRequiresEmail ->
                     _uiState.value = AuthUiState.CollisionRequiresEmailLink(result.pendingGoogleIdToken)
                 AuthResult.InvalidCredentials ->
-                    _uiState.value = AuthUiState.Error("Google credential rejected")
+                    _uiState.value = AuthUiState.Error("Incorrect email or password. Please try again.")
                 AuthResult.NetworkError ->
-                    _uiState.value = AuthUiState.Error("Network error during sign-in")
+                    _uiState.value = AuthUiState.Error("Connection failed. Please check your internet connection and try again.")
                 is AuthResult.Unknown -> {
                     Timber.e(result.cause, "Google sign-in failed")
-                    _uiState.value = AuthUiState.Error("Sign-in failed")
+                    _uiState.value = AuthUiState.Error("Sign in failed. Please try again or contact support if the problem continues.")
                 }
             }
         }
@@ -82,14 +82,14 @@ class FirebaseAuthViewModel @Inject constructor(
                     }
                 }
                 AuthResult.InvalidCredentials ->
-                    _uiState.value = AuthUiState.Error("Email or password is wrong")
+                    _uiState.value = AuthUiState.Error("Incorrect email or password. Please try again.")
                 AuthResult.NetworkError ->
-                    _uiState.value = AuthUiState.Error("Network error during sign-in")
+                    _uiState.value = AuthUiState.Error("Connection failed. Please check your internet connection and try again.")
                 is AuthResult.CollisionRequiresEmail ->
-                    _uiState.value = AuthUiState.Error("Unexpected collision on email sign-in")
+                    _uiState.value = AuthUiState.Error("An account with this email already exists. Try signing in instead.")
                 is AuthResult.Unknown -> {
                     Timber.e(signIn.cause, "Email/password sign-in failed")
-                    _uiState.value = AuthUiState.Error("Sign-in failed")
+                    _uiState.value = AuthUiState.Error("Sign in failed. Please try again or contact support if the problem continues.")
                 }
             }
         }

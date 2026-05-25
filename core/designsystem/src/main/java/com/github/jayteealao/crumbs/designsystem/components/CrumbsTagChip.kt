@@ -17,6 +17,9 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -50,9 +53,13 @@ fun CrumbsTagChip(
 
     Box(
         modifier = modifier
+            .semantics(mergeDescendants = true) {
+                contentDescription = "Tag: $label"
+            }
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
+                role = Role.Button,
             ) { onClick() }
             .testTag("tag-chip-$label"),
     ) {
@@ -97,9 +104,13 @@ fun CrumbsFilterChipActive(
             style = typography.captionMono,
             color = colors.accent.copy(alpha = 0.6f),
             modifier = Modifier
+                .semantics(mergeDescendants = true) {
+                    contentDescription = "Remove $label filter"
+                }
                 .clickable(
                     interactionSource = interactionSource,
                     indication = null,
+                    role = Role.Button,
                 ) { onDismiss() }
                 .testTag("filter-chip-dismiss-$label"),
         )
@@ -117,9 +128,13 @@ fun CrumbsAddTagChip(
 
     Box(
         modifier = modifier
+            .semantics(mergeDescendants = true) {
+                contentDescription = "Add tag"
+            }
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
+                role = Role.Button,
             ) { onClick() }
             .testTag("add-tag-chip"),
     ) {

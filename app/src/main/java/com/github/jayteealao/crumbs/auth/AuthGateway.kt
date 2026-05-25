@@ -32,6 +32,11 @@ sealed class AuthUiState {
 interface AuthGateway {
     val currentUser: StateFlow<CurrentUser?>
 
+    // Called once by CrumbApplication.onCreate() to register the Firebase Auth
+    // state listener. Keeping the side effect out of the constructor makes the
+    // gateway testable without requiring listener-capture boilerplate.
+    fun initialize()
+
     suspend fun signInWithGoogleIdToken(idToken: String): AuthResult
 
     suspend fun signInWithEmailPassword(email: String, password: String): AuthResult

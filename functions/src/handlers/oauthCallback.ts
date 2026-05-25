@@ -1,6 +1,33 @@
 import { onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 
+/**
+ * HTTP handler that receives the X/Twitter OAuth 2.0 PKCE authorization callback.
+ *
+ * @remarks
+ * X redirects the user's browser here after they approve the OAuth consent screen.
+ * The handler:
+ * 1. Validates the `state` parameter by verifying the signed JWT minted by
+ *    `mintOAuthState` (CSRF protection + PKCE code verifier retrieval).
+ * 2. Exchanges the `code` parameter for tokens at the X token endpoint
+ *    (`grant_type=authorization_code`).
+ * 3. Stores the resulting refresh token in Secret Manager via `setRefreshToken`.
+ * 4. Sets `sync_status/state.linked = true` in Firestore.
+ * 5. Fire-and-forgets `runPoll` so the first bookmarks arrive within ~30 s of
+ *    OAuth completion without delaying the redirect.
+ * 6. Redirects the browser to the deep-link URI `crumbs://graphitenerd.xyz/x-oauth-complete`
+ *    on success, or `crumbs://graphitenerd.xyz/x-oauth-error?reason=<code>` on failure.
+ *
+ * All recoverable errors redirect to the error deep-link rather than returning
+ * HTTP error statuses, ensuring the Android custom tab can hand off cleanly.
+ *
+ * @param req - Express-style HTTP request. Expected query params:
+ *   - `code` (string) – authorization code from X.
+ *   - `state` (string) – signed state token minted by `mintOAuthState`.
+ * @param res - Express-style HTTP response. Responds with a 302 redirect on
+ *   both success and most failure paths; 400 for missing/invalid params; 500
+ *   for unexpected internal errors.
+ */
 const X_TOKEN_ENDPOINT = "https://api.x.com/2/oauth2/token";
 const REDIRECT_URI = "https://europe-west2-crumbs-a4fdb.cloudfunctions.net/oauthCallback";
 const DEEP_LINK_SUCCESS = "crumbs://graphitenerd.xyz/x-oauth-complete";

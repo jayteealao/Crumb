@@ -42,6 +42,18 @@ data class RedditBookmarksUiState(
     val tagsMap: Map<String, List<String>> = emptyMap(),
 )
 
+/**
+ * Paged feed of Reddit saved posts. Shows a connect-account prompt when the user is not linked
+ * to Reddit, skeleton loading cards while the first page loads, and an error state on failure.
+ *
+ * @param uiState Snapshot of login state and the tag map for loaded posts.
+ * @param pagedPosts Paged [RedditPostData] from the database, or `null` when the user is not logged in.
+ * @param onCardClick Called with the source URL when the user taps a bookmark card.
+ * @param onLongPress Called with the [Bookmark] and screen-space anchor on long-press for the action overlay.
+ * @param onLoadTags Called with a single post id to lazily load its tags (legacy single-item path).
+ * @param onLoadTagsForIds Called with a batch of post ids when a new page snapshot is visible.
+ * @param onConnectClick Called when the user taps the connect CTA in the logged-out empty state.
+ */
 @Composable
 fun RedditBookmarksScreen(
     uiState: RedditBookmarksUiState,
@@ -145,6 +157,16 @@ fun RedditBookmarksScreen(
     }
 }
 
+/**
+ * Navigation entry point for the Reddit tab inside [HomeScreen]. Injects [RedditViewModel],
+ * collects paged saved-post data, and manages the long-press [BookmarkActionsOverlay] for open,
+ * share, delete, and tag-edit actions.
+ *
+ * @param navController Available for future navigation needs (currently unused by this route).
+ * @param contentPadding Padding from the parent scaffold passed down to the lazy list.
+ * @param redditAuthCode OAuth auth code forwarded from the deep-link intent, triggers token exchange.
+ * @param redditViewModel Provides login state, paging data, and tag/delete operations.
+ */
 @Composable
 fun RedditBookmarksRoute(
     navController: NavController,

@@ -6,7 +6,7 @@ plugins {
     id 'com.google.gms.google-services'
     id 'project-report'
     id 'io.github.takahirom.roborazzi' version '1.60.0'
-//    id 'org.jmailen.kotlinter'
+    id 'org.jmailen.kotlinter'
 }
 
 android {
@@ -104,6 +104,14 @@ kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
+}
+
+// kotlinter: report style violations but do not fail CI on the large
+// pre-existing codebase. New code will still be checked; existing violations
+// appear as warnings in the build output. Switch ignoreFailures to false once
+// the backlog is cleared.
+tasks.withType(org.jmailen.gradle.kotlinter.tasks.LintTask).configureEach {
+    ignoreFailures = true
 }
 
 // Force kotlinx-serialization-core to 1.8.1 on every classpath. Room 2.8.4's

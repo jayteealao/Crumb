@@ -11,6 +11,13 @@ import com.github.jayteealao.twitter.screens.LoginViewModel
 import kotlinx.coroutines.delay
 import timber.log.Timber
 
+/**
+ * Navigation entry point for the splash destination. Waits 1 second, then routes to Home if a
+ * Twitter access token is available (and attempts a token refresh), or to Login otherwise.
+ *
+ * @param navController Used to replace the splash back-stack entry with the appropriate destination.
+ * @param loginViewModel Provides access-token availability and the token-refresh call.
+ */
 @Composable
 fun SplashRoute(
     navController: NavController,

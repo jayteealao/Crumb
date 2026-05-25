@@ -246,6 +246,11 @@ val MIGRATION_10_11: Migration = object : Migration(10, 11) {
                 "AFTER INSERT ON `tweetEntity` " +
                 "BEGIN INSERT INTO `tweet_fts`(`docid`, `text`) VALUES (NEW.`rowid`, NEW.`text`); END"
         )
+        // WARNING: FTS4 'rebuild' re-tokenizes ALL rows in the parent table synchronously.
+        // On devices with 10,000+ bookmarks this may block for >1s inside the migration
+        // transaction. The Room migration thread is not the main thread, but the cumulative
+        // cost across 10 sequential migrations risks the SQLite busy timeout.
+        // TODO: Move FTS rebuilds to a post-migration OneTimeWorkRequest or RoomDatabase.Callback#onOpen.
         db.execSQL("INSERT INTO `tweet_fts`(`tweet_fts`) VALUES('rebuild')")
 
         // reddit_fts — `title` + `selftext` columns from reddit_posts
@@ -276,6 +281,11 @@ val MIGRATION_10_11: Migration = object : Migration(10, 11) {
                 "BEGIN INSERT INTO `reddit_fts`(`docid`, `title`, `selftext`) " +
                 "VALUES (NEW.`rowid`, NEW.`title`, NEW.`selftext`); END"
         )
+        // WARNING: FTS4 'rebuild' re-tokenizes ALL rows in the parent table synchronously.
+        // On devices with 10,000+ bookmarks this may block for >1s inside the migration
+        // transaction. The Room migration thread is not the main thread, but the cumulative
+        // cost across 10 sequential migrations risks the SQLite busy timeout.
+        // TODO: Move FTS rebuilds to a post-migration OneTimeWorkRequest or RoomDatabase.Callback#onOpen.
         db.execSQL("INSERT INTO `reddit_fts`(`reddit_fts`) VALUES('rebuild')")
     }
 }

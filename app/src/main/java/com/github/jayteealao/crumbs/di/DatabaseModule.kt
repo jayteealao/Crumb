@@ -31,6 +31,7 @@ class DatabaseModule {
         "AppDatabase"
     )
         .addMigrations(*ALL_MIGRATIONS)
+        .fallbackToDestructiveMigration(false)
         .build()
 
     @Singleton

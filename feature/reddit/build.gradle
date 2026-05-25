@@ -77,6 +77,9 @@ dependencies {
     testImplementation(platform(libs.compose.bom))
     testImplementation 'androidx.compose.ui:ui-test-junit4'
     testImplementation 'androidx.activity:activity-compose:1.8.2'
+    testImplementation 'io.mockk:mockk-android:1.13.10'
+    testImplementation 'io.mockk:mockk:1.13.10'
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation 'androidx.test.ext:junit:1.1.4'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.0'
 }

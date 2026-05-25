@@ -14,6 +14,9 @@ class FakeAuthGateway(
     private val _currentUser = MutableStateFlow(initialUser)
     override val currentUser: StateFlow<CurrentUser?> = _currentUser.asStateFlow()
 
+    // No-op: the fake does not need to register real listeners.
+    override fun initialize() = Unit
+
     private val googleResults = ArrayDeque<AuthResult>()
     private val emailResults = ArrayDeque<AuthResult>()
     private val linkResults = ArrayDeque<AuthResult>()

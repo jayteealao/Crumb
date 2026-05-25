@@ -53,6 +53,15 @@ internal val BrutalistOnboardingPages: ImmutableList<OnboardingPageData> = persi
     ),
 )
 
+/**
+ * Multi-page onboarding carousel shown the first time the user launches the app. Each page
+ * presents a kicker, headline, and body copy from [pages]; the CTA label switches from "NEXT"
+ * to "GET STARTED" on the final page.
+ *
+ * @param pagerState Controls the current page position; caller must create via [rememberPagerState].
+ * @param onCtaClick Called when the user taps the footer CTA; the route handles page advance or navigation.
+ * @param pages Ordered list of page content; defaults to [BrutalistOnboardingPages].
+ */
 @Composable
 fun OnboardingScreen(
     pagerState: PagerState,

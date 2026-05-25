@@ -7,6 +7,12 @@ import androidx.navigation.NavController
 import com.github.jayteealao.crumbs.Screens
 import kotlinx.coroutines.launch
 
+/**
+ * Navigation entry point for the onboarding destination. Manages the [PagerState] and CTA
+ * press logic: advances the pager on intermediate pages and navigates to Login on the last page.
+ *
+ * @param navController Used to navigate to the Login destination after the final onboarding page.
+ */
 @Composable
 fun OnboardingRoute(
     navController: NavController,

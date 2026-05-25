@@ -39,16 +39,13 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 
 /**
- * Thread reading surface. Layout per option-d-screens.jsx DThread lines
- * 579-646:
- *  - HomeScaffold topBar = CrumbsTopBar(trailing=Close); the Filterbar slot
- *    is populated with `CrumbsFilterBar(center="VIEWING THREAD")` carrying
- *    the thread-mode kicker — NOT a TopBar kicker.
- *  - Root tweet renders as a full CrumbsBookmarkCard with the index strip
- *    overridden to `THREAD · {replyCount} ↕`.
- *  - Replies render as compact 22 dp numbered-bullet [ThreadReplyRow]s with
- *    dashed separators between them — NOT full bookmark-card replicas.
- *  - bottomBar slot is intentionally empty (thread mode is modal-ish).
+ * Displays a Twitter thread: the root bookmark as a full card followed by compact numbered reply
+ * rows. Uses [HomeScaffold] with the filter bar showing "VIEWING THREAD" and no bottom nav bar.
+ *
+ * @param uiState One of [ThreadDetailUiState.Loading], [ThreadDetailUiState.Error], or
+ *   [ThreadDetailUiState.Loaded]; drives which body content is shown.
+ * @param onClose Called when the user taps the close action in the top bar to pop this destination.
+ * @param onRootCardClick Called with the root [Bookmark] when the user taps the root card to open its URL.
  */
 @Composable
 fun ThreadDetailScreen(

@@ -18,6 +18,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
@@ -74,7 +76,7 @@ fun CrumbsProgressIndicator(
 
     when (style) {
         ProgressStyle.Circular -> {
-            Canvas(modifier.size(diameter).testTag("progress-circular")) {
+            Canvas(modifier.size(diameter).semantics { contentDescription = "Loading" }.testTag("progress-circular")) {
                 val px = strokeWidth.toPx()
                 val outline = Stroke(width = px, cap = StrokeCap.Square)
                 drawArc(
@@ -100,7 +102,7 @@ fun CrumbsProgressIndicator(
             }
         }
         ProgressStyle.Linear -> {
-            Canvas(modifier.width(diameter * 4).size(width = diameter * 4, height = strokeWidth * 2).testTag("progress-linear")) {
+            Canvas(modifier.width(diameter * 4).size(width = diameter * 4, height = strokeWidth * 2).semantics { contentDescription = "Loading" }.testTag("progress-linear")) {
                 val totalWidth = this.size.width
                 val totalHeight = this.size.height
                 drawRect(color = trackColor, size = this.size)

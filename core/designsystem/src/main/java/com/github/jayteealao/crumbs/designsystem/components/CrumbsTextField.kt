@@ -28,6 +28,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -101,6 +104,7 @@ fun CrumbsSearchField(
                 .clickable(
                     interactionSource = backInteraction,
                     indication = null,
+                    role = Role.Button,
                 ) { onBack() }
                 .testTag("search-field-back"),
             contentAlignment = Alignment.Center,
@@ -128,6 +132,7 @@ fun CrumbsSearchField(
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 modifier = Modifier
                     .fillMaxWidth()
+                    .semantics { contentDescription = "Search bookmarks" }
                     .testTag("search-field-input"),
                 decorationBox = { inner ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
