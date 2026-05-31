@@ -44,7 +44,7 @@ import com.github.jayteealao.twitter.models.TwitterUserEntity
         RedditFts::class,
         SyncProgress::class,
     ],
-    version = 12,
+    version = 13,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {

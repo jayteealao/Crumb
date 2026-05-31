@@ -82,6 +82,9 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
+        // Required because :feature:twitter enables library desugaring (java.time on minSdk 24);
+        // the consuming app must enable it too so the final dexing desugars those APIs.
+        coreLibraryDesugaringEnabled true
     }
     buildFeatures {
         compose true
@@ -126,6 +129,8 @@ configurations.all {
 }
 
 dependencies {
+
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     implementation(project(":feature:twitter"))
     implementation(project(":feature:reddit"))

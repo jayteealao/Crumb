@@ -141,6 +141,53 @@ describe("runPoll (daily-poll)", () => {
     expect(t2Set).toBeDefined();
   });
 
+  it("(b2) first-seen writes carry a retrievedAt stamp + normalized ISO createdAt; boundary tweet is not re-written", async () => {
+    const ctx = setupFake();
+    setLinkedSyncStatus(ctx, "uid1", { latest_tweet_id: "T1" });
+    ctx.seed("users/uid1/tweets/T1", { id: "T1", pending_delete: true });
+
+    jest
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: [
+            // legacy v1.1 createdAt → must be normalized to canonical ISO
+            { id: "T3", text: "newest", created_at: "Wed Sep 16 17:51:39 +0000 2020" },
+            // already-ISO createdAt → re-emitted in canonical millisecond form
+            { id: "T2", text: "newer", created_at: "2026-05-13T12:22:37Z" },
+            { id: "T1", text: "known — stop here" },
+          ],
+          meta: {},
+        }),
+      );
+
+    const result = await runPoll("uid1", { reason: "scheduled" });
+    expect(result).toEqual({ ok: true, itemsAdded: 2, itemsFlaggedPendingDelete: 0 });
+
+    // FieldValue.serverTimestamp() is mocked to "<server-ts>" — present on first-seen writes.
+    const t3Set = ctx.journal.find(
+      (e): e is Extract<JournalEntry, { op: "set" }> => e.op === "set" && e.path === "users/uid1/tweets/T3",
+    );
+    expect(t3Set).toBeDefined();
+    expect(t3Set!.data.retrievedAt).toBe("<server-ts>");
+    expect(t3Set!.data.createdAt).toBe("2020-09-16T17:51:39.000Z");
+
+    const t2Set = ctx.journal.find(
+      (e): e is Extract<JournalEntry, { op: "set" }> => e.op === "set" && e.path === "users/uid1/tweets/T2",
+    );
+    expect(t2Set).toBeDefined();
+    expect(t2Set!.data.retrievedAt).toBe("<server-ts>");
+    expect(t2Set!.data.createdAt).toBe("2026-05-13T12:22:37.000Z");
+
+    // The overlap boundary (T1) is not in `collected`, so no doc is re-written for it —
+    // its server-stamped retrievedAt can never be clobbered by a later poll.
+    const t1Set = ctx.journal.find(
+      (e): e is Extract<JournalEntry, { op: "set" }> => e.op === "set" && e.path === "users/uid1/tweets/T1",
+    );
+    expect(t1Set).toBeUndefined();
+  });
+
   it("(c) 429 retry then success: honors x-rate-limit-reset and recovers", async () => {
     const ctx = setupFake();
     setLinkedSyncStatus(ctx, "uid1");

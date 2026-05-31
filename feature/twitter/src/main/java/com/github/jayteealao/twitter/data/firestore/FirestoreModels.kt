@@ -6,8 +6,10 @@ import com.github.jayteealao.twitter.models.TweetMediaEntity
 import com.github.jayteealao.twitter.models.TweetPublicMetrics
 import com.github.jayteealao.twitter.models.TweetTextEntityAnnotation
 import com.github.jayteealao.twitter.models.TwitterUserEntity
+import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentId
 import com.google.firebase.firestore.PropertyName
+import java.util.Date
 
 /**
  * Firestore document model for tweets collection
@@ -32,6 +34,11 @@ data class FirestoreTweet(
     // never wrote this field. `toTweetEntity` collapses null → false.
     @get:PropertyName("pending_delete") @set:PropertyName("pending_delete")
     var pendingDelete: Boolean? = null,
+    // Server-owned first-seen / poll time, written as a Firestore Timestamp by the poll
+    // function only on first-seen tweets. Nullable so the deserializer accepts legacy docs
+    // that predate the field. The client never originates this value.
+    @get:PropertyName("retrievedAt") @set:PropertyName("retrievedAt")
+    var retrievedAt: Timestamp? = null,
 ) {
     fun toTweetEntity(referenced: Boolean = false): TweetEntity = TweetEntity(
         id = tweetId,
@@ -44,6 +51,7 @@ data class FirestoreTweet(
         referenced = referenced,
         order = order,
         pendingDelete = pendingDelete ?: false,
+        retrievedAt = retrievedAt?.toDate()?.time,
     )
 
     companion object {
@@ -55,7 +63,9 @@ data class FirestoreTweet(
             conversationId = entity.conversationId,
             inReplyToUserId = entity.inReplyToUserId,
             lang = entity.lang,
-            order = entity.order
+            order = entity.order,
+            // Round-trip the server value so the legacy merge-upload path never nulls it.
+            retrievedAt = entity.retrievedAt?.let { Timestamp(Date(it)) },
         )
     }
 }

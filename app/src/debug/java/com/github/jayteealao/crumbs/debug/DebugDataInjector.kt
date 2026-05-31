@@ -160,6 +160,10 @@ class DebugDataInjector @Inject constructor(
             mentionedIn = null,
         )
         dao.insertTwitterUser(user)
+        // Descending retrieved-at stamps (debug-tweet-1 most recent) so the seeded feed renders
+        // in a stable recency order under the `retrieved_at DESC` sort and the labels read as
+        // small relative times during manual/Maestro runs. Anchored to launch time.
+        val nowMs = System.currentTimeMillis()
         listOf(
             TweetEntity(
                 id = "debug-tweet-1",
@@ -171,6 +175,7 @@ class DebugDataInjector @Inject constructor(
                 lang = "en",
                 referenced = false,
                 order = 1000,
+                retrievedAt = nowMs - 60_000L,
             ),
             TweetEntity(
                 id = "debug-tweet-2",
@@ -182,6 +187,7 @@ class DebugDataInjector @Inject constructor(
                 lang = "en",
                 referenced = false,
                 order = 999,
+                retrievedAt = nowMs - 120_000L,
             ),
             TweetEntity(
                 id = "debug-tweet-3",
@@ -193,6 +199,7 @@ class DebugDataInjector @Inject constructor(
                 lang = "en",
                 referenced = false,
                 order = 998,
+                retrievedAt = nowMs - 180_000L,
             ),
             TweetEntity(
                 id = "debug-tweet-4",
@@ -204,6 +211,7 @@ class DebugDataInjector @Inject constructor(
                 lang = "en",
                 referenced = false,
                 order = 997,
+                retrievedAt = nowMs - 240_000L,
             ),
         ).forEach(dao::insertTweet)
     }

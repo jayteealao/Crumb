@@ -38,6 +38,8 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
+        // Enables java.time (Instant/DateTimeFormatter) on minSdk 24 via library desugaring.
+        coreLibraryDesugaringEnabled true
     }
 
     buildFeatures {
@@ -64,6 +66,8 @@ kotlin {
 }
 
 dependencies {
+
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     implementation(project(":core:pref"))
     implementation(project(":core:models"))

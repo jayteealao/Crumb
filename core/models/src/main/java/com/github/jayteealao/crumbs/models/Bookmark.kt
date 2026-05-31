@@ -36,7 +36,17 @@ data class Bookmark(
     // the data layer; rendered as part of the meta row (e.g. "IMAGE · ↑ 2.4k")
     // and degrades gracefully to type-only when absent.
     val engagementCount: Int? = null,
-)
+) {
+    companion object {
+        /**
+         * Sentinel [savedAt] value meaning "no parseable timestamp was available". Renders as
+         * the `_` marker (never a fabricated "now") and sorts last because it is smaller than any
+         * real epoch-millis. `Long.MIN_VALUE` cannot collide with Reddit's `createdUtc * 1000`,
+         * which is always positive.
+         */
+        const val UNKNOWN_TIME: Long = Long.MIN_VALUE
+    }
+}
 
 /**
  * Bookmark source platform
@@ -74,6 +84,7 @@ enum class ContentType {
  * Helper function to format relative timestamps
  */
 fun Long.toRelativeTime(): String {
+    if (this == Bookmark.UNKNOWN_TIME) return "_"
     val now = System.currentTimeMillis()
     val diff = now - this
 

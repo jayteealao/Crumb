@@ -312,6 +312,23 @@ val MIGRATION_11_12: Migration = object : Migration(11, 12) {
     }
 }
 
+/**
+ * v12 → v13: add the server-stamped `retrieved_at` column (nullable epoch-millis), the
+ * primary feed recency key, plus the composite `(retrieved_at, created_at)` index that backs
+ * `ORDER BY retrieved_at DESC, created_at DESC` as a reverse B-tree scan (no full-table sort).
+ * Pre-existing rows get NULL `retrieved_at`, which sorts last under a DESC order. The index
+ * name must match Room's generated `index_<table>_<col1>_<col2>` or schema validation fails.
+ */
+val MIGRATION_12_13: Migration = object : Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `tweetEntity` ADD COLUMN `retrieved_at` INTEGER")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_tweetEntity_retrieved_at_created_at` " +
+                "ON `tweetEntity` (`retrieved_at`, `created_at`)"
+        )
+    }
+}
+
 /** Full list registered by the DI module's `addMigrations(*ALL_MIGRATIONS)`. */
 val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_2_3,
@@ -324,4 +341,5 @@ val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_9_10,
     MIGRATION_10_11,
     MIGRATION_11_12,
+    MIGRATION_12_13,
 )

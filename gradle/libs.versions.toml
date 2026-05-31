@@ -20,6 +20,7 @@ coil = "2.5.0"
 coilTransformations = "2.0.2"
 media3 = "1.2.0"
 work = "2.11.2"
+desugarJdkLibs = "2.1.5"
 
 [libraries]
 #compose BOM (governs all androidx.compose.* artifacts below)
@@ -96,6 +97,8 @@ media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3" }
 #workmanager
 androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
 androidx-work-testing = { module = "androidx.work:work-testing", version.ref = "work" }
+#desugaring (java.time on minSdk 24)
+desugar-jdk-libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 [bundles]
 androidx = ['androidx-core', 'androidx-lifecycle']
 compose = ['compose-ui', 'compose-uiTooling', 'compose-foundation', 'compose-material', 'compose-materialIcons', 'compose-materialIconsExt', 'compose-runtime']

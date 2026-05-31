@@ -37,10 +37,9 @@ import com.github.jayteealao.crumbs.models.Bookmark
 import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.models.ContentType
 import com.github.jayteealao.twitter.models.TweetData
+import com.github.jayteealao.twitter.util.parseTweetTimestamp
 import kotlinx.collections.immutable.toImmutableList
 import timber.log.Timber
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 @androidx.compose.runtime.Immutable
 data class TwitterBookmarksUiState(
@@ -297,12 +296,12 @@ fun TweetData.toBookmark(tags: List<String> = emptyList()): Bookmark {
     }
     val imageUrl = media.firstOrNull { it.type == "photo" }?.url
     val videoUrl = media.firstOrNull { it.type == "video" }?.url
-    val timestamp = try {
-        val formatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
-        formatter.parse(tweet.createdAt)?.time ?: System.currentTimeMillis()
-    } catch (e: Exception) {
-        System.currentTimeMillis()
-    }
+    // Prefer the server-stamped retrieval time; fall back to the tweet's own creation time;
+    // when neither is available/parseable, use the unknown-time sentinel rather than
+    // fabricating "now" (which produced the long-standing wrong "X months ago" label).
+    val timestamp = tweet.retrievedAt
+        ?: parseTweetTimestamp(tweet.createdAt)
+        ?: Bookmark.UNKNOWN_TIME
     val title = tweet.text.lines().firstOrNull()?.take(100) ?: tweet.text.take(100)
     return Bookmark(
         id = tweet.id,

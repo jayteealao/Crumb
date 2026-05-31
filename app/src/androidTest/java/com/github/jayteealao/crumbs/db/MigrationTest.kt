@@ -13,6 +13,7 @@ import com.github.jayteealao.crumbs.db.MIGRATION_8_9
 import com.github.jayteealao.crumbs.db.MIGRATION_9_10
 import com.github.jayteealao.crumbs.db.MIGRATION_10_11
 import com.github.jayteealao.crumbs.db.MIGRATION_11_12
+import com.github.jayteealao.crumbs.db.MIGRATION_12_13
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -600,6 +601,58 @@ class MigrationTest {
         // level we expect an INSERT collision unless explicitly handled — keep
         // this assertion purely about column shape, not REPLACE semantics.
         assertNotNull(db)
+
+        db.close()
+    }
+
+    @Test
+    fun migrate12To13_addsRetrievedAtColumnAndCompositeIndex() {
+        // Seed a v12 row so we can confirm the new column defaults to NULL for pre-existing rows.
+        helper.createDatabase(TEST_DB, 12).apply {
+            execSQL(
+                "INSERT INTO tweetEntity " +
+                    "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete) " +
+                    "VALUES ('tweet-1', 'hello', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0)"
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB,
+            13,
+            true,
+            MIGRATION_12_13,
+        )
+
+        // The retrieved_at column exists, is INTEGER, and is nullable (notNull = 0).
+        val columns = mutableMapOf<String, Pair<String, Int>>() // name → (type, notNull)
+        db.query("PRAGMA table_info(`tweetEntity`)").use { cursor ->
+            while (cursor.moveToNext()) {
+                val name = cursor.getString(cursor.getColumnIndexOrThrow("name"))
+                val type = cursor.getString(cursor.getColumnIndexOrThrow("type"))
+                val notNull = cursor.getInt(cursor.getColumnIndexOrThrow("notnull"))
+                columns[name] = type to notNull
+            }
+        }
+        assertEquals("retrieved_at should be a nullable INTEGER column", "INTEGER" to 0, columns["retrieved_at"])
+
+        // Pre-existing rows get NULL retrieved_at (so they sort last under DESC).
+        db.query("SELECT retrieved_at FROM tweetEntity WHERE id = 'tweet-1'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertTrue("retrieved_at must be NULL for rows that predate the column", cursor.isNull(0))
+        }
+
+        // The composite (retrieved_at, created_at) index exists under Room's generated name.
+        val indexNames = mutableSetOf<String>()
+        db.query("PRAGMA index_list(`tweetEntity`)").use { cursor ->
+            while (cursor.moveToNext()) {
+                indexNames += cursor.getString(cursor.getColumnIndexOrThrow("name"))
+            }
+        }
+        assertTrue(
+            "Expected composite index index_tweetEntity_retrieved_at_created_at; found $indexNames",
+            indexNames.contains("index_tweetEntity_retrieved_at_created_at"),
+        )
 
         db.close()
     }

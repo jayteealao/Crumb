@@ -35,9 +35,15 @@ data class Tweet(
 * */
 @Entity(
     tableName = "tweetEntity",
-    // `order` indexed because the feed paging query sorts by `order DESC`;
-    // without it Room scans the full table on every page boundary.
-    indices = [Index("author_id"), Index("order")]
+    // `order` indexed because the legacy feed query sorted by `order DESC` (retained for
+    // the sync worker's max-order assignment). The composite (retrieved_at, created_at)
+    // index backs the recency feed sort (`ORDER BY retrieved_at DESC, created_at DESC`),
+    // letting it run as a reverse B-tree scan instead of a full-table sort.
+    indices = [
+        Index("author_id"),
+        Index("order"),
+        Index(value = ["retrieved_at", "created_at"]),
+    ]
 )
 data class TweetEntity(
     @PrimaryKey val id: String,
@@ -50,6 +56,9 @@ data class TweetEntity(
     val referenced: Boolean = false,
     val order: Int = 0,
     @ColumnInfo(name = "pending_delete") val pendingDelete: Boolean = false,
+    // Server-stamped first-seen / poll time (epoch millis); null for legacy rows and any
+    // tweet synced before the server began writing it. Drives the feed recency sort.
+    @ColumnInfo(name = "retrieved_at") val retrievedAt: Long? = null,
 )
 
 fun Tweet.toTweetEntity(referenced: Boolean = false) = TweetEntity(

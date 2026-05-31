@@ -23,6 +23,7 @@ import type { DocumentReference, WriteBatch, Firestore } from "firebase-admin/fi
 import { db } from "./admin";
 import { getRefreshToken, setRefreshToken, getXClientCredentials } from "./secrets";
 import { buildBookmarksUrl, USERS_ME_URL, TOKEN_URL } from "./twitter-api";
+import { normalizeCreatedAt } from "./tweet-utils";
 
 const BATCH_SIZE = 450;
 const DEBOUNCE_MS = 60_000;
@@ -374,11 +375,19 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
         ...tweetWithoutMetrics,
         tweetId: tweet.id,
         authorId: (tweet as Record<string, unknown>).author_id,
-        createdAt: (tweet as Record<string, unknown>).created_at,
+        // Normalize the camelCase createdAt the Android reader and orderBy("createdAt")
+        // depend on to canonical ISO-8601; the raw snake_case created_at from the spread
+        // above is left verbatim for future readers.
+        createdAt: normalizeCreatedAt((tweet as Record<string, unknown>).created_at),
         conversationId: (tweet as Record<string, unknown>).conversation_id,
         inReplyToUserId: (tweet as Record<string, unknown>).in_reply_to_user_id,
         pending_delete: false,
         updatedAt: FieldValue.serverTimestamp(),
+        // First-seen / poll observation time. The X v2 bookmarks API exposes no true
+        // bookmark timestamp, so this stamps when the poll first collected the tweet. Only
+        // tweets in `collected` reach this loop (ids strictly above the stored boundary),
+        // so it is written once and never overwritten on later polls.
+        retrievedAt: FieldValue.serverTimestamp(),
       };
       enqueue(database.doc(`users/${uid}/tweets/${tweet.id}`), tweetDoc);
 

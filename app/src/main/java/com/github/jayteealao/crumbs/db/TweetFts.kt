@@ -44,7 +44,7 @@ interface TweetFtsDao {
         WHERE tweet_fts MATCH :q
           AND t.referenced = 0
           AND d.bookmarkId IS NULL
-        ORDER BY t.`order` DESC
+        ORDER BY t.retrieved_at DESC, t.created_at DESC
         LIMIT 50
         """
     )

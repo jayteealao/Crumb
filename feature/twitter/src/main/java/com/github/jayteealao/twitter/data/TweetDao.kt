@@ -131,7 +131,7 @@ interface TweetDao {
     }
 
     @Transaction
-    @Query("SELECT * FROM tweetEntity WHERE referenced = false ORDER BY `order` DESC")
+    @Query("SELECT * FROM tweetEntity WHERE referenced = false ORDER BY retrieved_at DESC, created_at DESC")
     fun getTweets(): PagingSource<Int, TweetData>
 
     @Transaction
@@ -140,7 +140,7 @@ interface TweetDao {
         LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
         WHERE t.referenced = 0
           AND d.bookmarkId IS NULL
-        ORDER BY t.`order` DESC
+        ORDER BY t.retrieved_at DESC, t.created_at DESC
     """)
     fun getTweetsTombstoneAware(): PagingSource<Int, TweetData>
 
@@ -153,7 +153,7 @@ interface TweetDao {
           AND d.bookmarkId IS NULL
           AND tt.tagName IN (:tagNames)
         GROUP BY t.id
-        ORDER BY t.`order` DESC
+        ORDER BY t.retrieved_at DESC, t.created_at DESC
     """)
     fun getTweetsByTagsTombstoneAware(tagNames: List<String>): PagingSource<Int, TweetData>
 
