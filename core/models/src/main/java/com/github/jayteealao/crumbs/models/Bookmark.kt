@@ -36,6 +36,13 @@ data class Bookmark(
     // the data layer; rendered as part of the meta row (e.g. "IMAGE · ↑ 2.4k")
     // and degrades gracefully to type-only when absent.
     val engagementCount: Int? = null,
+
+    // Display-only "number in the DB" shown in each card's index strip. For
+    // Twitter this is the SQLite rowid surfaced by the feed query; rendered
+    // zero-padded (`%03d`) via the card's indexOverride. `0L` for sources that
+    // do not surface it (Reddit), which renders as the legacy `000`. Not an
+    // identifier — the rowid can change under VACUUM/migration.
+    val dbNumber: Long = 0L,
 ) {
     companion object {
         /**

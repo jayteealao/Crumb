@@ -12,8 +12,10 @@ import com.github.jayteealao.twitter.data.dto.SyncStatus
 import com.github.jayteealao.crumbs.data.SyncProgress
 import com.github.jayteealao.twitter.models.TagEntity
 import com.github.jayteealao.twitter.models.TweetEntity
+import com.github.jayteealao.twitter.models.TweetMediaEntity
 import com.github.jayteealao.twitter.models.TweetPublicMetrics
 import com.github.jayteealao.twitter.models.TweetTagCrossRef
+import com.github.jayteealao.twitter.models.TweetTextEntityAnnotation
 import com.github.jayteealao.twitter.models.TwitterUserEntity
 import com.github.jayteealao.crumbs.migration.MigrationKeys
 import com.github.jayteealao.pref.readString
@@ -214,6 +216,112 @@ class DebugDataInjector @Inject constructor(
                 retrievedAt = nowMs - 240_000L,
             ),
         ).forEach(dao::insertTweet)
+
+        // --- Type-filter fixtures: one tweet per non-trivial TypeFilter so every
+        // chip (IMAGE / VIDEO / ARTICLE / THREAD) and the SAVED count are
+        // demonstrable under a debug seed. Stamped older than the four above so
+        // they sort below them — the feed's index 0 is unchanged for flows that
+        // tap the first card. Child rows (media / url annotation) are inserted
+        // after their parent tweet to satisfy the FK to tweetEntity.
+        val imageTweet = TweetEntity(
+            id = "debug-tweet-5",
+            text = "Mock photo bookmark — exercises the IMAGE type filter.",
+            createdAt = "2026-05-18T00:04:00Z",
+            authorId = user.id,
+            conversationId = "debug-tweet-5",
+            inReplyToUserId = null,
+            lang = "en",
+            referenced = false,
+            order = 996,
+            retrievedAt = nowMs - 300_000L,
+        )
+        val videoTweet = TweetEntity(
+            id = "debug-tweet-6",
+            text = "Mock video bookmark — exercises the VIDEO type filter.",
+            createdAt = "2026-05-18T00:05:00Z",
+            authorId = user.id,
+            conversationId = "debug-tweet-6",
+            inReplyToUserId = null,
+            lang = "en",
+            referenced = false,
+            order = 995,
+            retrievedAt = nowMs - 360_000L,
+        )
+        val articleTweet = TweetEntity(
+            id = "debug-tweet-7",
+            text = "External article link — exercises the ARTICLE type filter. https://example.com/brutalist",
+            createdAt = "2026-05-18T00:06:00Z",
+            authorId = user.id,
+            conversationId = "debug-tweet-7",
+            inReplyToUserId = null,
+            lang = "en",
+            referenced = false,
+            order = 994,
+            retrievedAt = nowMs - 420_000L,
+        )
+        // conversationId points at debug-tweet-1, so this reply is a THREAD match
+        // (conversation_id <> id) and also promotes debug-tweet-1 into a thread
+        // (the sibling-shares-conversation arm of the THREAD predicate).
+        val replyTweet = TweetEntity(
+            id = "debug-tweet-8",
+            text = "Reply in debug-tweet-1's conversation — exercises the THREAD type filter.",
+            createdAt = "2026-05-18T00:07:00Z",
+            authorId = user.id,
+            conversationId = "debug-tweet-1",
+            inReplyToUserId = user.id,
+            lang = "en",
+            referenced = false,
+            order = 993,
+            retrievedAt = nowMs - 480_000L,
+        )
+        listOf(imageTweet, videoTweet, articleTweet, replyTweet).forEach(dao::insertTweet)
+
+        dao.insertTweetMedia(
+            TweetMediaEntity(
+                mediaKey = "debug-media-photo-1",
+                type = "photo",
+                url = "https://example.com/debug-photo.jpg",
+                durationMs = 0,
+                height = 900,
+                width = 1600,
+                previewImageUrl = null,
+                altText = "Debug seeded photo",
+                tweetId = imageTweet.id,
+            )
+        )
+        dao.insertTweetMedia(
+            TweetMediaEntity(
+                mediaKey = "debug-media-video-1",
+                type = "video",
+                url = "https://example.com/debug-video.mp4",
+                durationMs = 12_000,
+                height = 720,
+                width = 1280,
+                previewImageUrl = "https://example.com/debug-video-thumb.jpg",
+                altText = null,
+                tweetId = videoTweet.id,
+            )
+        )
+        dao.insertTweetTextEntityAnnotation(
+            TweetTextEntityAnnotation(
+                id = null,
+                start = 0,
+                end = 0,
+                product = null,
+                status = null,
+                tag = null,
+                title = null,
+                description = null,
+                url = "https://t.co/debug",
+                expandedUrl = "https://example.com/brutalist",
+                displayUrl = "example.com/brutalist",
+                unwoundUrl = null,
+                mediaKey = null,
+                normalizedText = null,
+                tweetId = articleTweet.id,
+                type = "urls",
+            )
+        )
     }
 
     private suspend fun seedReddit() {

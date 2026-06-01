@@ -329,6 +329,22 @@ val MIGRATION_12_13: Migration = object : Migration(12, 13) {
     }
 }
 
+/**
+ * v13 → v14: add an index on `tweetEntity.conversation_id`. It backs the THREAD type-filter's
+ * correlated "a sibling tweet shares this conversation" subquery so it runs as an index lookup
+ * rather than an O(n²) self-join scan. Index-only change — no column or data is added, so
+ * pre-existing rows are untouched. The index name must match Room's generated
+ * `index_<table>_<col>` (`index_tweetEntity_conversation_id`) or schema validation fails.
+ */
+val MIGRATION_13_14: Migration = object : Migration(13, 14) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_tweetEntity_conversation_id` " +
+                "ON `tweetEntity` (`conversation_id`)"
+        )
+    }
+}
+
 /** Full list registered by the DI module's `addMigrations(*ALL_MIGRATIONS)`. */
 val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_2_3,
@@ -342,4 +358,5 @@ val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_10_11,
     MIGRATION_11_12,
     MIGRATION_12_13,
+    MIGRATION_13_14,
 )

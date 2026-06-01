@@ -38,7 +38,7 @@ interface TweetFtsDao {
     @Transaction
     @Query(
         """
-        SELECT t.* FROM tweetEntity t
+        SELECT t.rowid AS db_rowid, t.* FROM tweetEntity t
         JOIN tweet_fts f ON t.rowid = f.rowid
         LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
         WHERE tweet_fts MATCH :q

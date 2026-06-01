@@ -43,6 +43,10 @@ data class Tweet(
         Index("author_id"),
         Index("order"),
         Index(value = ["retrieved_at", "created_at"]),
+        // Backs the THREAD type-filter's correlated "sibling shares conversation"
+        // subquery (`EXISTS (... WHERE s.conversation_id = t.conversation_id ...)`)
+        // so it runs index-backed instead of O(n²). Added in migration v14.
+        Index("conversation_id"),
     ]
 )
 data class TweetEntity(
@@ -83,8 +87,14 @@ data class TweetData(
     @Relation(parentColumn = "id", entityColumn = "tweet_id")
     val includes: List<TweetIncludesEntity>,
     @Relation(parentColumn = "id", entityColumn = "tweet_id")
-    val tweetTextAnnotation: List<TweetTextEntityAnnotation>
+    val tweetTextAnnotation: List<TweetTextEntityAnnotation>,
 
+    // Display-only SQLite rowid, surfaced by the feed queries via
+    // `SELECT t.rowid AS db_rowid`. Scalar (not part of the @Embedded entity)
+    // so it never participates in writes. Defaults to 0 for any query path that
+    // does not project the alias (e.g. relation-only reads), keeping Room from
+    // erroring on a missing column. The card renders it as the per-row number.
+    @ColumnInfo(name = "db_rowid") val dbRowId: Long = 0L,
 )
 
 fun tweetResponseToTweetMapper(tweetData: List<Tweet>, includes: TweetIncludes): List<Tweet> {

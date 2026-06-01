@@ -87,6 +87,8 @@ fun HomeRoute(
     val twitterAccess by loginViewModel.isAccessTokenAvailable.collectAsStateWithLifecycle()
     val redditAccess by redditViewModel.isAccessTokenAvailable.collectAsStateWithLifecycle()
     val syncStatus by bookmarksViewModel.syncStatus.collectAsStateWithLifecycle()
+    // Live Twitter feed count for the SAVED header; tracks the active tag/type filter.
+    val twitterCount by bookmarksViewModel.itemCount.collectAsStateWithLifecycle()
 
     // Reconnect banner reflects sync_status.linked from the server doc; takes
     // precedence over the legacy 401 banner because the new server-driven
@@ -159,6 +161,18 @@ fun HomeRoute(
             }
         }
     }
+    // Tab-aware SAVED count: Twitter (and the Twitter-backed ALL/MAP tabs) report the
+    // live Twitter feed count; Reddit has no count wired and keeps the legacy `000`.
+    val activeCount by remember {
+        derivedStateOf {
+            when (selectedTab) {
+                BottomNavTab.TWITTER -> twitterCount
+                BottomNavTab.REDDIT -> 0
+                BottomNavTab.ALL -> twitterCount
+                BottomNavTab.MAP -> twitterCount
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         services.syncErrorBus.events.collect { event ->
@@ -211,6 +225,7 @@ fun HomeRoute(
             searchQuery = searchQuery,
             selectedFilterChipIds = setOf(activeFilter.type.name.lowercase()),
             bannerState = activeBanner,
+            itemCount = activeCount,
         ),
         onTabSelected = { selectedTab = it },
         onSearchQueryChange = { searchQuery = it },

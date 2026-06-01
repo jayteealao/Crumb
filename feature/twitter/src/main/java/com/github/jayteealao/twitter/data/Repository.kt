@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -180,15 +181,32 @@ class Repository @Inject constructor(
     fun pagingTweetData() = pager.flow
 
     fun pagingTweetData(filter: FilterState): Flow<PagingData<TweetData>> {
+        val type = filter.type.name
         val pagingSource = if (filter.selectedTags.isNotEmpty()) {
-            { tweetDao.getTweetsByTagsTombstoneAware(filter.selectedTags.toList()) }
+            { tweetDao.getTweetsByTagsTombstoneAware(filter.selectedTags.toList(), type) }
         } else {
-            { tweetDao.getTweetsTombstoneAware() }
+            { tweetDao.getTweetsTombstoneAware(type) }
         }
         return Pager(
             config = PagingConfig(pageSize = 20),
             pagingSourceFactory = pagingSource,
         ).flow
+    }
+
+    /**
+     * Reactive count of the feed the SAVED header reports. Built from the **same**
+     * [FilterState] tags/no-tags branch and the **same** `:type` predicate as
+     * [pagingTweetData], so the header tracks the visible list exactly. `distinctUntilChanged`
+     * collapses no-op re-emissions from unrelated table churn during sync drains.
+     */
+    fun countFlow(filter: FilterState): Flow<Int> {
+        val type = filter.type.name
+        val source = if (filter.selectedTags.isNotEmpty()) {
+            tweetDao.countByTagsTombstoneAware(filter.selectedTags.toList(), type)
+        } else {
+            tweetDao.countTombstoneAware(type)
+        }
+        return source.distinctUntilChanged()
     }
 
     suspend fun softDelete(id: String) {

@@ -154,4 +154,23 @@ class CardComponentsTest {
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_deleted_light.png")
     }
 
+    // Pins the index strip rendering a real, > 3-digit DB number (rowid) instead of the
+    // default "000" — the value is passed pre-formatted through indexOverride, exactly as
+    // the Twitter feed call site does (`"%03d".format(bookmark.dbNumber)`).
+    @Test
+    fun bookmarkCard_largeDbNumber_light() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = false) {
+                CrumbsBookmarkCard(
+                    bookmark = twitterTextBookmark.copy(dbNumber = 1234L),
+                    onCardClick = {},
+                    indexOverride = "%03d".format(1234L),
+                )
+            }
+        }
+
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_largeDbNumber_light.png")
+    }
+
 }

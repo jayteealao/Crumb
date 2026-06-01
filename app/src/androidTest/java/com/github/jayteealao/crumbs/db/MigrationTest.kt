@@ -14,6 +14,7 @@ import com.github.jayteealao.crumbs.db.MIGRATION_9_10
 import com.github.jayteealao.crumbs.db.MIGRATION_10_11
 import com.github.jayteealao.crumbs.db.MIGRATION_11_12
 import com.github.jayteealao.crumbs.db.MIGRATION_12_13
+import com.github.jayteealao.crumbs.db.MIGRATION_13_14
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -653,6 +654,46 @@ class MigrationTest {
             "Expected composite index index_tweetEntity_retrieved_at_created_at; found $indexNames",
             indexNames.contains("index_tweetEntity_retrieved_at_created_at"),
         )
+
+        db.close()
+    }
+
+    @Test
+    fun migrate13To14_addsConversationIdIndex() {
+        // Seed a v13 row (the v13 shape already has retrieved_at + pending_delete).
+        helper.createDatabase(TEST_DB, 13).apply {
+            execSQL(
+                "INSERT INTO tweetEntity " +
+                    "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete, retrieved_at) " +
+                    "VALUES ('tweet-1', 'hello', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0, NULL)"
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB,
+            14,
+            true,
+            MIGRATION_13_14,
+        )
+
+        // The conversation_id index exists under Room's generated name (`index_<table>_<col>`).
+        val indexNames = mutableSetOf<String>()
+        db.query("PRAGMA index_list(`tweetEntity`)").use { cursor ->
+            while (cursor.moveToNext()) {
+                indexNames += cursor.getString(cursor.getColumnIndexOrThrow("name"))
+            }
+        }
+        assertTrue(
+            "Expected index index_tweetEntity_conversation_id; found $indexNames",
+            indexNames.contains("index_tweetEntity_conversation_id"),
+        )
+
+        // The pre-existing row survives the index-only migration.
+        db.query("SELECT COUNT(*) FROM tweetEntity").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(1, cursor.getInt(0))
+        }
 
         db.close()
     }

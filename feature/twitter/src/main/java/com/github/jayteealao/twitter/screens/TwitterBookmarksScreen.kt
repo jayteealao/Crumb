@@ -146,6 +146,10 @@ fun TwitterBookmarksScreen(
                             onLongPress = onLongPress,
                             onConfirmDeletePending = onConfirmDeletePending,
                             onCancelDeletePending = onCancelDeletePending,
+                            // Show the bookmark's DB rowid (zero-padded) in the index
+                            // strip instead of the default "000". `%03d` is min-width,
+                            // so rowids above 999 render in full (e.g. 1234), untruncated.
+                            indexOverride = "%03d".format(bookmark.dbNumber),
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                         )
                     }
@@ -319,6 +323,8 @@ fun TweetData.toBookmark(tags: List<String> = emptyList()): Bookmark {
         isDeleted = false,
         pendingDelete = tweet.pendingDelete,
         sourceUrl = "https://twitter.com/${user.username}/status/${tweet.id}",
+        // The card's index strip shows this as the per-row "number in the DB".
+        dbNumber = dbRowId,
     )
 }
 

@@ -131,31 +131,113 @@ interface TweetDao {
     }
 
     @Transaction
-    @Query("SELECT * FROM tweetEntity WHERE referenced = false ORDER BY retrieved_at DESC, created_at DESC")
+    @Query("SELECT rowid AS db_rowid, * FROM tweetEntity WHERE referenced = false ORDER BY retrieved_at DESC, created_at DESC")
     fun getTweets(): PagingSource<Int, TweetData>
 
     @Transaction
     @Query("""
-        SELECT t.* FROM tweetEntity t
+        SELECT t.rowid AS db_rowid, t.* FROM tweetEntity t
         LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
         WHERE t.referenced = 0
           AND d.bookmarkId IS NULL
+          AND (
+            :type = 'ALL'
+            OR (:type = 'IMAGE'   AND EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id AND m.type = 'photo'))
+            OR (:type = 'VIDEO'   AND EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id AND m.type IN ('video','animated_gif')))
+            OR (:type = 'ARTICLE' AND EXISTS (SELECT 1 FROM tweetTextEntityAnnotation a
+                  WHERE a.tweet_id = t.id AND a.type = 'urls' AND a.expanded_url IS NOT NULL
+                    AND a.expanded_url NOT LIKE '%twitter.com%' AND a.expanded_url NOT LIKE '%x.com%'))
+            OR (:type = 'THREAD'  AND (t.conversation_id <> t.id
+                  OR EXISTS (SELECT 1 FROM tweetEntity s WHERE s.conversation_id = t.conversation_id AND s.id <> t.id AND s.referenced = 0)))
+            OR (:type = 'TEXT'    AND NOT EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id)
+                  AND NOT EXISTS (SELECT 1 FROM tweetTextEntityAnnotation a WHERE a.tweet_id = t.id AND a.type = 'urls'
+                    AND a.expanded_url IS NOT NULL AND a.expanded_url NOT LIKE '%twitter.com%' AND a.expanded_url NOT LIKE '%x.com%'))
+          )
         ORDER BY t.retrieved_at DESC, t.created_at DESC
     """)
-    fun getTweetsTombstoneAware(): PagingSource<Int, TweetData>
+    fun getTweetsTombstoneAware(type: String): PagingSource<Int, TweetData>
 
     @Transaction
     @Query("""
-        SELECT t.* FROM tweetEntity t
+        SELECT t.rowid AS db_rowid, t.* FROM tweetEntity t
         LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
         INNER JOIN tweet_tags tt ON tt.tweetId = t.id
         WHERE t.referenced = 0
           AND d.bookmarkId IS NULL
           AND tt.tagName IN (:tagNames)
+          AND (
+            :type = 'ALL'
+            OR (:type = 'IMAGE'   AND EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id AND m.type = 'photo'))
+            OR (:type = 'VIDEO'   AND EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id AND m.type IN ('video','animated_gif')))
+            OR (:type = 'ARTICLE' AND EXISTS (SELECT 1 FROM tweetTextEntityAnnotation a
+                  WHERE a.tweet_id = t.id AND a.type = 'urls' AND a.expanded_url IS NOT NULL
+                    AND a.expanded_url NOT LIKE '%twitter.com%' AND a.expanded_url NOT LIKE '%x.com%'))
+            OR (:type = 'THREAD'  AND (t.conversation_id <> t.id
+                  OR EXISTS (SELECT 1 FROM tweetEntity s WHERE s.conversation_id = t.conversation_id AND s.id <> t.id AND s.referenced = 0)))
+            OR (:type = 'TEXT'    AND NOT EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id)
+                  AND NOT EXISTS (SELECT 1 FROM tweetTextEntityAnnotation a WHERE a.tweet_id = t.id AND a.type = 'urls'
+                    AND a.expanded_url IS NOT NULL AND a.expanded_url NOT LIKE '%twitter.com%' AND a.expanded_url NOT LIKE '%x.com%'))
+          )
         GROUP BY t.id
         ORDER BY t.retrieved_at DESC, t.created_at DESC
     """)
-    fun getTweetsByTagsTombstoneAware(tagNames: List<String>): PagingSource<Int, TweetData>
+    fun getTweetsByTagsTombstoneAware(tagNames: List<String>, type: String): PagingSource<Int, TweetData>
+
+    /**
+     * Reactive count of the visible (no-tag) feed for the SAVED header. The WHERE
+     * is kept byte-for-byte identical to [getTweetsTombstoneAware] — same tombstone
+     * filter, same `:type` predicate block — so the header can never disagree with
+     * the rendered list. Emits via Room's InvalidationTracker on any matching write.
+     */
+    @Query("""
+        SELECT COUNT(*) FROM tweetEntity t
+        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
+        WHERE t.referenced = 0
+          AND d.bookmarkId IS NULL
+          AND (
+            :type = 'ALL'
+            OR (:type = 'IMAGE'   AND EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id AND m.type = 'photo'))
+            OR (:type = 'VIDEO'   AND EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id AND m.type IN ('video','animated_gif')))
+            OR (:type = 'ARTICLE' AND EXISTS (SELECT 1 FROM tweetTextEntityAnnotation a
+                  WHERE a.tweet_id = t.id AND a.type = 'urls' AND a.expanded_url IS NOT NULL
+                    AND a.expanded_url NOT LIKE '%twitter.com%' AND a.expanded_url NOT LIKE '%x.com%'))
+            OR (:type = 'THREAD'  AND (t.conversation_id <> t.id
+                  OR EXISTS (SELECT 1 FROM tweetEntity s WHERE s.conversation_id = t.conversation_id AND s.id <> t.id AND s.referenced = 0)))
+            OR (:type = 'TEXT'    AND NOT EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id)
+                  AND NOT EXISTS (SELECT 1 FROM tweetTextEntityAnnotation a WHERE a.tweet_id = t.id AND a.type = 'urls'
+                    AND a.expanded_url IS NOT NULL AND a.expanded_url NOT LIKE '%twitter.com%' AND a.expanded_url NOT LIKE '%x.com%'))
+          )
+    """)
+    fun countTombstoneAware(type: String): Flow<Int>
+
+    /**
+     * Reactive count for the tag-filtered feed. Mirrors [getTweetsByTagsTombstoneAware]'s
+     * WHERE exactly; uses `COUNT(DISTINCT t.id)` because the `tweet_tags` INNER JOIN can
+     * fan a single tweet across multiple matching tags (the list query collapses those
+     * with `GROUP BY t.id`).
+     */
+    @Query("""
+        SELECT COUNT(DISTINCT t.id) FROM tweetEntity t
+        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
+        INNER JOIN tweet_tags tt ON tt.tweetId = t.id
+        WHERE t.referenced = 0
+          AND d.bookmarkId IS NULL
+          AND tt.tagName IN (:tagNames)
+          AND (
+            :type = 'ALL'
+            OR (:type = 'IMAGE'   AND EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id AND m.type = 'photo'))
+            OR (:type = 'VIDEO'   AND EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id AND m.type IN ('video','animated_gif')))
+            OR (:type = 'ARTICLE' AND EXISTS (SELECT 1 FROM tweetTextEntityAnnotation a
+                  WHERE a.tweet_id = t.id AND a.type = 'urls' AND a.expanded_url IS NOT NULL
+                    AND a.expanded_url NOT LIKE '%twitter.com%' AND a.expanded_url NOT LIKE '%x.com%'))
+            OR (:type = 'THREAD'  AND (t.conversation_id <> t.id
+                  OR EXISTS (SELECT 1 FROM tweetEntity s WHERE s.conversation_id = t.conversation_id AND s.id <> t.id AND s.referenced = 0)))
+            OR (:type = 'TEXT'    AND NOT EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id)
+                  AND NOT EXISTS (SELECT 1 FROM tweetTextEntityAnnotation a WHERE a.tweet_id = t.id AND a.type = 'urls'
+                    AND a.expanded_url IS NOT NULL AND a.expanded_url NOT LIKE '%twitter.com%' AND a.expanded_url NOT LIKE '%x.com%'))
+          )
+    """)
+    fun countByTagsTombstoneAware(tagNames: List<String>, type: String): Flow<Int>
 
     @Query("SELECT * FROM tweetEntity WHERE referenced = false ORDER BY `order` DESC LIMIT 1")
     fun getLatestBookmark(): TweetEntity?
@@ -170,7 +252,7 @@ interface TweetDao {
     @Transaction
     @Query(
         """
-        SELECT t.* FROM tweetEntity t
+        SELECT t.rowid AS db_rowid, t.* FROM tweetEntity t
         LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
         WHERE t.id = :id
           AND t.referenced = 0
@@ -189,7 +271,7 @@ interface TweetDao {
     @Transaction
     @Query(
         """
-        SELECT t.* FROM tweetEntity t
+        SELECT t.rowid AS db_rowid, t.* FROM tweetEntity t
         LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
         WHERE t.conversation_id = :conversationId
           AND d.bookmarkId IS NULL

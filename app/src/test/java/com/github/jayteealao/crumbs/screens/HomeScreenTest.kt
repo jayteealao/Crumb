@@ -69,6 +69,36 @@ class HomeScreenTest {
     }
 
     @Test
+    fun homeScreen_twitter_withCount_light() {
+        // Non-zero SAVED header: itemCount = 42 must render "042 SAVED" in the filter bar
+        // instead of the long-standing "000" placeholder.
+        composeTestRule.mainClock.autoAdvance = false
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = false) {
+                HomeScreen(
+                    uiState = HomeUiState(selectedTab = BottomNavTab.TWITTER, itemCount = 42),
+                    onTabSelected = {},
+                    onSearchQueryChange = {},
+                    onSearchActiveChange = {},
+                    onChipToggled = {},
+                    onSortClick = {},
+                    onBannerCta = {},
+                    snackbarHostState = SnackbarHostState(),
+                ) { _, _ ->
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(LocalCrumbsColors.current.surface),
+                    )
+                }
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/HomeScreen_twitter_withCount_light.png", options)
+    }
+
+    @Test
     fun homeScreen_all_dark() {
         composeTestRule.mainClock.autoAdvance = false
         composeTestRule.setContent {

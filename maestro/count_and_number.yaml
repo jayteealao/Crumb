@@ -1,0 +1,61 @@
+# Saved-count header + type filter — seed the debug corpus (8 Twitter tweets, one per
+# type marker), confirm the SAVED header shows the real feed count instead of the "000"
+# placeholder, then narrow to the IMAGE type chip and confirm the count tracks the filter.
+# Per-card DB numbers are asserted as "not 000" only — rowids are not stable across reseeds.
+appId: com.github.jayteealao.crumbs
+---
+- launchApp:
+    arguments:
+      debug_action: "seed"
+      wipe: true
+- runFlow:
+    when:
+      visible:
+        id: "login-screen"
+    commands:
+      - tapOn:
+          id: "login-skip-auth"
+- extendedWaitUntil:
+    visible:
+      id: "home-screen"
+    timeout: 10000
+
+- tapOn:
+    id: "nav-tab-twitter"
+- extendedWaitUntil:
+    visible:
+      id: "twitter-bookmarks-screen"
+    timeout: 5000
+
+# --- Header reports the real Twitter feed count (8 seeded tweets), not the placeholder ---
+- assertVisible: "008 SAVED"
+- assertNotVisible: "000 SAVED"
+
+# --- Narrow to IMAGE via the filter overlay → count tracks the filtered feed ---
+- tapOn:
+    id: "filter-bar-cell"
+- extendedWaitUntil:
+    visible:
+      id: "filter-overlay"
+    timeout: 3000
+- tapOn:
+    id: "filter-overlay-chip-image"
+- tapOn:
+    id: "filter-overlay-apply"
+- assertNotVisible:
+    id: "filter-overlay"
+# Exactly one seeded tweet carries a photo media row.
+- assertVisible: "001 SAVED"
+
+# --- Clear back to ALL so the count returns to the full feed ---
+- tapOn:
+    id: "filter-bar-cell"
+- extendedWaitUntil:
+    visible:
+      id: "filter-overlay"
+    timeout: 3000
+- tapOn:
+    id: "filter-overlay-chip-all"
+- tapOn:
+    id: "filter-overlay-apply"
+- assertVisible: "008 SAVED"
