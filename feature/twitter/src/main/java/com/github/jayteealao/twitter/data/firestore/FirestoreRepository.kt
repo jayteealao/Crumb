@@ -364,6 +364,17 @@ class FirestoreRepository @Inject constructor(
         }
     }
 
+    /**
+     * Public single-tweet wrapper over the private batch fetch. Re-pulls one
+     * tweet's full entity set (tweet + author + metrics + media + text
+     * annotations) from Firestore. Used by the lazy on-view media re-fetch and
+     * the one-time backfill worker to repair the legacy (pre-cutover) corpus
+     * whose media docs were never synced into Room. Returns null when the tweet
+     * is absent or the batch times out.
+     */
+    suspend fun fetchSingleTweetEntities(tweetId: String): TweetEntities? =
+        fetchTweetEntitiesByIds(listOf(tweetId)).firstOrNull()
+
     // The upload paths below become dead code after `cutover-migration` removes
     // the device-side X HTTP wiring. Path rewrites still land here so any
     // residual invocation continues to write under the user's sub-collections.

@@ -12,7 +12,9 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.geometry.Offset
@@ -28,6 +30,7 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import com.github.jayteealao.crumbs.designsystem.components.BookmarkActionsOverlay
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsBookmarkCard
+import com.github.jayteealao.crumbs.designsystem.components.CrumbsImageViewer
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsButton
 import com.github.jayteealao.crumbs.designsystem.components.EmptyState
 import com.github.jayteealao.crumbs.designsystem.components.LoadingCard
@@ -63,6 +66,8 @@ data class TwitterBookmarksUiState(
  * @param onConnectClick Called when the user taps the connect CTA in the logged-out empty state.
  * @param onConfirmDeletePending Called with the tweet id when the user confirms a swipe-to-delete.
  * @param onCancelDeletePending Called with the tweet id when the user cancels a pending delete.
+ * @param onRequestMediaRefetch Called with a tweet id when a media-less card scrolls into view, so
+ *   the data layer can attempt a single-tweet media re-fetch for the legacy (pre-cutover) corpus.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,6 +82,7 @@ fun TwitterBookmarksScreen(
     onConnectClick: () -> Unit,
     onConfirmDeletePending: (String) -> Unit = {},
     onCancelDeletePending: (String) -> Unit = {},
+    onRequestMediaRefetch: (String) -> Unit = {},
     contentPadding: PaddingValues = PaddingValues(0.dp),
     modifier: Modifier = Modifier,
 ) {
@@ -100,6 +106,10 @@ fun TwitterBookmarksScreen(
     LaunchedEffect(itemIds) {
         if (itemIds.isNotEmpty()) onLoadTagsForIds(itemIds)
     }
+
+    // Full-screen image viewer state — non-null while open. Set from a card's
+    // onImageClick (the tapped image's index into that bookmark's imageUrls).
+    var imageViewer by remember { mutableStateOf<ImageViewerTarget?>(null) }
 
     PullToRefreshBox(
         isRefreshing = uiState.isRefreshing,
@@ -140,6 +150,14 @@ fun TwitterBookmarksScreen(
                         val id = tweetData.tweet.id
                         val tags = uiState.tagsMap[id] ?: emptyList()
                         val bookmark = tweetData.toBookmark(tags)
+                        // Legacy media re-fetch (per AC): a media-less card scrolling
+                        // into view asks the data layer to re-pull this tweet's media.
+                        // The ViewModel dedupes attempts per session; on success Room's
+                        // InvalidationTracker re-emits this card with its images, so the
+                        // retry-on-revisit is automatic. On failure it stays text-only.
+                        if (bookmark.imageUrls.isEmpty() && bookmark.videoUrl == null) {
+                            LaunchedEffect(id) { onRequestMediaRefetch(id) }
+                        }
                         CrumbsBookmarkCard(
                             bookmark = bookmark,
                             onCardClick = onCardClick,
@@ -150,6 +168,9 @@ fun TwitterBookmarksScreen(
                             // strip instead of the default "000". `%03d` is min-width,
                             // so rowids above 999 render in full (e.g. 1234), untruncated.
                             indexOverride = "%03d".format(bookmark.dbNumber),
+                            onImageClick = { tappedIndex ->
+                                imageViewer = ImageViewerTarget(bookmark.imageUrls, tappedIndex)
+                            },
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                         )
                     }
@@ -176,8 +197,23 @@ fun TwitterBookmarksScreen(
                 }
             }
         }
+
+        imageViewer?.let { target ->
+            CrumbsImageViewer(
+                imageUrls = target.images,
+                initialIndex = target.index,
+                onDismiss = { imageViewer = null },
+            )
+        }
     }
 }
+
+/** Open-state for the full-screen image viewer: the tweet's photos + the tapped page. */
+@androidx.compose.runtime.Immutable
+private data class ImageViewerTarget(
+    val images: List<String>,
+    val index: Int,
+)
 
 // Route — owns Hilt ViewModel injection, paging, popup state, tag editor.
 
@@ -247,6 +283,7 @@ fun TwitterBookmarksRoute(
         onConnectClick = { navController.navigate("CONNECTX") },
         onConfirmDeletePending = { id -> bookmarksViewModel.confirmDeletePending(id) },
         onCancelDeletePending = { id -> bookmarksViewModel.cancelDeletePending(id) },
+        onRequestMediaRefetch = { id -> bookmarksViewModel.refetchMediaIfMissing(id) },
         contentPadding = contentPadding,
     )
 
@@ -298,7 +335,11 @@ fun TweetData.toBookmark(tags: List<String> = emptyList()): Bookmark {
         tweet.text.contains("http") -> ContentType.Link
         else -> ContentType.Text
     }
-    val imageUrl = media.firstOrNull { it.type == "photo" }?.url
+    // Keep every photo URL (the card grid + viewer page through all of them);
+    // imageUrl stays the primary single URL for back-compat. Previously only the
+    // first photo survived, so multi-image tweets silently lost their extra photos.
+    val imageUrls = media.filter { it.type == "photo" }.mapNotNull { it.url }
+    val imageUrl = imageUrls.firstOrNull()
     val videoUrl = media.firstOrNull { it.type == "video" }?.url
     // Prefer the server-stamped retrieval time; fall back to the tweet's own creation time;
     // when neither is available/parseable, use the unknown-time sentinel rather than
@@ -314,6 +355,7 @@ fun TweetData.toBookmark(tags: List<String> = emptyList()): Bookmark {
         title = title,
         previewText = tweet.text,
         imageUrl = imageUrl,
+        imageUrls = imageUrls,
         videoUrl = videoUrl,
         contentType = contentType,
         savedAt = timestamp,

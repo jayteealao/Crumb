@@ -14,6 +14,7 @@ import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import coil.request.CachePolicy
 import com.github.jayteealao.crumbs.migration.XTokenMigrationWorker
+import com.github.jayteealao.crumbs.sync.MediaBackfillWorker
 import com.github.jayteealao.crumbs.sync.SyncEntryPoint
 import com.github.jayteealao.crumbs.sync.TwitterSyncWorker
 import dagger.hilt.android.EntryPointAccessors
@@ -73,6 +74,12 @@ class CrumbApplication : Application(), ImageLoaderFactory {
         } catch (e: IllegalStateException) {
             Timber.w(e, "TwitterSyncWorker initial enqueue failed (likely Robolectric or pre-auth)")
         }
+
+        // One-time media backfill for the legacy media-less corpus. Self-guards on
+        // its run-once flag, so this is a true singleton across the install lifetime;
+        // a fresh sign-in fires its own enqueue via the auth gateway (mirrors the
+        // cold-start sync). Internally wrapped so a missing WorkManager cannot crash.
+        MediaBackfillWorker.enqueueOnce(this)
     }
 
     private fun registerSyncNotificationChannel() {

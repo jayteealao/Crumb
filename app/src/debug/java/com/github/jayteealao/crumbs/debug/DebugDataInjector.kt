@@ -274,7 +274,22 @@ class DebugDataInjector @Inject constructor(
             order = 993,
             retrievedAt = nowMs - 480_000L,
         )
-        listOf(imageTweet, videoTweet, articleTweet, replyTweet).forEach(dao::insertTweet)
+        // Multi-photo tweet — exercises the 2×2 image grid + the full-screen viewer.
+        // Also an IMAGE-type match, so it lifts the IMAGE filter count to two. Stamped
+        // oldest so it sorts below the existing fixtures (card index 0 is unchanged).
+        val multiPhotoTweet = TweetEntity(
+            id = "debug-tweet-9",
+            text = "Multi-photo bookmark — exercises the 2×2 image grid and the viewer.",
+            createdAt = "2026-05-18T00:08:00Z",
+            authorId = user.id,
+            conversationId = "debug-tweet-9",
+            inReplyToUserId = null,
+            lang = "en",
+            referenced = false,
+            order = 992,
+            retrievedAt = nowMs - 540_000L,
+        )
+        listOf(imageTweet, videoTweet, articleTweet, replyTweet, multiPhotoTweet).forEach(dao::insertTweet)
 
         dao.insertTweetMedia(
             TweetMediaEntity(
@@ -322,6 +337,29 @@ class DebugDataInjector @Inject constructor(
                 type = "urls",
             )
         )
+        // Four loadable photos for the multi-photo tweet so the 2×2 grid + viewer are
+        // observable on-device (the single debug-photo above uses a non-loadable
+        // example.com URL on purpose). picsum seeds are stable per seed string.
+        listOf(
+            "https://picsum.photos/seed/crumb1/800/800",
+            "https://picsum.photos/seed/crumb2/800/800",
+            "https://picsum.photos/seed/crumb3/800/800",
+            "https://picsum.photos/seed/crumb4/800/800",
+        ).forEachIndexed { i, photoUrl ->
+            dao.insertTweetMedia(
+                TweetMediaEntity(
+                    mediaKey = "debug-media-grid-${i + 1}",
+                    type = "photo",
+                    url = photoUrl,
+                    durationMs = 0,
+                    height = 800,
+                    width = 800,
+                    previewImageUrl = null,
+                    altText = "Debug grid photo ${i + 1}",
+                    tweetId = multiPhotoTweet.id,
+                )
+            )
+        }
     }
 
     private suspend fun seedReddit() {

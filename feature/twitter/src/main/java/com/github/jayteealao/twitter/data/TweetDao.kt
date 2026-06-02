@@ -283,6 +283,28 @@ interface TweetDao {
     @Query("SELECT id FROM tweetEntity WHERE referenced = false")
     suspend fun getAllTweetIds(): List<String>
 
+    /**
+     * Tweet ids for the one-time media backfill: non-referenced, non-tombstoned
+     * tweets that currently have NO `tweetMedia` rows. Keyset-paginated by id
+     * (`id > :afterId`, ascending) so the backfill worker sweeps each media-less
+     * tweet exactly once and terminates when a page returns empty — even though
+     * genuinely media-less (text) tweets never leave the result set, the cursor
+     * still advances past them. Used only by `MediaBackfillWorker`.
+     */
+    @Query(
+        """
+        SELECT t.id FROM tweetEntity t
+        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
+        WHERE t.referenced = 0
+          AND d.bookmarkId IS NULL
+          AND t.id > :afterId
+          AND NOT EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id)
+        ORDER BY t.id ASC
+        LIMIT :limit
+        """
+    )
+    suspend fun getTweetsWithoutMedia(afterId: String, limit: Int): List<String>
+
     @Query("SELECT MAX(`order`) FROM tweetEntity")
     suspend fun getMaxOrder(): Int?
 

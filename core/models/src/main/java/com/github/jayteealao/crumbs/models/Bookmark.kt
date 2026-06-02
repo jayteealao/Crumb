@@ -11,6 +11,11 @@ data class Bookmark(
     val title: String, // First line or extracted title
     val previewText: String, // 5-6 lines of content
     val imageUrl: String? = null,
+    // All photo URLs for the post, in order. [imageUrl] stays the primary/single
+    // back-compat URL (== imageUrls.firstOrNull()); this list drives the card's
+    // 2×2 image grid and the full-screen viewer's pager. Defaults empty so Reddit
+    // and every other caller are unaffected (mirrors the dbNumber precedent).
+    val imageUrls: List<String> = emptyList(),
     val videoUrl: String? = null, // Video content URL
     val contentType: ContentType,
     val savedAt: Long, // Timestamp when bookmark was saved

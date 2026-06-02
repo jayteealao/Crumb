@@ -87,6 +87,26 @@ class BookmarksViewModel @Inject constructor(
         viewModelScope.launch { syncStatusRepository.refresh() }
     }
 
+    // Tweet ids already attempted this session. Keeps a media-less card re-entering
+    // composition (scroll off + back) from re-hitting Firestore every time. Accessed
+    // only from the main thread (composition + viewModelScope's default dispatcher).
+    private val mediaRefetchAttempts = mutableSetOf<String>()
+
+    /**
+     * Lazy on-view media re-fetch (image-rendering AC). Attempts at most one
+     * re-fetch per tweet per session; on success Room invalidation re-emits the
+     * paged card with its images. A tweet with no media in Firestore settles to
+     * text-only and is not retried until the next session (the one-time backfill
+     * worker repairs the back-catalogue in bulk) — this bound keeps the feed from
+     * hammering Firestore with a single-doc read for every text card on each scroll.
+     */
+    fun refetchMediaIfMissing(tweetId: String) {
+        if (!mediaRefetchAttempts.add(tweetId)) return
+        viewModelScope.launch {
+            runCatching { repository.refetchTweetMedia(tweetId) }
+        }
+    }
+
     fun onTypeChipToggled(typeId: String) {
         val next = runCatching { TypeFilter.valueOf(typeId.uppercase()) }.getOrDefault(TypeFilter.ALL)
         _filter.update { it.copy(type = next) }

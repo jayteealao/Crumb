@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -101,6 +102,27 @@ class Repository @Inject constructor(
                 firestoreRepository.uploadTweet(tweetEntities)
             }
         }
+    }
+
+    /**
+     * Single-tweet media re-fetch for the legacy (pre-cutover) corpus. Re-pulls the
+     * tweet's full entity set from Firestore and writes it through the existing
+     * IGNORE-on-conflict atomic insert: the already-present tweet/user/metrics rows
+     * are no-ops, so only the missing media (+ text annotations + media keys) land.
+     * Idempotent — safe to call repeatedly and from the backfill worker. Returns
+     * true when the re-fetched tweet carried any media rows.
+     *
+     * Drives the card's retry-on-revisit: on a successful media insert Room's
+     * InvalidationTracker re-emits the paged card with its images. Does NOT re-upload
+     * to Firestore and does NOT touch the includes-drop block (quoted-tweet FKs are
+     * owned by the quoted-tweets slice).
+     */
+    suspend fun refetchTweetMedia(tweetId: String): Boolean = withContext(Dispatchers.IO) {
+        val entities = firestoreRepository.fetchSingleTweetEntities(tweetId)
+            ?: return@withContext false
+        if (entities.tweetMediaEntity.isEmpty()) return@withContext false
+        saveTweetEntities(entities, uploadToFirestore = false)
+        true
     }
 
     /**

@@ -3,6 +3,7 @@ package com.github.jayteealao.crumbs.auth
 import android.content.Context
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
+import com.github.jayteealao.crumbs.sync.MediaBackfillWorker
 import com.github.jayteealao.twitter.data.TwitterSyncEnqueuer
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
@@ -48,6 +49,9 @@ class FirebaseAuthGateway @Inject constructor(
             if (!nextUid.isNullOrEmpty() && nextUid != prior) {
                 runCatching { twitterSyncEnqueuer.get().enqueueColdStart() }
                     .onFailure { Timber.w(it, "sign-in sync enqueue failed") }
+                // One-time legacy media backfill (self-guarded on its run-once flag).
+                runCatching { MediaBackfillWorker.enqueueOnce(appContext) }
+                    .onFailure { Timber.w(it, "media backfill enqueue failed") }
             }
         }
     }

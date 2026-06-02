@@ -59,6 +59,9 @@ dependencies {
 
     // Image loading
     implementation libs.coil.compose
+    // Full-screen zoomable image viewer (CrumbsImageViewer) — sub-sampling,
+    // double-tap/pinch-zoom; Coil-2 artifact pinned to the bumped coil 2.7.0.
+    implementation libs.telephoto.zoomable.coil
 
     // Video playback
     implementation libs.media3.exoplayer
@@ -67,6 +70,9 @@ dependencies {
     implementation libs.media3.ui
 
     testImplementation 'junit:junit:4.13.2'
+    // Deterministic Coil fake (FakeImageLoaderEngine → solid-color drawables) so the
+    // image-card Roborazzi goldens render synchronously in Robolectric.
+    testImplementation libs.coil.test
     testImplementation(libs.roborazzi.core)
     testImplementation(libs.roborazzi.compose)
     testImplementation(libs.roborazzi.junit.rule)

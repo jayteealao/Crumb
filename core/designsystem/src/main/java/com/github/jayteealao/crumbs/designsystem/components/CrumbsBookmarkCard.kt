@@ -2,6 +2,7 @@ package com.github.jayteealao.crumbs.designsystem.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,7 +25,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -35,7 +35,6 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.github.jayteealao.crumbs.designsystem.modifiers.brutalistStrikethrough
 import com.github.jayteealao.crumbs.designsystem.modifiers.dashedDivider
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
@@ -66,6 +65,10 @@ fun CrumbsBookmarkCard(
     onConfirmDeletePending: ((String) -> Unit)? = null,
     onCancelDeletePending: ((String) -> Unit)? = null,
     indexOverride: String? = null,
+    // Tapping a card image reports its index within bookmark.imageUrls so the
+    // caller can open the full-screen viewer at that page. Default no-op keeps
+    // the image inert for callers that do not host a viewer (Reddit, previews).
+    onImageClick: (index: Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     if (bookmark.pendingDelete) {
@@ -95,6 +98,7 @@ fun CrumbsBookmarkCard(
                 onLongPress = onLongPress,
                 index = index,
                 indexOverride = indexOverride,
+                onImageClick = onImageClick,
             )
         }
     } else {
@@ -104,6 +108,7 @@ fun CrumbsBookmarkCard(
             onLongPress = onLongPress,
             index = index,
             indexOverride = indexOverride,
+            onImageClick = onImageClick,
             modifier = modifier,
         )
     }
@@ -116,6 +121,7 @@ private fun BookmarkCardContent(
     onLongPress: (Bookmark, Offset) -> Unit,
     index: Int,
     indexOverride: String? = null,
+    onImageClick: (index: Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalCrumbsColors.current
@@ -148,7 +154,9 @@ private fun BookmarkCardContent(
         Column(modifier = Modifier.fillMaxWidth()) {
             BookmarkCardMedia(
                 imageUrl = bookmark.imageUrl,
+                imageUrls = bookmark.imageUrls,
                 contentType = bookmark.contentType,
+                onImageClick = onImageClick,
             )
 
             // CrumbsIndexStrip header replaces the inline source/author/age row.
@@ -198,35 +206,59 @@ private fun BookmarkCardContent(
 }
 
 /**
- * Optional media banner at the top of the card (16:7 aspect ratio).
- * Rendered only when [imageUrl] is non-null and [contentType] is Image or Video.
+ * Optional media banner at the top of the card. A single image fills the 16:7
+ * band; two or more photos render as a 2×2 grid (see [BookmarkCardImageGrid]) with
+ * a "+N" overflow on the fourth tile. Each image shows the accent loading
+ * placeholder until it settles and reports taps via [onImageClick] (index into the
+ * photo list). Rendered only when at least one image is present and [contentType]
+ * is Image or Video. [imageUrls] is preferred; [imageUrl] is the back-compat single
+ * URL for callers that only set the primary one.
  */
 @Composable
 private fun BookmarkCardMedia(
     imageUrl: String?,
+    imageUrls: List<String>,
     contentType: ContentType,
+    onImageClick: (index: Int) -> Unit,
 ) {
     val colors = LocalCrumbsColors.current
     val stroke = LocalCrumbsStroke.current
 
-    if (imageUrl != null &&
-        (contentType == ContentType.Image || contentType == ContentType.Video)
+    val images = when {
+        imageUrls.isNotEmpty() -> imageUrls
+        imageUrl != null -> listOf(imageUrl)
+        else -> emptyList()
+    }
+    if (images.isEmpty() ||
+        (contentType != ContentType.Image && contentType != ContentType.Video)
     ) {
-        AsyncImage(
-            model = imageUrl,
-            contentDescription = null,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(16f / 7f),
-            contentScale = ContentScale.Crop,
-        )
+        return
+    }
+
+    if (images.size == 1) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(stroke.hairline)
-                .background(colors.ink),
-        )
+                .aspectRatio(16f / 7f)
+                .testTag("bookmark-card-image")
+                .clickable { onImageClick(0) },
+        ) {
+            CrumbsCardMediaImage(
+                url = images[0],
+                contentDescription = "Image",
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    } else {
+        BookmarkCardImageGrid(images = images, onImageClick = onImageClick)
     }
+    // 1dp hairline separator below the media band.
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(stroke.hairline)
+            .background(colors.ink),
+    )
 }
 
 /**
