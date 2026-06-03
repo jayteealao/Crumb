@@ -11,7 +11,7 @@ plugins {
 
 android {
     namespace 'com.github.jayteealao.crumbs'
-    compileSdk 35
+    compileSdk 36
 
     signingConfigs {
         release {

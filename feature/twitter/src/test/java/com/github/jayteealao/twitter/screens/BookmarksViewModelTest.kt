@@ -1,8 +1,13 @@
 package com.github.jayteealao.twitter.screens
 
 import androidx.lifecycle.SavedStateHandle
+import androidx.test.core.app.ApplicationProvider
 import com.github.jayteealao.crumbs.data.FilterState
 import com.github.jayteealao.crumbs.data.TypeFilter
+import com.github.jayteealao.crumbs.models.Bookmark
+import com.github.jayteealao.crumbs.models.BookmarkSource
+import com.github.jayteealao.crumbs.models.ContentType
+import com.github.jayteealao.crumbs.models.VideoVariant
 import com.github.jayteealao.twitter.data.Repository
 import com.github.jayteealao.twitter.data.SnackbarEvent
 import com.github.jayteealao.twitter.data.SyncStatusRepository
@@ -26,7 +31,9 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -84,6 +91,7 @@ class BookmarksViewModelTest {
         coEvery { syncStatusRepository.refresh(any()) } returns null
 
         vm = BookmarksViewModel(
+            context = ApplicationProvider.getApplicationContext(),
             savedStateHandle = SavedStateHandle(),
             repository = repository,
             syncStatusRepository = syncStatusRepository,
@@ -130,6 +138,53 @@ class BookmarksViewModelTest {
     fun initialAllTags_isEmptyUntilLoaded() = runTest(dispatcher) {
         // Before coroutines drain, allTags is the default empty list
         assertTrue(vm.allTags.value.isEmpty())
+    }
+
+    // -------------------------------------------------------------------------
+    // 1b. refetchMediaIfMissing — single-tweet media re-fetch (legacy media-less
+    //     corpus). The relaxed Repository mock returns false (no media) by default.
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun refetchMediaIfMissing_firstCall_invokesRepositoryOnce() = runTest(dispatcher) {
+        coEvery { repository.refetchTweetMedia("t1") } returns true
+        vm.refetchMediaIfMissing("t1")
+        advanceUntilIdle()
+        coVerify(exactly = 1) { repository.refetchTweetMedia("t1") }
+    }
+
+    @Test
+    fun refetchMediaIfMissing_sameIdTwice_invokesRepositoryOnlyOnce() = runTest(dispatcher) {
+        // Per-session attempted-set dedup: a media-less tweet already attempted this
+        // session must not re-hit Firestore on every scroll-into-view.
+        vm.refetchMediaIfMissing("t1")
+        advanceUntilIdle()
+        vm.refetchMediaIfMissing("t1")
+        advanceUntilIdle()
+        coVerify(exactly = 1) { repository.refetchTweetMedia("t1") }
+    }
+
+    @Test
+    fun refetchMediaIfMissing_repositoryThrows_isSwallowedAndAttemptStillRecorded() = runTest(dispatcher) {
+        coEvery { repository.refetchTweetMedia("t1") } throws RuntimeException("network down")
+        // runCatching in the ViewModel swallows the failure — the card settles to
+        // text-only rather than crashing.
+        vm.refetchMediaIfMissing("t1")
+        advanceUntilIdle()
+        // The attempt is recorded before the launch, so a same-session retry does not
+        // re-hit the repository even though the first attempt failed.
+        vm.refetchMediaIfMissing("t1")
+        advanceUntilIdle()
+        coVerify(exactly = 1) { repository.refetchTweetMedia("t1") }
+    }
+
+    @Test
+    fun refetchMediaIfMissing_distinctIds_eachInvokedOnce() = runTest(dispatcher) {
+        vm.refetchMediaIfMissing("t1")
+        vm.refetchMediaIfMissing("t2")
+        advanceUntilIdle()
+        coVerify(exactly = 1) { repository.refetchTweetMedia("t1") }
+        coVerify(exactly = 1) { repository.refetchTweetMedia("t2") }
     }
 
     // -------------------------------------------------------------------------
@@ -527,5 +582,77 @@ class BookmarksViewModelTest {
         coVerify { repository.pagingTweetData(updatedFilter) }
 
         job.cancel()
+    }
+
+    // -------------------------------------------------------------------------
+    // 24. Inline video — single shared player + lifecycle / viewer state
+    // -------------------------------------------------------------------------
+
+    private fun videoBookmark(
+        id: String = "v1",
+        variants: List<VideoVariant> = listOf(VideoVariant("video/mp4", "https://v/$id.mp4", 2_176_000)),
+        videoUrl: String? = "https://v/$id.mp4",
+    ) = Bookmark(
+        id = id,
+        source = BookmarkSource.Twitter,
+        author = "@filmmaker",
+        title = "video",
+        previewText = "v",
+        contentType = ContentType.Video,
+        savedAt = 0L,
+        sourceUrl = "https://x.com/$id",
+        videoThumbnailUrl = "https://img/$id.jpg",
+        videoVariants = variants,
+        videoUrl = videoUrl,
+    )
+
+    @Test
+    fun playVideo_buildsSingleSharedPlayer_andSetsActiveId() = runTest(dispatcher) {
+        assertNull(vm.player)
+        assertNull(vm.activeVideoId.value)
+
+        vm.playVideo(videoBookmark("v1"))
+        advanceUntilIdle()
+        val first = vm.player
+        assertNotNull("playVideo should lazily build the shared player", first)
+        assertEquals("v1", vm.activeVideoId.value)
+
+        // A second play reuses the same instance — the single-player invariant.
+        vm.playVideo(videoBookmark("v2"))
+        advanceUntilIdle()
+        assertSame("the shared player must be reused, not recreated", first, vm.player)
+        assertEquals("v2", vm.activeVideoId.value)
+    }
+
+    @Test
+    fun playVideo_noPlayableSource_isNoOp() = runTest(dispatcher) {
+        vm.playVideo(videoBookmark("v1", variants = emptyList(), videoUrl = null))
+        advanceUntilIdle()
+        assertNull("no stream → no player built", vm.player)
+        assertNull(vm.activeVideoId.value)
+    }
+
+    @Test
+    fun clearActiveVideo_resetsActiveId() = runTest(dispatcher) {
+        vm.playVideo(videoBookmark("v1"))
+        advanceUntilIdle()
+        assertEquals("v1", vm.activeVideoId.value)
+
+        vm.clearActiveVideo()
+        assertNull("scroll-away detaches the active video", vm.activeVideoId.value)
+    }
+
+    @Test
+    fun expandThenCloseVideoViewer_togglesViewerState() = runTest(dispatcher) {
+        // Use a no-stream bookmark so the toggle is exercised without building a player.
+        val noStream = videoBookmark("v1", variants = emptyList(), videoUrl = null)
+        assertFalse(vm.videoViewerOpen.value)
+
+        vm.expandVideo(noStream)
+        advanceUntilIdle()
+        assertTrue(vm.videoViewerOpen.value)
+
+        vm.closeVideoViewer()
+        assertFalse(vm.videoViewerOpen.value)
     }
 }

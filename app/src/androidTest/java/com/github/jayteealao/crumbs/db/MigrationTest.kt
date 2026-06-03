@@ -15,6 +15,7 @@ import com.github.jayteealao.crumbs.db.MIGRATION_10_11
 import com.github.jayteealao.crumbs.db.MIGRATION_11_12
 import com.github.jayteealao.crumbs.db.MIGRATION_12_13
 import com.github.jayteealao.crumbs.db.MIGRATION_13_14
+import com.github.jayteealao.crumbs.db.MIGRATION_14_15
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -693,6 +694,67 @@ class MigrationTest {
         db.query("SELECT COUNT(*) FROM tweetEntity").use { cursor ->
             assertTrue(cursor.moveToFirst())
             assertEquals(1, cursor.getInt(0))
+        }
+
+        db.close()
+    }
+
+    @Test
+    fun migrate14To15_addsVideoVariantsColumnToTweetMedia() {
+        // Seed a v14 tweetMedia row (with its parent tweetEntity for the FK) so we can
+        // confirm the new column defaults to NULL for rows that predate it.
+        helper.createDatabase(TEST_DB, 14).apply {
+            execSQL(
+                "INSERT INTO tweetEntity " +
+                    "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete, retrieved_at) " +
+                    "VALUES ('tweet-1', 'hi', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0, NULL)"
+            )
+            execSQL(
+                "INSERT INTO tweetMedia " +
+                    "(media_key, type, url, duration_ms, height, width, preview_image_url, alt_text, tweet_id) " +
+                    "VALUES ('mk1', 'video', 'https://v/legacy.mp4', 12000, 720, 1280, 'https://img/p.jpg', NULL, 'tweet-1')"
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB,
+            15,
+            true,
+            MIGRATION_14_15,
+        )
+
+        // The video_variants column exists, is TEXT, and is nullable (notNull = 0).
+        val columns = mutableMapOf<String, Pair<String, Int>>() // name → (type, notNull)
+        db.query("PRAGMA table_info(`tweetMedia`)").use { cursor ->
+            while (cursor.moveToNext()) {
+                val name = cursor.getString(cursor.getColumnIndexOrThrow("name"))
+                val type = cursor.getString(cursor.getColumnIndexOrThrow("type"))
+                val notNull = cursor.getInt(cursor.getColumnIndexOrThrow("notnull"))
+                columns[name] = type to notNull
+            }
+        }
+        assertEquals("video_variants should be a nullable TEXT column", "TEXT" to 0, columns["video_variants"])
+
+        // Pre-existing media row gets NULL video_variants (legacy rows repair via re-fetch).
+        db.query("SELECT video_variants FROM tweetMedia WHERE media_key = 'mk1'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertTrue("legacy media row's video_variants must be NULL", cursor.isNull(0))
+        }
+
+        // A JSON variants payload round-trips through the new column.
+        db.execSQL(
+            "INSERT INTO tweetMedia " +
+                "(media_key, type, url, duration_ms, height, width, preview_image_url, alt_text, tweet_id, video_variants) " +
+                "VALUES ('mk2', 'video', 'https://v/master.m3u8', 0, 0, 0, NULL, NULL, 'tweet-1', " +
+                "'[{\"bit_rate\":0,\"content_type\":\"application/x-mpegURL\",\"url\":\"https://v/master.m3u8\"}]')"
+        )
+        db.query("SELECT video_variants FROM tweetMedia WHERE media_key = 'mk2'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertTrue(
+                "video_variants JSON should round-trip through the new column",
+                cursor.getString(0).contains("application/x-mpegURL"),
+            )
         }
 
         db.close()

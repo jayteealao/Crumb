@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace 'com.github.jayteealao.crumbs.designsystem'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         minSdk 24
@@ -63,16 +63,20 @@ dependencies {
     // double-tap/pinch-zoom; Coil-2 artifact pinned to the bumped coil 2.7.0.
     implementation libs.telephoto.zoomable.coil
 
-    // Video playback
+    // Video playback. ui-compose carries PlayerSurface/ContentFrame + the state
+    // holders the brutalist inline player (CrumbsVideoPlayer) is built from.
     implementation libs.media3.exoplayer
     implementation libs.media3.exoplayer.dash
     implementation libs.media3.exoplayer.hls
     implementation libs.media3.ui
+    implementation libs.media3.ui.compose
 
     testImplementation 'junit:junit:4.13.2'
     // Deterministic Coil fake (FakeImageLoaderEngine → solid-color drawables) so the
     // image-card Roborazzi goldens render synchronously in Robolectric.
     testImplementation libs.coil.test
+    // JVM ExoPlayer (TestExoPlayerBuilder) for CrumbsVideoPlayerTest's lifecycle invariant.
+    testImplementation(libs.media3.test.utils.robolectric)
     testImplementation(libs.roborazzi.core)
     testImplementation(libs.roborazzi.compose)
     testImplementation(libs.roborazzi.junit.rule)

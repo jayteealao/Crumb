@@ -13,6 +13,7 @@ import com.github.jayteealao.crumbs.data.SyncProgress
 import com.github.jayteealao.twitter.models.TagEntity
 import com.github.jayteealao.twitter.models.TweetEntity
 import com.github.jayteealao.twitter.models.TweetMediaEntity
+import com.github.jayteealao.twitter.models.Variant
 import com.github.jayteealao.twitter.models.TweetPublicMetrics
 import com.github.jayteealao.twitter.models.TweetTagCrossRef
 import com.github.jayteealao.twitter.models.TweetTextEntityAnnotation
@@ -289,7 +290,21 @@ class DebugDataInjector @Inject constructor(
             order = 992,
             retrievedAt = nowMs - 540_000L,
         )
-        listOf(imageTweet, videoTweet, articleTweet, replyTweet, multiPhotoTweet).forEach(dao::insertTweet)
+        // animated_gif tweet — rides the same muted tap-to-play video path; also a second
+        // VIDEO-type match. Stamped oldest. Uses a reachable mp4 so the gif plays on-device.
+        val gifTweet = TweetEntity(
+            id = "debug-tweet-10",
+            text = "Animated GIF bookmark — exercises the muted tap-to-play video path.",
+            createdAt = "2026-05-18T00:09:00Z",
+            authorId = user.id,
+            conversationId = "debug-tweet-10",
+            inReplyToUserId = null,
+            lang = "en",
+            referenced = false,
+            order = 991,
+            retrievedAt = nowMs - 600_000L,
+        )
+        listOf(imageTweet, videoTweet, articleTweet, replyTweet, multiPhotoTweet, gifTweet).forEach(dao::insertTweet)
 
         dao.insertTweetMedia(
             TweetMediaEntity(
@@ -304,17 +319,42 @@ class DebugDataInjector @Inject constructor(
                 tweetId = imageTweet.id,
             )
         )
+        // Reachable HLS master + progressive MP4 renditions so the inline player can
+        // actually decode on-device (the prior example.com URL never played). Variants
+        // exercise the HLS-first → highest-bitrate-MP4 selection; the poster is a loadable
+        // picsum image so the play-badge state is observable before playback.
         dao.insertTweetMedia(
             TweetMediaEntity(
                 mediaKey = "debug-media-video-1",
                 type = "video",
-                url = "https://example.com/debug-video.mp4",
+                url = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
                 durationMs = 12_000,
                 height = 720,
                 width = 1280,
-                previewImageUrl = "https://example.com/debug-video-thumb.jpg",
+                previewImageUrl = "https://picsum.photos/seed/crumbvideo/1280/720",
                 altText = null,
                 tweetId = videoTweet.id,
+                videoVariants = listOf(
+                    Variant(bitRate = 0, contentType = "application/x-mpegURL", url = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"),
+                    Variant(bitRate = 2_176_000, contentType = "video/mp4", url = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"),
+                    Variant(bitRate = 832_000, contentType = "video/mp4", url = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"),
+                ),
+            )
+        )
+        dao.insertTweetMedia(
+            TweetMediaEntity(
+                mediaKey = "debug-media-gif-1",
+                type = "animated_gif",
+                url = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+                durationMs = 6_000,
+                height = 480,
+                width = 640,
+                previewImageUrl = "https://picsum.photos/seed/crumbgif/640/480",
+                altText = null,
+                tweetId = gifTweet.id,
+                videoVariants = listOf(
+                    Variant(bitRate = 1_024_000, contentType = "video/mp4", url = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4"),
+                ),
             )
         )
         dao.insertTweetTextEntityAnnotation(

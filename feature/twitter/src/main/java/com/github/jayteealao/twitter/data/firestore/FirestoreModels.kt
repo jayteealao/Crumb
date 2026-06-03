@@ -4,6 +4,7 @@ import com.github.jayteealao.twitter.models.TweetEntity
 import com.github.jayteealao.twitter.models.TweetIncludesEntity
 import com.github.jayteealao.twitter.models.TweetMediaEntity
 import com.github.jayteealao.twitter.models.TweetPublicMetrics
+import com.github.jayteealao.twitter.models.Variant
 import com.github.jayteealao.twitter.models.TweetTextEntityAnnotation
 import com.github.jayteealao.twitter.models.TwitterUserEntity
 import com.google.firebase.Timestamp
@@ -142,7 +143,15 @@ data class FirestoreMedia(
     @get:PropertyName("altText") @set:PropertyName("altText")
     var altText: String? = null,
     @get:PropertyName("tweetId") @set:PropertyName("tweetId")
-    var tweetId: String? = null
+    var tweetId: String? = null,
+    // HLS / DASH / progressive video stream variants. The server already writes these
+    // (the poll function's `variants` mapping); before this field existed Firestore's
+    // CustomClassMapper silently dropped them on read — closing that gap is the real
+    // Android-side work for inline video. Read as untyped maps so BOTH the defensive
+    // camelCase write (`{bitRate,contentType,url}`) and any raw-spread snake_case doc
+    // (`{bit_rate,content_type,url}`) deserialize; [toVariant] reconciles the two.
+    @get:PropertyName("variants") @set:PropertyName("variants")
+    var variants: List<Map<String, Any?>>? = null,
 ) {
     fun toTweetMediaEntity(): TweetMediaEntity = TweetMediaEntity(
         mediaKey = mediaKey,
@@ -153,7 +162,8 @@ data class FirestoreMedia(
         height = height,
         durationMs = durationMs ?: 0,
         altText = altText,
-        tweetId = tweetId
+        tweetId = tweetId,
+        videoVariants = variants?.mapNotNull { it.toVariant() }?.takeIf { it.isNotEmpty() },
     )
 
     companion object {
@@ -166,8 +176,26 @@ data class FirestoreMedia(
             height = entity.height,
             durationMs = entity.durationMs,
             altText = entity.altText,
-            tweetId = entity.tweetId
+            tweetId = entity.tweetId,
+            // Round-trip variants in the canonical camelCase shape so an Android-originated
+            // re-upload never drops them.
+            variants = entity.videoVariants?.map {
+                mapOf("bitRate" to it.bitRate, "contentType" to it.contentType, "url" to it.url)
+            },
         )
+
+        /**
+         * Reconcile one Firestore variant map into a [Variant], accepting either the
+         * defensive camelCase keys or the raw X-API snake_case keys. Drops a map with no
+         * `url` (a variant with no stream is unplayable). Firestore stores numbers as
+         * [Number], so `bitRate` is coerced; a missing bit rate defaults to 0.
+         */
+        private fun Map<String, Any?>.toVariant(): Variant? {
+            val url = this["url"] as? String ?: return null
+            val contentType = (this["contentType"] ?: this["content_type"]) as? String ?: return null
+            val bitRate = ((this["bitRate"] ?: this["bit_rate"]) as? Number)?.toInt() ?: 0
+            return Variant(bitRate = bitRate, contentType = contentType, url = url)
+        }
     }
 }
 

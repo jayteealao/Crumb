@@ -48,13 +48,27 @@ data class TweetMediaEntity(
     val width: Int,
     @ColumnInfo(name = "preview_image_url") val previewImageUrl: String?,
     @ColumnInfo(name = "alt_text") val altText: String?,
-    @ColumnInfo(name = "tweet_id") val tweetId: String? = null
+    @ColumnInfo(name = "tweet_id") val tweetId: String? = null,
+    // HLS / DASH / progressive stream variants for video & animated_gif rows,
+    // persisted as JSON via [MediaConverters] (column added in migration v14→v15).
+    // Null for photo rows and for legacy rows synced before the column existed —
+    // those repair via the lazy on-view re-fetch + the widened backfill sweep.
+    @ColumnInfo(name = "video_variants") val videoVariants: List<Variant>? = null,
 )
 
 fun TweetMedia.toTweetMediaEntity(tweetId: String) = TweetMediaEntity(
-    mediaKey, type, url ?: variants?.get(0)?.url, durationMs, height, width, previewImageUrl, altText, tweetId
+    mediaKey = mediaKey,
+    type = type,
+    url = url ?: variants?.firstOrNull()?.url,
+    durationMs = durationMs,
+    height = height,
+    width = width,
+    previewImageUrl = previewImageUrl,
+    altText = altText,
+    tweetId = tweetId,
+    videoVariants = variants?.takeIf { it.isNotEmpty() },
 )
 
 fun TweetMediaEntity.toTweetMedia() = TweetMedia(
-    mediaKey, type, url, durationMs, height, width, previewImageUrl, tweetPublicMetrics(), altText, emptyList()
+    mediaKey, type, url, durationMs, height, width, previewImageUrl, tweetPublicMetrics(), altText, videoVariants
 )

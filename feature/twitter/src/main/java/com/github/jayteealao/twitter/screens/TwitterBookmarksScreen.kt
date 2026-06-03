@@ -6,23 +6,31 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.media3.common.Player
 import androidx.navigation.NavController
 import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
@@ -31,6 +39,7 @@ import androidx.paging.compose.itemKey
 import com.github.jayteealao.crumbs.designsystem.components.BookmarkActionsOverlay
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsBookmarkCard
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsImageViewer
+import com.github.jayteealao.crumbs.designsystem.components.CrumbsVideoViewer
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsButton
 import com.github.jayteealao.crumbs.designsystem.components.EmptyState
 import com.github.jayteealao.crumbs.designsystem.components.LoadingCard
@@ -39,9 +48,12 @@ import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.models.Bookmark
 import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.models.ContentType
+import com.github.jayteealao.crumbs.models.VideoVariant
 import com.github.jayteealao.twitter.models.TweetData
+import com.github.jayteealao.twitter.player.VariantSelection
 import com.github.jayteealao.twitter.util.parseTweetTimestamp
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.flow.distinctUntilChanged
 import timber.log.Timber
 
 @androidx.compose.runtime.Immutable
@@ -68,6 +80,14 @@ data class TwitterBookmarksUiState(
  * @param onCancelDeletePending Called with the tweet id when the user cancels a pending delete.
  * @param onRequestMediaRefetch Called with a tweet id when a media-less card scrolls into view, so
  *   the data layer can attempt a single-tweet media re-fetch for the legacy (pre-cutover) corpus.
+ * @param videoPlayer The shared ExoPlayer, bound to whichever card matches [activeVideoId] (or to
+ *   the full-screen viewer when [videoViewerOpen]); null until the first video play.
+ * @param activeVideoId Tweet id of the single active inline video, or null when none is playing.
+ * @param videoViewerOpen Whether the full-screen video viewer is open (it borrows [videoPlayer]).
+ * @param onVideoPlay Called when the user taps a video card's play badge — make it the active video.
+ * @param onVideoExpand Called when the user taps a video card's expand affordance.
+ * @param onVideoViewerDismiss Called when the full-screen video viewer is dismissed.
+ * @param lazyListState Hoisted so the host can detach the player when the active video scrolls away.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,6 +103,13 @@ fun TwitterBookmarksScreen(
     onConfirmDeletePending: (String) -> Unit = {},
     onCancelDeletePending: (String) -> Unit = {},
     onRequestMediaRefetch: (String) -> Unit = {},
+    videoPlayer: Player? = null,
+    activeVideoId: String? = null,
+    videoViewerOpen: Boolean = false,
+    onVideoPlay: (Bookmark) -> Unit = {},
+    onVideoExpand: (Bookmark) -> Unit = {},
+    onVideoViewerDismiss: () -> Unit = {},
+    lazyListState: LazyListState = rememberLazyListState(),
     contentPadding: PaddingValues = PaddingValues(0.dp),
     modifier: Modifier = Modifier,
 ) {
@@ -119,6 +146,7 @@ fun TwitterBookmarksScreen(
             .testTag("twitter-bookmarks-screen"),
     ) {
         LazyColumn(
+            state = lazyListState,
             modifier = Modifier
                 .fillMaxSize()
                 .testTag("twitter-bookmarks-feed"),
@@ -150,14 +178,21 @@ fun TwitterBookmarksScreen(
                         val id = tweetData.tweet.id
                         val tags = uiState.tagsMap[id] ?: emptyList()
                         val bookmark = tweetData.toBookmark(tags)
-                        // Legacy media re-fetch (per AC): a media-less card scrolling
-                        // into view asks the data layer to re-pull this tweet's media.
-                        // The ViewModel dedupes attempts per session; on success Room's
-                        // InvalidationTracker re-emits this card with its images, so the
-                        // retry-on-revisit is automatic. On failure it stays text-only.
-                        if (bookmark.imageUrls.isEmpty() && bookmark.videoUrl == null) {
+                        // Legacy media re-fetch (per AC): a media-less card — or a video
+                        // card whose stream variants never synced (column added empty for
+                        // the legacy corpus) — scrolling into view asks the data layer to
+                        // re-pull this tweet's media. The ViewModel dedupes attempts per
+                        // session; on success Room's InvalidationTracker re-emits this card,
+                        // so the retry-on-revisit is automatic. On failure it stays text-only.
+                        val needsMediaRefetch = (bookmark.imageUrls.isEmpty() && bookmark.videoUrl == null) ||
+                            (bookmark.contentType == ContentType.Video && bookmark.videoVariants.isEmpty())
+                        if (needsMediaRefetch) {
                             LaunchedEffect(id) { onRequestMediaRefetch(id) }
                         }
+                        // Bind the shared player to this card only when it is the single
+                        // active video AND the full-screen viewer is closed, so exactly one
+                        // surface holds the player at a time.
+                        val cardPlayer = if (!videoViewerOpen && id == activeVideoId) videoPlayer else null
                         CrumbsBookmarkCard(
                             bookmark = bookmark,
                             onCardClick = onCardClick,
@@ -171,6 +206,9 @@ fun TwitterBookmarksScreen(
                             onImageClick = { tappedIndex ->
                                 imageViewer = ImageViewerTarget(bookmark.imageUrls, tappedIndex)
                             },
+                            videoPlayer = cardPlayer,
+                            onVideoPlay = { onVideoPlay(bookmark) },
+                            onVideoExpand = { onVideoExpand(bookmark) },
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                         )
                     }
@@ -203,6 +241,15 @@ fun TwitterBookmarksScreen(
                 imageUrls = target.images,
                 initialIndex = target.index,
                 onDismiss = { imageViewer = null },
+            )
+        }
+
+        // Full-screen video expand surface. Hosts the shared player while open; the inline
+        // card is passed null (above) so only one surface binds the player at a time.
+        if (videoViewerOpen) {
+            CrumbsVideoViewer(
+                player = videoPlayer,
+                onDismiss = onVideoViewerDismiss,
             )
         }
     }
@@ -250,6 +297,36 @@ fun TwitterBookmarksRoute(
 
     val lps = rememberLongPressState()
 
+    // Inline-video plumbing. The list state is hoisted so the active video can be detached
+    // when it scrolls out of view; the shared player is read straight off the VM (it is
+    // null until the first play, and recomposition is driven by the two state flows below).
+    val lazyListState = rememberLazyListState()
+    val activeVideoId by bookmarksViewModel.activeVideoId.collectAsStateWithLifecycle()
+    val videoViewerOpen by bookmarksViewModel.videoViewerOpen.collectAsStateWithLifecycle()
+
+    // Background/foreground → pause/resume the shared player on ON_PAUSE/ON_RESUME.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE -> bookmarksViewModel.onAppPaused()
+                Lifecycle.Event.ON_RESUME -> bookmarksViewModel.onAppResumed()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // When the active video scrolls out of view, detach the surface + stop playback so the
+    // feed never keeps an off-screen player alive (the single-player memory invariant).
+    LaunchedEffect(activeVideoId) {
+        val id = activeVideoId ?: return@LaunchedEffect
+        snapshotFlow { lazyListState.layoutInfo.visibleItemsInfo.any { it.key == id } }
+            .distinctUntilChanged()
+            .collect { visible -> if (!visible) bookmarksViewModel.clearActiveVideo() }
+    }
+
     // Server-side polling owns initial fetch (dailyPoll / triggerPoll fan-out
     // from oauthCallback). The local Firestore one-shot read in Repository.init
     // hydrates the UI on app start.
@@ -284,6 +361,13 @@ fun TwitterBookmarksRoute(
         onConfirmDeletePending = { id -> bookmarksViewModel.confirmDeletePending(id) },
         onCancelDeletePending = { id -> bookmarksViewModel.cancelDeletePending(id) },
         onRequestMediaRefetch = { id -> bookmarksViewModel.refetchMediaIfMissing(id) },
+        videoPlayer = bookmarksViewModel.player,
+        activeVideoId = activeVideoId,
+        videoViewerOpen = videoViewerOpen,
+        onVideoPlay = { bookmark -> bookmarksViewModel.playVideo(bookmark) },
+        onVideoExpand = { bookmark -> bookmarksViewModel.expandVideo(bookmark) },
+        onVideoViewerDismiss = { bookmarksViewModel.closeVideoViewer() },
+        lazyListState = lazyListState,
         contentPadding = contentPadding,
     )
 
@@ -330,7 +414,7 @@ fun TwitterBookmarksRoute(
  */
 fun TweetData.toBookmark(tags: List<String> = emptyList()): Bookmark {
     val contentType = when {
-        media.any { it.type == "video" } -> ContentType.Video
+        media.any { it.type == "video" || it.type == "animated_gif" } -> ContentType.Video
         media.any { it.type == "photo" } -> ContentType.Image
         tweet.text.contains("http") -> ContentType.Link
         else -> ContentType.Text
@@ -340,7 +424,15 @@ fun TweetData.toBookmark(tags: List<String> = emptyList()): Bookmark {
     // first photo survived, so multi-image tweets silently lost their extra photos.
     val imageUrls = media.filter { it.type == "photo" }.mapNotNull { it.url }
     val imageUrl = imageUrls.firstOrNull()
-    val videoUrl = media.firstOrNull { it.type == "video" }?.url
+    // Video + animated_gif (same muted tap-to-play path): carry the persisted stream
+    // variants and the poster frame so the card can play inline. videoUrl is the single
+    // best playable stream for back-compat, falling back to the row's flat url.
+    val videoMedia = media.firstOrNull { it.type == "video" || it.type == "animated_gif" }
+    val videoVariants = videoMedia?.videoVariants.orEmpty().map {
+        VideoVariant(contentType = it.contentType, url = it.url, bitRate = it.bitRate)
+    }
+    val videoThumbnailUrl = videoMedia?.previewImageUrl
+    val videoUrl = VariantSelection.bestUrl(videoVariants) ?: videoMedia?.url
     // Prefer the server-stamped retrieval time; fall back to the tweet's own creation time;
     // when neither is available/parseable, use the unknown-time sentinel rather than
     // fabricating "now" (which produced the long-standing wrong "X months ago" label).
@@ -357,6 +449,8 @@ fun TweetData.toBookmark(tags: List<String> = emptyList()): Bookmark {
         imageUrl = imageUrl,
         imageUrls = imageUrls,
         videoUrl = videoUrl,
+        videoThumbnailUrl = videoThumbnailUrl,
+        videoVariants = videoVariants,
         contentType = contentType,
         savedAt = timestamp,
         tags = tags,

@@ -16,7 +16,7 @@ def twitterClientSecret = twitterLocalProps.getProperty('twitter.clientSecret', 
 
 android {
     namespace 'com.github.jayteealao.twitter'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
 //        applicationId "com.github.jayteealao.twitter"
@@ -113,9 +113,13 @@ dependencies {
 //    arrow-optics
     implementation(libs.arrow.optics)
 
-//    media3-exoplayer
+//    media3-exoplayer (HLS + DASH modules on the classpath so DefaultMediaSourceFactory's
+//    ServiceLoader can resolve adaptive sources for video tweets)
     implementation(libs.media3.exoplayer)
+    implementation(libs.media3.exoplayer.hls)
+    implementation(libs.media3.exoplayer.dash)
     implementation(libs.media3.ui)
+    implementation(libs.media3.ui.compose)
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation(libs.roborazzi.core)
@@ -128,6 +132,8 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation 'io.mockk:mockk-android:1.13.10'
     testImplementation 'io.mockk:mockk:1.13.10'
+    // JVM ExoPlayer (TestExoPlayerBuilder) for the single-player lifecycle invariant test.
+    testImplementation(libs.media3.test.utils.robolectric)
     androidTestImplementation 'androidx.test.ext:junit:1.1.4'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.0'
     androidTestImplementation(platform(libs.compose.bom))

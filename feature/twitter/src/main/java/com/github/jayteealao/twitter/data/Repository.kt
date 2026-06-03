@@ -116,12 +116,20 @@ class Repository @Inject constructor(
      * InvalidationTracker re-emits the paged card with its images. Does NOT re-upload
      * to Firestore and does NOT touch the includes-drop block (quoted-tweet FKs are
      * owned by the quoted-tweets slice).
+     *
+     * Also repairs legacy video rows: the IGNORE-on-conflict aggregate insert adds any
+     * MISSING media but never overwrites an existing row, so a present-but-variant-less
+     * video row would keep its NULL `video_variants`. The explicit per-row update lands
+     * the freshly-fetched variants onto those existing rows (inline video's legacy repair).
      */
     suspend fun refetchTweetMedia(tweetId: String): Boolean = withContext(Dispatchers.IO) {
         val entities = firestoreRepository.fetchSingleTweetEntities(tweetId)
             ?: return@withContext false
         if (entities.tweetMediaEntity.isEmpty()) return@withContext false
         saveTweetEntities(entities, uploadToFirestore = false)
+        entities.tweetMediaEntity
+            .filter { !it.videoVariants.isNullOrEmpty() }
+            .forEach { tweetDao.updateMedia(it) }
         true
     }
 

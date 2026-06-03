@@ -16,7 +16,17 @@ data class Bookmark(
     // 2×2 image grid and the full-screen viewer's pager. Defaults empty so Reddit
     // and every other caller are unaffected (mirrors the dbNumber precedent).
     val imageUrls: List<String> = emptyList(),
-    val videoUrl: String? = null, // Video content URL
+    val videoUrl: String? = null, // Video content URL (best progressive/HLS URL; back-compat single field)
+    // Poster frame shown under the play badge before playback, and on the inline
+    // player's shutter until the first video frame renders. Defaults null (Reddit
+    // and non-video cards never set it).
+    val videoThumbnailUrl: String? = null,
+    // Ordered HLS / DASH / progressive stream variants for a video or animated_gif
+    // tweet. The inline player selects HLS first, then DASH, then highest-bitrate
+    // MP4 (see VariantSelection). A small core-models value type so core/designsystem
+    // can build MediaItems without depending on feature/twitter. Defaults empty
+    // (Reddit + every non-video caller), mirroring the imageUrls precedent.
+    val videoVariants: List<VideoVariant> = emptyList(),
     val contentType: ContentType,
     val savedAt: Long, // Timestamp when bookmark was saved
     val tags: List<String> = emptyList(),

@@ -441,12 +441,26 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
         // Media doc: snake_case raw + camelCase aliases for Android
         // FirestoreMedia (mediaKey, previewImageUrl, durationMs, altText).
         const mr = m as Record<string, unknown>;
+        // Defensive, explicit video-variant mapping (HLS/DASH/progressive stream URLs
+        // the Android inline player needs). The raw `...mr` spread already carries a
+        // snake_case `variants` array, but we re-map it to the canonical camelCase shape
+        // ({bitRate, contentType, url}) AFTER the spread so the field is typed and
+        // overrides the raw one — the Android FirestoreMedia reader prefers camelCase.
+        // `bit_rate` is absent on adaptive (HLS/DASH) variants, so it defaults to 0.
+        const rawVariants =
+          (mr.variants as Array<Record<string, unknown>> | undefined) ?? [];
+        const variants = rawVariants.map((v) => ({
+          bitRate: typeof v.bit_rate === "number" ? v.bit_rate : 0,
+          contentType: v.content_type,
+          url: v.url,
+        }));
         enqueue(database.doc(`users/${uid}/media/${m.media_key}`), {
           ...mr,
           mediaKey: m.media_key,
           previewImageUrl: mr.preview_image_url,
           durationMs: mr.duration_ms,
           altText: mr.alt_text,
+          variants,
           updatedAt: FieldValue.serverTimestamp(),
         });
         enqueue(database.doc(`users/${uid}/includes/${tweet.id}_media_${m.media_key}`), {

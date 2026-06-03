@@ -15,6 +15,9 @@ import timber.log.Timber
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.cancellation.CancellationException
 
+/** Tally for one backfill sweep pass: how many tweets were processed, how many carried media back, and whether the bound was hit. */
+private data class SweepResult(val processed: Int, val recovered: Int, val capped: Boolean)
+
 /**
  * One-time media backfill for the legacy (pre-cutover) bookmark corpus. Tweets
  * collected before the cloud poll function wrote media/includes docs may have no
@@ -53,12 +56,15 @@ class MediaBackfillWorker(
         val tweetDao = entry.tweetDao()
         val repository = entry.repository()
 
-        return try {
+        // One keyset-paginated sweep: re-fetch each tweet a page query returns, counting how
+        // many actually carried media back. Bounded by MAX_BACKFILL_TWEETS; refetchTweetMedia
+        // is idempotent (IGNORE insert + targeted variant update).
+        suspend fun sweep(label: String, page: suspend (String) -> List<String>): SweepResult {
             var cursor = ""
             var processed = 0
             var recovered = 0
             while (processed < MAX_BACKFILL_TWEETS) {
-                val ids = tweetDao.getTweetsWithoutMedia(afterId = cursor, limit = BATCH_SIZE)
+                val ids = page(cursor)
                 if (ids.isEmpty()) break
                 for (id in ids) {
                     if (runCatching { repository.refetchTweetMedia(id) }.getOrDefault(false)) {
@@ -69,14 +75,26 @@ class MediaBackfillWorker(
                 cursor = ids.last()
             }
             val capped = processed >= MAX_BACKFILL_TWEETS
-            markBackfillDone(ctx)
-            Timber.tag(TAG).i("completed processed=$processed recovered=$recovered capped=$capped")
             if (capped) {
                 Timber.tag(TAG).w(
-                    "backfill cap ($MAX_BACKFILL_TWEETS) reached; remaining media-less tweets " +
+                    "backfill cap ($MAX_BACKFILL_TWEETS) reached for $label; remaining tweets " +
                         "are repaired lazily on scroll-into-view",
                 )
             }
+            return SweepResult(processed, recovered, capped)
+        }
+
+        return try {
+            // Pass 1: legacy media-less tweets (image-rendering). Pass 2: video / animated_gif
+            // rows whose stream variants synced empty before the v15 column existed (inline video).
+            val media = sweep("media-less") { after -> tweetDao.getTweetsWithoutMedia(after, BATCH_SIZE) }
+            val variants = sweep("variants-empty") { after -> tweetDao.getVideoTweetsWithoutVariants(after, BATCH_SIZE) }
+            markBackfillDone(ctx)
+            Timber.tag(TAG).i(
+                "completed media[processed=${media.processed} recovered=${media.recovered} " +
+                    "capped=${media.capped}] variants[processed=${variants.processed} " +
+                    "recovered=${variants.recovered} capped=${variants.capped}]",
+            )
             Result.success()
         } catch (e: CancellationException) {
             throw e

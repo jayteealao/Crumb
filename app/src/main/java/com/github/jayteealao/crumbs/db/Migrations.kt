@@ -345,6 +345,21 @@ val MIGRATION_13_14: Migration = object : Migration(13, 14) {
     }
 }
 
+/**
+ * v14 → v15: add the JSON `video_variants` column to `tweetMedia`. It stores a media
+ * row's HLS / DASH / progressive stream variants (serialized by [MediaConverters], the
+ * project's first Room `@TypeConverter`) so the inline player can pick HLS first and
+ * fall back to highest-bitrate MP4. Additive `ALTER TABLE ... ADD COLUMN` — pre-existing
+ * rows get NULL (decoded as an empty variant list), so photo rows and legacy video rows
+ * are untouched. The column type must match Room's generated schema (`TEXT`, nullable) or
+ * schema validation fails.
+ */
+val MIGRATION_14_15: Migration = object : Migration(14, 15) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `tweetMedia` ADD COLUMN `video_variants` TEXT")
+    }
+}
+
 /** Full list registered by the DI module's `addMigrations(*ALL_MIGRATIONS)`. */
 val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_2_3,
@@ -359,4 +374,5 @@ val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_11_12,
     MIGRATION_12_13,
     MIGRATION_13_14,
+    MIGRATION_14_15,
 )

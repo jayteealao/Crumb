@@ -7,6 +7,7 @@ import com.github.jayteealao.twitter.models.TweetData
 import com.github.jayteealao.twitter.models.TweetEntity
 import com.github.jayteealao.twitter.models.TweetMediaEntity
 import com.github.jayteealao.twitter.models.TwitterUserEntity
+import com.github.jayteealao.twitter.models.Variant
 import com.github.jayteealao.twitter.util.parseTweetTimestamp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -30,6 +31,25 @@ class ToBookmarkMapperTest {
         previewImageUrl = null,
         altText = null,
         tweetId = "t1",
+    )
+
+    private fun video(
+        key: String,
+        type: String = "video",
+        url: String? = null,
+        previewImageUrl: String? = "https://img/poster.jpg",
+        variants: List<Variant>? = null,
+    ) = TweetMediaEntity(
+        mediaKey = key,
+        type = type,
+        url = url,
+        durationMs = 30000,
+        height = 720,
+        width = 1280,
+        previewImageUrl = previewImageUrl,
+        altText = null,
+        tweetId = "t1",
+        videoVariants = variants,
     )
 
     private fun tweetData(
@@ -134,5 +154,60 @@ class ToBookmarkMapperTest {
         val bookmark = tweetData(media = emptyList()).toBookmark()
         assertTrue(bookmark.imageUrls.isEmpty())
         assertNull(bookmark.imageUrl)
+    }
+
+    @Test
+    fun videoMediaMapsToVideoContentTypeWithVariantsThumbnailAndHlsBestUrl() {
+        val bookmark = tweetData(
+            media = listOf(
+                video(
+                    "vk1",
+                    variants = listOf(
+                        Variant(bitRate = 0, contentType = "application/x-mpegURL", url = "https://v/master.m3u8"),
+                        Variant(bitRate = 832000, contentType = "video/mp4", url = "https://v/480.mp4"),
+                        Variant(bitRate = 2176000, contentType = "video/mp4", url = "https://v/720.mp4"),
+                    ),
+                ),
+            ),
+        ).toBookmark()
+        assertEquals(ContentType.Video, bookmark.contentType)
+        assertEquals("https://img/poster.jpg", bookmark.videoThumbnailUrl)
+        assertEquals(3, bookmark.videoVariants.size)
+        // HLS is preferred for the back-compat single videoUrl.
+        assertEquals("https://v/master.m3u8", bookmark.videoUrl)
+    }
+
+    @Test
+    fun animatedGifMapsToVideoContentType() {
+        val bookmark = tweetData(
+            media = listOf(
+                video(
+                    "gk1",
+                    type = "animated_gif",
+                    variants = listOf(Variant(bitRate = 0, contentType = "video/mp4", url = "https://v/gif.mp4")),
+                ),
+            ),
+        ).toBookmark()
+        assertEquals(ContentType.Video, bookmark.contentType)
+        assertEquals("https://v/gif.mp4", bookmark.videoUrl)
+    }
+
+    @Test
+    fun legacyVideoWithNoVariantsFallsBackToFlatUrlAndEmptyVariants() {
+        val bookmark = tweetData(
+            media = listOf(video("vk2", url = "https://v/legacy.mp4", variants = null)),
+        ).toBookmark()
+        assertEquals(ContentType.Video, bookmark.contentType)
+        assertTrue(bookmark.videoVariants.isEmpty())
+        assertEquals("https://v/legacy.mp4", bookmark.videoUrl)
+        assertEquals("https://img/poster.jpg", bookmark.videoThumbnailUrl)
+    }
+
+    @Test
+    fun noVideoYieldsEmptyVideoVariantsAndNullVideoFields() {
+        val bookmark = tweetData(media = emptyList()).toBookmark()
+        assertTrue(bookmark.videoVariants.isEmpty())
+        assertNull(bookmark.videoUrl)
+        assertNull(bookmark.videoThumbnailUrl)
     }
 }

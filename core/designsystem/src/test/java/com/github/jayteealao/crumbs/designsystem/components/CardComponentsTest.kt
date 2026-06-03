@@ -9,7 +9,9 @@ import androidx.test.core.app.ApplicationProvider
 import coil.Coil
 import coil.ImageLoader
 import coil.annotation.ExperimentalCoilApi
+import coil.intercept.Interceptor
 import coil.test.FakeImageLoaderEngine
+import kotlinx.coroutines.awaitCancellation
 import com.github.jayteealao.crumbs.designsystem.TestCrumbsTheme
 import com.github.jayteealao.crumbs.models.Bookmark
 import com.github.jayteealao.crumbs.models.BookmarkSource
@@ -164,6 +166,18 @@ class CardComponentsTest {
         sourceUrl = "https://twitter.com/i/web/status/203",
     )
 
+    private val videoBookmark = Bookmark(
+        id = "vid-1",
+        source = BookmarkSource.Twitter,
+        author = "@filmmaker",
+        title = "Video bookmark",
+        previewText = "A tweet with inline video plays on tap in the 16:7 band.",
+        contentType = ContentType.Video,
+        savedAt = System.currentTimeMillis() - 3600000,
+        sourceUrl = "https://twitter.com/i/web/status/204",
+        videoThumbnailUrl = "https://img/poster.jpg",
+    )
+
     // CrumbsBookmarkCard Tests
 
     @Test
@@ -309,6 +323,44 @@ class CardComponentsTest {
         composeTestRule.waitForIdle()
         composeTestRule.onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_overflowImageGrid_light.png")
+    }
+
+    // Video poster golden: with no player attached the 16:7 band shows the Coil poster
+    // (solid gray via the fake) under the brutalist "[ PLAY ]" badge + "[ FULL ]" expand
+    // affordance. The playing surface itself is not goldennable (poster state only).
+    @Test
+    fun bookmarkCard_videoPoster_light() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = false) {
+                CrumbsBookmarkCard(bookmark = videoBookmark, onCardClick = {})
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_videoPoster_light.png")
+    }
+
+    // Accent (#FF5A1F) loading placeholder. The class-level fake loader settles
+    // synchronously (which clears the placeholder), so this test installs a loader
+    // whose request never completes: AsyncImage stays in the loading state, leaving
+    // CrumbsCardMediaImage's accent Box visible in the 16:7 band at capture time.
+    // The interceptor parks on awaitCancellation() (it is not a busy loop), so
+    // `settled` never flips and waitForIdle still returns a laid-out frame.
+    @Test
+    fun bookmarkCard_imageLoadingPlaceholder_light() {
+        val hangingLoader = ImageLoader.Builder(ApplicationProvider.getApplicationContext())
+            .components { add(Interceptor { awaitCancellation() }) }
+            .build()
+        Coil.setImageLoader(hangingLoader)
+
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = false) {
+                CrumbsBookmarkCard(bookmark = singleImageBookmark, onCardClick = {})
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_imageLoadingPlaceholder_light.png")
     }
 
 }

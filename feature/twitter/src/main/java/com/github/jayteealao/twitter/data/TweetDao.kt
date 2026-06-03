@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Update
 import com.github.jayteealao.twitter.models.MediaKeys
 import com.github.jayteealao.twitter.models.PollIds
 import com.github.jayteealao.twitter.models.TagEntity
@@ -304,6 +305,41 @@ interface TweetDao {
         """
     )
     suspend fun getTweetsWithoutMedia(afterId: String, limit: Int): List<String>
+
+    /**
+     * Tweet ids for the widened video-variant backfill: non-referenced, non-tombstoned
+     * tweets that HAVE a video / animated_gif media row whose `video_variants` is still
+     * NULL (the column was added empty for the legacy corpus). Keyset-paginated by id
+     * (`id > :afterId`, ascending) so the backfill worker sweeps each such tweet once and
+     * terminates when a page returns empty. Used only by `MediaBackfillWorker`.
+     */
+    @Query(
+        """
+        SELECT t.id FROM tweetEntity t
+        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
+        WHERE t.referenced = 0
+          AND d.bookmarkId IS NULL
+          AND t.id > :afterId
+          AND EXISTS (
+            SELECT 1 FROM tweetMedia m
+            WHERE m.tweet_id = t.id
+              AND m.type IN ('video', 'animated_gif')
+              AND m.video_variants IS NULL
+          )
+        ORDER BY t.id ASC
+        LIMIT :limit
+        """
+    )
+    suspend fun getVideoTweetsWithoutVariants(afterId: String, limit: Int): List<String>
+
+    /**
+     * Refresh a single media row in place (keyed by `media_key`). Used by the media re-fetch
+     * to land freshly-fetched `video_variants` onto an EXISTING video row — the aggregate
+     * insert is IGNORE-on-conflict and would otherwise leave a present-but-variant-less row
+     * untouched.
+     */
+    @Update
+    suspend fun updateMedia(media: TweetMediaEntity)
 
     @Query("SELECT MAX(`order`) FROM tweetEntity")
     suspend fun getMaxOrder(): Int?

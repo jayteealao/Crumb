@@ -1,10 +1,16 @@
 package com.github.jayteealao.twitter.screens
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
+import com.github.jayteealao.crumbs.models.Bookmark
 import com.github.jayteealao.crumbs.data.FilterState
 import com.github.jayteealao.crumbs.data.TypeFilter
 import com.github.jayteealao.twitter.data.Repository
@@ -12,7 +18,9 @@ import com.github.jayteealao.twitter.data.SnackbarEvent
 import com.github.jayteealao.twitter.data.SyncStatusRepository
 import com.github.jayteealao.twitter.data.dto.SyncStatus
 import com.github.jayteealao.twitter.models.TweetData
+import com.github.jayteealao.twitter.player.VariantSelection
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toPersistentSet
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +42,7 @@ import javax.inject.Inject
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class BookmarksViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val savedStateHandle: SavedStateHandle,
     private val repository: Repository,
     private val syncStatusRepository: SyncStatusRepository,
@@ -105,6 +114,103 @@ class BookmarksViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { repository.refetchTweetMedia(tweetId) }
         }
+    }
+
+    // ---- Inline video (single shared, leak-free ExoPlayer) ----
+    //
+    // The feed is the only video surface, so one player scoped to this ViewModel is
+    // enough: it is created lazily on first play, survives config changes (the VM
+    // outlives recomposition), and is released in [onCleared] (frees the decoder lease
+    // when the user leaves the feed). A `@Singleton` app-wide player was rejected (it
+    // would hold a decoder off-screen) and a `remember`ed composable player was rejected
+    // (lost across config changes). All player mutation + [release] happens on the main
+    // thread (these methods are called from composition / lifecycle callbacks) — never
+    // from a background dispatcher, which is the most common Media3 wrong-thread crash.
+
+    private var exoPlayer: ExoPlayer? = null
+
+    /** Tweet id of the single active video card, or null when none is playing inline. */
+    private val _activeVideoId = MutableStateFlow<String?>(null)
+    val activeVideoId: StateFlow<String?> = _activeVideoId.asStateFlow()
+
+    /** True while the full-screen video viewer is open (it borrows the same shared player). */
+    private val _videoViewerOpen = MutableStateFlow(false)
+    val videoViewerOpen: StateFlow<Boolean> = _videoViewerOpen.asStateFlow()
+
+    /** Whether playback was running when the app backgrounded, so ON_RESUME can restore it. */
+    private var wasPlayingBeforePause = false
+
+    /** The shared player for the UI to bind to the active card / viewer surface. Null until first play. */
+    val player: ExoPlayer? get() = exoPlayer
+
+    private fun obtainPlayer(): ExoPlayer = exoPlayer ?: ExoPlayer.Builder(context)
+        .setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                .build(),
+            /* handleAudioFocus = */ true,
+        )
+        .setHandleAudioBecomingNoisy(true)
+        .build()
+        .also { exoPlayer = it }
+
+    /**
+     * Make [bookmark] the single active inline video and start playback. Selects the best
+     * stream (HLS → DASH → highest-bitrate MP4) via [VariantSelection]; falls back to the
+     * flat [Bookmark.videoUrl]. No playable source → no-op (the card stays on its poster).
+     */
+    fun playVideo(bookmark: Bookmark) {
+        val item = VariantSelection.toMediaItem(bookmark.videoVariants)
+            ?: bookmark.videoUrl?.let { MediaItem.fromUri(it) }
+            ?: return
+        val p = obtainPlayer()
+        p.setMediaItem(item)
+        p.prepare()
+        p.playWhenReady = true
+        _activeVideoId.value = bookmark.id
+    }
+
+    /** Open the full-screen viewer for [bookmark], starting playback first if it is not already active. */
+    fun expandVideo(bookmark: Bookmark) {
+        if (_activeVideoId.value != bookmark.id) playVideo(bookmark)
+        _videoViewerOpen.value = true
+    }
+
+    fun closeVideoViewer() {
+        _videoViewerOpen.value = false
+    }
+
+    /**
+     * The active video card scrolled out of view: detach the surface and stop playback so a
+     * scrolling feed keeps at most one live, audible player. The player instance is retained
+     * (a later tap re-uses it); it is fully released only in [onCleared].
+     */
+    fun clearActiveVideo() {
+        val p = exoPlayer ?: return
+        p.playWhenReady = false
+        p.clearVideoSurface()
+        _activeVideoId.value = null
+    }
+
+    /** Lifecycle ON_PAUSE: pause, remembering whether to resume on ON_RESUME. */
+    fun onAppPaused() {
+        val p = exoPlayer ?: return
+        wasPlayingBeforePause = p.isPlaying
+        p.pause()
+    }
+
+    /** Lifecycle ON_RESUME: resume only if playback was running when we backgrounded. */
+    fun onAppResumed() {
+        val p = exoPlayer ?: return
+        if (wasPlayingBeforePause) p.play()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        // Main-thread release — frees the decoder lease when the feed VM is destroyed.
+        exoPlayer?.release()
+        exoPlayer = null
     }
 
     fun onTypeChipToggled(typeId: String) {

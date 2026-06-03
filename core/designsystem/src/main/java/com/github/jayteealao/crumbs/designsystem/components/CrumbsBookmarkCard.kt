@@ -35,6 +35,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.Player
 import com.github.jayteealao.crumbs.designsystem.modifiers.brutalistStrikethrough
 import com.github.jayteealao.crumbs.designsystem.modifiers.dashedDivider
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
@@ -69,6 +70,14 @@ fun CrumbsBookmarkCard(
     // caller can open the full-screen viewer at that page. Default no-op keeps
     // the image inert for callers that do not host a viewer (Reddit, previews).
     onImageClick: (index: Int) -> Unit = {},
+    // Inline video. videoPlayer is the SHARED ExoPlayer, passed non-null ONLY when this
+    // card is the single active video (and the full-screen viewer is closed); null leaves
+    // the band on its poster + play badge. onVideoPlay asks the host to make this card the
+    // active video; onVideoExpand opens the full-screen viewer. All default inert for
+    // non-video callers (Reddit, previews).
+    videoPlayer: Player? = null,
+    onVideoPlay: () -> Unit = {},
+    onVideoExpand: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     if (bookmark.pendingDelete) {
@@ -99,6 +108,9 @@ fun CrumbsBookmarkCard(
                 index = index,
                 indexOverride = indexOverride,
                 onImageClick = onImageClick,
+                videoPlayer = videoPlayer,
+                onVideoPlay = onVideoPlay,
+                onVideoExpand = onVideoExpand,
             )
         }
     } else {
@@ -109,6 +121,9 @@ fun CrumbsBookmarkCard(
             index = index,
             indexOverride = indexOverride,
             onImageClick = onImageClick,
+            videoPlayer = videoPlayer,
+            onVideoPlay = onVideoPlay,
+            onVideoExpand = onVideoExpand,
             modifier = modifier,
         )
     }
@@ -122,6 +137,9 @@ private fun BookmarkCardContent(
     index: Int,
     indexOverride: String? = null,
     onImageClick: (index: Int) -> Unit = {},
+    videoPlayer: Player? = null,
+    onVideoPlay: () -> Unit = {},
+    onVideoExpand: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalCrumbsColors.current
@@ -155,8 +173,12 @@ private fun BookmarkCardContent(
             BookmarkCardMedia(
                 imageUrl = bookmark.imageUrl,
                 imageUrls = bookmark.imageUrls,
+                videoThumbnailUrl = bookmark.videoThumbnailUrl,
                 contentType = bookmark.contentType,
                 onImageClick = onImageClick,
+                videoPlayer = videoPlayer,
+                onVideoPlay = onVideoPlay,
+                onVideoExpand = onVideoExpand,
             )
 
             // CrumbsIndexStrip header replaces the inline source/author/age row.
@@ -206,34 +228,51 @@ private fun BookmarkCardContent(
 }
 
 /**
- * Optional media banner at the top of the card. A single image fills the 16:7
- * band; two or more photos render as a 2×2 grid (see [BookmarkCardImageGrid]) with
- * a "+N" overflow on the fourth tile. Each image shows the accent loading
- * placeholder until it settles and reports taps via [onImageClick] (index into the
- * photo list). Rendered only when at least one image is present and [contentType]
- * is Image or Video. [imageUrls] is preferred; [imageUrl] is the back-compat single
- * URL for callers that only set the primary one.
+ * Optional media banner at the top of the card.
+ *
+ * - **Video** ([contentType] == Video): the inline [CrumbsVideoPlayer] in the 16:7 band —
+ *   poster + brutalist play badge until tapped, the shared [videoPlayer] when this card is
+ *   the active video, plus an expand affordance. Rendered only when a poster or an attached
+ *   player exists; a variants-less, thumbnail-less video card degrades to text-only (its
+ *   variants repair via the lazy re-fetch + backfill sweep).
+ * - **Image** ([contentType] == Image): a single image fills the 16:7 band; two or more
+ *   photos render as a 2×2 grid (see [BookmarkCardImageGrid]) with a "+N" overflow on the
+ *   fourth tile. Each image shows the accent loading placeholder until it settles and reports
+ *   taps via [onImageClick]. [imageUrls] is preferred; [imageUrl] is the back-compat single URL.
  */
 @Composable
 private fun BookmarkCardMedia(
     imageUrl: String?,
     imageUrls: List<String>,
+    videoThumbnailUrl: String?,
     contentType: ContentType,
     onImageClick: (index: Int) -> Unit,
+    videoPlayer: Player?,
+    onVideoPlay: () -> Unit,
+    onVideoExpand: () -> Unit,
 ) {
     val colors = LocalCrumbsColors.current
     val stroke = LocalCrumbsStroke.current
+
+    if (contentType == ContentType.Video) {
+        val poster = videoThumbnailUrl ?: imageUrl ?: imageUrls.firstOrNull()
+        if (poster == null && videoPlayer == null) return
+        CrumbsVideoPlayer(
+            posterUrl = poster,
+            player = videoPlayer,
+            onPlayClick = onVideoPlay,
+            onExpand = onVideoExpand,
+        )
+        MediaHairline(color = colors.ink, height = stroke.hairline)
+        return
+    }
 
     val images = when {
         imageUrls.isNotEmpty() -> imageUrls
         imageUrl != null -> listOf(imageUrl)
         else -> emptyList()
     }
-    if (images.isEmpty() ||
-        (contentType != ContentType.Image && contentType != ContentType.Video)
-    ) {
-        return
-    }
+    if (images.isEmpty() || contentType != ContentType.Image) return
 
     if (images.size == 1) {
         Box(
@@ -252,12 +291,17 @@ private fun BookmarkCardMedia(
     } else {
         BookmarkCardImageGrid(images = images, onImageClick = onImageClick)
     }
-    // 1dp hairline separator below the media band.
+    MediaHairline(color = colors.ink, height = stroke.hairline)
+}
+
+/** 1dp hairline separator drawn below the media band. */
+@Composable
+private fun MediaHairline(color: androidx.compose.ui.graphics.Color, height: androidx.compose.ui.unit.Dp) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(stroke.hairline)
-            .background(colors.ink),
+            .height(height)
+            .background(color),
     )
 }
 
