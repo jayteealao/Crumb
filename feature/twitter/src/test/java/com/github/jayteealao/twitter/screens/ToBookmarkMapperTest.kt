@@ -6,6 +6,7 @@ import com.github.jayteealao.crumbs.models.toRelativeTime
 import com.github.jayteealao.twitter.models.TweetData
 import com.github.jayteealao.twitter.models.TweetEntity
 import com.github.jayteealao.twitter.models.TweetMediaEntity
+import com.github.jayteealao.twitter.models.TweetTextEntityAnnotation
 import com.github.jayteealao.twitter.models.TwitterUserEntity
 import com.github.jayteealao.twitter.models.Variant
 import com.github.jayteealao.twitter.util.parseTweetTimestamp
@@ -52,14 +53,42 @@ class ToBookmarkMapperTest {
         videoVariants = variants,
     )
 
+    private fun urls(
+        expandedUrl: String?,
+        displayUrl: String? = null,
+        title: String? = null,
+        description: String? = null,
+        imageUrl: String? = null,
+    ) = TweetTextEntityAnnotation(
+        id = null,
+        start = 0,
+        end = 0,
+        product = null,
+        status = null,
+        tag = null,
+        title = title,
+        description = description,
+        imageUrl = imageUrl,
+        url = "https://t.co/x",
+        expandedUrl = expandedUrl,
+        displayUrl = displayUrl,
+        unwoundUrl = null,
+        mediaKey = null,
+        normalizedText = null,
+        tweetId = "t1",
+        type = "urls",
+    )
+
     private fun tweetData(
+        text: String = "hello world",
         createdAt: String = "2026-05-13T12:22:37.000Z",
         retrievedAt: Long? = null,
         media: List<TweetMediaEntity> = emptyList(),
+        textAnnotations: List<TweetTextEntityAnnotation> = emptyList(),
     ): TweetData = TweetData(
         tweet = TweetEntity(
             id = "t1",
-            text = "hello world",
+            text = text,
             createdAt = createdAt,
             authorId = "u1",
             conversationId = "t1",
@@ -80,7 +109,7 @@ class ToBookmarkMapperTest {
         publicMetrics = null,
         media = media,
         includes = emptyList(),
-        tweetTextAnnotation = emptyList(),
+        tweetTextAnnotation = textAnnotations,
     )
 
     @Test
@@ -209,5 +238,69 @@ class ToBookmarkMapperTest {
         assertTrue(bookmark.videoVariants.isEmpty())
         assertNull(bookmark.videoUrl)
         assertNull(bookmark.videoThumbnailUrl)
+    }
+
+    @Test
+    fun externalUrlEntityMapsToLinkContentTypeWithPreviewFields() {
+        val bookmark = tweetData(
+            text = "great read https://t.co/x",
+            textAnnotations = listOf(
+                urls(
+                    expandedUrl = "https://example.com/article",
+                    displayUrl = "example.com/article",
+                    title = "Brutalist Web Design",
+                    description = "A guide.",
+                    imageUrl = "https://cdn.example.com/og.jpg",
+                ),
+            ),
+        ).toBookmark()
+        assertEquals(ContentType.Link, bookmark.contentType)
+        assertEquals("https://example.com/article", bookmark.linkUrl)
+        assertEquals("example.com/article", bookmark.linkDisplayUrl)
+        assertEquals("Brutalist Web Design", bookmark.linkTitle)
+        assertEquals("A guide.", bookmark.linkDescription)
+        assertEquals("https://cdn.example.com/og.jpg", bookmark.linkImageUrl)
+    }
+
+    @Test
+    fun internalXComUrlIsNotTreatedAsAnExternalLink() {
+        val bookmark = tweetData(
+            text = "quote tweet https://t.co/x",
+            textAnnotations = listOf(urls(expandedUrl = "https://x.com/user/status/123")),
+        ).toBookmark()
+        assertEquals(ContentType.Text, bookmark.contentType)
+        assertNull(bookmark.linkUrl)
+    }
+
+    @Test
+    fun displayUrlFallsBackToExpandedHostWhenAbsent() {
+        val bookmark = tweetData(
+            textAnnotations = listOf(urls(expandedUrl = "https://www.example.com/path/to/article")),
+        ).toBookmark()
+        assertEquals(ContentType.Link, bookmark.contentType)
+        // www. is stripped; host only.
+        assertEquals("example.com", bookmark.linkDisplayUrl)
+    }
+
+    @Test
+    fun mediaPrecedenceWinsOverLink_photoPlusLinkIsImage() {
+        val bookmark = tweetData(
+            text = "photo + link https://t.co/x",
+            media = listOf(photo("k1", "https://img/1.jpg")),
+            textAnnotations = listOf(urls(expandedUrl = "https://example.com/article")),
+        ).toBookmark()
+        assertEquals(ContentType.Image, bookmark.contentType)
+        // Link fields are still populated, but the card renders the image band (precedence).
+        assertEquals("https://example.com/article", bookmark.linkUrl)
+    }
+
+    @Test
+    fun noUrlAnnotationYieldsNullLinkFieldsAndTextType() {
+        val bookmark = tweetData(text = "plain text, no link").toBookmark()
+        assertEquals(ContentType.Text, bookmark.contentType)
+        assertNull(bookmark.linkUrl)
+        assertNull(bookmark.linkDisplayUrl)
+        assertNull(bookmark.linkTitle)
+        assertNull(bookmark.linkImageUrl)
     }
 }

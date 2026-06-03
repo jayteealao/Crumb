@@ -134,6 +134,28 @@ class Repository @Inject constructor(
     }
 
     /**
+     * Single-tweet link re-fetch for the legacy corpus. Re-pulls the tweet's
+     * url-entity rows from Firestore (where the server-side link-enrichment
+     * function writes them) and replaces the local set via the duplicate-safe
+     * [TweetDao.replaceUrlAnnotations] — the aggregate IGNORE insert never lands
+     * url rows for a media-less tweet (it early-returns) and would duplicate them
+     * for one that has media, so links need their own path. Idempotent; on a
+     * successful insert Room's InvalidationTracker re-emits the card as a Link
+     * with its preview. Returns true when an EXTERNAL link row landed.
+     */
+    suspend fun refetchTweetLinks(tweetId: String): Boolean = withContext(Dispatchers.IO) {
+        val entities = firestoreRepository.fetchSingleTweetEntities(tweetId)
+            ?: return@withContext false
+        val urlRows = entities.tweetTextEntity.filter { it.type == "urls" }
+        if (urlRows.isEmpty()) return@withContext false
+        tweetDao.replaceUrlAnnotations(tweetId, urlRows)
+        urlRows.any { row ->
+            val expanded = row.expandedUrl
+            expanded != null && !expanded.contains("twitter.com") && !expanded.contains("x.com")
+        }
+    }
+
+    /**
      * Pull-to-refresh entry point. Calls the server-side `triggerPoll` callable
      * to wake the daily-poll function, then enqueues the local
      * `TwitterSyncWorker` so any newly-arrived Firestore docs are streamed

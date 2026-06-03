@@ -360,6 +360,20 @@ val MIGRATION_14_15: Migration = object : Migration(14, 15) {
     }
 }
 
+/**
+ * v15 → v16: add the `image_url` column to `tweetTextEntityAnnotation`. It stores a
+ * link entity's preview thumbnail (the destination page's `og:image`), enriched
+ * server-side; `title`/`description` already exist on the table. Additive
+ * `ALTER TABLE ... ADD COLUMN` — pre-existing rows get NULL (a URL-only preview),
+ * so legacy annotation rows are untouched. The column type must match Room's
+ * generated schema (`TEXT`, nullable) or schema validation fails.
+ */
+val MIGRATION_15_16: Migration = object : Migration(15, 16) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `tweetTextEntityAnnotation` ADD COLUMN `image_url` TEXT")
+    }
+}
+
 /** Full list registered by the DI module's `addMigrations(*ALL_MIGRATIONS)`. */
 val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_2_3,
@@ -375,4 +389,5 @@ val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_12_13,
     MIGRATION_13_14,
     MIGRATION_14_15,
+    MIGRATION_15_16,
 )

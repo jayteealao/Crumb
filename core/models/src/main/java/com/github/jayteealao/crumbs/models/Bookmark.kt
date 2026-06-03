@@ -27,6 +27,18 @@ data class Bookmark(
     // can build MediaItems without depending on feature/twitter. Defaults empty
     // (Reddit + every non-video caller), mirroring the imageUrls precedent.
     val videoVariants: List<VideoVariant> = emptyList(),
+    // Outbound-link preview fields, set only for an external-link tweet (the
+    // first non-twitter/x.com URL entity). [linkUrl] is the destination the
+    // preview surface opens in the external browser; [linkDisplayUrl] is the
+    // domain/short label; [linkTitle]/[linkDescription]/[linkImageUrl] are the
+    // server-enriched OpenGraph metadata (any may be null → the card degrades to
+    // a URL-only chip). All default null so Reddit + non-link cards are
+    // unaffected (mirrors the imageUrls / videoVariants precedent).
+    val linkUrl: String? = null,
+    val linkDisplayUrl: String? = null,
+    val linkTitle: String? = null,
+    val linkDescription: String? = null,
+    val linkImageUrl: String? = null,
     val contentType: ContentType,
     val savedAt: Long, // Timestamp when bookmark was saved
     val tags: List<String> = emptyList(),

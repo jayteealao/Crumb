@@ -16,6 +16,7 @@ import com.github.jayteealao.crumbs.db.MIGRATION_11_12
 import com.github.jayteealao.crumbs.db.MIGRATION_12_13
 import com.github.jayteealao.crumbs.db.MIGRATION_13_14
 import com.github.jayteealao.crumbs.db.MIGRATION_14_15
+import com.github.jayteealao.crumbs.db.MIGRATION_15_16
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -755,6 +756,68 @@ class MigrationTest {
                 "video_variants JSON should round-trip through the new column",
                 cursor.getString(0).contains("application/x-mpegURL"),
             )
+        }
+
+        db.close()
+    }
+
+    @Test
+    fun migrate15To16_addsImageUrlColumnToTextAnnotations() {
+        // Seed a v15 tweetTextEntityAnnotation row (with its parent tweetEntity for the FK)
+        // so we can confirm the new column defaults to NULL for rows that predate it.
+        helper.createDatabase(TEST_DB, 15).apply {
+            execSQL(
+                "INSERT INTO tweetEntity " +
+                    "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete, retrieved_at) " +
+                    "VALUES ('tweet-1', 'hi https://example.com', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0, NULL)"
+            )
+            execSQL(
+                "INSERT INTO tweetTextEntityAnnotation " +
+                    "(start, end, title, description, url, expanded_url, display_url, unwound_url, " +
+                    "media_key, normalized_text, tweet_id, type) " +
+                    "VALUES (0, 18, NULL, NULL, 'https://t.co/x', 'https://example.com/article', " +
+                    "'example.com/article', NULL, NULL, NULL, 'tweet-1', 'urls')"
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB,
+            16,
+            true,
+            MIGRATION_15_16,
+        )
+
+        // The image_url column exists, is TEXT, and is nullable (notNull = 0).
+        val columns = mutableMapOf<String, Pair<String, Int>>() // name → (type, notNull)
+        db.query("PRAGMA table_info(`tweetTextEntityAnnotation`)").use { cursor ->
+            while (cursor.moveToNext()) {
+                val name = cursor.getString(cursor.getColumnIndexOrThrow("name"))
+                val type = cursor.getString(cursor.getColumnIndexOrThrow("type"))
+                val notNull = cursor.getInt(cursor.getColumnIndexOrThrow("notnull"))
+                columns[name] = type to notNull
+            }
+        }
+        assertEquals("image_url should be a nullable TEXT column", "TEXT" to 0, columns["image_url"])
+
+        // Pre-existing annotation row gets NULL image_url (legacy rows render URL-only).
+        db.query("SELECT image_url FROM tweetTextEntityAnnotation WHERE tweet_id = 'tweet-1'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertTrue("legacy annotation row's image_url must be NULL", cursor.isNull(0))
+        }
+
+        // A freshly-enriched annotation round-trips title + image through the new column.
+        db.execSQL(
+            "INSERT INTO tweetTextEntityAnnotation " +
+                "(start, end, title, description, url, expanded_url, display_url, unwound_url, " +
+                "media_key, normalized_text, tweet_id, type, image_url) " +
+                "VALUES (0, 18, 'Brutalist Web', 'A guide', 'https://t.co/y', 'https://example.com/b', " +
+                "'example.com/b', NULL, NULL, NULL, 'tweet-1', 'urls', 'https://cdn.example.com/og.jpg')"
+        )
+        db.query("SELECT title, image_url FROM tweetTextEntityAnnotation WHERE expanded_url = 'https://example.com/b'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("Brutalist Web", cursor.getString(0))
+            assertEquals("https://cdn.example.com/og.jpg", cursor.getString(1))
         }
 
         db.close()

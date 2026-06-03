@@ -13,3 +13,5 @@ export { dailyPoll } from "./handlers/dailyPoll";
 export { triggerPoll } from "./handlers/triggerPoll";
 export { migrateXToken } from "./handlers/migrateXToken";
 export { disconnectX } from "./handlers/disconnectX";
+export { enrichTweetLinks } from "./handlers/enrichLinks";
+export { backfillTweetLinks } from "./handlers/backfillLinks";

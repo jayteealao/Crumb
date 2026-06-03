@@ -297,6 +297,14 @@ data class FirestoreTextAnnotation(
     var displayUrl: String? = null,
     @get:PropertyName("unwoundUrl") @set:PropertyName("unwoundUrl")
     var unwoundUrl: String? = null,
+    // Link-preview metadata, written server-side by the link-enrichment function
+    // (best-effort OpenGraph fetch). `title`/`description` are plain keys; the
+    // image needs the camelCase alias so the writer + reader agree. Before these
+    // existed the mapper hardcoded null, so the card had no preview content.
+    var title: String? = null,
+    var description: String? = null,
+    @get:PropertyName("imageUrl") @set:PropertyName("imageUrl")
+    var imageUrl: String? = null,
     var username: String? = null,
     var tag: String? = null,
     @get:PropertyName("userId") @set:PropertyName("userId")
@@ -309,8 +317,11 @@ data class FirestoreTextAnnotation(
         product = null,
         status = null,
         tag = tag,
-        title = null,
-        description = null,
+        // Carry the server-enriched preview metadata through to Room (was hardcoded
+        // null). `image_url` is the v16 column; title/description already existed.
+        title = title,
+        description = description,
+        imageUrl = imageUrl,
         url = url,
         expandedUrl = expandedUrl,
         displayUrl = displayUrl,
@@ -331,6 +342,11 @@ data class FirestoreTextAnnotation(
             expandedUrl = entity.expandedUrl,
             displayUrl = entity.displayUrl,
             unwoundUrl = entity.unwoundUrl,
+            // Round-trip the preview metadata so an Android-originated re-upload
+            // never drops a server-enriched title/description/image.
+            title = entity.title,
+            description = entity.description,
+            imageUrl = entity.imageUrl,
             userId = entity.id,
             tag = entity.tag
         )

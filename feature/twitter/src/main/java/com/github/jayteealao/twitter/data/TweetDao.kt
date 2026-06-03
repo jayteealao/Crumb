@@ -341,6 +341,52 @@ interface TweetDao {
     @Update
     suspend fun updateMedia(media: TweetMediaEntity)
 
+    /**
+     * Tweet ids for the one-time link-preview backfill: non-referenced, non-tombstoned tweets
+     * whose text carries a URL but which have NO external `type='urls'` annotation row yet (so
+     * the card shows no preview). Keyset-paginated by id (`id > :afterId`, ascending). The
+     * external predicate mirrors the ARTICLE filter exactly so the swept set is precisely the
+     * one missing a preview. Used only by `MediaBackfillWorker`'s link sweep.
+     */
+    @Query(
+        """
+        SELECT t.id FROM tweetEntity t
+        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
+        WHERE t.referenced = 0
+          AND d.bookmarkId IS NULL
+          AND t.id > :afterId
+          AND t.text LIKE '%http%'
+          AND NOT EXISTS (
+            SELECT 1 FROM tweetTextEntityAnnotation a
+            WHERE a.tweet_id = t.id AND a.type = 'urls' AND a.expanded_url IS NOT NULL
+              AND a.expanded_url NOT LIKE '%twitter.com%' AND a.expanded_url NOT LIKE '%x.com%'
+          )
+        ORDER BY t.id ASC
+        LIMIT :limit
+        """
+    )
+    suspend fun getExternalLinkTweetsWithoutPreview(afterId: String, limit: Int): List<String>
+
+    /** Delete a tweet's url-entity annotation rows. Backs the duplicate-safe link re-fetch. */
+    @Query("DELETE FROM tweetTextEntityAnnotation WHERE tweet_id = :tweetId AND type = 'urls'")
+    suspend fun deleteUrlAnnotationsForTweet(tweetId: String)
+
+    /**
+     * Replace a tweet's url-entity annotation rows with the freshly-fetched set. `entityId`
+     * autogenerates, so a plain re-insert via the aggregate path would DUPLICATE rows on every
+     * re-fetch; deleting first makes the link re-fetch idempotent AND lets a later server
+     * enrichment (title/image landing on a row that was URL-only) overwrite the stale row.
+     * `entityId` is reset to 0 so Room assigns fresh ids.
+     */
+    @Transaction
+    suspend fun replaceUrlAnnotations(tweetId: String, rows: List<TweetTextEntityAnnotation>) {
+        deleteUrlAnnotationsForTweet(tweetId)
+        rows.forEach { insertTweetTextEntityAnnotationSuspend(it.copy(entityId = 0)) }
+    }
+
+    @Insert
+    suspend fun insertTweetTextEntityAnnotationSuspend(annotation: TweetTextEntityAnnotation)
+
     @Query("SELECT MAX(`order`) FROM tweetEntity")
     suspend fun getMaxOrder(): Int?
 

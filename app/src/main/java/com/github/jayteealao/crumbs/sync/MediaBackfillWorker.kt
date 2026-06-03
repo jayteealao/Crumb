@@ -57,9 +57,13 @@ class MediaBackfillWorker(
         val repository = entry.repository()
 
         // One keyset-paginated sweep: re-fetch each tweet a page query returns, counting how
-        // many actually carried media back. Bounded by MAX_BACKFILL_TWEETS; refetchTweetMedia
-        // is idempotent (IGNORE insert + targeted variant update).
-        suspend fun sweep(label: String, page: suspend (String) -> List<String>): SweepResult {
+        // many actually carried data back. Bounded by MAX_BACKFILL_TWEETS. [refetch] is the
+        // idempotent repair (media re-fetch, or the duplicate-safe link re-fetch).
+        suspend fun sweep(
+            label: String,
+            page: suspend (String) -> List<String>,
+            refetch: suspend (String) -> Boolean,
+        ): SweepResult {
             var cursor = ""
             var processed = 0
             var recovered = 0
@@ -67,7 +71,7 @@ class MediaBackfillWorker(
                 val ids = page(cursor)
                 if (ids.isEmpty()) break
                 for (id in ids) {
-                    if (runCatching { repository.refetchTweetMedia(id) }.getOrDefault(false)) {
+                    if (runCatching { refetch(id) }.getOrDefault(false)) {
                         recovered++
                     }
                     processed++
@@ -84,16 +88,35 @@ class MediaBackfillWorker(
             return SweepResult(processed, recovered, capped)
         }
 
+        suspend fun sweepLinks(): SweepResult = sweep(
+            "external-link",
+            { after -> tweetDao.getExternalLinkTweetsWithoutPreview(after, BATCH_SIZE) },
+            { id -> repository.refetchTweetLinks(id) },
+        )
+
         return try {
             // Pass 1: legacy media-less tweets (image-rendering). Pass 2: video / animated_gif
             // rows whose stream variants synced empty before the v15 column existed (inline video).
-            val media = sweep("media-less") { after -> tweetDao.getTweetsWithoutMedia(after, BATCH_SIZE) }
-            val variants = sweep("variants-empty") { after -> tweetDao.getVideoTweetsWithoutVariants(after, BATCH_SIZE) }
+            // Pass 3: external-link tweets with no url-entity row, repaired from the server-side
+            // link enrichment via refetchTweetLinks (link previews); the media sweep's
+            // refetchTweetMedia early-returns for media-less tweets, so links need their own pass.
+            val media = sweep(
+                "media-less",
+                { after -> tweetDao.getTweetsWithoutMedia(after, BATCH_SIZE) },
+                { id -> repository.refetchTweetMedia(id) },
+            )
+            val variants = sweep(
+                "variants-empty",
+                { after -> tweetDao.getVideoTweetsWithoutVariants(after, BATCH_SIZE) },
+                { id -> repository.refetchTweetMedia(id) },
+            )
+            val links = sweepLinks()
             markBackfillDone(ctx)
             Timber.tag(TAG).i(
                 "completed media[processed=${media.processed} recovered=${media.recovered} " +
                     "capped=${media.capped}] variants[processed=${variants.processed} " +
-                    "recovered=${variants.recovered} capped=${variants.capped}]",
+                    "recovered=${variants.recovered} capped=${variants.capped}] " +
+                    "links[processed=${links.processed} recovered=${links.recovered} capped=${links.capped}]",
             )
             Result.success()
         } catch (e: CancellationException) {

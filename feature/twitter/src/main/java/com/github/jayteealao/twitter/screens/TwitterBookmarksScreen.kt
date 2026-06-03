@@ -80,6 +80,10 @@ data class TwitterBookmarksUiState(
  * @param onCancelDeletePending Called with the tweet id when the user cancels a pending delete.
  * @param onRequestMediaRefetch Called with a tweet id when a media-less card scrolls into view, so
  *   the data layer can attempt a single-tweet media re-fetch for the legacy (pre-cutover) corpus.
+ * @param onLinkClick Called with the outbound link URL when the user taps a card's link preview;
+ *   opens the destination in the external browser (the rest of the card keeps the permalink tap).
+ * @param onRequestLinkRefetch Called with a tweet id when an external-link card with no preview data
+ *   scrolls into view, so the data layer can pull its server-enriched url entity (legacy corpus).
  * @param videoPlayer The shared ExoPlayer, bound to whichever card matches [activeVideoId] (or to
  *   the full-screen viewer when [videoViewerOpen]); null until the first video play.
  * @param activeVideoId Tweet id of the single active inline video, or null when none is playing.
@@ -103,6 +107,8 @@ fun TwitterBookmarksScreen(
     onConfirmDeletePending: (String) -> Unit = {},
     onCancelDeletePending: (String) -> Unit = {},
     onRequestMediaRefetch: (String) -> Unit = {},
+    onLinkClick: (String) -> Unit = {},
+    onRequestLinkRefetch: (String) -> Unit = {},
     videoPlayer: Player? = null,
     activeVideoId: String? = null,
     videoViewerOpen: Boolean = false,
@@ -189,6 +195,19 @@ fun TwitterBookmarksScreen(
                         if (needsMediaRefetch) {
                             LaunchedEffect(id) { onRequestMediaRefetch(id) }
                         }
+                        // Legacy link re-fetch: an external-looking tweet (text carries a URL) that
+                        // has no resolved link entity yet — its server-enriched url row may have
+                        // landed since this tweet was first synced. One attempt per tweet per session
+                        // (deduped in the VM); on success the url row populates and the card re-emits
+                        // as a Link with a preview. Bounded to non-media cards so image/video tweets
+                        // that also contain a link are not re-pulled here.
+                        val needsLinkRefetch = bookmark.linkUrl == null &&
+                            bookmark.contentType != ContentType.Image &&
+                            bookmark.contentType != ContentType.Video &&
+                            bookmark.previewText.contains("http")
+                        if (needsLinkRefetch) {
+                            LaunchedEffect("link-$id") { onRequestLinkRefetch(id) }
+                        }
                         // Bind the shared player to this card only when it is the single
                         // active video AND the full-screen viewer is closed, so exactly one
                         // surface holds the player at a time.
@@ -206,6 +225,7 @@ fun TwitterBookmarksScreen(
                             onImageClick = { tappedIndex ->
                                 imageViewer = ImageViewerTarget(bookmark.imageUrls, tappedIndex)
                             },
+                            onLinkClick = onLinkClick,
                             videoPlayer = cardPlayer,
                             onVideoPlay = { onVideoPlay(bookmark) },
                             onVideoExpand = { onVideoExpand(bookmark) },
@@ -361,6 +381,17 @@ fun TwitterBookmarksRoute(
         onConfirmDeletePending = { id -> bookmarksViewModel.confirmDeletePending(id) },
         onCancelDeletePending = { id -> bookmarksViewModel.cancelDeletePending(id) },
         onRequestMediaRefetch = { id -> bookmarksViewModel.refetchMediaIfMissing(id) },
+        // Link preview tap → open the outbound destination in the EXTERNAL browser
+        // (not Custom Tabs, per the AC). CATEGORY_BROWSABLE + an ActivityNotFound
+        // guard mirror the standard external-link launch; the whole-card tap keeps
+        // the tweet-permalink behaviour via onCardClick above.
+        onLinkClick = { url ->
+            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                .addCategory(Intent.CATEGORY_BROWSABLE)
+            runCatching { context.startActivity(intent) }
+                .onFailure { Timber.w(it, "No browser to open link: $url") }
+        },
+        onRequestLinkRefetch = { id -> bookmarksViewModel.refetchLinksIfMissing(id) },
         videoPlayer = bookmarksViewModel.player,
         activeVideoId = activeVideoId,
         videoViewerOpen = videoViewerOpen,
@@ -413,10 +444,16 @@ fun TwitterBookmarksRoute(
  * dragging in a ViewModel.
  */
 fun TweetData.toBookmark(tags: List<String> = emptyList()): Bookmark {
+    // First external (non-twitter/x.com) url entity — the article the preview
+    // links to. Replaces the old `text.contains("http")` heuristic so the Link
+    // type is authoritative (matching the ARTICLE filter SQL exactly), which
+    // also makes count-and-number's ARTICLE count honest for synced data. Null
+    // when the tweet has no outbound link (only internal/media links, or none).
+    val externalLink = tweetTextAnnotation.firstOrNull { it.type == "urls" && it.expandedUrl.isExternalLink() }
     val contentType = when {
         media.any { it.type == "video" || it.type == "animated_gif" } -> ContentType.Video
         media.any { it.type == "photo" } -> ContentType.Image
-        tweet.text.contains("http") -> ContentType.Link
+        externalLink != null -> ContentType.Link
         else -> ContentType.Text
     }
     // Keep every photo URL (the card grid + viewer page through all of them);
@@ -451,6 +488,14 @@ fun TweetData.toBookmark(tags: List<String> = emptyList()): Bookmark {
         videoUrl = videoUrl,
         videoThumbnailUrl = videoThumbnailUrl,
         videoVariants = videoVariants,
+        // Link-preview fields (null for non-link tweets). displayUrl falls back to
+        // the expanded URL's host when X did not supply a short label; title /
+        // description / image are the server-enriched OpenGraph metadata.
+        linkUrl = externalLink?.expandedUrl,
+        linkDisplayUrl = externalLink?.displayUrl ?: externalLink?.expandedUrl?.linkHost(),
+        linkTitle = externalLink?.title,
+        linkDescription = externalLink?.description,
+        linkImageUrl = externalLink?.imageUrl,
         contentType = contentType,
         savedAt = timestamp,
         tags = tags,
@@ -463,6 +508,19 @@ fun TweetData.toBookmark(tags: List<String> = emptyList()): Bookmark {
         dbNumber = dbRowId,
     )
 }
+
+/**
+ * True when this expanded URL points at a genuinely external destination (not a
+ * twitter.com / x.com permalink). Kept byte-aligned with the ARTICLE type-filter
+ * SQL predicate (`NOT LIKE '%twitter.com%' AND NOT LIKE '%x.com%'`) and the
+ * server-side picker so the writer and every reader agree on what is a "link".
+ */
+private fun String?.isExternalLink(): Boolean =
+    this != null && !contains("twitter.com") && !contains("x.com")
+
+/** Host of a URL (stripped of `www.`) for the preview's domain label; the raw URL on parse failure. */
+private fun String.linkHost(): String =
+    runCatching { java.net.URI(this).host?.removePrefix("www.") }.getOrNull() ?: this
 
 @Preview(name = "Twitter Bookmarks Empty Light", showBackground = true)
 @Composable

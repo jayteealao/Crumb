@@ -78,6 +78,10 @@ fun CrumbsBookmarkCard(
     videoPlayer: Player? = null,
     onVideoPlay: () -> Unit = {},
     onVideoExpand: () -> Unit = {},
+    // Tapping a card's link preview reports the outbound URL so the caller can
+    // open it in the external browser. Default no-op for cards without a link
+    // surface (Reddit, image/video/text). The rest of the card keeps onCardClick.
+    onLinkClick: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     if (bookmark.pendingDelete) {
@@ -111,6 +115,7 @@ fun CrumbsBookmarkCard(
                 videoPlayer = videoPlayer,
                 onVideoPlay = onVideoPlay,
                 onVideoExpand = onVideoExpand,
+                onLinkClick = onLinkClick,
             )
         }
     } else {
@@ -124,6 +129,7 @@ fun CrumbsBookmarkCard(
             videoPlayer = videoPlayer,
             onVideoPlay = onVideoPlay,
             onVideoExpand = onVideoExpand,
+            onLinkClick = onLinkClick,
             modifier = modifier,
         )
     }
@@ -140,6 +146,7 @@ private fun BookmarkCardContent(
     videoPlayer: Player? = null,
     onVideoPlay: () -> Unit = {},
     onVideoExpand: () -> Unit = {},
+    onLinkClick: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalCrumbsColors.current
@@ -179,6 +186,12 @@ private fun BookmarkCardContent(
                 videoPlayer = videoPlayer,
                 onVideoPlay = onVideoPlay,
                 onVideoExpand = onVideoExpand,
+                linkTitle = bookmark.linkTitle,
+                linkDescription = bookmark.linkDescription,
+                linkDisplayUrl = bookmark.linkDisplayUrl,
+                linkImageUrl = bookmark.linkImageUrl,
+                linkUrl = bookmark.linkUrl,
+                onLinkClick = onLinkClick,
             )
 
             // CrumbsIndexStrip header replaces the inline source/author/age row.
@@ -239,6 +252,10 @@ private fun BookmarkCardContent(
  *   photos render as a 2×2 grid (see [BookmarkCardImageGrid]) with a "+N" overflow on the
  *   fourth tile. Each image shows the accent loading placeholder until it settles and reports
  *   taps via [onImageClick]. [imageUrls] is preferred; [imageUrl] is the back-compat single URL.
+ * - **Link** ([contentType] == Link): a brutalist [BookmarkCardLinkPreview] panel — an optional
+ *   OG image band, the link title (or domain when absent), and an accent domain line. Tapping it
+ *   reports [linkUrl] via [onLinkClick] (the destination opens in the external browser); a link
+ *   with no obtainable metadata degrades to a URL-only chip.
  */
 @Composable
 private fun BookmarkCardMedia(
@@ -250,9 +267,26 @@ private fun BookmarkCardMedia(
     videoPlayer: Player?,
     onVideoPlay: () -> Unit,
     onVideoExpand: () -> Unit,
+    linkTitle: String?,
+    linkDescription: String?,
+    linkDisplayUrl: String?,
+    linkImageUrl: String?,
+    linkUrl: String?,
+    onLinkClick: (String) -> Unit,
 ) {
     val colors = LocalCrumbsColors.current
     val stroke = LocalCrumbsStroke.current
+
+    if (contentType == ContentType.Link) {
+        BookmarkCardLinkPreview(
+            title = linkTitle,
+            description = linkDescription,
+            displayUrl = linkDisplayUrl,
+            imageUrl = linkImageUrl,
+            onClick = { linkUrl?.let(onLinkClick) },
+        )
+        return
+    }
 
     if (contentType == ContentType.Video) {
         val poster = videoThumbnailUrl ?: imageUrl ?: imageUrls.firstOrNull()
@@ -303,6 +337,90 @@ private fun MediaHairline(color: androidx.compose.ui.graphics.Color, height: and
             .height(height)
             .background(color),
     )
+}
+
+/**
+ * Brutalist outbound-link preview panel rendered in the card's media slot for a
+ * [ContentType.Link] bookmark. An ink-bordered [shapes.card] (RectangleShape)
+ * panel inset by the body padding: an optional OG image band (accent loading
+ * placeholder via [CrumbsCardMediaImage]) when [imageUrl] is present, then the
+ * [title] (or [displayUrl] when the title is absent) in mono, an optional
+ * [description], and the [displayUrl] domain in the accent. The whole panel is
+ * tappable — [onClick] opens the destination in the external browser.
+ */
+@Composable
+private fun BookmarkCardLinkPreview(
+    title: String?,
+    description: String?,
+    displayUrl: String?,
+    imageUrl: String?,
+    onClick: () -> Unit,
+) {
+    val colors = LocalCrumbsColors.current
+    val stroke = LocalCrumbsStroke.current
+    val shapes = LocalCrumbsShapes.current
+    val spacing = LocalCrumbsSpacing.current
+    val typography = LocalCrumbsTypography.current
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(spacing.md + 2.dp), // 14dp — matches the card body inset
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(stroke.regular, colors.ink, shapes.card)
+                .testTag("bookmark-card-link-preview")
+                .clickable { onClick() },
+        ) {
+            if (imageUrl != null) {
+                CrumbsCardMediaImage(
+                    url = imageUrl,
+                    contentDescription = "Link preview image",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 7f),
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(stroke.hairline)
+                        .background(colors.ink),
+                )
+            }
+            Column(modifier = Modifier.padding(spacing.sm + 2.dp)) { // 10dp inner
+                Text(
+                    text = title ?: displayUrl ?: "",
+                    style = typography.bodyMono,
+                    color = colors.ink,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.testTag("link-preview-title"),
+                )
+                if (!description.isNullOrBlank()) {
+                    Spacer(Modifier.height(spacing.xs))
+                    Text(
+                        text = description,
+                        style = typography.metaMono,
+                        color = colors.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (!displayUrl.isNullOrBlank()) {
+                    Spacer(Modifier.height(spacing.sm))
+                    Text(
+                        text = displayUrl.uppercase(),
+                        style = typography.metaMono,
+                        color = colors.accent,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
 }
 
 /**
@@ -464,6 +582,21 @@ private val sampleDeletedBookmark = Bookmark(
     sourceUrl = "https://twitter.com/i/web/status/126",
 )
 
+private val sampleTwitterLink = Bookmark(
+    id = "6",
+    source = BookmarkSource.Twitter,
+    author = "@reader",
+    title = "Worth a read on brutalist design",
+    previewText = "Sharing this great piece on raw, honest web interfaces. https://t.co/abc",
+    contentType = ContentType.Link,
+    savedAt = System.currentTimeMillis() - 5400000,
+    sourceUrl = "https://twitter.com/i/web/status/127",
+    linkUrl = "https://brutalist-web.design/",
+    linkDisplayUrl = "brutalist-web.design",
+    linkTitle = "Guidelines for Brutalist Web Design",
+    linkDescription = "Raw content, honest materials, and a focus on the reader over decoration.",
+)
+
 @Preview(name = "Twitter Text Light", showBackground = true)
 @Composable
 private fun PreviewTwitterTextLight() {
@@ -509,5 +642,13 @@ private fun PreviewRedditPostLight() {
 private fun PreviewDeletedBookmarkLight() {
     CrumbsTheme(darkTheme = false) {
         CrumbsBookmarkCard(bookmark = sampleDeletedBookmark, onCardClick = {}, index = 5)
+    }
+}
+
+@Preview(name = "Twitter Link Light", showBackground = true)
+@Composable
+private fun PreviewTwitterLinkLight() {
+    CrumbsTheme(darkTheme = false) {
+        CrumbsBookmarkCard(bookmark = sampleTwitterLink, onCardClick = {}, index = 6)
     }
 }

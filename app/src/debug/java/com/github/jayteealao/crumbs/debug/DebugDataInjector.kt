@@ -365,8 +365,12 @@ class DebugDataInjector @Inject constructor(
                 product = null,
                 status = null,
                 tag = null,
-                title = null,
-                description = null,
+                // Server-enriched OpenGraph fields so the rich link-preview card (title +
+                // image + domain) is observable on-device; the image is a loadable picsum
+                // seed (the prior null left only the URL-only chip state).
+                title = "Guidelines for Brutalist Web Design",
+                description = "Raw content, honest materials, and a focus on the reader over decoration.",
+                imageUrl = "https://picsum.photos/seed/crumblink/1200/525",
                 url = "https://t.co/debug",
                 expandedUrl = "https://example.com/brutalist",
                 displayUrl = "example.com/brutalist",

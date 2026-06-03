@@ -178,6 +178,35 @@ class CardComponentsTest {
         videoThumbnailUrl = "https://img/poster.jpg",
     )
 
+    private val linkPreviewBookmark = Bookmark(
+        id = "link-1",
+        source = BookmarkSource.Twitter,
+        author = "@reader",
+        title = "Worth a read on brutalist design",
+        previewText = "Sharing this great piece on raw, honest web interfaces.",
+        contentType = ContentType.Link,
+        savedAt = System.currentTimeMillis() - 3600000,
+        sourceUrl = "https://twitter.com/i/web/status/205",
+        linkUrl = "https://brutalist-web.design/",
+        linkDisplayUrl = "brutalist-web.design",
+        linkTitle = "Guidelines for Brutalist Web Design",
+        linkDescription = "Raw content, honest materials, and a focus on the reader over decoration.",
+        linkImageUrl = "https://img/og.jpg",
+    )
+
+    private val linkPreviewUrlOnlyBookmark = Bookmark(
+        id = "link-2",
+        source = BookmarkSource.Twitter,
+        author = "@reader",
+        title = "A link with no preview metadata",
+        previewText = "When OG fetch yields nothing, the card degrades to a URL-only chip.",
+        contentType = ContentType.Link,
+        savedAt = System.currentTimeMillis() - 3600000,
+        sourceUrl = "https://twitter.com/i/web/status/206",
+        linkUrl = "https://example.com/article",
+        linkDisplayUrl = "example.com/article",
+    )
+
     // CrumbsBookmarkCard Tests
 
     @Test
@@ -338,6 +367,36 @@ class CardComponentsTest {
         composeTestRule.waitForIdle()
         composeTestRule.onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_videoPoster_light.png")
+    }
+
+    // Link preview goldens — the fake Coil loader renders the OG image as a solid
+    // gray band so the brutalist panel layout (ink border, title, description,
+    // accent domain) is the subject.
+
+    @Test
+    fun bookmarkCard_linkPreview_light() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = false) {
+                CrumbsBookmarkCard(bookmark = linkPreviewBookmark, onCardClick = {})
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_linkPreview_light.png")
+    }
+
+    // URL-only fallback: no OG metadata, so the panel shows the domain as the title
+    // and the accent domain line, with no image band.
+    @Test
+    fun bookmarkCard_linkPreviewUrlOnly_light() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = false) {
+                CrumbsBookmarkCard(bookmark = linkPreviewUrlOnlyBookmark, onCardClick = {})
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_linkPreviewUrlOnly_light.png")
     }
 
     // Accent (#FF5A1F) loading placeholder. The class-level fake loader settles

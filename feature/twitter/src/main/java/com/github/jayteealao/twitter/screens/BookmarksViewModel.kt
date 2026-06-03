@@ -116,6 +116,25 @@ class BookmarksViewModel @Inject constructor(
         }
     }
 
+    // Separate per-session attempted-set for link re-fetch (an external-looking tweet
+    // with no resolved url entity). Kept distinct from [mediaRefetchAttempts] because
+    // the two repair different data and a tweet can need one, the other, or both.
+    private val linkRefetchAttempts = mutableSetOf<String>()
+
+    /**
+     * Lazy on-view link re-fetch (link-previews AC). Attempts at most one re-fetch per
+     * tweet per session; on success the server-enriched url entity lands and Room
+     * invalidation re-emits the card as a Link with its preview. A tweet whose url entity
+     * is still absent in Firestore (server not yet enriched) settles unchanged and is not
+     * retried until the next session — the one-time backfill worker repairs the bulk.
+     */
+    fun refetchLinksIfMissing(tweetId: String) {
+        if (!linkRefetchAttempts.add(tweetId)) return
+        viewModelScope.launch {
+            runCatching { repository.refetchTweetLinks(tweetId) }
+        }
+    }
+
     // ---- Inline video (single shared, leak-free ExoPlayer) ----
     //
     // The feed is the only video surface, so one player scoped to this ViewModel is
