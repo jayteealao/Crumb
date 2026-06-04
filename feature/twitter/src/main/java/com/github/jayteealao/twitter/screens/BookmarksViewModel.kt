@@ -135,6 +135,26 @@ class BookmarksViewModel @Inject constructor(
         }
     }
 
+    // Separate per-session attempted-set for quoted-body re-fetch (a tweet that
+    // references a quote whose body hasn't landed locally → the "unavailable" card).
+    // Distinct from the media/link sets because the three repair different data.
+    private val quoteRefetchAttempts = mutableSetOf<String>()
+
+    /**
+     * Lazy on-view quoted-body re-fetch (quoted-tweets AC). Attempts at most one
+     * re-fetch per tweet per session; on success the server-written quoted body lands
+     * and Room invalidation re-emits the card with the rendered quote. A tweet whose
+     * quoted body is still absent in Firestore (server not yet written / deleted quote)
+     * settles unchanged and is not retried until the next session — the one-time
+     * backfill worker repairs the bulk.
+     */
+    fun refetchQuotesIfMissing(tweetId: String) {
+        if (!quoteRefetchAttempts.add(tweetId)) return
+        viewModelScope.launch {
+            runCatching { repository.refetchTweetQuotes(tweetId) }
+        }
+    }
+
     // ---- Inline video (single shared, leak-free ExoPlayer) ----
     //
     // The feed is the only video surface, so one player scoped to this ViewModel is

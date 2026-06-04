@@ -471,6 +471,7 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
       }
 
       const refs = tweet.referenced_tweets ?? [];
+      const includesTweets = includes?.tweets ?? [];
       for (const r of refs) {
         enqueue(database.doc(`users/${uid}/includes/${tweet.id}_ref_${r.id}`), {
           tweetId: tweet.id,
@@ -479,6 +480,42 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
           type: r.type,
           kind: "referenced_tweet",
         });
+
+        // Persist the quoted tweet's body as a referenced=true tweet doc so the
+        // Android card can render the quote (author + text). The X API already
+        // returns the body in includes.tweets[] (the referenced_tweets.id +
+        // referenced_tweets.id.author_id expansions); we just never wrote it.
+        //
+        // Only `quoted` references carry a body we surface — replied_to/retweeted
+        // are excluded. A deleted/protected/suspended quote is silently omitted
+        // from includes.tweets (no errors[]), so we write only the _ref_ doc above
+        // and the client renders the "unavailable" placeholder.
+        //
+        // `referenced: true` keeps it out of the top-level feed: the Android reader
+        // skips referenced docs in getAllTweetIds and the server pending_delete diff
+        // excludes them (see sub-step 4g), and the quoted author was already written
+        // by the includes.users loop above. The quoted body is keyed by its own id;
+        // enqueue() dedups by path, so a quote shared by several bookmarked tweets in
+        // one page is written once, and a tweet the user independently bookmarked keeps
+        // its real (referenced-absent) doc because the main loop enqueued it first.
+        if (r.type === "quoted") {
+          const qt = includesTweets.find((t) => t.id === r.id);
+          if (qt) {
+            const qtr = qt as Record<string, unknown>;
+            const { public_metrics: _qtMetrics, ...qtWithoutMetrics } = qtr;
+            enqueue(database.doc(`users/${uid}/tweets/${qt.id}`), {
+              ...qtWithoutMetrics,
+              tweetId: qt.id,
+              authorId: qtr.author_id,
+              createdAt: normalizeCreatedAt(qtr.created_at),
+              conversationId: qtr.conversation_id,
+              inReplyToUserId: qtr.in_reply_to_user_id,
+              referenced: true,
+              pending_delete: false,
+              updatedAt: FieldValue.serverTimestamp(),
+            });
+          }
+        }
       }
 
       const annotations = tweet.entities?.annotations ?? [];
@@ -515,9 +552,17 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
     // covers everything X has → unseen stored ids are safely flaggable.
     const existingIdsSnap = await database
       .collection(`users/${uid}/tweets`)
-      .select()
+      .select("referenced")
       .get();
-    const existingIds = new Set(existingIdsSnap.docs.map((d) => d.id));
+    // Quoted-tweet body docs are stored referenced=true and are NOT the user's
+    // bookmarks, so they are never echoed in this poll's response (never in seenIds).
+    // Excluding them here keeps the diff from flagging every quoted body
+    // pending_delete on every poll.
+    const existingIds = new Set(
+      existingIdsSnap.docs
+        .filter((d) => (d.data() as Record<string, unknown>)?.referenced !== true)
+        .map((d) => d.id),
+    );
     const missingNow: string[] = [];
     for (const id of existingIds) {
       if (seenIds.has(id)) continue;

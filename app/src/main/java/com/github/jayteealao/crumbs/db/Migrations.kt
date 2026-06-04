@@ -374,6 +374,27 @@ val MIGRATION_15_16: Migration = object : Migration(15, 16) {
     }
 }
 
+/**
+ * v16 → v17: add the `tweet_id` parent-link column to `tweetReferencedTweets` (the
+ * FK-free junction for the quoted-tweet @Relation) plus the index that backs the
+ * junction lookup. The referenced-tweet relation was previously suppressed; this
+ * column lets a parent tweet resolve its quoted body without the FK-rollback the old
+ * `tweetIncludes` relation caused. `NOT NULL DEFAULT ''` because the junction parent
+ * column must always have a value — legacy rows get '' (an orphan reference that
+ * resolves to nothing, i.e. the harmless "unavailable" state). The new column's type
+ * (`TEXT`, not-null) and the index name (`index_<table>_<col>`) must match Room's
+ * generated schema or `runMigrationsAndValidate` fails.
+ */
+val MIGRATION_16_17: Migration = object : Migration(16, 17) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `tweetReferencedTweets` ADD COLUMN `tweet_id` TEXT NOT NULL DEFAULT ''")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_tweetReferencedTweets_tweet_id` " +
+                "ON `tweetReferencedTweets` (`tweet_id`)"
+        )
+    }
+}
+
 /** Full list registered by the DI module's `addMigrations(*ALL_MIGRATIONS)`. */
 val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_2_3,
@@ -390,4 +411,5 @@ val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_13_14,
     MIGRATION_14_15,
     MIGRATION_15_16,
+    MIGRATION_16_17,
 )

@@ -17,6 +17,7 @@ import com.github.jayteealao.crumbs.db.MIGRATION_12_13
 import com.github.jayteealao.crumbs.db.MIGRATION_13_14
 import com.github.jayteealao.crumbs.db.MIGRATION_14_15
 import com.github.jayteealao.crumbs.db.MIGRATION_15_16
+import com.github.jayteealao.crumbs.db.MIGRATION_16_17
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -818,6 +819,69 @@ class MigrationTest {
             assertTrue(cursor.moveToFirst())
             assertEquals("Brutalist Web", cursor.getString(0))
             assertEquals("https://cdn.example.com/og.jpg", cursor.getString(1))
+        }
+
+        db.close()
+    }
+
+    @Test
+    fun migrate16To17_addsTweetIdColumnAndIndexToReferencedTweets() {
+        // Seed a v16 tweetReferencedTweets row (FK-free table) so we can confirm the
+        // new tweet_id column defaults to '' for rows that predate it.
+        helper.createDatabase(TEST_DB, 16).apply {
+            execSQL(
+                "INSERT INTO tweetReferencedTweets (type, id) VALUES ('quoted', 'quoted-1')"
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB,
+            17,
+            true,
+            MIGRATION_16_17,
+        )
+
+        // The tweet_id column exists, is TEXT, and is NOT NULL.
+        val columns = mutableMapOf<String, Pair<String, Int>>() // name → (type, notNull)
+        db.query("PRAGMA table_info(`tweetReferencedTweets`)").use { cursor ->
+            while (cursor.moveToNext()) {
+                val name = cursor.getString(cursor.getColumnIndexOrThrow("name"))
+                val type = cursor.getString(cursor.getColumnIndexOrThrow("type"))
+                val notNull = cursor.getInt(cursor.getColumnIndexOrThrow("notnull"))
+                columns[name] = type to notNull
+            }
+        }
+        assertEquals("tweet_id should be a NOT NULL TEXT column", "TEXT" to 1, columns["tweet_id"])
+
+        // Pre-existing reference row survives; tweet_id defaults to '' (an orphan
+        // reference that resolves to no quoted body — the "unavailable" state).
+        db.query("SELECT type, id, tweet_id FROM tweetReferencedTweets WHERE id = 'quoted-1'").use { cursor ->
+            assertTrue("legacy reference row must survive 16→17 migration", cursor.moveToFirst())
+            assertEquals("quoted", cursor.getString(0))
+            assertEquals("quoted-1", cursor.getString(1))
+            assertEquals("legacy tweet_id must default to ''", "", cursor.getString(2))
+        }
+
+        // The junction index exists under Room's generated name (`index_<table>_<col>`).
+        val indexNames = mutableSetOf<String>()
+        db.query("PRAGMA index_list(`tweetReferencedTweets`)").use { cursor ->
+            while (cursor.moveToNext()) {
+                indexNames += cursor.getString(cursor.getColumnIndexOrThrow("name"))
+            }
+        }
+        assertTrue(
+            "Expected index index_tweetReferencedTweets_tweet_id; found $indexNames",
+            indexNames.contains("index_tweetReferencedTweets_tweet_id"),
+        )
+
+        // A freshly-inserted reference row round-trips its parent tweet_id.
+        db.execSQL(
+            "INSERT INTO tweetReferencedTweets (type, id, tweet_id) VALUES ('quoted', 'quoted-2', 'parent-1')"
+        )
+        db.query("SELECT tweet_id FROM tweetReferencedTweets WHERE id = 'quoted-2'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("parent-1", cursor.getString(0))
         }
 
         db.close()

@@ -82,6 +82,10 @@ fun CrumbsBookmarkCard(
     // open it in the external browser. Default no-op for cards without a link
     // surface (Reddit, image/video/text). The rest of the card keeps onCardClick.
     onLinkClick: (String) -> Unit = {},
+    // Tapping a card's quoted sub-card reports the quoted tweet's permalink so the
+    // caller can open it in the external browser. Default no-op for non-quote cards.
+    // The rest of the card keeps onCardClick (the parent permalink).
+    onQuoteClick: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     if (bookmark.pendingDelete) {
@@ -116,6 +120,7 @@ fun CrumbsBookmarkCard(
                 onVideoPlay = onVideoPlay,
                 onVideoExpand = onVideoExpand,
                 onLinkClick = onLinkClick,
+                onQuoteClick = onQuoteClick,
             )
         }
     } else {
@@ -130,6 +135,7 @@ fun CrumbsBookmarkCard(
             onVideoPlay = onVideoPlay,
             onVideoExpand = onVideoExpand,
             onLinkClick = onLinkClick,
+            onQuoteClick = onQuoteClick,
             modifier = modifier,
         )
     }
@@ -147,6 +153,7 @@ private fun BookmarkCardContent(
     onVideoPlay: () -> Unit = {},
     onVideoExpand: () -> Unit = {},
     onLinkClick: (String) -> Unit = {},
+    onQuoteClick: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalCrumbsColors.current
@@ -193,6 +200,20 @@ private fun BookmarkCardContent(
                 linkUrl = bookmark.linkUrl,
                 onLinkClick = onLinkClick,
             )
+
+            // Quoted sub-card — rendered as a sibling slot AFTER the media so it
+            // co-exists with any media (BookmarkCardMedia early-returns per
+            // contentType, so the quote must live outside it to stay orthogonal). A
+            // referenced quote with no body renders the "unavailable" placeholder.
+            if (bookmark.quotedTweetId != null) {
+                BookmarkCardQuotedTweet(
+                    authorName = bookmark.quotedAuthorName,
+                    authorHandle = bookmark.quotedAuthorHandle,
+                    text = bookmark.quotedText,
+                    isUnavailable = bookmark.quotedText == null,
+                    onClick = { bookmark.quotedTweetUrl?.let(onQuoteClick) },
+                )
+            }
 
             // CrumbsIndexStrip header replaces the inline source/author/age row.
             // `indexOverride` lets callers swap the default `%03d` numeral for a
@@ -424,6 +445,77 @@ private fun BookmarkCardLinkPreview(
 }
 
 /**
+ * Brutalist quoted-tweet sub-card. An ink-bordered [shapes.card] (RectangleShape)
+ * panel inset by the body padding, modeled on [BookmarkCardLinkPreview]: an author
+ * line ([authorName] [authorHandle]) in the accent, then the quoted [text] in mono
+ * (clamped to 4 lines). When [isUnavailable] (a quote was referenced but its body is
+ * gone — deleted/protected) the panel renders a single placeholder line instead. The
+ * whole panel is tappable — [onClick] opens the quoted tweet's permalink in the
+ * external browser; the non-consuming gesture leaves the rest of the card's tap intact.
+ */
+@Composable
+private fun BookmarkCardQuotedTweet(
+    authorName: String?,
+    authorHandle: String?,
+    text: String?,
+    isUnavailable: Boolean,
+    onClick: () -> Unit,
+) {
+    val colors = LocalCrumbsColors.current
+    val stroke = LocalCrumbsStroke.current
+    val shapes = LocalCrumbsShapes.current
+    val spacing = LocalCrumbsSpacing.current
+    val typography = LocalCrumbsTypography.current
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(spacing.md + 2.dp), // 14dp — matches the card body inset
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(stroke.regular, colors.ink, shapes.card)
+                .testTag("bookmark-card-quoted-tweet")
+                .clickable { onClick() }
+                .padding(spacing.sm + 2.dp), // 10dp inner
+        ) {
+            if (isUnavailable) {
+                Text(
+                    text = "QUOTED TWEET UNAVAILABLE",
+                    style = typography.metaMono,
+                    color = colors.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.testTag("quoted-tweet-unavailable"),
+                )
+                return@Column
+            }
+            val author = listOfNotNull(authorName, authorHandle).joinToString(" ").trim()
+            if (author.isNotBlank()) {
+                Text(
+                    text = author,
+                    style = typography.metaMono,
+                    color = colors.accent,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.testTag("quoted-tweet-author"),
+                )
+                Spacer(Modifier.height(spacing.xs))
+            }
+            Text(
+                text = text.orEmpty(),
+                style = typography.bodyMono,
+                color = colors.ink,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.testTag("quoted-tweet-text"),
+            )
+        }
+    }
+}
+
+/**
  * Title and preview-text section of the card, including the optional thread
  * continuation indicator ("↳ + N MORE").
  */
@@ -650,5 +742,29 @@ private fun PreviewDeletedBookmarkLight() {
 private fun PreviewTwitterLinkLight() {
     CrumbsTheme(darkTheme = false) {
         CrumbsBookmarkCard(bookmark = sampleTwitterLink, onCardClick = {}, index = 6)
+    }
+}
+
+private val sampleTwitterQuote = Bookmark(
+    id = "7",
+    source = BookmarkSource.Twitter,
+    author = "@commenter",
+    title = "Adding my take on this",
+    previewText = "This thread completely reframed how I think about it. Worth a full read.",
+    contentType = ContentType.Text,
+    savedAt = System.currentTimeMillis() - 4500000,
+    sourceUrl = "https://twitter.com/i/web/status/128",
+    quotedTweetId = "999",
+    quotedText = "The original insight everyone is quoting: simplicity scales, cleverness doesn't.",
+    quotedAuthorName = "Original Author",
+    quotedAuthorHandle = "@original",
+    quotedTweetUrl = "https://twitter.com/original/status/999",
+)
+
+@Preview(name = "Twitter Quote Light", showBackground = true)
+@Composable
+private fun PreviewTwitterQuoteLight() {
+    CrumbsTheme(darkTheme = false) {
+        CrumbsBookmarkCard(bookmark = sampleTwitterQuote, onCardClick = {}, index = 7)
     }
 }

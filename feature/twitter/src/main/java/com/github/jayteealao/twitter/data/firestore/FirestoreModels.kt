@@ -31,6 +31,12 @@ data class FirestoreTweet(
     var lang: String? = null,
     var order: Int = 0,
     var source: String? = null,
+    // True on a quoted tweet's body doc — written under tweets/ by the poll but NOT
+    // a bookmark. Nullable so legacy/normal docs (no field) collapse to false. The
+    // mapper passes this to toTweetEntity so a quoted body that ever syncs through the
+    // standalone path lands referenced=true and stays out of the feed.
+    @get:PropertyName("referenced") @set:PropertyName("referenced")
+    var referenced: Boolean? = null,
     // Nullable so the deserializer accepts pre-poll-correctness docs that
     // never wrote this field. `toTweetEntity` collapses null → false.
     @get:PropertyName("pending_delete") @set:PropertyName("pending_delete")
@@ -41,7 +47,7 @@ data class FirestoreTweet(
     @get:PropertyName("retrievedAt") @set:PropertyName("retrievedAt")
     var retrievedAt: Timestamp? = null,
 ) {
-    fun toTweetEntity(referenced: Boolean = false): TweetEntity = TweetEntity(
+    fun toTweetEntity(referenced: Boolean = this.referenced ?: false): TweetEntity = TweetEntity(
         id = tweetId,
         text = text,
         createdAt = createdAt,
@@ -261,7 +267,13 @@ data class FirestoreIncludes(
     @get:PropertyName("mediaKey") @set:PropertyName("mediaKey")
     var mediaKey: String? = null,
     @get:PropertyName("referencedTweetId") @set:PropertyName("referencedTweetId")
-    var referencedTweetId: String? = null
+    var referencedTweetId: String? = null,
+    // The X reference type ("quoted" / "replied_to" / "retweeted") and the doc kind
+    // ("referenced_tweet"), written on the _ref_ doc by the poll. The repository
+    // filters to type == "quoted" so only quoted references hydrate a quote; the other
+    // types are ignored (the dangerous tweetIncludes FK relation stays dropped).
+    var type: String? = null,
+    var kind: String? = null
 ) {
     fun toTweetIncludesEntity(): TweetIncludesEntity = TweetIncludesEntity(
         tweetId = tweetId,

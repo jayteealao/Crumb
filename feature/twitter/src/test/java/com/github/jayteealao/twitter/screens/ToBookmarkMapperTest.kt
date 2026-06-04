@@ -3,9 +3,11 @@ package com.github.jayteealao.twitter.screens
 import com.github.jayteealao.crumbs.models.Bookmark
 import com.github.jayteealao.crumbs.models.ContentType
 import com.github.jayteealao.crumbs.models.toRelativeTime
+import com.github.jayteealao.twitter.models.QuotedTweetData
 import com.github.jayteealao.twitter.models.TweetData
 import com.github.jayteealao.twitter.models.TweetEntity
 import com.github.jayteealao.twitter.models.TweetMediaEntity
+import com.github.jayteealao.twitter.models.TweetReferencedTweets
 import com.github.jayteealao.twitter.models.TweetTextEntityAnnotation
 import com.github.jayteealao.twitter.models.TwitterUserEntity
 import com.github.jayteealao.twitter.models.Variant
@@ -79,12 +81,44 @@ class ToBookmarkMapperTest {
         type = "urls",
     )
 
+    private fun quotedRef(id: String, type: String = "quoted", parent: String = "t1") =
+        TweetReferencedTweets(type = type, id = id, tweetId = parent)
+
+    private fun quotedBody(
+        id: String = "q1",
+        text: String = "the quoted body",
+        withAuthor: Boolean = true,
+    ) = QuotedTweetData(
+        tweet = TweetEntity(
+            id = id,
+            text = text,
+            createdAt = "2026-05-01T00:00:00.000Z",
+            authorId = "qu1",
+            conversationId = id,
+            inReplyToUserId = null,
+            lang = "en",
+            referenced = true,
+        ),
+        author = if (withAuthor) TwitterUserEntity(
+            id = "qu1",
+            name = "Quoted Author",
+            username = "quoted_author",
+            profileImageUrl = null,
+            verified = false,
+            verifiedType = null,
+            description = null,
+            mentionedIn = null,
+        ) else null,
+    )
+
     private fun tweetData(
         text: String = "hello world",
         createdAt: String = "2026-05-13T12:22:37.000Z",
         retrievedAt: Long? = null,
         media: List<TweetMediaEntity> = emptyList(),
         textAnnotations: List<TweetTextEntityAnnotation> = emptyList(),
+        referencedTweets: List<TweetReferencedTweets> = emptyList(),
+        quotedTweets: List<QuotedTweetData> = emptyList(),
     ): TweetData = TweetData(
         tweet = TweetEntity(
             id = "t1",
@@ -110,6 +144,8 @@ class ToBookmarkMapperTest {
         media = media,
         includes = emptyList(),
         tweetTextAnnotation = textAnnotations,
+        referencedTweets = referencedTweets,
+        quotedTweets = quotedTweets,
     )
 
     @Test
@@ -302,5 +338,64 @@ class ToBookmarkMapperTest {
         assertNull(bookmark.linkDisplayUrl)
         assertNull(bookmark.linkTitle)
         assertNull(bookmark.linkImageUrl)
+    }
+
+    @Test
+    fun quotedBodyPresentMapsToQuotedFieldsAndHandlePermalink() {
+        val bookmark = tweetData(
+            referencedTweets = listOf(quotedRef("q1")),
+            quotedTweets = listOf(quotedBody(id = "q1")),
+        ).toBookmark()
+        assertEquals("q1", bookmark.quotedTweetId)
+        assertEquals("the quoted body", bookmark.quotedText)
+        assertEquals("Quoted Author", bookmark.quotedAuthorName)
+        assertEquals("@quoted_author", bookmark.quotedAuthorHandle)
+        assertEquals("https://twitter.com/quoted_author/status/q1", bookmark.quotedTweetUrl)
+    }
+
+    @Test
+    fun quotedReferenceWithNoBodyIsUnavailableWithHandlelessPermalink() {
+        val bookmark = tweetData(
+            referencedTweets = listOf(quotedRef("q2")),
+            quotedTweets = emptyList(),
+        ).toBookmark()
+        // quotedTweetId set + quotedText null is the "unavailable" signal the card reads.
+        assertEquals("q2", bookmark.quotedTweetId)
+        assertNull(bookmark.quotedText)
+        assertNull(bookmark.quotedAuthorName)
+        assertNull(bookmark.quotedAuthorHandle)
+        assertEquals("https://x.com/i/status/q2", bookmark.quotedTweetUrl)
+    }
+
+    @Test
+    fun quotedBodyWithMissingAuthorFallsBackToHandlelessPermalink() {
+        val bookmark = tweetData(
+            referencedTweets = listOf(quotedRef("q3")),
+            quotedTweets = listOf(quotedBody(id = "q3", withAuthor = false)),
+        ).toBookmark()
+        assertEquals("q3", bookmark.quotedTweetId)
+        assertEquals("the quoted body", bookmark.quotedText)
+        assertNull(bookmark.quotedAuthorName)
+        assertNull(bookmark.quotedAuthorHandle)
+        assertEquals("https://x.com/i/status/q3", bookmark.quotedTweetUrl)
+    }
+
+    @Test
+    fun repliedToOrRetweetedReferenceYieldsNoQuoteFields() {
+        val bookmark = tweetData(
+            referencedTweets = listOf(quotedRef("r1", type = "replied_to")),
+        ).toBookmark()
+        assertNull(bookmark.quotedTweetId)
+        assertNull(bookmark.quotedText)
+    }
+
+    @Test
+    fun noReferenceYieldsNullQuoteFields() {
+        val bookmark = tweetData().toBookmark()
+        assertNull(bookmark.quotedTweetId)
+        assertNull(bookmark.quotedText)
+        assertNull(bookmark.quotedAuthorName)
+        assertNull(bookmark.quotedAuthorHandle)
+        assertNull(bookmark.quotedTweetUrl)
     }
 }

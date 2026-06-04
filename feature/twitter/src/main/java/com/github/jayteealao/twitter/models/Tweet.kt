@@ -4,6 +4,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.Index
+import androidx.room.Junction
 import androidx.room.PrimaryKey
 import androidx.room.Relation
 import com.google.gson.annotations.SerializedName
@@ -89,12 +90,47 @@ data class TweetData(
     @Relation(parentColumn = "id", entityColumn = "tweet_id")
     val tweetTextAnnotation: List<TweetTextEntityAnnotation>,
 
+    // Raw referenced-tweet rows for this tweet (quoted / replied_to / retweeted).
+    // Knowing a quote was referenced even when its body is absent is what drives the
+    // "unavailable" placeholder; the mapper filters to type == "quoted". FK-free
+    // junction (no @ForeignKey anywhere on this path), so a row can outlive a missing
+    // body. Defaults empty so non-relation query paths and test fixtures still build.
+    @Relation(parentColumn = "id", entityColumn = "tweet_id")
+    val referencedTweets: List<TweetReferencedTweets> = emptyList(),
+
+    // The resolved quoted-tweet bodies (+ their authors), joined through the FK-free
+    // tweetReferencedTweets junction. Empty when the quote is unavailable (a reference
+    // row exists in [referencedTweets] but no matching TweetEntity was stored). The
+    // quoted TweetEntity is stored referenced=true, so it never surfaces in the feed.
+    @Relation(
+        entity = TweetEntity::class,
+        parentColumn = "id",
+        entityColumn = "id",
+        associateBy = Junction(
+            value = TweetReferencedTweets::class,
+            parentColumn = "tweet_id",
+            entityColumn = "id",
+        ),
+    )
+    val quotedTweets: List<QuotedTweetData> = emptyList(),
+
     // Display-only SQLite rowid, surfaced by the feed queries via
     // `SELECT t.rowid AS db_rowid`. Scalar (not part of the @Embedded entity)
     // so it never participates in writes. Defaults to 0 for any query path that
     // does not project the alias (e.g. relation-only reads), keeping Room from
     // erroring on a missing column. The card renders it as the per-row number.
     @ColumnInfo(name = "db_rowid") val dbRowId: Long = 0L,
+)
+
+/**
+ * A resolved quoted tweet: its [TweetEntity] body plus the quoting author. [author]
+ * is **nullable** so a quoted tweet whose [TwitterUserEntity] was never persisted
+ * still hydrates (the card falls back to a generic permalink / handle-less label).
+ */
+data class QuotedTweetData(
+    @Embedded val tweet: TweetEntity,
+    @Relation(parentColumn = "author_id", entityColumn = "id")
+    val author: TwitterUserEntity?,
 )
 
 fun tweetResponseToTweetMapper(tweetData: List<Tweet>, includes: TweetIncludes): List<Tweet> {

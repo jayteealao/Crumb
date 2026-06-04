@@ -94,6 +94,12 @@ class MediaBackfillWorker(
             { id -> repository.refetchTweetLinks(id) },
         )
 
+        suspend fun sweepQuotes(): SweepResult = sweep(
+            "quoted-body",
+            { after -> tweetDao.getQuoteTweetsWithoutBody(after, BATCH_SIZE) },
+            { id -> repository.refetchTweetQuotes(id) },
+        )
+
         return try {
             // Pass 1: legacy media-less tweets (image-rendering). Pass 2: video / animated_gif
             // rows whose stream variants synced empty before the v15 column existed (inline video).
@@ -111,12 +117,17 @@ class MediaBackfillWorker(
                 { id -> repository.refetchTweetMedia(id) },
             )
             val links = sweepLinks()
+            // Pass 4: tweets that reference a quoted tweet whose body never landed
+            // locally, repaired from the server-written quoted doc via refetchTweetQuotes
+            // (quoted tweets); resolves the FK-free junction so the card renders the quote.
+            val quotes = sweepQuotes()
             markBackfillDone(ctx)
             Timber.tag(TAG).i(
                 "completed media[processed=${media.processed} recovered=${media.recovered} " +
                     "capped=${media.capped}] variants[processed=${variants.processed} " +
                     "recovered=${variants.recovered} capped=${variants.capped}] " +
-                    "links[processed=${links.processed} recovered=${links.recovered} capped=${links.capped}]",
+                    "links[processed=${links.processed} recovered=${links.recovered} capped=${links.capped}] " +
+                    "quotes[processed=${quotes.processed} recovered=${quotes.recovered} capped=${quotes.capped}]",
             )
             Result.success()
         } catch (e: CancellationException) {

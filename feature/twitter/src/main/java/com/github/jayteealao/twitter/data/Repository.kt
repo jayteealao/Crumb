@@ -156,6 +156,25 @@ class Repository @Inject constructor(
     }
 
     /**
+     * Single-tweet quoted-body re-fetch for the legacy corpus. Re-pulls the tweet's
+     * full entity set from Firestore — which now resolves the quoted body (+ author)
+     * and rebuilds the FK-free `tweetReferencedTweets` rows once the server has written
+     * the quoted doc — then writes it through the IGNORE-on-conflict atomic insert: the
+     * parent + existing reference rows are no-ops, so only the missing quoted
+     * [com.github.jayteealao.twitter.models.TweetEntity] (+ its author) lands. The
+     * existing reference row's @Relation junction then resolves and Room's
+     * InvalidationTracker re-emits the card with the rendered quote. Returns true when
+     * the re-fetch carried a resolved quoted body.
+     */
+    suspend fun refetchTweetQuotes(tweetId: String): Boolean = withContext(Dispatchers.IO) {
+        val entities = firestoreRepository.fetchSingleTweetEntities(tweetId)
+            ?: return@withContext false
+        if (entities.tweetReferencedTweets.none { it.tweet != null }) return@withContext false
+        saveTweetEntities(entities, uploadToFirestore = false)
+        true
+    }
+
+    /**
      * Pull-to-refresh entry point. Calls the server-side `triggerPoll` callable
      * to wake the daily-poll function, then enqueues the local
      * `TwitterSyncWorker` so any newly-arrived Firestore docs are streamed

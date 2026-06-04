@@ -15,6 +15,7 @@ import com.github.jayteealao.twitter.models.TweetEntity
 import com.github.jayteealao.twitter.models.TweetMediaEntity
 import com.github.jayteealao.twitter.models.Variant
 import com.github.jayteealao.twitter.models.TweetPublicMetrics
+import com.github.jayteealao.twitter.models.TweetReferencedTweets
 import com.github.jayteealao.twitter.models.TweetTagCrossRef
 import com.github.jayteealao.twitter.models.TweetTextEntityAnnotation
 import com.github.jayteealao.twitter.models.TwitterUserEntity
@@ -404,6 +405,69 @@ class DebugDataInjector @Inject constructor(
                 )
             )
         }
+
+        // --- Quoted-tweet fixtures: exercise the brutalist quoted sub-card in both
+        // its available (body resolved) and unavailable (referenced, body absent)
+        // states. The quoted body is stored referenced=true so it never surfaces as a
+        // feed card; its author is a distinct seeded user so the sub-card's nested
+        // @Relation author hydrates. Insert the quoted body + author before the parents.
+        val quotedAuthor = TwitterUserEntity(
+            id = "debug-quoted-author",
+            name = "Quoted Author",
+            username = "quoted_author",
+            profileImageUrl = null,
+            verified = false,
+            verifiedType = null,
+            description = "Debug-only quoted author",
+            mentionedIn = null,
+        )
+        dao.insertTwitterUser(quotedAuthor)
+        dao.insertTweet(
+            TweetEntity(
+                id = "debug-quoted-body-1",
+                text = "The original insight everyone keeps quoting: simplicity scales, cleverness doesn't.",
+                createdAt = "2026-05-17T00:00:00Z",
+                authorId = quotedAuthor.id,
+                conversationId = "debug-quoted-body-1",
+                inReplyToUserId = null,
+                lang = "en",
+                referenced = true,
+                order = 0,
+            )
+        )
+        val quoteTweet = TweetEntity(
+            id = "debug-tweet-11",
+            text = "Quote-tweet bookmark — exercises the quoted sub-card (available).",
+            createdAt = "2026-05-18T00:10:00Z",
+            authorId = user.id,
+            conversationId = "debug-tweet-11",
+            inReplyToUserId = null,
+            lang = "en",
+            referenced = false,
+            order = 990,
+            retrievedAt = nowMs - 660_000L,
+        )
+        val unavailableQuoteTweet = TweetEntity(
+            id = "debug-tweet-12",
+            text = "Quote of a since-deleted tweet — exercises the unavailable placeholder.",
+            createdAt = "2026-05-18T00:11:00Z",
+            authorId = user.id,
+            conversationId = "debug-tweet-12",
+            inReplyToUserId = null,
+            lang = "en",
+            referenced = false,
+            order = 989,
+            retrievedAt = nowMs - 720_000L,
+        )
+        listOf(quoteTweet, unavailableQuoteTweet).forEach(dao::insertTweet)
+        // Available quote: reference row resolves to the stored body above.
+        dao.insertTweetReferencedTweets(
+            TweetReferencedTweets(type = "quoted", id = "debug-quoted-body-1", tweetId = quoteTweet.id)
+        )
+        // Unavailable quote: reference row points at a body that was never stored.
+        dao.insertTweetReferencedTweets(
+            TweetReferencedTweets(type = "quoted", id = "debug-missing-quote", tweetId = unavailableQuoteTweet.id)
+        )
     }
 
     private suspend fun seedReddit() {

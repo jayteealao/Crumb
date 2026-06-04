@@ -207,6 +207,35 @@ class CardComponentsTest {
         linkDisplayUrl = "example.com/article",
     )
 
+    private val quotedTweetBookmark = Bookmark(
+        id = "quote-1",
+        source = BookmarkSource.Twitter,
+        author = "@commenter",
+        title = "Adding my take on this",
+        previewText = "This thread completely reframed how I think about it.",
+        contentType = ContentType.Text,
+        savedAt = System.currentTimeMillis() - 3600000,
+        sourceUrl = "https://twitter.com/i/web/status/207",
+        quotedTweetId = "999",
+        quotedText = "The original insight everyone keeps quoting: simplicity scales, cleverness doesn't.",
+        quotedAuthorName = "Original Author",
+        quotedAuthorHandle = "@original",
+        quotedTweetUrl = "https://twitter.com/original/status/999",
+    )
+
+    private val quotedTweetUnavailableBookmark = Bookmark(
+        id = "quote-2",
+        source = BookmarkSource.Twitter,
+        author = "@commenter",
+        title = "Quoting a since-deleted tweet",
+        previewText = "The quoted tweet is gone, so the sub-card shows the placeholder.",
+        contentType = ContentType.Text,
+        savedAt = System.currentTimeMillis() - 3600000,
+        sourceUrl = "https://twitter.com/i/web/status/208",
+        quotedTweetId = "404",
+        quotedTweetUrl = "https://x.com/i/status/404",
+    )
+
     // CrumbsBookmarkCard Tests
 
     @Test
@@ -397,6 +426,34 @@ class CardComponentsTest {
         composeTestRule.waitForIdle()
         composeTestRule.onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_linkPreviewUrlOnly_light.png")
+    }
+
+    // Quoted-tweet goldens — the brutalist quoted sub-card renders after the media
+    // slot (orthogonal to contentType). Available state shows the author line + body;
+    // the unavailable state shows the placeholder line.
+
+    @Test
+    fun bookmarkCard_quotedTweet_light() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = false) {
+                CrumbsBookmarkCard(bookmark = quotedTweetBookmark, onCardClick = {})
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_quotedTweet_light.png")
+    }
+
+    @Test
+    fun bookmarkCard_quotedTweetUnavailable_light() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = false) {
+                CrumbsBookmarkCard(bookmark = quotedTweetUnavailableBookmark, onCardClick = {})
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_quotedTweetUnavailable_light.png")
     }
 
     // Accent (#FF5A1F) loading placeholder. The class-level fake loader settles

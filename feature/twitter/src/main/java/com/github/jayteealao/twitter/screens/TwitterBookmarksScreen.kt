@@ -84,6 +84,11 @@ data class TwitterBookmarksUiState(
  *   opens the destination in the external browser (the rest of the card keeps the permalink tap).
  * @param onRequestLinkRefetch Called with a tweet id when an external-link card with no preview data
  *   scrolls into view, so the data layer can pull its server-enriched url entity (legacy corpus).
+ * @param onQuoteClick Called with the quoted tweet's permalink when the user taps a card's quoted
+ *   sub-card; opens it in the external browser (the rest of the card keeps the parent permalink).
+ * @param onRequestQuoteRefetch Called with a tweet id when a card whose quote is unavailable
+ *   (referenced but no body) scrolls into view, so the data layer can pull the server-written
+ *   quoted body (legacy corpus).
  * @param videoPlayer The shared ExoPlayer, bound to whichever card matches [activeVideoId] (or to
  *   the full-screen viewer when [videoViewerOpen]); null until the first video play.
  * @param activeVideoId Tweet id of the single active inline video, or null when none is playing.
@@ -109,6 +114,8 @@ fun TwitterBookmarksScreen(
     onRequestMediaRefetch: (String) -> Unit = {},
     onLinkClick: (String) -> Unit = {},
     onRequestLinkRefetch: (String) -> Unit = {},
+    onQuoteClick: (String) -> Unit = {},
+    onRequestQuoteRefetch: (String) -> Unit = {},
     videoPlayer: Player? = null,
     activeVideoId: String? = null,
     videoViewerOpen: Boolean = false,
@@ -208,6 +215,15 @@ fun TwitterBookmarksScreen(
                         if (needsLinkRefetch) {
                             LaunchedEffect("link-$id") { onRequestLinkRefetch(id) }
                         }
+                        // Legacy quote re-fetch: the tweet references a quote (quotedTweetId
+                        // set) but its body never landed (quotedText null → "unavailable").
+                        // The server may have written the body since this tweet was synced.
+                        // One attempt per tweet per session (deduped in the VM); on success
+                        // the quoted body lands and the card re-emits with the quote.
+                        val needsQuoteRefetch = bookmark.quotedTweetId != null && bookmark.quotedText == null
+                        if (needsQuoteRefetch) {
+                            LaunchedEffect("quote-$id") { onRequestQuoteRefetch(id) }
+                        }
                         // Bind the shared player to this card only when it is the single
                         // active video AND the full-screen viewer is closed, so exactly one
                         // surface holds the player at a time.
@@ -226,6 +242,7 @@ fun TwitterBookmarksScreen(
                                 imageViewer = ImageViewerTarget(bookmark.imageUrls, tappedIndex)
                             },
                             onLinkClick = onLinkClick,
+                            onQuoteClick = onQuoteClick,
                             videoPlayer = cardPlayer,
                             onVideoPlay = { onVideoPlay(bookmark) },
                             onVideoExpand = { onVideoExpand(bookmark) },
@@ -392,6 +409,16 @@ fun TwitterBookmarksRoute(
                 .onFailure { Timber.w(it, "No browser to open link: $url") }
         },
         onRequestLinkRefetch = { id -> bookmarksViewModel.refetchLinksIfMissing(id) },
+        // Quoted sub-card tap → open the quoted tweet's permalink in the EXTERNAL
+        // browser (mirrors onLinkClick); the whole-card tap keeps the parent permalink
+        // via onCardClick above. The non-consuming gesture in the card routes them apart.
+        onQuoteClick = { url ->
+            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                .addCategory(Intent.CATEGORY_BROWSABLE)
+            runCatching { context.startActivity(intent) }
+                .onFailure { Timber.w(it, "No browser to open quoted tweet: $url") }
+        },
+        onRequestQuoteRefetch = { id -> bookmarksViewModel.refetchQuotesIfMissing(id) },
         videoPlayer = bookmarksViewModel.player,
         activeVideoId = activeVideoId,
         videoViewerOpen = videoViewerOpen,
@@ -476,6 +503,17 @@ fun TweetData.toBookmark(tags: List<String> = emptyList()): Bookmark {
     val timestamp = tweet.retrievedAt
         ?: parseTweetTimestamp(tweet.createdAt)
         ?: Bookmark.UNKNOWN_TIME
+    // Quoted tweet (orthogonal to contentType — a quote co-exists with the parent's own
+    // media/link/text). The first type=="quoted" reference is the quote; a reference row
+    // with no resolved body ⇒ unavailable (quotedTweetId set, quotedText null). The
+    // permalink uses the resolved handle, falling back to the handle-less /i/status form.
+    val quotedRef = referencedTweets.firstOrNull { it.type == "quoted" }
+    val quotedBody = quotedTweets.firstOrNull()
+    val quotedUsername = quotedBody?.author?.username
+    val quotedTweetUrl = quotedRef?.id?.let { qId ->
+        if (quotedUsername != null) "https://twitter.com/$quotedUsername/status/$qId"
+        else "https://x.com/i/status/$qId"
+    }
     val title = tweet.text.lines().firstOrNull()?.take(100) ?: tweet.text.take(100)
     return Bookmark(
         id = tweet.id,
@@ -496,6 +534,14 @@ fun TweetData.toBookmark(tags: List<String> = emptyList()): Bookmark {
         linkTitle = externalLink?.title,
         linkDescription = externalLink?.description,
         linkImageUrl = externalLink?.imageUrl,
+        // Quoted-tweet fields (null for non-quote tweets). quotedTweetId set with a null
+        // quotedText is the unavailable state (deleted/protected quote). The handle is
+        // prefixed with '@' for display; the URL above carries the bare username.
+        quotedTweetId = quotedRef?.id,
+        quotedText = quotedBody?.tweet?.text,
+        quotedAuthorName = quotedBody?.author?.name,
+        quotedAuthorHandle = quotedUsername?.let { "@$it" },
+        quotedTweetUrl = quotedTweetUrl,
         contentType = contentType,
         savedAt = timestamp,
         tags = tags,

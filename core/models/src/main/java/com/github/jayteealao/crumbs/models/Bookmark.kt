@@ -39,6 +39,18 @@ data class Bookmark(
     val linkTitle: String? = null,
     val linkDescription: String? = null,
     val linkImageUrl: String? = null,
+    // Quoted-tweet (referenced-tweet) fields, set only when this tweet quotes another.
+    // [quotedTweetId] != null ⇒ a quote was referenced; [quotedText] == null while
+    // [quotedTweetId] != null ⇒ the quote is UNAVAILABLE (deleted/protected) and the
+    // card renders a placeholder. [quotedTweetUrl] is the quoted tweet's permalink the
+    // sub-card opens in the external browser. All default null so Reddit + non-quote
+    // cards are unaffected (mirrors the link* / imageUrls precedent). Orthogonal to
+    // [contentType] — a quote can co-exist with the parent's own text/image/video/link.
+    val quotedTweetId: String? = null,
+    val quotedText: String? = null,
+    val quotedAuthorName: String? = null,
+    val quotedAuthorHandle: String? = null,
+    val quotedTweetUrl: String? = null,
     val contentType: ContentType,
     val savedAt: Long, // Timestamp when bookmark was saved
     val tags: List<String> = emptyList(),

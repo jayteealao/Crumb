@@ -3,6 +3,8 @@ package com.github.jayteealao.twitter.data.firestore
 import com.github.jayteealao.twitter.models.MediaKeys
 import com.github.jayteealao.twitter.models.TweetEntities
 import com.github.jayteealao.twitter.models.TweetEntity
+import com.github.jayteealao.twitter.models.TweetReferencedTweets
+import com.github.jayteealao.twitter.models.TweetReferencedTweetsFull
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.FieldPath
@@ -101,6 +103,10 @@ class FirestoreRepository @Inject constructor(
                 if (snapshot.isEmpty) break
                 docsRead += snapshot.documents.size
                 snapshot.documents.forEach { doc ->
+                    // Skip quoted-tweet body docs (referenced=true). They live under
+                    // tweets/ for the quoted sub-card but are NOT bookmarks — syncing
+                    // them as top-level tweets would leak them into the feed.
+                    if (doc.getBoolean("referenced") == true) return@forEach
                     doc.getString("tweetId")?.let(ids::add)
                 }
                 lastDoc = snapshot.documents.last()
@@ -146,6 +152,9 @@ class FirestoreRepository @Inject constructor(
                     if (snapshot.isEmpty) break
                     docsRead += snapshot.documents.size
                     snapshot.documents.forEach { doc ->
+                        // Skip quoted-tweet body docs (referenced=true) — they are
+                        // hydrated as quoted sub-cards, never as top-level bookmarks.
+                        if (doc.getBoolean("referenced") == true) return@forEach
                         val id = doc.getString("tweetId") ?: return@forEach
                         val createdAt = doc.getString("createdAt") ?: ""
                         result.add(id to createdAt)
@@ -279,6 +288,45 @@ class FirestoreRepository @Inject constructor(
                         .groupBy { it.tweetId }
                 }
 
+                // Quoted-tweet bodies: the ids referenced as type="quoted" by this
+                // batch's tweets (from the includes _ref_ docs), fetched from the same
+                // tweets/ collection. Mapped referenced=true so they hydrate the quoted
+                // sub-card without ever surfacing as feed cards. A quoted id with no
+                // doc here ⇒ the quote is unavailable (deleted/protected).
+                val quotedTweetsDeferred = async {
+                    val includesByTweet = includesDeferred.await()
+                    val quotedIds = includesByTweet.values.asSequence()
+                        .flatten()
+                        .filter { it.type == "quoted" && it.referencedTweetId != null }
+                        .mapNotNull { it.referencedTweetId }
+                        .distinct()
+                        .toList()
+                    if (quotedIds.isEmpty()) return@async emptyMap<String, FirestoreTweet>()
+                    quotedIds.chunked(30).flatMap { batch ->
+                        tweetsCol(uid)
+                            .whereIn("tweetId", batch)
+                            .get()
+                            .await()
+                            .toObjects(FirestoreTweet::class.java)
+                    }.associateBy { it.tweetId }
+                }
+
+                // Authors of the quoted tweets — distinct from the bookmark authors and
+                // fetched separately so the quoted sub-card's nested @Relation author
+                // hydrates (still nullable-safe when an author doc is missing).
+                val quotedAuthorsDeferred = async {
+                    val quoted = quotedTweetsDeferred.await()
+                    val authorIds = quoted.values.map { it.authorId }.filter { it.isNotEmpty() }.distinct()
+                    if (authorIds.isEmpty()) return@async emptyMap<String, FirestoreUser>()
+                    authorIds.chunked(30).flatMap { batch ->
+                        twitterUsersCol(uid)
+                            .whereIn("userId", batch)
+                            .get()
+                            .await()
+                            .toObjects(FirestoreUser::class.java)
+                    }.associateBy { it.userId }
+                }
+
                 // Media docs are keyed by `mediaKey` (the document id), not by
                 // `tweetId` (no such field exists on the doc). The tweet→media
                 // join lives in the includes collection: each includes doc that
@@ -326,24 +374,53 @@ class FirestoreRepository @Inject constructor(
                 val includes = includesDeferred.await()
                 val media = mediaDeferred.await()
                 val textAnnotations = textAnnotationsDeferred.await()
+                val quotedTweets = quotedTweetsDeferred.await()
+                val quotedAuthors = quotedAuthorsDeferred.await()
 
                 tweets.values.mapNotNull { firestoreTweet ->
                     val tweetId = firestoreTweet.tweetId
                     val user = users[firestoreTweet.authorId] ?: return@mapNotNull null
 
+                    // Restore the quoted-tweet relation on the FK-FREE junction. Each
+                    // type="quoted" includes row → a reference row (+ the resolved quoted
+                    // body, or null ⇒ unavailable). The DAO batch inserts the quoted
+                    // TweetEntity (referenced=true, kept out of the feed) and the reference
+                    // row together; with no FK on this path the original rollback cannot
+                    // recur. tweetIncludesEntity stays empty — the dangerous mention/reply
+                    // FK relation is intentionally NOT re-enabled.
+                    val referencedFull = includes[tweetId].orEmpty()
+                        .filter { it.type == "quoted" && it.referencedTweetId != null }
+                        .distinctBy { it.referencedTweetId }
+                        .map { inc ->
+                            val refId = inc.referencedTweetId!!
+                            TweetReferencedTweetsFull(
+                                referencedTweets = TweetReferencedTweets(
+                                    type = "quoted",
+                                    id = refId,
+                                    tweetId = tweetId,
+                                ),
+                                tweet = quotedTweets[refId]?.toTweetEntity(referenced = true),
+                            )
+                        }
+                    val quotedAuthorEntities = referencedFull.mapNotNull { it.tweet }
+                        .mapNotNull { quotedAuthors[it.authorId]?.toTwitterUserEntity() }
+                    val authorEntities = (listOf(user.toTwitterUserEntity()) + quotedAuthorEntities)
+                        .distinctBy { it.id }
+
                     TweetEntities(
                         tweetEntity = firestoreTweet.toTweetEntity(),
-                        twitterUserEntity = listOf(user.toTwitterUserEntity()),
+                        twitterUserEntity = authorEntities,
                         tweetPublicMetrics = metrics[tweetId]?.toTweetPublicMetrics()
                             ?: com.github.jayteealao.twitter.models.tweetPublicMetrics().copy(tweetId = tweetId),
                         tweetMediaEntity = media[tweetId]?.map { it.toTweetMediaEntity() } ?: emptyList(),
-                        // Firestore-side `includes` rows carry mention/reply/quoted-tweet user ids that
-                        // are not in this tweet's per-row TwitterUserEntity batch (which only contains
-                        // the author). Persisting them trips the TweetIncludesEntity → twitterUser /
-                        // tweetEntity / tweetMedia foreign keys and rolls back the whole batch insert.
-                        // The UI never reads TweetData.includes; drop the rows here.
+                        // Firestore-side `includes` rows carry mention/reply user ids that are
+                        // not in this tweet's per-row TwitterUserEntity batch. Persisting them
+                        // trips the TweetIncludesEntity → twitterUser / tweetEntity / tweetMedia
+                        // foreign keys and rolls back the whole batch insert. The UI never reads
+                        // TweetData.includes; the dangerous relation stays dropped. The quoted
+                        // relation below rides the FK-free tweetReferencedTweets junction instead.
                         tweetIncludesEntity = emptyList(),
-                        tweetReferencedTweets = emptyList(),
+                        tweetReferencedTweets = referencedFull,
                         tweetContextAnnotationEntity = emptyList(),
                         tweetTextEntity = textAnnotations[tweetId]?.map { it.toTweetTextEntityAnnotation() } ?: emptyList(),
                         mediaKeys = media[tweetId]?.map { MediaKeys(tweetId, it.mediaKey) } ?: emptyList()

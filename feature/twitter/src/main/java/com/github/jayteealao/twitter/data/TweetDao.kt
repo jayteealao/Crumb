@@ -367,6 +367,32 @@ interface TweetDao {
     )
     suspend fun getExternalLinkTweetsWithoutPreview(afterId: String, limit: Int): List<String>
 
+    /**
+     * Tweet ids for the one-time quoted-tweet backfill: non-referenced, non-tombstoned
+     * bookmarks that carry a `type='quoted'` reference row whose quoted body
+     * [TweetEntity] is not (yet) stored locally — so the card shows the "unavailable"
+     * placeholder. Keyset-paginated by id (`id > :afterId`, ascending). The quoted body
+     * lands once the server has written it (the poll's includes.tweets loop or the
+     * backfill callable). Used by `MediaBackfillWorker`'s quoted sweep.
+     */
+    @Query(
+        """
+        SELECT t.id FROM tweetEntity t
+        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
+        WHERE t.referenced = 0
+          AND d.bookmarkId IS NULL
+          AND t.id > :afterId
+          AND EXISTS (
+            SELECT 1 FROM tweetReferencedTweets r
+            WHERE r.tweet_id = t.id AND r.type = 'quoted'
+              AND NOT EXISTS (SELECT 1 FROM tweetEntity q WHERE q.id = r.id)
+          )
+        ORDER BY t.id ASC
+        LIMIT :limit
+        """
+    )
+    suspend fun getQuoteTweetsWithoutBody(afterId: String, limit: Int): List<String>
+
     /** Delete a tweet's url-entity annotation rows. Backs the duplicate-safe link re-fetch. */
     @Query("DELETE FROM tweetTextEntityAnnotation WHERE tweet_id = :tweetId AND type = 'urls'")
     suspend fun deleteUrlAnnotationsForTweet(tweetId: String)
