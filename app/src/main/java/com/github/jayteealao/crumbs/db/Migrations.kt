@@ -246,12 +246,11 @@ val MIGRATION_10_11: Migration = object : Migration(10, 11) {
                 "AFTER INSERT ON `tweetEntity` " +
                 "BEGIN INSERT INTO `tweet_fts`(`docid`, `text`) VALUES (NEW.`rowid`, NEW.`text`); END"
         )
-        // WARNING: FTS4 'rebuild' re-tokenizes ALL rows in the parent table synchronously.
-        // On devices with 10,000+ bookmarks this may block for >1s inside the migration
-        // transaction. The Room migration thread is not the main thread, but the cumulative
-        // cost across 10 sequential migrations risks the SQLite busy timeout.
-        // TODO: Move FTS rebuilds to a post-migration OneTimeWorkRequest or RoomDatabase.Callback#onOpen.
-        db.execSQL("INSERT INTO `tweet_fts`(`tweet_fts`) VALUES('rebuild')")
+        // NOTE: FTS 'rebuild' intentionally omitted here. Re-tokenizing all rows inside
+        // the migration transaction would hold the SQLite write lock for O(N) on large
+        // corpora and risk a busy-timeout. The rebuild is deferred to
+        // DatabaseModule's RoomDatabase.Callback#onOpen, which runs it once after the
+        // database is first opened on this device version, guarded by an emptiness check.
 
         // reddit_fts — `title` + `selftext` columns from reddit_posts
         db.execSQL(
@@ -281,12 +280,7 @@ val MIGRATION_10_11: Migration = object : Migration(10, 11) {
                 "BEGIN INSERT INTO `reddit_fts`(`docid`, `title`, `selftext`) " +
                 "VALUES (NEW.`rowid`, NEW.`title`, NEW.`selftext`); END"
         )
-        // WARNING: FTS4 'rebuild' re-tokenizes ALL rows in the parent table synchronously.
-        // On devices with 10,000+ bookmarks this may block for >1s inside the migration
-        // transaction. The Room migration thread is not the main thread, but the cumulative
-        // cost across 10 sequential migrations risks the SQLite busy timeout.
-        // TODO: Move FTS rebuilds to a post-migration OneTimeWorkRequest or RoomDatabase.Callback#onOpen.
-        db.execSQL("INSERT INTO `reddit_fts`(`reddit_fts`) VALUES('rebuild')")
+        // NOTE: FTS 'rebuild' intentionally omitted here — deferred to onOpen (see above).
     }
 }
 
@@ -379,11 +373,25 @@ val MIGRATION_15_16: Migration = object : Migration(15, 16) {
  * FK-free junction for the quoted-tweet @Relation) plus the index that backs the
  * junction lookup. The referenced-tweet relation was previously suppressed; this
  * column lets a parent tweet resolve its quoted body without the FK-rollback the old
- * `tweetIncludes` relation caused. `NOT NULL DEFAULT ''` because the junction parent
- * column must always have a value — legacy rows get '' (an orphan reference that
- * resolves to nothing, i.e. the harmless "unavailable" state). The new column's type
- * (`TEXT`, not-null) and the index name (`index_<table>_<col>`) must match Room's
- * generated schema or `runMigrationsAndValidate` fails.
+ * `tweetIncludes` relation caused.
+ *
+ * Sentinel choice — `NOT NULL DEFAULT ''`:
+ * SQLite's ALTER TABLE ADD COLUMN requires either a default value or a nullable type
+ * for pre-existing rows. The column is declared NOT NULL (matching the entity class
+ * and Room's generated schema) so a DEFAULT is mandatory. `DEFAULT ''` (empty string)
+ * is the chosen sentinel meaning "no parent tweet" — semantically equivalent to NULL
+ * for the quoted-tweet relation. All DAO queries that join on `tweet_id` must include
+ * `AND tweet_id != ''` (or equivalent) to exclude these orphan rows; the quoted-tweet
+ * @Relation already filters via the entity PK equality so orphan rows resolve to an
+ * empty list, producing the harmless "unavailable" placeholder state.
+ *
+ * This migration is released — do NOT change the DEFAULT or column nullability here;
+ * doing so would break existing installed databases. A new migration would be required
+ * for any structural change.
+ *
+ * The new column's type (`TEXT`, not-null) and the index name
+ * (`index_<table>_<col>`) must match Room's generated schema or
+ * `runMigrationsAndValidate` fails.
  */
 val MIGRATION_16_17: Migration = object : Migration(16, 17) {
     override fun migrate(db: SupportSQLiteDatabase) {

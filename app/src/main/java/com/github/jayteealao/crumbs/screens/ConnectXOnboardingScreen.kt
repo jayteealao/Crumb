@@ -55,7 +55,7 @@ fun ConnectXOnboardingScreen(
         )
         Spacer(Modifier.height(spacing.md))
         Text(
-            text = "Authorize Crumb to read your X bookmarks. Your tokens stay server-side; the app only sees the synced docs.",
+            text = "Authorize Crumbs to read your X bookmarks. Your credentials are never stored on your device.",
             style = typography.bodyMono,
             color = colors.onSurfaceVariant,
         )

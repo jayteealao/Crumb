@@ -52,20 +52,29 @@ export const backfillTweetLinks = onCall(
       const snap = await query.get();
       if (snap.empty) break;
 
-      for (const doc of snap.docs) {
-        const data = doc.data() as Record<string, unknown> | undefined;
-        const entities = data?.entities;
-        if (entities) {
-          try {
-            const outcome = await runEnrichLinks(database, uid, doc.id, entities, fetchOpenGraph);
-            if (outcome === "written") enriched++;
-            else if (outcome === "skipped") skipped++;
-          } catch (e) {
-            logger.warn("backfill_links_doc_failed", { uid, tweetId: doc.id, code: (e as Error).message });
+      // Process the page with bounded concurrency (at most CONCURRENCY docs in
+      // flight at once) so ~200 docs with a 5 s OG timeout each complete in
+      // ~ceil(200/CONCURRENCY)*5 s ≈ 100 s — well within the 540 s limit.
+      const CONCURRENCY = 10;
+      let idx = 0;
+      async function worker(): Promise<void> {
+        while (idx < snap.docs.length) {
+          const doc = snap.docs[idx++];
+          const data = doc.data() as Record<string, unknown> | undefined;
+          const entities = data?.entities;
+          if (entities) {
+            try {
+              const outcome = await runEnrichLinks(database, uid, doc.id, entities, fetchOpenGraph);
+              if (outcome === "written") enriched++;
+              else if (outcome === "skipped") skipped++;
+            } catch (e) {
+              logger.warn("backfill_links_doc_failed", { uid, tweetId: doc.id, code: (e as Error).message });
+            }
           }
+          scanned++;
         }
-        scanned++;
       }
+      await Promise.all(Array.from({ length: CONCURRENCY }, worker));
 
       lastDoc = snap.docs[snap.docs.length - 1];
       if (snap.docs.length < PAGE_SIZE) break;

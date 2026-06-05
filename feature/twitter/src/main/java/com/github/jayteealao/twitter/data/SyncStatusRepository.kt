@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -34,6 +36,10 @@ class SyncStatusRepository @Inject constructor(
     @Volatile
     private var lastFetchMs: Long = 0L
 
+    // Serializes the throttle check-then-fetch so two concurrent callers that
+    // both clear the throttle window do not each issue a server round-trip.
+    private val refreshMutex = Mutex()
+
     /**
      * Returns the current `SyncStatus` for the signed-in user. If [force] is
      * `false` and the last successful fetch was within [THROTTLE_MS], returns
@@ -45,31 +51,42 @@ class SyncStatusRepository @Inject constructor(
             return null
         }
 
-        val now = System.currentTimeMillis()
-        if (!force && lastFetchMs != 0L && now - lastFetchMs < THROTTLE_MS) {
+        if (!force && isWithinThrottle()) {
             return _flow.value
         }
 
-        return try {
-            val snapshot = withTimeout(READ_TIMEOUT_MS) {
-                firestore.collection("users")
-                    .document(uid)
-                    .collection("sync_status")
-                    .document("state")
-                    .get(Source.SERVER)
-                    .await()
+        return refreshMutex.withLock {
+            // Re-check inside the lock: a concurrent caller may have completed a
+            // fetch while we waited, so skip the duplicate server round-trip.
+            if (!force && isWithinThrottle()) {
+                return@withLock _flow.value
             }
-            val parsed = parse(snapshot.data)
-            _flow.value = parsed
-            lastFetchMs = now
-            parsed
-        } catch (e: TimeoutCancellationException) {
-            Timber.w(e, "sync_status read timed out; keeping cached value")
-            _flow.value
-        } catch (e: Exception) {
-            Timber.w(e, "sync_status read failed (offline?); keeping cached value")
-            _flow.value
+            try {
+                val snapshot = withTimeout(READ_TIMEOUT_MS) {
+                    firestore.collection("users")
+                        .document(uid)
+                        .collection("sync_status")
+                        .document("state")
+                        .get(Source.SERVER)
+                        .await()
+                }
+                val parsed = parse(snapshot.data)
+                _flow.value = parsed
+                lastFetchMs = System.currentTimeMillis()
+                parsed
+            } catch (e: TimeoutCancellationException) {
+                Timber.w(e, "sync_status read timed out; keeping cached value")
+                _flow.value
+            } catch (e: Exception) {
+                Timber.w(e, "sync_status read failed (offline?); keeping cached value")
+                _flow.value
+            }
         }
+    }
+
+    private fun isWithinThrottle(): Boolean {
+        val now = System.currentTimeMillis()
+        return lastFetchMs != 0L && now - lastFetchMs < THROTTLE_MS
     }
 
     private fun parse(data: Map<String, Any?>?): SyncStatus {

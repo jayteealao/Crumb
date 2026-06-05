@@ -5,7 +5,7 @@ import com.github.jayteealao.crumbs.data.SnackbarEvent
 import com.github.jayteealao.crumbs.data.SyncErrorBus
 import com.github.jayteealao.crumbs.data.SyncErrorEvent
 import com.github.jayteealao.crumbs.models.BookmarkSource
-import com.github.jayteealao.twitter.data.SnackbarEvent as TwitterSnackbarEvent
+import com.github.jayteealao.twitter.data.TwitterSnackbarEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi

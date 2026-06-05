@@ -49,6 +49,7 @@ import java.util.TimeZone
 fun SettingsScreen(
     syncStatus: SyncStatus?,
     onDisconnectClick: () -> Unit,
+    onDeleteAccountClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalCrumbsColors.current
@@ -118,6 +119,23 @@ fun SettingsScreen(
             text = "DISCONNECT X",
             style = ButtonStyle.Secondary,
             modifier = Modifier.testTag("settings-disconnect-x"),
+        )
+
+        Spacer(Modifier.height(spacing.xl))
+
+        // ── Account / data erasure ─────────────────────────────────────────
+        Text(
+            text = "ACCOUNT",
+            style = typography.captionMono,
+            color = colors.ink,
+            modifier = Modifier.testTag("settings-account-kicker"),
+        )
+        Spacer(Modifier.height(spacing.lg))
+        CrumbsButton(
+            onClick = onDeleteAccountClick,
+            text = "DELETE ACCOUNT",
+            style = ButtonStyle.Secondary,
+            modifier = Modifier.testTag("settings-delete-account"),
         )
     }
 

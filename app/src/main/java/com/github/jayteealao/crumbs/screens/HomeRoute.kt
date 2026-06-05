@@ -28,7 +28,7 @@ import com.github.jayteealao.crumbs.designsystem.components.BottomNavTab
 import com.github.jayteealao.reddit.screens.RedditBookmarksRoute
 import com.github.jayteealao.reddit.screens.RedditViewModel
 import com.github.jayteealao.crumbs.Screens
-import com.github.jayteealao.twitter.data.SnackbarEvent as TwitterSnackbarEvent
+import com.github.jayteealao.twitter.data.TwitterSnackbarEvent
 import com.github.jayteealao.twitter.screens.BookmarksViewModel
 import com.github.jayteealao.twitter.screens.LoginViewModel
 import com.github.jayteealao.twitter.screens.TwitterBookmarksRoute
@@ -112,8 +112,10 @@ fun HomeRoute(
     LaunchedEffect(Unit) {
         bookmarksViewModel.snackbarEvents.collect { event ->
             val message = when (event) {
-                is TwitterSnackbarEvent.Debounced ->
-                    "Bookmark fetch paused. Try again in ${event.retryAfterSeconds ?: 60}s"
+                is TwitterSnackbarEvent.Debounced -> {
+                    val secs = event.retryAfterSeconds ?: 60
+                    "FETCH PAUSED. TRY AGAIN IN $secs SECONDS."
+                }
                 is TwitterSnackbarEvent.InProgress -> "Fetching your bookmarks..."
                 is TwitterSnackbarEvent.GenericFailure -> "Couldn't fetch bookmarks. Please try again."
             }
@@ -257,7 +259,7 @@ fun HomeRoute(
                             snackbarScope.launch {
                                 snackbarHostState.showSnackbar(
                                     message = "NO BROWSER FOUND. INSTALL A WEB BROWSER TO OPEN LINKS.",
-                                    duration = SnackbarDuration.Short,
+                                    duration = SnackbarDuration.Long,
                                 )
                             }
                         }

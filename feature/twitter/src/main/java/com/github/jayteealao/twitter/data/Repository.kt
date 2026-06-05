@@ -61,8 +61,8 @@ class Repository @Inject constructor(
     ) { triggering, syncing -> triggering || syncing }
         .stateIn(scope, SharingStarted.WhileSubscribed(5_000), false)
 
-    private val _snackbarEvents = MutableSharedFlow<SnackbarEvent>(replay = 0, extraBufferCapacity = 4)
-    val snackbarEvents: SharedFlow<SnackbarEvent> = _snackbarEvents.asSharedFlow()
+    private val _snackbarEvents = MutableSharedFlow<TwitterSnackbarEvent>(replay = 0, extraBufferCapacity = 4)
+    val snackbarEvents: SharedFlow<TwitterSnackbarEvent> = _snackbarEvents.asSharedFlow()
 
     companion object {
         const val BUFFER = 250
@@ -208,7 +208,7 @@ class Repository @Inject constructor(
             if (payload == null) {
                 Timber.w("triggerPoll returned no payload; assuming failure")
                 _snackbarEvents.tryEmit(
-                    SnackbarEvent.GenericFailure(result.exceptionOrNull()?.message ?: "no_response")
+                    TwitterSnackbarEvent.GenericFailure(result.exceptionOrNull()?.message ?: "no_response")
                 )
                 return
             }
@@ -216,11 +216,12 @@ class Repository @Inject constructor(
             val ok = payload["ok"] as? Boolean ?: false
             if (!ok) {
                 val reason = payload["reason"] as? String
-                val retryAfter = (payload["retryAfter"] as? Number)?.toInt()
                 val event = when (reason) {
-                    "debounced" -> SnackbarEvent.Debounced(retryAfter)
-                    "in_progress" -> SnackbarEvent.InProgress
-                    else -> SnackbarEvent.GenericFailure(reason ?: "unknown")
+                    // retryAfter is only populated for the debounced result, so it is
+                    // read inside that branch rather than unconditionally.
+                    "debounced" -> TwitterSnackbarEvent.Debounced((payload["retryAfter"] as? Number)?.toInt())
+                    "in_progress" -> TwitterSnackbarEvent.InProgress
+                    else -> TwitterSnackbarEvent.GenericFailure(reason ?: "unknown")
                 }
                 _snackbarEvents.tryEmit(event)
             }
@@ -336,22 +337,7 @@ class Repository @Inject constructor(
     }
 
     override suspend fun saveTags(tweetId: String, tags: List<String>) {
-        // Get current tags
-        val currentTags = getTagsForTweet(tweetId)
-
-        // Remove tags that are no longer selected
-        currentTags.forEach { tag ->
-            if (tag !in tags) {
-                removeTagFromTweet(tweetId, tag)
-            }
-        }
-
-        // Add new tags
-        tags.forEach { tag ->
-            if (tag !in currentTags) {
-                addTagToTweet(tweetId, tag)
-            }
-        }
+        tweetDao.saveTagsAtomic(tweetId, tags)
     }
 
     /**

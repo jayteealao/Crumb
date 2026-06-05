@@ -40,10 +40,6 @@ class MediaBackfillWorker(
 
     override suspend fun doWork(): Result {
         val ctx = applicationContext
-        if (isBackfillDone(ctx)) {
-            Timber.tag(TAG).d("already_done; skipping")
-            return Result.success()
-        }
         val entry = EntryPointAccessors.fromApplication(ctx, SyncEntryPoint::class.java)
         val uid = entry.authGateway().currentUser.value?.uid
         if (uid.isNullOrEmpty()) {
@@ -52,8 +48,12 @@ class MediaBackfillWorker(
             Timber.tag(TAG).d("skip uid=null")
             return Result.success()
         }
+        if (isBackfillDone(ctx, uid)) {
+            Timber.tag(TAG).d("already_done uid=$uid; skipping")
+            return Result.success()
+        }
 
-        val tweetDao = entry.tweetDao()
+        val syncFacade = entry.twitterSyncFacade()
         val repository = entry.repository()
 
         // One keyset-paginated sweep: re-fetch each tweet a page query returns, counting how
@@ -90,13 +90,13 @@ class MediaBackfillWorker(
 
         suspend fun sweepLinks(): SweepResult = sweep(
             "external-link",
-            { after -> tweetDao.getExternalLinkTweetsWithoutPreview(after, BATCH_SIZE) },
+            { after -> syncFacade.getExternalLinkTweetsWithoutPreview(after, BATCH_SIZE) },
             { id -> repository.refetchTweetLinks(id) },
         )
 
         suspend fun sweepQuotes(): SweepResult = sweep(
             "quoted-body",
-            { after -> tweetDao.getQuoteTweetsWithoutBody(after, BATCH_SIZE) },
+            { after -> syncFacade.getQuoteTweetsWithoutBody(after, BATCH_SIZE) },
             { id -> repository.refetchTweetQuotes(id) },
         )
 
@@ -108,12 +108,12 @@ class MediaBackfillWorker(
             // refetchTweetMedia early-returns for media-less tweets, so links need their own pass.
             val media = sweep(
                 "media-less",
-                { after -> tweetDao.getTweetsWithoutMedia(after, BATCH_SIZE) },
+                { after -> syncFacade.getTweetsWithoutMedia(after, BATCH_SIZE) },
                 { id -> repository.refetchTweetMedia(id) },
             )
             val variants = sweep(
                 "variants-empty",
-                { after -> tweetDao.getVideoTweetsWithoutVariants(after, BATCH_SIZE) },
+                { after -> syncFacade.getVideoTweetsWithoutVariants(after, BATCH_SIZE) },
                 { id -> repository.refetchTweetMedia(id) },
             )
             val links = sweepLinks()
@@ -121,7 +121,7 @@ class MediaBackfillWorker(
             // locally, repaired from the server-written quoted doc via refetchTweetQuotes
             // (quoted tweets); resolves the FK-free junction so the card renders the quote.
             val quotes = sweepQuotes()
-            markBackfillDone(ctx)
+            markBackfillDone(ctx, uid)
             Timber.tag(TAG).i(
                 "completed media[processed=${media.processed} recovered=${media.recovered} " +
                     "capped=${media.capped}] variants[processed=${variants.processed} " +
@@ -150,16 +150,19 @@ class MediaBackfillWorker(
         const val MAX_BACKFILL_TWEETS = 500
 
         private const val PREFS_NAME = "media_backfill_prefs"
-        private const val KEY_DONE = "media_backfill_done"
+        private const val KEY_DONE_PREFIX = "media_backfill_done_"
 
-        private fun isBackfillDone(context: Context): Boolean =
+        /** Returns the per-UID SharedPreferences key so each account gets its own flag. */
+        private fun doneKey(uid: String) = "$KEY_DONE_PREFIX$uid"
+
+        private fun isBackfillDone(context: Context, uid: String): Boolean =
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .getBoolean(KEY_DONE, false)
+                .getBoolean(doneKey(uid), false)
 
-        private fun markBackfillDone(context: Context) {
+        private fun markBackfillDone(context: Context, uid: String) {
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
-                .putBoolean(KEY_DONE, true)
+                .putBoolean(doneKey(uid), true)
                 .apply()
         }
 
@@ -174,13 +177,14 @@ class MediaBackfillWorker(
                 .build()
 
         /**
-         * Enqueue the one-time backfill if it has never completed. No-op once the
-         * run-once flag is set. KEEP coalesces against any worker still alive from a
-         * prior process. Safe to call from app start and on fresh sign-in; wrapped so
-         * a missing WorkManager (Robolectric / pre-init) cannot crash the caller.
+         * Enqueue the one-time backfill. KEEP coalesces against any worker still alive
+         * from a prior process. The per-UID run-once guard is checked inside [doWork]
+         * once the signed-in UID is resolved; the enqueue-site guard is omitted because
+         * the UID is not available here without loading the Hilt entry-point.
+         * Safe to call from app start and on fresh sign-in; wrapped so a missing
+         * WorkManager (Robolectric / pre-init) cannot crash the caller.
          */
         fun enqueueOnce(context: Context) {
-            if (isBackfillDone(context)) return
             try {
                 WorkManager.getInstance(context).enqueueUniqueWork(
                     UNIQUE_NAME,

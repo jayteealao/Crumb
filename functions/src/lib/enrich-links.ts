@@ -12,6 +12,7 @@
 import { FieldValue } from "firebase-admin/firestore";
 
 import { pickExternalUrl } from "./links";
+import { assertValidUid } from "./uid";
 import type { OpenGraphData } from "./og";
 
 /**
@@ -30,11 +31,6 @@ export interface EnrichDb {
 
 export type EnrichOutcome = "written" | "skipped" | "no_link";
 
-function assertValidUid(uid: string): void {
-  if (!uid || uid.includes("/") || uid.includes("..")) {
-    throw new Error(`invalid_uid: ${uid}`);
-  }
-}
 
 /**
  * Enrich one tweet's first external link into a `textAnnotations` url doc.
@@ -81,6 +77,9 @@ export async function runEnrichLinks(
       unwoundUrl: picked.unwound_url ?? null,
       title: og.title ?? null,
       description: og.description ?? null,
+      // Firestore field name: "imageUrl" (camelCase). Android Room column is
+      // "image_url" (snake_case); FirestoreTextAnnotation maps between them via
+      // @PropertyName("imageUrl") on the Kotlin model.
       imageUrl: og.image ?? null,
       updatedAt: FieldValue.serverTimestamp(),
     },

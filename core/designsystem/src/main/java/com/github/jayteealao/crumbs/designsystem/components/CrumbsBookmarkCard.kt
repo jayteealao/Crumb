@@ -236,7 +236,7 @@ private fun BookmarkCardContent(
 
             // Body column — title, preview, dashed footer, meta, tags.
             Column(
-                modifier = Modifier.padding(spacing.md + 2.dp), // 14dp
+                modifier = Modifier.padding(spacing.cardContentInset),
             ) {
                 BookmarkCardBody(bookmark = bookmark)
                 Spacer(Modifier.height(spacing.sm))
@@ -386,7 +386,7 @@ private fun BookmarkCardLinkPreview(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(spacing.md + 2.dp), // 14dp — matches the card body inset
+            .padding(spacing.cardContentInset),
     ) {
         Column(
             modifier = Modifier
@@ -470,7 +470,7 @@ private fun BookmarkCardQuotedTweet(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(spacing.md + 2.dp), // 14dp — matches the card body inset
+            .padding(spacing.cardContentInset),
     ) {
         Column(
             modifier = Modifier

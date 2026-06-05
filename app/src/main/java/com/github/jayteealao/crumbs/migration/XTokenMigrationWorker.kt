@@ -53,6 +53,12 @@ internal suspend fun runXTokenMigration(
         return androidx.work.ListenableWorker.Result.success()
     }
 
+    // Re-encrypt any token still held in plaintext by a prior app version before
+    // reading it below: the encrypted read path returns an empty string for an
+    // un-migrated plaintext value, which would otherwise look like "no token"
+    // and skip the server upload, stranding the credential on-device.
+    prefs.migrateTokensToEncrypted()
+
     val refreshToken = prefs.refreshCode.first()
     if (refreshToken.isBlank()) {
         Timber.d("XTokenMigrationWorker: no legacy refresh token, marking migrated")
@@ -84,7 +90,8 @@ internal suspend fun runXTokenMigration(
                 androidx.work.ListenableWorker.Result.success()
             }
             else -> {
-                Timber.w("XTokenMigrationWorker: unexpected payload $payload, retrying")
+                val payloadKeys = (payload as? Map<*, *>)?.keys?.joinToString() ?: "null"
+                Timber.w("XTokenMigrationWorker: unexpected payload keys=[$payloadKeys], retrying")
                 androidx.work.ListenableWorker.Result.retry()
             }
         }

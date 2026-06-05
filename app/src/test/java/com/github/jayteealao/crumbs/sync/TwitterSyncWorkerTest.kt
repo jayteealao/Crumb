@@ -9,8 +9,7 @@ import com.github.jayteealao.crumbs.data.DeletedBookmarkRepository
 import com.github.jayteealao.crumbs.data.SyncProgress
 import com.github.jayteealao.crumbs.data.SyncProgressDao
 import com.github.jayteealao.crumbs.models.BookmarkSource
-import com.github.jayteealao.twitter.data.TweetDao
-import com.github.jayteealao.twitter.data.firestore.FirestoreRepository
+import com.github.jayteealao.twitter.data.TwitterSyncFacade
 import com.github.jayteealao.twitter.models.MediaKeys
 import com.github.jayteealao.twitter.models.PollIds
 import com.github.jayteealao.twitter.models.TweetEntities
@@ -56,9 +55,8 @@ import org.robolectric.annotation.Config
 class TwitterSyncWorkerTest {
 
     private lateinit var context: Context
-    private lateinit var tweetDao: TweetDao
+    private lateinit var syncFacade: TwitterSyncFacade
     private lateinit var syncProgressDao: SyncProgressDao
-    private lateinit var firestoreRepository: FirestoreRepository
     private lateinit var deletedBookmarkRepository: DeletedBookmarkRepository
     private lateinit var authGateway: AuthGateway
     private val currentUserFlow = MutableStateFlow<CurrentUser?>(CurrentUser(uid = "uid-test", email = null))
@@ -66,14 +64,13 @@ class TwitterSyncWorkerTest {
     @Before
     fun setUp() = runTest {
         context = ApplicationProvider.getApplicationContext()
-        tweetDao = mockk(relaxed = true)
+        syncFacade = mockk(relaxed = true)
         syncProgressDao = mockk(relaxed = true)
-        firestoreRepository = mockk()
         deletedBookmarkRepository = mockk()
         authGateway = mockk()
         every { authGateway.currentUser } returns currentUserFlow
-        coEvery { tweetDao.getAllTweetIds() } returns emptyList()
-        coEvery { tweetDao.getMaxOrder() } returns 1000
+        coEvery { syncFacade.getAllTweetIds() } returns emptyList()
+        coEvery { syncFacade.getMaxOrder() } returns 1000
         coEvery { deletedBookmarkRepository.deletedIdsSnapshot(BookmarkSource.Twitter) } returns emptySet()
         coEvery { syncProgressDao.get(any()) } returns null
         coEvery { syncProgressDao.upsert(any()) } just Runs
@@ -117,9 +114,8 @@ class TwitterSyncWorkerTest {
 
         val result = runTwitterSync(
             ctx = context,
-            tweetDao = tweetDao,
+            syncFacade = syncFacade,
             syncProgressDao = syncProgressDao,
-            firestoreRepository = firestoreRepository,
             deletedBookmarkRepository = deletedBookmarkRepository,
             authGateway = authGateway,
             runAsForegroundService = false,
@@ -130,13 +126,13 @@ class TwitterSyncWorkerTest {
 
         assertEquals(ListenableWorker.Result.failure(), result)
         assertTrue("no batches should commit when uid is null", capturedCommits.isEmpty())
-        coVerify(exactly = 0) { firestoreRepository.fetchTweetsNotInLocalStream(any(), any()) }
+        coVerify(exactly = 0) { syncFacade.fetchMissingTweetsStream(any(), any()) }
     }
 
     @Test
     fun coldStart_twoBatches_commitsBothAndAdvancesCursors() = runTest {
         every {
-            firestoreRepository.fetchTweetsNotInLocalStream(any(), any())
+            syncFacade.fetchMissingTweetsStream(any(), any())
         } returns stubStream(
             listOf(
                 tweetEntities("tw-001", "2026-05-24T15:00:00Z"),
@@ -152,9 +148,8 @@ class TwitterSyncWorkerTest {
 
         val result = runTwitterSync(
             ctx = context,
-            tweetDao = tweetDao,
+            syncFacade = syncFacade,
             syncProgressDao = syncProgressDao,
-            firestoreRepository = firestoreRepository,
             deletedBookmarkRepository = deletedBookmarkRepository,
             authGateway = authGateway,
             runAsForegroundService = false,
@@ -185,7 +180,7 @@ class TwitterSyncWorkerTest {
             lastUpdatedAtMs = 0L,
         )
         every {
-            firestoreRepository.fetchTweetsNotInLocalStream(any(), any())
+            syncFacade.fetchMissingTweetsStream(any(), any())
         } returns stubStream(listOf(tweetEntities("tw-100", "2026-05-24T11:00:00Z")))
 
         val capturedProgress = slot<SyncProgress>()
@@ -193,9 +188,8 @@ class TwitterSyncWorkerTest {
 
         val result = runTwitterSync(
             ctx = context,
-            tweetDao = tweetDao,
+            syncFacade = syncFacade,
             syncProgressDao = syncProgressDao,
-            firestoreRepository = firestoreRepository,
             deletedBookmarkRepository = deletedBookmarkRepository,
             authGateway = authGateway,
             runAsForegroundService = false,
@@ -222,14 +216,13 @@ class TwitterSyncWorkerTest {
             FirebaseFirestoreException.Code.UNAVAILABLE,
         )
         every {
-            firestoreRepository.fetchTweetsNotInLocalStream(any(), any())
+            syncFacade.fetchMissingTweetsStream(any(), any())
         } returns flow { throw unavailable }
 
         val result = runTwitterSync(
             ctx = context,
-            tweetDao = tweetDao,
+            syncFacade = syncFacade,
             syncProgressDao = syncProgressDao,
-            firestoreRepository = firestoreRepository,
             deletedBookmarkRepository = deletedBookmarkRepository,
             authGateway = authGateway,
             runAsForegroundService = false,
@@ -248,14 +241,13 @@ class TwitterSyncWorkerTest {
             FirebaseFirestoreException.Code.UNAVAILABLE,
         )
         every {
-            firestoreRepository.fetchTweetsNotInLocalStream(any(), any())
+            syncFacade.fetchMissingTweetsStream(any(), any())
         } returns flow { throw unavailable }
 
         val result = runTwitterSync(
             ctx = context,
-            tweetDao = tweetDao,
+            syncFacade = syncFacade,
             syncProgressDao = syncProgressDao,
-            firestoreRepository = firestoreRepository,
             deletedBookmarkRepository = deletedBookmarkRepository,
             authGateway = authGateway,
             runAsForegroundService = false,
@@ -274,14 +266,13 @@ class TwitterSyncWorkerTest {
             FirebaseFirestoreException.Code.PERMISSION_DENIED,
         )
         every {
-            firestoreRepository.fetchTweetsNotInLocalStream(any(), any())
+            syncFacade.fetchMissingTweetsStream(any(), any())
         } returns flow { throw denied }
 
         val result = runTwitterSync(
             ctx = context,
-            tweetDao = tweetDao,
+            syncFacade = syncFacade,
             syncProgressDao = syncProgressDao,
-            firestoreRepository = firestoreRepository,
             deletedBookmarkRepository = deletedBookmarkRepository,
             authGateway = authGateway,
             runAsForegroundService = false,
@@ -296,7 +287,7 @@ class TwitterSyncWorkerTest {
     @Test
     fun timeoutCancellation_underCap_returnsRetry() = runTest {
         every {
-            firestoreRepository.fetchTweetsNotInLocalStream(any(), any())
+            syncFacade.fetchMissingTweetsStream(any(), any())
         } returns flow {
             // Trigger a real TimeoutCancellationException — the constructor is
             // internal, so we route through withTimeout instead.
@@ -305,9 +296,8 @@ class TwitterSyncWorkerTest {
 
         val result = runTwitterSync(
             ctx = context,
-            tweetDao = tweetDao,
+            syncFacade = syncFacade,
             syncProgressDao = syncProgressDao,
-            firestoreRepository = firestoreRepository,
             deletedBookmarkRepository = deletedBookmarkRepository,
             authGateway = authGateway,
             runAsForegroundService = false,
@@ -322,15 +312,14 @@ class TwitterSyncWorkerTest {
     @Test
     fun emptyStream_returnsSuccess_withoutCommits() = runTest {
         every {
-            firestoreRepository.fetchTweetsNotInLocalStream(any(), any())
+            syncFacade.fetchMissingTweetsStream(any(), any())
         } returns flowOf()
 
         var commits = 0
         val result = runTwitterSync(
             ctx = context,
-            tweetDao = tweetDao,
+            syncFacade = syncFacade,
             syncProgressDao = syncProgressDao,
-            firestoreRepository = firestoreRepository,
             deletedBookmarkRepository = deletedBookmarkRepository,
             authGateway = authGateway,
             runAsForegroundService = false,
@@ -360,16 +349,15 @@ class TwitterSyncWorkerTest {
     @Test
     fun coldStartFailureInjector_doesNotMarkProgress() = runTest {
         every {
-            firestoreRepository.fetchTweetsNotInLocalStream(any(), any())
+            syncFacade.fetchMissingTweetsStream(any(), any())
         } returns flow { throw RuntimeException("boom") }
 
         val capturedProgress: SyncProgress? = null
 
         val result = runTwitterSync(
             ctx = context,
-            tweetDao = tweetDao,
+            syncFacade = syncFacade,
             syncProgressDao = syncProgressDao,
-            firestoreRepository = firestoreRepository,
             deletedBookmarkRepository = deletedBookmarkRepository,
             authGateway = authGateway,
             runAsForegroundService = false,

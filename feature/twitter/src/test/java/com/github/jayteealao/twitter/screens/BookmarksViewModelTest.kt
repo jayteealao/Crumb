@@ -9,7 +9,7 @@ import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.models.ContentType
 import com.github.jayteealao.crumbs.models.VideoVariant
 import com.github.jayteealao.twitter.data.Repository
-import com.github.jayteealao.twitter.data.SnackbarEvent
+import com.github.jayteealao.twitter.data.TwitterSnackbarEvent
 import com.github.jayteealao.twitter.data.SyncStatusRepository
 import com.github.jayteealao.twitter.data.dto.SyncStatus
 import io.mockk.coEvery
@@ -70,7 +70,7 @@ class BookmarksViewModelTest {
     // Backing state flows that the mocked repositories expose
     private val isRefreshingFlow = MutableStateFlow(false)
     private val syncStatusFlow = MutableStateFlow<SyncStatus?>(null)
-    private val snackbarEventsFlow = MutableSharedFlow<SnackbarEvent>(replay = 0, extraBufferCapacity = 4)
+    private val snackbarEventsFlow = MutableSharedFlow<TwitterSnackbarEvent>(replay = 0, extraBufferCapacity = 4)
 
     @Before
     fun setUp() {
@@ -185,6 +185,100 @@ class BookmarksViewModelTest {
         advanceUntilIdle()
         coVerify(exactly = 1) { repository.refetchTweetMedia("t1") }
         coVerify(exactly = 1) { repository.refetchTweetMedia("t2") }
+    }
+
+    // -------------------------------------------------------------------------
+    // 1c. refetchLinksIfMissing — single-tweet link re-fetch (tweet with no
+    //     resolved url entity). Mirrors the refetchMediaIfMissing test shape.
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun refetchLinksIfMissing_firstCall_invokesRepositoryOnce() = runTest(dispatcher) {
+        coEvery { repository.refetchTweetLinks("t1") } returns true
+        vm.refetchLinksIfMissing("t1")
+        advanceUntilIdle()
+        coVerify(exactly = 1) { repository.refetchTweetLinks("t1") }
+    }
+
+    @Test
+    fun refetchLinksIfMissing_sameIdTwice_invokesRepositoryOnlyOnce() = runTest(dispatcher) {
+        // Per-session linkRefetchAttempts dedup: calling twice for the same id must
+        // not re-hit Firestore on every scroll-into-view.
+        vm.refetchLinksIfMissing("t1")
+        advanceUntilIdle()
+        vm.refetchLinksIfMissing("t1")
+        advanceUntilIdle()
+        coVerify(exactly = 1) { repository.refetchTweetLinks("t1") }
+    }
+
+    @Test
+    fun refetchLinksIfMissing_repositoryThrows_isSwallowedAndAttemptStillRecorded() = runTest(dispatcher) {
+        coEvery { repository.refetchTweetLinks("t1") } throws RuntimeException("network down")
+        // runCatching in the ViewModel swallows the failure — the card settles to
+        // text-only rather than crashing.
+        vm.refetchLinksIfMissing("t1")
+        advanceUntilIdle()
+        // The attempt is recorded before the launch, so a same-session retry does not
+        // re-hit the repository even though the first attempt failed.
+        vm.refetchLinksIfMissing("t1")
+        advanceUntilIdle()
+        coVerify(exactly = 1) { repository.refetchTweetLinks("t1") }
+    }
+
+    @Test
+    fun refetchLinksIfMissing_distinctIds_eachInvokedOnce() = runTest(dispatcher) {
+        vm.refetchLinksIfMissing("t1")
+        vm.refetchLinksIfMissing("t2")
+        advanceUntilIdle()
+        coVerify(exactly = 1) { repository.refetchTweetLinks("t1") }
+        coVerify(exactly = 1) { repository.refetchTweetLinks("t2") }
+    }
+
+    // -------------------------------------------------------------------------
+    // 1d. refetchQuotesIfMissing — single-tweet quoted-body re-fetch (tweet
+    //     whose quoted body hasn't landed locally). Mirrors the same shape.
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun refetchQuotesIfMissing_firstCall_invokesRepositoryOnce() = runTest(dispatcher) {
+        coEvery { repository.refetchTweetQuotes("t1") } returns true
+        vm.refetchQuotesIfMissing("t1")
+        advanceUntilIdle()
+        coVerify(exactly = 1) { repository.refetchTweetQuotes("t1") }
+    }
+
+    @Test
+    fun refetchQuotesIfMissing_sameIdTwice_invokesRepositoryOnlyOnce() = runTest(dispatcher) {
+        // Per-session quoteRefetchAttempts dedup: calling twice for the same id must
+        // not re-hit Firestore on every scroll-into-view.
+        vm.refetchQuotesIfMissing("t1")
+        advanceUntilIdle()
+        vm.refetchQuotesIfMissing("t1")
+        advanceUntilIdle()
+        coVerify(exactly = 1) { repository.refetchTweetQuotes("t1") }
+    }
+
+    @Test
+    fun refetchQuotesIfMissing_repositoryThrows_isSwallowedAndAttemptStillRecorded() = runTest(dispatcher) {
+        coEvery { repository.refetchTweetQuotes("t1") } throws RuntimeException("network down")
+        // runCatching in the ViewModel swallows the failure — the card settles to
+        // "unavailable" rather than crashing.
+        vm.refetchQuotesIfMissing("t1")
+        advanceUntilIdle()
+        // The attempt is recorded before the launch, so a same-session retry does not
+        // re-hit the repository even though the first attempt failed.
+        vm.refetchQuotesIfMissing("t1")
+        advanceUntilIdle()
+        coVerify(exactly = 1) { repository.refetchTweetQuotes("t1") }
+    }
+
+    @Test
+    fun refetchQuotesIfMissing_distinctIds_eachInvokedOnce() = runTest(dispatcher) {
+        vm.refetchQuotesIfMissing("t1")
+        vm.refetchQuotesIfMissing("t2")
+        advanceUntilIdle()
+        coVerify(exactly = 1) { repository.refetchTweetQuotes("t1") }
+        coVerify(exactly = 1) { repository.refetchTweetQuotes("t2") }
     }
 
     // -------------------------------------------------------------------------
@@ -654,5 +748,155 @@ class BookmarksViewModelTest {
 
         vm.closeVideoViewer()
         assertFalse(vm.videoViewerOpen.value)
+    }
+
+    // -------------------------------------------------------------------------
+    // 25. Inline video — ON_PAUSE / ON_RESUME lifecycle handling (AC3)
+    //
+    // The live background/foreground drive is a device gate (deferred); these
+    // cover the off-device behaviour: pause-on-background and the resume guard.
+    // The positive resume branch needs a player that actually reaches
+    // STATE_READY (isPlaying == true), which a Robolectric player without real
+    // decode cannot, so it stays in the runtime-evidence deferral.
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun onAppPaused_pausesActivePlayback() = runTest(dispatcher) {
+        vm.playVideo(videoBookmark("v1"))
+        advanceUntilIdle()
+        val p = vm.player!!
+        assertTrue("playVideo starts playback (playWhenReady)", p.playWhenReady)
+
+        vm.onAppPaused()
+        assertFalse("ON_PAUSE pauses the shared player", p.playWhenReady)
+    }
+
+    @Test
+    fun onAppResumed_whenNothingWasPlaying_doesNotForceResume() = runTest(dispatcher) {
+        // On a Robolectric player that never reaches STATE_READY, isPlaying is
+        // false, so wasPlayingBeforePause is false and ON_RESUME must be a
+        // guarded no-op (it must not force playback that was not running).
+        vm.playVideo(videoBookmark("v1"))
+        advanceUntilIdle()
+        vm.onAppPaused()
+        assertFalse(vm.player!!.playWhenReady)
+
+        vm.onAppResumed()
+        assertFalse("ON_RESUME honours the was-playing guard", vm.player!!.playWhenReady)
+    }
+
+    @Test
+    fun lifecycleCallbacks_withNoActivePlayer_areNoOps() = runTest(dispatcher) {
+        // No video has played → no shared player built → the lifecycle callbacks
+        // must short-circuit without building a player or crashing.
+        vm.onAppPaused()
+        vm.onAppResumed()
+        assertNull(vm.player)
+    }
+
+    // TEST-3 — onAppResumed positive branch: when wasPlayingBeforePause is true,
+    // onAppResumed must call p.play() (sets playWhenReady back to true).
+    //
+    // Robolectric's ExoPlayer never reaches STATE_READY so p.isPlaying is always
+    // false; the only way to exercise the `if (wasPlayingBeforePause) p.play()`
+    // branch is to inject the flag directly via reflection.
+    @Test
+    fun onAppResumed_whenWasPlayingBeforePause_resumesPlayback() = runTest(dispatcher) {
+        vm.playVideo(videoBookmark("v1"))
+        advanceUntilIdle()
+        val p = vm.player!!
+
+        // Pause so the player is in a known state (playWhenReady = false).
+        vm.onAppPaused()
+        assertFalse("sanity: player is paused", p.playWhenReady)
+
+        // Inject wasPlayingBeforePause = true via reflection to simulate the path
+        // that is only reachable when the player is genuinely playing at pause time
+        // (p.isPlaying == true), which Robolectric cannot reach without real decode.
+        val field = BookmarksViewModel::class.java.getDeclaredField("wasPlayingBeforePause")
+        field.isAccessible = true
+        field.setBoolean(vm, true)
+
+        vm.onAppResumed()
+
+        assertTrue(
+            "ON_RESUME must call play() when wasPlayingBeforePause is true",
+            p.playWhenReady,
+        )
+    }
+
+    // -------------------------------------------------------------------------
+    // 26. pagingFlow — filter propagation into repository queries (TEST-5)
+    //
+    // The existing test verifies the initial call and a tag-toggle resubscription.
+    // These tests assert that TYPE filter changes and bulk tag-apply changes also
+    // cause pagingTweetData to be called with the updated FilterState, closing
+    // the gap where a cached-first-filter regression would pass the original test.
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun pagingFlow_requeriesRepositoryWithTypeFilter_onTypeChipToggle() = runTest(dispatcher) {
+        val job = CoroutineScope(dispatcher).launch {
+            vm.pagingFlow.collect {}
+        }
+        advanceUntilIdle()
+
+        // Baseline: default filter observed on subscription
+        coVerify { repository.pagingTweetData(FilterState()) }
+
+        // Toggle to VIDEO type; flatMapLatest must resubscribe with updated filter
+        vm.onTypeChipToggled("VIDEO")
+        advanceUntilIdle()
+
+        val videoFilter = FilterState(type = TypeFilter.VIDEO)
+        coVerify { repository.pagingTweetData(videoFilter) }
+
+        job.cancel()
+    }
+
+    @Test
+    fun pagingFlow_requeriesRepositoryWithTagFilter_onTagsApplied() = runTest(dispatcher) {
+        val job = CoroutineScope(dispatcher).launch {
+            vm.pagingFlow.collect {}
+        }
+        advanceUntilIdle()
+
+        // Apply a batch of tags wholesale; flatMapLatest must resubscribe with them
+        vm.onTagsApplied(setOf("compose", "kotlin"))
+        advanceUntilIdle()
+
+        // Verify that pagingTweetData was called with a state that contains both tags
+        coVerify {
+            repository.pagingTweetData(
+                match { state ->
+                    state.selectedTags.containsAll(listOf("compose", "kotlin")) &&
+                        state.selectedTags.size == 2
+                },
+            )
+        }
+
+        job.cancel()
+    }
+
+    @Test
+    fun pagingFlow_requeriesRepositoryWithCombinedFilter_onTypeAndTagChange() = runTest(dispatcher) {
+        val job = CoroutineScope(dispatcher).launch {
+            vm.pagingFlow.collect {}
+        }
+        advanceUntilIdle()
+
+        // Apply both type and tag; each mutation triggers a separate call
+        vm.onTypeChipToggled("ARTICLE")
+        advanceUntilIdle()
+        vm.onTagToggled("android")
+        advanceUntilIdle()
+
+        val combinedFilter = FilterState(
+            type = TypeFilter.ARTICLE,
+            selectedTags = persistentSetOf("android"),
+        )
+        coVerify { repository.pagingTweetData(combinedFilter) }
+
+        job.cancel()
     }
 }

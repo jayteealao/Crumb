@@ -14,7 +14,7 @@ import com.github.jayteealao.crumbs.models.Bookmark
 import com.github.jayteealao.crumbs.data.FilterState
 import com.github.jayteealao.crumbs.data.TypeFilter
 import com.github.jayteealao.twitter.data.Repository
-import com.github.jayteealao.twitter.data.SnackbarEvent
+import com.github.jayteealao.twitter.data.TwitterSnackbarEvent
 import com.github.jayteealao.twitter.data.SyncStatusRepository
 import com.github.jayteealao.twitter.data.dto.SyncStatus
 import com.github.jayteealao.twitter.models.TweetData
@@ -37,6 +37,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -59,7 +61,7 @@ class BookmarksViewModel @Inject constructor(
 
     val syncStatus: StateFlow<SyncStatus?> = syncStatusRepository.flow
 
-    val snackbarEvents: SharedFlow<SnackbarEvent> = repository.snackbarEvents
+    val snackbarEvents: SharedFlow<TwitterSnackbarEvent> = repository.snackbarEvents
 
     private val _filter = MutableStateFlow(FilterState())
     val filter: StateFlow<FilterState> = _filter.asStateFlow()
@@ -79,7 +81,7 @@ class BookmarksViewModel @Inject constructor(
         .flatMapLatest { state -> repository.countFlow(state) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    fun pagingFlowData(order: String = "default"): Flow<PagingData<TweetData>> = pagingFlow
+    fun pagingFlowData(): Flow<PagingData<TweetData>> = pagingFlow
 
     fun refresh() {
         viewModelScope.launch {
@@ -96,64 +98,47 @@ class BookmarksViewModel @Inject constructor(
         viewModelScope.launch { syncStatusRepository.refresh() }
     }
 
-    // Tweet ids already attempted this session. Keeps a media-less card re-entering
-    // composition (scroll off + back) from re-hitting Firestore every time. Accessed
-    // only from the main thread (composition + viewModelScope's default dispatcher).
-    private val mediaRefetchAttempts = mutableSetOf<String>()
+    // Per-session deduplication for on-view lazy re-fetches (media / link / quote).
+    // Each kind gets its own slot in the map so a tweet that needs both a link and
+    // a media re-fetch is retried once per kind, not once total. The backing sets
+    // are ConcurrentHashMap-based so they are safe under any dispatcher (including
+    // test dispatchers that may not be single-threaded).
+    private val refetchAttempts: MutableMap<String, MutableSet<String>> =
+        Collections.synchronizedMap(HashMap())
+
+    private fun lazyRefetch(kind: String, tweetId: String, block: suspend () -> Unit) {
+        val seen = refetchAttempts.getOrPut(kind) {
+            Collections.newSetFromMap(ConcurrentHashMap())
+        }
+        if (!seen.add(tweetId)) return
+        viewModelScope.launch { runCatching { block() } }
+    }
 
     /**
      * Lazy on-view media re-fetch (image-rendering AC). Attempts at most one
      * re-fetch per tweet per session; on success Room invalidation re-emits the
      * paged card with its images. A tweet with no media in Firestore settles to
      * text-only and is not retried until the next session (the one-time backfill
-     * worker repairs the back-catalogue in bulk) — this bound keeps the feed from
-     * hammering Firestore with a single-doc read for every text card on each scroll.
+     * worker repairs the back-catalogue in bulk).
      */
-    fun refetchMediaIfMissing(tweetId: String) {
-        if (!mediaRefetchAttempts.add(tweetId)) return
-        viewModelScope.launch {
-            runCatching { repository.refetchTweetMedia(tweetId) }
-        }
-    }
-
-    // Separate per-session attempted-set for link re-fetch (an external-looking tweet
-    // with no resolved url entity). Kept distinct from [mediaRefetchAttempts] because
-    // the two repair different data and a tweet can need one, the other, or both.
-    private val linkRefetchAttempts = mutableSetOf<String>()
+    fun refetchMediaIfMissing(tweetId: String) =
+        lazyRefetch("media", tweetId) { repository.refetchTweetMedia(tweetId) }
 
     /**
      * Lazy on-view link re-fetch (link-previews AC). Attempts at most one re-fetch per
      * tweet per session; on success the server-enriched url entity lands and Room
-     * invalidation re-emits the card as a Link with its preview. A tweet whose url entity
-     * is still absent in Firestore (server not yet enriched) settles unchanged and is not
-     * retried until the next session — the one-time backfill worker repairs the bulk.
+     * invalidation re-emits the card as a Link with its preview.
      */
-    fun refetchLinksIfMissing(tweetId: String) {
-        if (!linkRefetchAttempts.add(tweetId)) return
-        viewModelScope.launch {
-            runCatching { repository.refetchTweetLinks(tweetId) }
-        }
-    }
-
-    // Separate per-session attempted-set for quoted-body re-fetch (a tweet that
-    // references a quote whose body hasn't landed locally → the "unavailable" card).
-    // Distinct from the media/link sets because the three repair different data.
-    private val quoteRefetchAttempts = mutableSetOf<String>()
+    fun refetchLinksIfMissing(tweetId: String) =
+        lazyRefetch("link", tweetId) { repository.refetchTweetLinks(tweetId) }
 
     /**
      * Lazy on-view quoted-body re-fetch (quoted-tweets AC). Attempts at most one
      * re-fetch per tweet per session; on success the server-written quoted body lands
-     * and Room invalidation re-emits the card with the rendered quote. A tweet whose
-     * quoted body is still absent in Firestore (server not yet written / deleted quote)
-     * settles unchanged and is not retried until the next session — the one-time
-     * backfill worker repairs the bulk.
+     * and Room invalidation re-emits the card with the rendered quote.
      */
-    fun refetchQuotesIfMissing(tweetId: String) {
-        if (!quoteRefetchAttempts.add(tweetId)) return
-        viewModelScope.launch {
-            runCatching { repository.refetchTweetQuotes(tweetId) }
-        }
-    }
+    fun refetchQuotesIfMissing(tweetId: String) =
+        lazyRefetch("quote", tweetId) { repository.refetchTweetQuotes(tweetId) }
 
     // ---- Inline video (single shared, leak-free ExoPlayer) ----
     //

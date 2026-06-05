@@ -1,10 +1,7 @@
 package com.github.jayteealao.twitter.data.firestore
 
-import com.github.jayteealao.twitter.models.MediaKeys
 import com.github.jayteealao.twitter.models.TweetEntities
 import com.github.jayteealao.twitter.models.TweetEntity
-import com.github.jayteealao.twitter.models.TweetReferencedTweets
-import com.github.jayteealao.twitter.models.TweetReferencedTweetsFull
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.FieldPath
@@ -21,6 +18,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -52,6 +50,8 @@ class FirestoreRepository @Inject constructor(
         // 30s on a Samsung Galaxy class device. Either silence the warnings
         // OR widen the window; widening is the least-invasive while we ship.
         private const val BATCH_TIMEOUT_MS = 120_000L
+        // Per-sub-collection timeout: one slow collection cannot starve the others.
+        private const val SUB_FETCH_TIMEOUT_MS = 30_000L
     }
 
     private fun requireUid(): String =
@@ -248,44 +248,64 @@ class FirestoreRepository @Inject constructor(
         try {
             withTimeout(BATCH_TIMEOUT_MS) {
                 val tweetsDeferred = async {
-                    tweetsCol(uid)
-                        .whereIn("tweetId", tweetIds)
-                        .get()
-                        .await()
-                        .toObjects(FirestoreTweet::class.java)
-                        .associateBy { it.tweetId }
+                    withTimeoutOrNull(SUB_FETCH_TIMEOUT_MS) {
+                        tweetsCol(uid)
+                            .whereIn("tweetId", tweetIds)
+                            .get()
+                            .await()
+                            .toObjects(FirestoreTweet::class.java)
+                            .associateBy { it.tweetId }
+                    } ?: run {
+                        Timber.w("tweetsCol sub-fetch timed out after ${SUB_FETCH_TIMEOUT_MS}ms for ids=${tweetIds.take(5)}")
+                        emptyMap()
+                    }
                 }
 
                 val usersDeferred = async {
-                    val tweets = tweetsDeferred.await()
-                    val authorIds = tweets.values.map { it.authorId }.distinct()
-                    if (authorIds.isEmpty()) return@async emptyMap()
+                    withTimeoutOrNull(SUB_FETCH_TIMEOUT_MS) {
+                        val tweets = tweetsDeferred.await()
+                        val authorIds = tweets.values.map { it.authorId }.distinct()
+                        if (authorIds.isEmpty()) return@withTimeoutOrNull emptyMap<String, FirestoreUser>()
 
-                    authorIds.chunked(30).flatMap { batch ->
-                        twitterUsersCol(uid)
-                            .whereIn("userId", batch)
-                            .get()
-                            .await()
-                            .toObjects(FirestoreUser::class.java)
-                    }.associateBy { it.userId }
+                        authorIds.chunked(30).flatMap { batch ->
+                            twitterUsersCol(uid)
+                                .whereIn("userId", batch)
+                                .get()
+                                .await()
+                                .toObjects(FirestoreUser::class.java)
+                        }.associateBy { it.userId }
+                    } ?: run {
+                        Timber.w("twitterUsersCol sub-fetch timed out after ${SUB_FETCH_TIMEOUT_MS}ms for ids=${tweetIds.take(5)}")
+                        emptyMap()
+                    }
                 }
 
                 val metricsDeferred = async {
-                    metricsCol(uid)
-                        .whereIn("tweetId", tweetIds)
-                        .get()
-                        .await()
-                        .toObjects(FirestoreMetrics::class.java)
-                        .associateBy { it.tweetId }
+                    withTimeoutOrNull(SUB_FETCH_TIMEOUT_MS) {
+                        metricsCol(uid)
+                            .whereIn("tweetId", tweetIds)
+                            .get()
+                            .await()
+                            .toObjects(FirestoreMetrics::class.java)
+                            .associateBy { it.tweetId }
+                    } ?: run {
+                        Timber.w("metricsCol sub-fetch timed out after ${SUB_FETCH_TIMEOUT_MS}ms for ids=${tweetIds.take(5)}")
+                        emptyMap()
+                    }
                 }
 
                 val includesDeferred = async {
-                    includesCol(uid)
-                        .whereIn("tweetId", tweetIds)
-                        .get()
-                        .await()
-                        .toObjects(FirestoreIncludes::class.java)
-                        .groupBy { it.tweetId }
+                    withTimeoutOrNull(SUB_FETCH_TIMEOUT_MS) {
+                        includesCol(uid)
+                            .whereIn("tweetId", tweetIds)
+                            .get()
+                            .await()
+                            .toObjects(FirestoreIncludes::class.java)
+                            .groupBy { it.tweetId }
+                    } ?: run {
+                        Timber.w("includesCol sub-fetch timed out after ${SUB_FETCH_TIMEOUT_MS}ms for ids=${tweetIds.take(5)}")
+                        emptyMap()
+                    }
                 }
 
                 // Quoted-tweet bodies: the ids referenced as type="quoted" by this
@@ -294,37 +314,47 @@ class FirestoreRepository @Inject constructor(
                 // sub-card without ever surfacing as feed cards. A quoted id with no
                 // doc here ⇒ the quote is unavailable (deleted/protected).
                 val quotedTweetsDeferred = async {
-                    val includesByTweet = includesDeferred.await()
-                    val quotedIds = includesByTweet.values.asSequence()
-                        .flatten()
-                        .filter { it.type == "quoted" && it.referencedTweetId != null }
-                        .mapNotNull { it.referencedTweetId }
-                        .distinct()
-                        .toList()
-                    if (quotedIds.isEmpty()) return@async emptyMap<String, FirestoreTweet>()
-                    quotedIds.chunked(30).flatMap { batch ->
-                        tweetsCol(uid)
-                            .whereIn("tweetId", batch)
-                            .get()
-                            .await()
-                            .toObjects(FirestoreTweet::class.java)
-                    }.associateBy { it.tweetId }
+                    withTimeoutOrNull(SUB_FETCH_TIMEOUT_MS) {
+                        val includesByTweet = includesDeferred.await()
+                        val quotedIds = includesByTweet.values.asSequence()
+                            .flatten()
+                            .filter { it.type == "quoted" && it.referencedTweetId != null }
+                            .mapNotNull { it.referencedTweetId }
+                            .distinct()
+                            .toList()
+                        if (quotedIds.isEmpty()) return@withTimeoutOrNull emptyMap<String, FirestoreTweet>()
+                        quotedIds.chunked(30).flatMap { batch ->
+                            tweetsCol(uid)
+                                .whereIn("tweetId", batch)
+                                .get()
+                                .await()
+                                .toObjects(FirestoreTweet::class.java)
+                        }.associateBy { it.tweetId }
+                    } ?: run {
+                        Timber.w("quotedTweetsCol sub-fetch timed out after ${SUB_FETCH_TIMEOUT_MS}ms for ids=${tweetIds.take(5)}")
+                        emptyMap()
+                    }
                 }
 
                 // Authors of the quoted tweets — distinct from the bookmark authors and
                 // fetched separately so the quoted sub-card's nested @Relation author
                 // hydrates (still nullable-safe when an author doc is missing).
                 val quotedAuthorsDeferred = async {
-                    val quoted = quotedTweetsDeferred.await()
-                    val authorIds = quoted.values.map { it.authorId }.filter { it.isNotEmpty() }.distinct()
-                    if (authorIds.isEmpty()) return@async emptyMap<String, FirestoreUser>()
-                    authorIds.chunked(30).flatMap { batch ->
-                        twitterUsersCol(uid)
-                            .whereIn("userId", batch)
-                            .get()
-                            .await()
-                            .toObjects(FirestoreUser::class.java)
-                    }.associateBy { it.userId }
+                    withTimeoutOrNull(SUB_FETCH_TIMEOUT_MS) {
+                        val quoted = quotedTweetsDeferred.await()
+                        val authorIds = quoted.values.map { it.authorId }.filter { it.isNotEmpty() }.distinct()
+                        if (authorIds.isEmpty()) return@withTimeoutOrNull emptyMap<String, FirestoreUser>()
+                        authorIds.chunked(30).flatMap { batch ->
+                            twitterUsersCol(uid)
+                                .whereIn("userId", batch)
+                                .get()
+                                .await()
+                                .toObjects(FirestoreUser::class.java)
+                        }.associateBy { it.userId }
+                    } ?: run {
+                        Timber.w("quotedAuthorsCol sub-fetch timed out after ${SUB_FETCH_TIMEOUT_MS}ms for ids=${tweetIds.take(5)}")
+                        emptyMap()
+                    }
                 }
 
                 // Media docs are keyed by `mediaKey` (the document id), not by
@@ -334,38 +364,48 @@ class FirestoreRepository @Inject constructor(
                 // `mediaKey`. So we await includes, collect the mediaKey set,
                 // and fetch media by document id in chunks of 30.
                 val mediaDeferred = async {
-                    val includesByTweet = includesDeferred.await()
-                    val mediaKeys = includesByTweet.values.asSequence()
-                        .flatten()
-                        .mapNotNull { it.mediaKey }
-                        .filter { it.isNotEmpty() }
-                        .distinct()
-                        .toList()
-                    if (mediaKeys.isEmpty()) return@async emptyMap<String, List<FirestoreMedia>>()
+                    withTimeoutOrNull(SUB_FETCH_TIMEOUT_MS) {
+                        val includesByTweet = includesDeferred.await()
+                        val mediaKeys = includesByTweet.values.asSequence()
+                            .flatten()
+                            .mapNotNull { it.mediaKey }
+                            .filter { it.isNotEmpty() }
+                            .distinct()
+                            .toList()
+                        if (mediaKeys.isEmpty()) return@withTimeoutOrNull emptyMap<String, List<FirestoreMedia>>()
 
-                    val mediaByKey = mediaKeys.chunked(30).flatMap { batch ->
-                        mediaCol(uid)
-                            .whereIn(FieldPath.documentId(), batch)
-                            .get()
-                            .await()
-                            .toObjects(FirestoreMedia::class.java)
-                    }.associateBy { it.documentId }
+                        val mediaByKey = mediaKeys.chunked(30).flatMap { batch ->
+                            mediaCol(uid)
+                                .whereIn(FieldPath.documentId(), batch)
+                                .get()
+                                .await()
+                                .toObjects(FirestoreMedia::class.java)
+                        }.associateBy { it.documentId }
 
-                    // Re-key from mediaKey → tweetId using the includes join.
-                    includesByTweet.mapValues { (_, includesForTweet) ->
-                        includesForTweet.mapNotNull { inc ->
-                            inc.mediaKey?.takeIf { it.isNotEmpty() }?.let { mediaByKey[it] }
+                        // Re-key from mediaKey → tweetId using the includes join.
+                        includesByTweet.mapValues { (_, includesForTweet) ->
+                            includesForTweet.mapNotNull { inc ->
+                                inc.mediaKey?.takeIf { it.isNotEmpty() }?.let { mediaByKey[it] }
+                            }
                         }
+                    } ?: run {
+                        Timber.w("mediaCol sub-fetch timed out after ${SUB_FETCH_TIMEOUT_MS}ms for ids=${tweetIds.take(5)}")
+                        emptyMap()
                     }
                 }
 
                 val textAnnotationsDeferred = async {
-                    textAnnotationsCol(uid)
-                        .whereIn("tweetId", tweetIds)
-                        .get()
-                        .await()
-                        .toObjects(FirestoreTextAnnotation::class.java)
-                        .groupBy { it.tweetId }
+                    withTimeoutOrNull(SUB_FETCH_TIMEOUT_MS) {
+                        textAnnotationsCol(uid)
+                            .whereIn("tweetId", tweetIds)
+                            .get()
+                            .await()
+                            .toObjects(FirestoreTextAnnotation::class.java)
+                            .groupBy { it.tweetId }
+                    } ?: run {
+                        Timber.w("textAnnotationsCol sub-fetch timed out after ${SUB_FETCH_TIMEOUT_MS}ms for ids=${tweetIds.take(5)}")
+                        emptyMap()
+                    }
                 }
 
                 val tweets = tweetsDeferred.await()
@@ -378,60 +418,23 @@ class FirestoreRepository @Inject constructor(
                 val quotedAuthors = quotedAuthorsDeferred.await()
 
                 tweets.values.mapNotNull { firestoreTweet ->
-                    val tweetId = firestoreTweet.tweetId
-                    val user = users[firestoreTweet.authorId] ?: return@mapNotNull null
-
-                    // Restore the quoted-tweet relation on the FK-FREE junction. Each
-                    // type="quoted" includes row → a reference row (+ the resolved quoted
-                    // body, or null ⇒ unavailable). The DAO batch inserts the quoted
-                    // TweetEntity (referenced=true, kept out of the feed) and the reference
-                    // row together; with no FK on this path the original rollback cannot
-                    // recur. tweetIncludesEntity stays empty — the dangerous mention/reply
-                    // FK relation is intentionally NOT re-enabled.
-                    val referencedFull = includes[tweetId].orEmpty()
-                        .filter { it.type == "quoted" && it.referencedTweetId != null }
-                        .distinctBy { it.referencedTweetId }
-                        .map { inc ->
-                            val refId = inc.referencedTweetId!!
-                            TweetReferencedTweetsFull(
-                                referencedTweets = TweetReferencedTweets(
-                                    type = "quoted",
-                                    id = refId,
-                                    tweetId = tweetId,
-                                ),
-                                tweet = quotedTweets[refId]?.toTweetEntity(referenced = true),
-                            )
-                        }
-                    val quotedAuthorEntities = referencedFull.mapNotNull { it.tweet }
-                        .mapNotNull { quotedAuthors[it.authorId]?.toTwitterUserEntity() }
-                    val authorEntities = (listOf(user.toTwitterUserEntity()) + quotedAuthorEntities)
-                        .distinctBy { it.id }
-
-                    TweetEntities(
-                        tweetEntity = firestoreTweet.toTweetEntity(),
-                        twitterUserEntity = authorEntities,
-                        tweetPublicMetrics = metrics[tweetId]?.toTweetPublicMetrics()
-                            ?: com.github.jayteealao.twitter.models.tweetPublicMetrics().copy(tweetId = tweetId),
-                        tweetMediaEntity = media[tweetId]?.map { it.toTweetMediaEntity() } ?: emptyList(),
-                        // Firestore-side `includes` rows carry mention/reply user ids that are
-                        // not in this tweet's per-row TwitterUserEntity batch. Persisting them
-                        // trips the TweetIncludesEntity → twitterUser / tweetEntity / tweetMedia
-                        // foreign keys and rolls back the whole batch insert. The UI never reads
-                        // TweetData.includes; the dangerous relation stays dropped. The quoted
-                        // relation below rides the FK-free tweetReferencedTweets junction instead.
-                        tweetIncludesEntity = emptyList(),
-                        tweetReferencedTweets = referencedFull,
-                        tweetContextAnnotationEntity = emptyList(),
-                        tweetTextEntity = textAnnotations[tweetId]?.map { it.toTweetTextEntityAnnotation() } ?: emptyList(),
-                        mediaKeys = media[tweetId]?.map { MediaKeys(tweetId, it.mediaKey) } ?: emptyList()
+                    assembleTweetEntities(
+                        firestoreTweet = firestoreTweet,
+                        users = users,
+                        metrics = metrics,
+                        includes = includes,
+                        media = media,
+                        textAnnotations = textAnnotations,
+                        quotedTweets = quotedTweets,
+                        quotedAuthors = quotedAuthors,
                     )
                 }
             }
         } catch (e: TimeoutCancellationException) {
-            // Per-batch timeout fired — log and return empty so the next batch
-            // can proceed. Structural cancellation (parent scope cancelling) is
-            // handled by the next catch arm.
-            Timber.w("Batch timed out after ${BATCH_TIMEOUT_MS}ms, returning empty for ${tweetIds.size} IDs")
+            // Outer batch-level timeout fired — log the full ID list so dropped
+            // tweets are visible in logcat. The caller does NOT advance the cursor
+            // on empty, so these IDs will be retried on the next sync run.
+            Timber.w("Batch timed out after ${BATCH_TIMEOUT_MS}ms; ${tweetIds.size} tweet(s) dropped: $tweetIds")
             emptyList()
         } catch (e: CancellationException) {
             throw e

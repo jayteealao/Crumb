@@ -16,9 +16,8 @@
 #      `roles/datastore.writer` (legacy broad) remain forbidden.
 #
 # Usage:
-#   bash scripts/verify-function-iam.sh [uid]
+#   bash scripts/verify-function-iam.sh <uid>
 #
-# Defaults: uid = 6yPmdM14V3dPHLe3LO9XCfU4l9f1
 # Requires: gcloud CLI authenticated, jq, bash 4+. Run via WSL or Git Bash on
 # Windows; native Linux/macOS works as-is.
 
@@ -26,13 +25,14 @@ set -euo pipefail
 
 PROJECT_ID="crumbs-a4fdb"
 SA_EMAIL="crumb-twitter-poller@${PROJECT_ID}.iam.gserviceaccount.com"
-UID_ARG="${1:-6yPmdM14V3dPHLe3LO9XCfU4l9f1}"
+UID_ARG="${1:?Usage: verify-function-iam.sh <uid>}"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 pass() { echo "PASS: $*"; }
 
 echo "==> Verifying function runtime service account on each deployed function"
-for FN in dailyPoll triggerPoll oauthCallback mintOAuthState warmUp; do
+for FN in dailyPoll triggerPoll oauthCallback mintOAuthState warmUp \
+          enrichTweetLinks backfillTweetLinks backfillQuotedTweets; do
   RUNTIME_SA=$(gcloud functions describe "$FN" \
     --gen2 \
     --region=europe-west2 \

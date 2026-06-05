@@ -38,38 +38,35 @@ export const backfillQuotedTweets = onCall(
 
     const { db } = await import("../lib/admin");
     const { FieldValue, FieldPath } = await import("firebase-admin/firestore");
-    const { getRefreshToken, getXClientCredentials } = await import("../lib/secrets");
-    const { TOKEN_URL, X_API_BASE, TWEETFIELDS, USERFIELDS } = await import("../lib/twitter-api");
+    const { getRefreshToken } = await import("../lib/secrets");
+    const { refreshXTokenWithSignal } = await import("../lib/oauthRefresh");
+    const { X_API_BASE, TWEETFIELDS, USERFIELDS } = await import("../lib/twitter-api");
     const { normalizeCreatedAt } = await import("../lib/tweet-utils");
 
     const database = db();
 
-    // 1. Mint an access token from the user's stored refresh token (same exchange
-    // as runPoll). We deliberately do NOT persist a rotated refresh token here:
-    // X v2 refresh tokens are single-use, and the poll owns rotation — this
-    // one-shot is meant to run alongside / just after a poll.
+    // 1. Mint an access token from the user's stored refresh token.
+    // X v2 refresh tokens are single-use — the shared helper persists any rotated
+    // token returned by X so the next runPoll call does not receive `invalid_grant`.
     const storedRt = await getRefreshToken(uid);
     if (!storedRt) {
       throw new HttpsError("failed-precondition", "X account not linked");
     }
-    const { clientId, clientSecret } = await getXClientCredentials();
-    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`, "utf8").toString("base64");
-    const refreshResp = await fetch(TOKEN_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Authorization: `Basic ${basicAuth}`,
-      },
-      body: new URLSearchParams({
-        grant_type: "refresh_token",
-        refresh_token: storedRt,
-        client_id: clientId,
-      }),
-    });
-    if (!refreshResp.ok) {
+
+    // Guard against a slow X OAuth endpoint hanging the 540 s instance.
+    const tokenAbort = new AbortController();
+    const tokenAbortTimer = setTimeout(() => tokenAbort.abort(), 15_000);
+    let accessToken: string;
+    try {
+      ({ accessToken } = await refreshXTokenWithSignal(uid, storedRt, tokenAbort.signal));
+    } catch (err) {
+      if ((err as Error).name === "AbortError") {
+        throw new HttpsError("unavailable", "X token refresh timed out");
+      }
       throw new HttpsError("unavailable", "Could not refresh X token");
+    } finally {
+      clearTimeout(tokenAbortTimer);
     }
-    const accessToken = ((await refreshResp.json()) as { access_token: string }).access_token;
 
     // 2. Page the user's own bookmarks, collecting quoted reference ids. The raw
     // `referenced_tweets:[{id,type}]` array is preserved on the stored tweet doc
@@ -158,6 +155,7 @@ export const backfillQuotedTweets = onCall(
             inReplyToUserId: qt.in_reply_to_user_id,
             referenced: true,
             pending_delete: false,
+            retrievedAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
           },
           { merge: true },

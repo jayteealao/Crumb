@@ -16,3 +16,4 @@ export { disconnectX } from "./handlers/disconnectX";
 export { enrichTweetLinks } from "./handlers/enrichLinks";
 export { backfillTweetLinks } from "./handlers/backfillLinks";
 export { backfillQuotedTweets } from "./handlers/backfillQuotedTweets";
+export { deleteAccount } from "./handlers/deleteAccount";

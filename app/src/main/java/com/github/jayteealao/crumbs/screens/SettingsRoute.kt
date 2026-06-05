@@ -37,5 +37,8 @@ fun SettingsRoute(
     SettingsScreen(
         syncStatus = syncStatus,
         onDisconnectClick = { bookmarksViewModel.disconnectX() },
+        onDeleteAccountClick = {
+            navController.navigate(Screens.DELETE_ACCOUNT.name)
+        },
     )
 }

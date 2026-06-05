@@ -17,7 +17,11 @@
 import admin from 'firebase-admin';
 
 const PROJECT_ID = 'crumbs-a4fdb';
-const TARGET_UID = '6yPmdM14V3dPHLe3LO9XCfU4l9f1';
+const TARGET_UID = process.env.TARGET_UID || process.argv[2] || '';
+if (!TARGET_UID) {
+  console.error('Error: TARGET_UID is required. Set it via the TARGET_UID env var or pass it as the first argument.');
+  process.exit(1);
+}
 const DRY_RUN = process.env.DRY_RUN === '1';
 const PAGE_SIZE = 500;
 const BATCH_SIZE = 400; // < 500 Firestore batch limit, headroom for retries

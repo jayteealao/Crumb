@@ -21,9 +21,10 @@ import { FieldValue, FieldPath, Timestamp } from "firebase-admin/firestore";
 import type { DocumentReference, WriteBatch, Firestore } from "firebase-admin/firestore";
 
 import { db } from "./admin";
-import { getRefreshToken, setRefreshToken, getXClientCredentials } from "./secrets";
-import { buildBookmarksUrl, USERS_ME_URL, TOKEN_URL } from "./twitter-api";
+import { buildBookmarksUrl, USERS_ME_URL } from "./twitter-api";
 import { normalizeCreatedAt } from "./tweet-utils";
+import { assertValidUid } from "./uid";
+import { refreshXToken, NoRefreshTokenError, RefreshRevokedError } from "./oauthRefresh";
 
 const BATCH_SIZE = 450;
 const DEBOUNCE_MS = 60_000;
@@ -43,7 +44,8 @@ export type PollFailureReason =
 
 export type PollResult =
   | { ok: true; itemsAdded: number; itemsFlaggedPendingDelete: number }
-  | { ok: false; reason: PollFailureReason; retryAfter?: number };
+  | { ok: false; reason: "debounced"; retryAfter: number }
+  | { ok: false; reason: Exclude<PollFailureReason, "debounced"> };
 
 export interface PollOptions {
   reason?: "scheduled" | "trigger";
@@ -117,12 +119,6 @@ function isStrictlyAboveBoundary(id: string, boundary: string): boolean {
   }
 }
 
-function assertValidUid(uid: string): void {
-  // Defensive: prevent traversal-style paths in the doc path.
-  if (!uid || uid.includes("/") || uid.includes("..")) {
-    throw new Error(`invalid_uid: ${uid}`);
-  }
-}
 
 async function fetchWithBackoff(
   url: string,
@@ -233,51 +229,23 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
 
   try {
     // Sub-step 4b: refresh-token grant + conditional rotation persist.
-    const storedRt = await getRefreshToken(uid);
-    if (!storedRt) {
-      pollFailed = "no_refresh_token";
-      logger.warn("daily_poll_no_refresh_token", { uid });
-      return { ok: false, reason: "no_refresh_token" };
-    }
-
-    const { clientId, clientSecret } = await getXClientCredentials();
-    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`, "utf8").toString("base64");
-    const refreshResp = await fetch(TOKEN_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Authorization: `Basic ${basicAuth}`,
-      },
-      body: new URLSearchParams({
-        grant_type: "refresh_token",
-        refresh_token: storedRt,
-        client_id: clientId,
-      }),
-    });
-
-    if (!refreshResp.ok) {
-      const body = (await refreshResp.json().catch(() => ({}))) as { error?: string };
-      const code = body.error ?? `http_${refreshResp.status}`;
-      if (code === "invalid_grant") {
+    let accessToken: string;
+    try {
+      ({ accessToken } = await refreshXToken(uid));
+    } catch (err) {
+      if (err instanceof NoRefreshTokenError) {
+        pollFailed = "no_refresh_token";
+        logger.warn("daily_poll_no_refresh_token", { uid });
+        return { ok: false, reason: "no_refresh_token" };
+      }
+      if (err instanceof RefreshRevokedError) {
         pollFailed = "refresh_revoked";
         logger.warn("daily_poll_refresh_revoked", { uid });
         return { ok: false, reason: "refresh_revoked" };
       }
       pollFailed = "rate_limited";
-      logger.warn("daily_poll_refresh_failed", { uid, code });
+      logger.warn("daily_poll_refresh_failed", { uid, code: (err as Error).message });
       return { ok: false, reason: "rate_limited" };
-    }
-
-    const tokens = (await refreshResp.json()) as {
-      access_token: string;
-      refresh_token?: string;
-    };
-    const accessToken = tokens.access_token;
-
-    // Conditional rotation persist (PO Round 1 Q1).
-    if (tokens.refresh_token && tokens.refresh_token !== storedRt) {
-      await setRefreshToken(uid, tokens.refresh_token);
-      logger.info("daily_poll_rt_rotated", { uid });
     }
 
     // Sub-step 4c: X user-id lookup with cache.
@@ -475,7 +443,6 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
       for (const r of refs) {
         enqueue(database.doc(`users/${uid}/includes/${tweet.id}_ref_${r.id}`), {
           tweetId: tweet.id,
-          referencedId: r.id,
           referencedTweetId: r.id,
           type: r.type,
           kind: "referenced_tweet",
@@ -529,16 +496,6 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
       }
     }
 
-    // Commit writes in 450-op chunks.
-    for (let i = 0; i < writes.length; i += BATCH_SIZE) {
-      const batch: WriteBatch = database.batch();
-      const chunk = writes.slice(i, i + BATCH_SIZE);
-      for (const [ref, data] of chunk) {
-        batch.set(ref, data, { merge: true });
-      }
-      await batch.commit();
-    }
-
     // Sub-step 4g: pending_delete diff.
     //
     // Semantics: a stored tweet is "still present" if X echoed it in this poll's
@@ -550,6 +507,15 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
     //
     // When pagination completes naturally (no overlap), the response stream
     // covers everything X has → unseen stored ids are safely flaggable.
+    //
+    // Read the pre-write snapshot BEFORE the batch commit so a concurrent poll
+    // that writes new docs between our commit and this read cannot cause those
+    // freshly-written docs to appear as "unseen" in the diff.
+    //
+    // PERF note: `.select("referenced")` projects only the `referenced` field
+    // (plus the document ID) so each returned stub is minimal. A full keyset/
+    // incremental redesign (storing known ids in a summary doc) would eliminate
+    // the O(n) scan entirely; that larger redesign remains as future work.
     const existingIdsSnap = await database
       .collection(`users/${uid}/tweets`)
       .select("referenced")
@@ -563,6 +529,16 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
         .filter((d) => (d.data() as Record<string, unknown>)?.referenced !== true)
         .map((d) => d.id),
     );
+
+    // Commit writes in 450-op chunks.
+    for (let i = 0; i < writes.length; i += BATCH_SIZE) {
+      const batch: WriteBatch = database.batch();
+      const chunk = writes.slice(i, i + BATCH_SIZE);
+      for (const [ref, data] of chunk) {
+        batch.set(ref, data, { merge: true });
+      }
+      await batch.commit();
+    }
     const missingNow: string[] = [];
     for (const id of existingIds) {
       if (seenIds.has(id)) continue;

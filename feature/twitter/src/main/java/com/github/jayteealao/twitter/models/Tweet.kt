@@ -74,7 +74,8 @@ fun Tweet.toTweetEntity(referenced: Boolean = false) = TweetEntity(
     conversationId,
     inReplyToUserId,
     lang,
-    referenced
+    referenced,
+    retrievedAt = System.currentTimeMillis(),
 )
 
 data class TweetData(

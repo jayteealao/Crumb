@@ -9,10 +9,9 @@
 //
 // SECURITY (SSRF): this fetches arbitrary user-content URLs. [isSafePublicUrl]
 // rejects non-http(s) schemes and private/loopback/link-local/metadata hosts
-// before the fetch. A redirect from a public host to an internal one can still
-// slip past this pre-check (open-graph-scraper follows redirects via fetch) —
-// flagged for the slug-wide security review; the function runs least-privilege
-// and the 5s timeout bounds the blast radius.
+// before the fetch. HTTP 3xx redirects are blocked via `redirect: "error"` in
+// fetchOptions so a public URL that 301-redirects to an internal/metadata
+// address will abort rather than follow.
 
 import ogs from "open-graph-scraper";
 
@@ -74,7 +73,7 @@ export async function fetchOpenGraph(url: string): Promise<OpenGraphData> {
     const { error, result } = await ogs({
       url,
       timeout: FETCH_TIMEOUT_SECONDS,
-      fetchOptions: { headers: { "user-agent": USER_AGENT } },
+      fetchOptions: { headers: { "user-agent": USER_AGENT }, redirect: "error" },
     });
     if (error || !result) return {};
     const r = result as {

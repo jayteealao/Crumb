@@ -315,6 +315,8 @@ data class FirestoreTextAnnotation(
     // existed the mapper hardcoded null, so the card had no preview content.
     var title: String? = null,
     var description: String? = null,
+    // Firestore stores the OpenGraph preview image under camelCase `imageUrl`;
+    // toTweetTextEntityAnnotation carries it into the Room `image_url` column below.
     @get:PropertyName("imageUrl") @set:PropertyName("imageUrl")
     var imageUrl: String? = null,
     var username: String? = null,

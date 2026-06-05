@@ -154,7 +154,10 @@ interface TweetDao {
                   AND NOT EXISTS (SELECT 1 FROM tweetTextEntityAnnotation a WHERE a.tweet_id = t.id AND a.type = 'urls'
                     AND a.expanded_url IS NOT NULL AND a.expanded_url NOT LIKE '%twitter.com%' AND a.expanded_url NOT LIKE '%x.com%'))
           )
-        ORDER BY t.retrieved_at DESC, t.created_at DESC
+        ORDER BY t.retrieved_at DESC,
+                 CAST(CASE WHEN t.created_at GLOB '????-??-??T*'
+                           THEN STRFTIME('%s', t.created_at) * 1000
+                           ELSE 0 END AS INTEGER) DESC
     """)
     fun getTweetsTombstoneAware(type: String): PagingSource<Int, TweetData>
 
@@ -180,7 +183,10 @@ interface TweetDao {
                     AND a.expanded_url IS NOT NULL AND a.expanded_url NOT LIKE '%twitter.com%' AND a.expanded_url NOT LIKE '%x.com%'))
           )
         GROUP BY t.id
-        ORDER BY t.retrieved_at DESC, t.created_at DESC
+        ORDER BY t.retrieved_at DESC,
+                 CAST(CASE WHEN t.created_at GLOB '????-??-??T*'
+                           THEN STRFTIME('%s', t.created_at) * 1000
+                           ELSE 0 END AS INTEGER) DESC
     """)
     fun getTweetsByTagsTombstoneAware(tagNames: List<String>, type: String): PagingSource<Int, TweetData>
 
@@ -355,7 +361,6 @@ interface TweetDao {
         WHERE t.referenced = 0
           AND d.bookmarkId IS NULL
           AND t.id > :afterId
-          AND t.text LIKE '%http%'
           AND NOT EXISTS (
             SELECT 1 FROM tweetTextEntityAnnotation a
             WHERE a.tweet_id = t.id AND a.type = 'urls' AND a.expanded_url IS NOT NULL
@@ -446,6 +451,26 @@ interface TweetDao {
 
     @Query("DELETE FROM tweet_tags WHERE tweetId = :tweetId AND tagName = :tagName")
     suspend fun deleteTweetTag(tweetId: String, tagName: String)
+
+    /**
+     * Atomically replaces a tweet's full tag set. The read-modify-write
+     * (read current tags, diff, delete/insert) runs inside a single Room
+     * transaction so concurrent saves for the same tweet cannot interleave
+     * and produce lost updates.
+     */
+    @Transaction
+    suspend fun saveTagsAtomic(tweetId: String, tags: List<String>) {
+        val currentTags = getTagsForTweet(tweetId)
+        currentTags.forEach { tag ->
+            if (tag !in tags) deleteTweetTag(tweetId, tag)
+        }
+        tags.forEach { tag ->
+            if (tag !in currentTags) {
+                insertTag(TagEntity(tag))
+                insertTweetTag(TweetTagCrossRef(tweetId, tag))
+            }
+        }
+    }
 
     @Query("DELETE FROM tags WHERE name = :tagName")
     suspend fun deleteTag(tagName: String)

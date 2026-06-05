@@ -315,7 +315,7 @@ private fun EmailPasswordSignInDialog(
             Spacer(modifier = Modifier.height(spacing.xs))
             Text(
                 text = if (isCollision) {
-                    "THIS EMAIL IS ALREADY LINKED TO A PASSWORD ACCOUNT. SIGN IN TO LINK GOOGLE."
+                    "AN ACCOUNT WITH THIS EMAIL ALREADY EXISTS.\nSIGN IN WITH YOUR PASSWORD TO CONNECT YOUR GOOGLE ACCOUNT."
                 } else {
                     "ENTER YOUR EMAIL AND PASSWORD."
                 },

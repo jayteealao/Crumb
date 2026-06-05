@@ -15,6 +15,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.navigation.navDeepLink
 import com.github.jayteealao.crumbs.screens.ConnectXRoute
+import com.github.jayteealao.crumbs.screens.DeleteAccountRoute
 import com.github.jayteealao.crumbs.screens.HomeRoute
 import com.github.jayteealao.crumbs.screens.OnboardingRoute
 import com.github.jayteealao.crumbs.screens.SearchRoute
@@ -98,6 +99,16 @@ fun CrumbsNavHost(
             )
         }
 
+        composable(Screens.DELETE_ACCOUNT.name) {
+            DeleteAccountRoute(
+                onAccountDeleted = {
+                    navController.navigate(Screens.LOGINSCREEN.name) {
+                        popUpTo(navController.graph.id) { inclusive = true }
+                    }
+                },
+            )
+        }
+
         composable(Screens.SPLASHSCREEN.name) {
             SplashRoute(
                 navController = navController,
@@ -131,6 +142,7 @@ enum class Screens {
     SETTINGS,
     SEARCHSCREEN,
     THREADDETAIL,
+    DELETE_ACCOUNT,
     HOMESCREEN {
         override fun screenRoute(refreshed: Boolean) = "${this.name}/$refreshed"
     };

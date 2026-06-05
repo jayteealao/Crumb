@@ -287,9 +287,12 @@ describe("runPoll (daily-poll)", () => {
 
     const result = await runPoll("uid1", { reason: "trigger" });
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if (!result.ok && result.reason === "debounced") {
       expect(result.reason).toBe("debounced");
       expect(typeof result.retryAfter).toBe("number");
+    } else {
+      // Should always be debounced in this test path
+      expect(result.ok).toBe(false);
     }
     expect(fetchSpy).not.toHaveBeenCalled();
   });

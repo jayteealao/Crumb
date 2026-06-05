@@ -21,13 +21,13 @@ import com.github.jayteealao.crumbs.data.DeletedBookmarkRepository
 import com.github.jayteealao.crumbs.data.SyncProgress
 import com.github.jayteealao.crumbs.data.SyncProgressDao
 import com.github.jayteealao.crumbs.models.BookmarkSource
-import com.github.jayteealao.twitter.data.TweetDao
-import com.github.jayteealao.twitter.data.firestore.FirestoreRepository
+import com.github.jayteealao.twitter.data.TwitterSyncFacade
 import com.github.jayteealao.twitter.models.tweetEntitiesToOrderLens
 import com.google.firebase.firestore.FirebaseFirestoreException
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.TimeoutCancellationException
 import timber.log.Timber
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -53,13 +53,12 @@ class TwitterSyncWorker(
         val entry = EntryPointAccessors.fromApplication(ctx, SyncEntryPoint::class.java)
         val runAsForegroundService = inputData.getBoolean(KEY_RUN_AS_FOREGROUND, false)
         val db = entry.appDatabase()
-        val tweetDao = entry.tweetDao()
+        val syncFacade = entry.twitterSyncFacade()
         val syncProgressDao = entry.syncProgressDao()
         return runTwitterSync(
             ctx = ctx,
-            tweetDao = tweetDao,
+            syncFacade = syncFacade,
             syncProgressDao = syncProgressDao,
-            firestoreRepository = entry.firestoreRepository(),
             deletedBookmarkRepository = entry.deletedBookmarkRepository(),
             authGateway = entry.authGateway(),
             runAsForegroundService = runAsForegroundService,
@@ -67,7 +66,7 @@ class TwitterSyncWorker(
             setForegroundInfo = { setForeground(it) },
             commitBatch = { orderedBatch, progress ->
                 db.withTransaction {
-                    tweetDao.insertTweetEntitiesBatch(orderedBatch)
+                    syncFacade.insertTweetEntitiesBatch(orderedBatch)
                     syncProgressDao.upsert(progress)
                 }
             },
@@ -83,6 +82,11 @@ class TwitterSyncWorker(
         const val MAX_RETRY_ATTEMPTS = 5
         const val NOTIFICATION_ID = 4242
         const val NOTIFICATION_CHANNEL_ID = "twitter_sync_progress"
+
+        // Cap the local-ID dedup set loaded at sync start. Tweets beyond this
+        // threshold are re-inserted with IGNORE-on-conflict (no data loss).
+        // Matches the Firestore-side corpus ceiling so the two sets stay in step.
+        const val MAX_LOCAL_ID_SET_SIZE = 25_000
 
         fun uniqueName(uid: String): String = "$UNIQUE_NAME_PREFIX$uid"
 
@@ -147,7 +151,7 @@ internal fun buildForegroundInfo(
  * tests can exercise every branch without spinning up a Hilt application.
  *
  * Cursor semantics: this implementation streams the full unseen tail
- * client-side (via [FirestoreRepository.fetchTweetsNotInLocalStream]) instead
+ * client-side (via [TwitterSyncFacade.fetchMissingTweetsStream]) instead
  * of using the persisted high-cursor as a server-side `startAfter` boundary.
  * The persisted cursor still records progress so a kill mid-stream is
  * recoverable, but the next run does a fresh "what's missing locally?" pass.
@@ -162,9 +166,8 @@ internal fun buildForegroundInfo(
  */
 internal suspend fun runTwitterSync(
     ctx: Context,
-    tweetDao: TweetDao,
+    syncFacade: TwitterSyncFacade,
     syncProgressDao: SyncProgressDao,
-    firestoreRepository: FirestoreRepository,
     deletedBookmarkRepository: DeletedBookmarkRepository,
     authGateway: AuthGateway,
     runAsForegroundService: Boolean,
@@ -196,14 +199,24 @@ internal suspend fun runTwitterSync(
     var workingHighTweetId = priorProgress?.lastHighCursorTweetId
     var workingLowCreatedAt = priorProgress?.lastLowCursorCreatedAt
     var workingLowTweetId = priorProgress?.lastLowCursorTweetId
-    var nextOrder = (tweetDao.getMaxOrder() ?: 1000) + 1
+    var nextOrder = (syncFacade.getMaxOrder() ?: 1000) + 1
 
     return try {
-        val localIds = tweetDao.getAllTweetIds().toSet()
+        // Bound the local-ID set to limit heap allocation. IDs are sorted by the
+        // database's default order so taking the tail keeps the most recently added
+        // tweets (the ones most likely to overlap with the incoming Firestore page),
+        // while tweets further back are re-inserted with IGNORE-on-conflict if they
+        // reappear — correct behaviour at the cost of an extra no-op write.
+        val allLocalIds = syncFacade.getAllTweetIds()
+        val localIds: Set<String> = if (allLocalIds.size > TwitterSyncWorker.MAX_LOCAL_ID_SET_SIZE) {
+            allLocalIds.takeLast(TwitterSyncWorker.MAX_LOCAL_ID_SET_SIZE).toHashSet()
+        } else {
+            allLocalIds.toHashSet()
+        }
         val deletedIds = deletedBookmarkRepository.deletedIdsSnapshot(BookmarkSource.Twitter)
 
-        firestoreRepository
-            .fetchTweetsNotInLocalStream(localIds, deletedIds)
+        syncFacade
+            .fetchMissingTweetsStream(localIds, deletedIds)
             .collect { batch ->
                 if (batch.isEmpty()) return@collect
 
@@ -266,6 +279,20 @@ internal suspend fun runTwitterSync(
         } else {
             Timber.tag("IncrementalSync").e(e, "firestore_failed code=${e.code}")
             androidx.work.ListenableWorker.Result.failure()
+        }
+    } catch (e: IOException) {
+        Timber.tag("IncrementalSync").w(e, "transient_io_failure attempt=$runAttemptCount")
+        if (runAttemptCount >= TwitterSyncWorker.MAX_RETRY_ATTEMPTS) {
+            androidx.work.ListenableWorker.Result.failure()
+        } else {
+            androidx.work.ListenableWorker.Result.retry()
+        }
+    } catch (e: android.database.SQLException) {
+        Timber.tag("IncrementalSync").w(e, "transient_db_failure attempt=$runAttemptCount")
+        if (runAttemptCount >= TwitterSyncWorker.MAX_RETRY_ATTEMPTS) {
+            androidx.work.ListenableWorker.Result.failure()
+        } else {
+            androidx.work.ListenableWorker.Result.retry()
         }
     } catch (e: Exception) {
         Timber.tag("IncrementalSync").e(e, "unexpected_failure attempt=$runAttemptCount")

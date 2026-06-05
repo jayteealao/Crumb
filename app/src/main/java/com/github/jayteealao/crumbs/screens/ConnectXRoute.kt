@@ -3,6 +3,7 @@ package com.github.jayteealao.crumbs.screens
 import android.app.Activity
 import android.widget.Toast
 import androidx.compose.runtime.Composable
+import timber.log.Timber
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -70,9 +71,10 @@ fun ConnectXRoute(
                     }
                 }
                 is OAuthResult.Failure -> {
+                    Timber.w("OAuth failure: ${result.reason}")
                     Toast.makeText(
                         context,
-                        "Couldn't connect (${result.reason}) — try again",
+                        "Couldn't connect to X. Please try again.",
                         Toast.LENGTH_LONG,
                     ).show()
                 }

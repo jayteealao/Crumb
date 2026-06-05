@@ -64,6 +64,31 @@ export const oauthCallback = onRequest(async (req, res) => {
     const { db } = await import("../lib/admin");
     const { FieldValue } = await import("firebase-admin/firestore");
 
+    // SEC-2: Make the state nonce single-use. Attempt an atomic create of a
+    // doc keyed by the nonce. If the doc already exists, .create() throws
+    // (ALREADY_EXISTS / code 6), meaning this nonce was already consumed —
+    // reject the replay. The doc TTL matches the JWT's 10-minute window; a
+    // scheduled cleanup job (or Firestore TTL policy on the `expiresAt` field)
+    // can prune stale docs, but correctness is guaranteed by the JWT expiry
+    // even without cleanup.
+    const nonceRef = db().doc(`oauth_nonces/${claims.nonce}`);
+    try {
+      await nonceRef.create({
+        uid: claims.uid,
+        usedAt: FieldValue.serverTimestamp(),
+        expiresAt: new Date((claims.iat + 600) * 1000),
+      });
+    } catch (err: unknown) {
+      const firestoreCode = (err as { code?: number }).code;
+      if (firestoreCode === 6) {
+        // ALREADY_EXISTS — nonce already consumed, replay rejected
+        logger.warn("oauth_callback_nonce_replay", { nonce: claims.nonce, uid: claims.uid });
+        res.status(400).send("invalid state");
+        return;
+      }
+      throw err;
+    }
+
     const { clientId, clientSecret } = await getXClientCredentials();
     const basic = Buffer.from(`${clientId}:${clientSecret}`, "utf8").toString("base64");
 

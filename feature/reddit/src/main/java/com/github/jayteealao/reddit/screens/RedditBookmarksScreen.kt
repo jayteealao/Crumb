@@ -70,7 +70,7 @@ fun RedditBookmarksScreen(
         EmptyState(
             title = "CONNECT TO REDDIT",
             message = "Sign in to start saving and viewing your bookmarks.",
-            actionText = "LOGIN TO REDDIT",
+            actionText = "CONNECT REDDIT",
             onActionClick = onConnectClick,
             modifier = modifier
                 .testTag("reddit-bookmarks-empty"),
