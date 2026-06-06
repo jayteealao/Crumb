@@ -1,5 +1,6 @@
 package com.github.jayteealao.crumbs.di
 
+import com.github.jayteealao.crumbs.data.di.ApplicationScope
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -15,6 +16,7 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 class CoroutineModule {
 
+    @ApplicationScope
     @Singleton
     @Provides
     fun providesCoroutineScope(): CoroutineScope {

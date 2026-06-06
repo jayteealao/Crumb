@@ -7,6 +7,7 @@ import com.github.jayteealao.reddit.screens.toBookmark as toRedditBookmark
 import com.github.jayteealao.twitter.screens.toBookmark as toTwitterBookmark
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -22,6 +23,9 @@ class SearchRepository @Inject constructor(
     private val redditFtsDao: RedditFtsDao,
 ) {
     fun search(query: String): Flow<List<Bookmark>> {
+        // A blank query would become the FTS phrase "" — wasted DB work and, on
+        // some FTS builds, a syntax error. Short-circuit to an empty result.
+        if (query.isBlank()) return flowOf(emptyList())
         val sanitized = sanitizeFtsQuery(query)
         val tweetHits = tweetFtsDao.search(sanitized).map { rows ->
             rows.map { it.toTwitterBookmark() }

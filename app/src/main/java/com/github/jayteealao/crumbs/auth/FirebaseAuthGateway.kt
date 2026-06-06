@@ -3,7 +3,9 @@ package com.github.jayteealao.crumbs.auth
 import android.content.Context
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
+import androidx.work.WorkManager
 import com.github.jayteealao.crumbs.sync.MediaBackfillWorker
+import com.github.jayteealao.crumbs.sync.TwitterSyncWorker
 import com.github.jayteealao.twitter.data.TwitterSyncEnqueuer
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
@@ -85,7 +87,17 @@ class FirebaseAuthGateway @Inject constructor(
     }
 
     override suspend fun signOut() {
+        val uid = _currentUser.value?.uid
         auth.signOut()
+        // Cancel any in-flight / scheduled sync for the account that just signed
+        // out so background work can't keep running (and hitting the network)
+        // against a now-signed-out account.
+        if (!uid.isNullOrEmpty()) {
+            runCatching {
+                WorkManager.getInstance(appContext)
+                    .cancelUniqueWork(TwitterSyncWorker.uniqueName(uid))
+            }.onFailure { Timber.w(it, "cancel sync work on signout failed") }
+        }
         // Drop any cached Credential Manager state so the next sign-in re-asks
         // for account selection instead of silently returning the same account.
         runCatching {
@@ -112,6 +124,10 @@ class FirebaseAuthGateway @Inject constructor(
             AuthResult.InvalidCredentials
         } catch (e: FirebaseNetworkException) {
             AuthResult.NetworkError
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // Never swallow coroutine cancellation — rethrow so structured
+            // concurrency can unwind the calling coroutine cleanly.
+            throw e
         } catch (e: Exception) {
             Timber.e(e, "Auth call failed")
             AuthResult.Unknown(e)

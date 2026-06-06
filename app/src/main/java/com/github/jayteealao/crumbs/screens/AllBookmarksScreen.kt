@@ -98,17 +98,15 @@ fun AllBookmarksScreen(
     }
 
     // Single batch tag load per page-snapshot change — replaces per-item LaunchedEffect.
-    val twitterIds = remember(twitterItems?.itemCount) {
-        val count = twitterItems?.itemCount ?: 0
-        (0 until count).mapNotNull { twitterItems?.peek(it)?.tweet?.id }
+    val twitterIds = remember(twitterItems?.itemSnapshotList) {
+        twitterItems?.itemSnapshotList?.mapNotNull { it?.tweet?.id } ?: emptyList()
     }
     LaunchedEffect(twitterIds) {
         if (twitterIds.isNotEmpty()) onLoadTagsForIds(twitterIds)
     }
 
-    val redditIds = remember(redditItems?.itemCount) {
-        val count = redditItems?.itemCount ?: 0
-        (0 until count).mapNotNull { redditItems?.peek(it)?.post?.id }
+    val redditIds = remember(redditItems?.itemSnapshotList) {
+        redditItems?.itemSnapshotList?.mapNotNull { it?.post?.id } ?: emptyList()
     }
     LaunchedEffect(redditIds) {
         if (redditIds.isNotEmpty()) onLoadTagsForIds(redditIds)
@@ -293,6 +291,9 @@ fun AllBookmarksRoute(
         onDismiss = { lps.dismiss() },
         onActionSelect = { action ->
             val b = activeBookmark ?: return@BookmarkActionsOverlay
+            // Dismiss the overlay before running the action so it doesn't linger
+            // on screen behind the launched intent / completed mutation.
+            lps.dismiss()
             when (action.id) {
                 "open" -> {
                     Timber.d("AllBookmarks long-press: OPEN")

@@ -285,7 +285,41 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
     let nextToken: string | undefined;
     let stop = false;
     let stoppedOnOverlap = false;
+
+    // Keep the poll lease valid for the full (multi-page) poll. LEASE_TTL_MS is
+    // a short 30s TTL chosen for fast crash recovery, but a real poll can run
+    // far longer than that across pages — without renewal the lease would expire
+    // mid-run and a concurrent scheduled/trigger poll could acquire it and race
+    // our refresh-token rotation, writes, and pending-delete diff. Renew per
+    // page under a guard that only extends a lease we still hold; a crashed
+    // instance simply stops renewing and the short TTL frees it for the next.
+    const leaseHolder = claim.holder;
+    const renewLease = async (): Promise<void> => {
+      try {
+        await database.runTransaction(async (tx) => {
+          const snap = await tx.get(statusRef);
+          const lease = (snap.data() as SyncStatusData | undefined)?.poll_lease;
+          if (!lease || lease.holder !== leaseHolder) return;
+          tx.set(
+            statusRef,
+            {
+              poll_lease: {
+                ...lease,
+                expires_at: Timestamp.fromMillis(
+                  Timestamp.now().toMillis() + LEASE_TTL_MS,
+                ),
+              },
+            },
+            { merge: true },
+          );
+        });
+      } catch {
+        // Best-effort renewal; on failure the lease keeps its prior TTL.
+      }
+    };
+
     do {
+      await renewLease();
       const url = buildBookmarksUrl(xUserId, nextToken);
       const resp = await fetchWithBackoff(url, accessToken);
       if (!resp) {
@@ -305,13 +339,23 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
         // lexicographic compare misclassifies 18-char (2017-era) vs 19-char
         // (2024+) ids. `<=` includes the boundary tweet itself as still-present.
         if (latestIdInDb && isAtOrBelowBoundary(tweet.id, latestIdInDb)) {
-          // Boundary (or below) IS still present in X — record as seen but do
-          // not re-write the payload. Anything strictly below the boundary
-          // was not paged in this poll; its presence remains unknown.
-          seenIds.add(tweet.id);
-          stoppedOnOverlap = true;
-          stop = true;
-          break;
+          // An at-or-below-boundary id is USUALLY already synced — but the
+          // bookmarks endpoint is ordered by bookmark ACTIVITY, not tweet age,
+          // so a freshly bookmarked OLD tweet also lands here. Treat it as the
+          // overlap boundary ONLY if the doc actually exists; otherwise it is a
+          // new bookmark of an old tweet and must be collected, not dropped.
+          const existingRef = database.doc(`users/${uid}/tweets/${tweet.id}`);
+          assertPathScoped(existingRef.path, uid);
+          const existing = await existingRef.get();
+          if (existing.exists) {
+            // Genuinely already stored → real overlap. Record as seen but do
+            // not re-write; anything strictly below was not paged this poll.
+            seenIds.add(tweet.id);
+            stoppedOnOverlap = true;
+            stop = true;
+            break;
+          }
+          // Not stored yet → fall through and collect it as a new bookmark.
         }
         seenIds.add(tweet.id);
         collected.push({ tweet, includes: json.includes });

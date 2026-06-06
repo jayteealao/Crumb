@@ -3,6 +3,7 @@ package com.github.jayteealao.reddit.services
 import android.content.Intent
 import android.net.Uri
 import android.util.Base64
+import com.github.jayteealao.crumbs.data.di.ApplicationScope
 import com.github.jayteealao.reddit.data.RedditPrefs
 import com.github.jayteealao.reddit.models.RedditTokenResponse
 import com.skydoves.sandwich.getOrNull
@@ -33,7 +34,7 @@ interface RedditAuthClient {
 class RedditAuthClientImpl @Inject constructor(
     private val redditOAuthService: RedditOAuthService,
     private val redditPrefs: RedditPrefs,
-    private val scope: kotlinx.coroutines.CoroutineScope
+    @ApplicationScope private val scope: kotlinx.coroutines.CoroutineScope
 ) : RedditAuthClient {
 
     companion object {

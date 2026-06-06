@@ -13,6 +13,7 @@ import com.github.jayteealao.twitter.models.TweetData
 import com.github.jayteealao.twitter.models.TweetEntities
 import com.github.jayteealao.twitter.models.TweetEntity
 import com.github.jayteealao.twitter.models.TweetTagCrossRef
+import com.github.jayteealao.crumbs.data.di.ApplicationScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -40,7 +41,7 @@ class Repository @Inject constructor(
     private val firestoreRepository: FirestoreRepository,
     private val deletedBookmarkRepository: DeletedBookmarkRepository,
     private val callableService: TwitterCallableService,
-    private val scope: CoroutineScope,
+    @ApplicationScope private val scope: CoroutineScope,
     private val syncEnqueuer: TwitterSyncEnqueuer,
 ) : TagRepository {
     private var latestBookmarkInDatabase: TweetEntity? = null

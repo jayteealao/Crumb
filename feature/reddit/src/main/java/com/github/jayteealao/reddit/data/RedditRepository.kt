@@ -18,6 +18,7 @@ import com.github.jayteealao.reddit.services.RedditAuthClient
 import com.skydoves.sandwich.message
 import com.skydoves.sandwich.suspendOnError
 import com.skydoves.sandwich.suspendOnSuccess
+import com.github.jayteealao.crumbs.data.di.ApplicationScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -36,7 +37,7 @@ class RedditRepository @Inject constructor(
     private val redditPrefs: RedditPrefs,
     private val deletedBookmarkRepository: DeletedBookmarkRepository,
     private val syncErrorBus: SyncErrorBus,
-    private val scope: CoroutineScope
+    @ApplicationScope private val scope: CoroutineScope
 ) : TagRepository {
     private var latestPostInDatabase: com.github.jayteealao.reddit.models.RedditPostEntity? = null
     private var orderOfLastPost: Int = 1000

@@ -52,6 +52,7 @@ class TwitterSyncWorker(
         val ctx = applicationContext
         val entry = EntryPointAccessors.fromApplication(ctx, SyncEntryPoint::class.java)
         val runAsForegroundService = inputData.getBoolean(KEY_RUN_AS_FOREGROUND, false)
+        val enqueuedUid = inputData.getString(KEY_UID)
         val db = entry.appDatabase()
         val syncFacade = entry.twitterSyncFacade()
         val syncProgressDao = entry.syncProgressDao()
@@ -61,6 +62,7 @@ class TwitterSyncWorker(
             syncProgressDao = syncProgressDao,
             deletedBookmarkRepository = entry.deletedBookmarkRepository(),
             authGateway = entry.authGateway(),
+            enqueuedUid = enqueuedUid,
             runAsForegroundService = runAsForegroundService,
             runAttemptCount = runAttemptCount,
             setForegroundInfo = { setForeground(it) },
@@ -78,6 +80,7 @@ class TwitterSyncWorker(
 
     companion object {
         const val KEY_RUN_AS_FOREGROUND = "run_as_foreground"
+        const val KEY_UID = "uid"
         const val UNIQUE_NAME_PREFIX = "twitter-sync-"
         const val MAX_RETRY_ATTEMPTS = 5
         const val NOTIFICATION_ID = 4242
@@ -99,7 +102,12 @@ class TwitterSyncWorker(
                         .build()
                 )
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
-                .setInputData(workDataOf(KEY_RUN_AS_FOREGROUND to runAsForegroundService))
+                .setInputData(
+                    workDataOf(
+                        KEY_RUN_AS_FOREGROUND to runAsForegroundService,
+                        KEY_UID to uid,
+                    )
+                )
                 .build()
     }
 }
@@ -170,6 +178,7 @@ internal suspend fun runTwitterSync(
     syncProgressDao: SyncProgressDao,
     deletedBookmarkRepository: DeletedBookmarkRepository,
     authGateway: AuthGateway,
+    enqueuedUid: String?,
     runAsForegroundService: Boolean,
     runAttemptCount: Int,
     setForegroundInfo: suspend (ForegroundInfo) -> Unit,
@@ -179,6 +188,16 @@ internal suspend fun runTwitterSync(
     if (uid.isNullOrEmpty()) {
         Timber.tag("IncrementalSync").d("skip uid=null")
         return androidx.work.ListenableWorker.Result.failure()
+    }
+    // Reject a job whose enqueued account no longer matches the signed-in user
+    // (sign-out then sign-in to a different account while this job was queued).
+    // Without this, account B's bookmarks would be fetched under account A's job
+    // and written into the shared local DB. The correct per-account job is
+    // enqueued separately; treat this obsolete one as a no-op success so
+    // WorkManager does not retry it.
+    if (!enqueuedUid.isNullOrEmpty() && enqueuedUid != uid) {
+        Timber.tag("IncrementalSync").w("skip uid_mismatch enqueued=$enqueuedUid current=$uid")
+        return androidx.work.ListenableWorker.Result.success()
     }
 
     if (runAsForegroundService) {

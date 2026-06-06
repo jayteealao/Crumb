@@ -118,6 +118,7 @@ class TwitterSyncWorkerTest {
             syncProgressDao = syncProgressDao,
             deletedBookmarkRepository = deletedBookmarkRepository,
             authGateway = authGateway,
+            enqueuedUid = null,
             runAsForegroundService = false,
             runAttemptCount = 0,
             setForegroundInfo = {},
@@ -126,6 +127,32 @@ class TwitterSyncWorkerTest {
 
         assertEquals(ListenableWorker.Result.failure(), result)
         assertTrue("no batches should commit when uid is null", capturedCommits.isEmpty())
+        coVerify(exactly = 0) { syncFacade.fetchMissingTweetsStream(any(), any()) }
+    }
+
+    @Test
+    fun enqueuedUidMismatch_returnsSuccess_withoutFetching() = runTest {
+        // Job was enqueued for one account but a different account is now signed
+        // in — the obsolete job must no-op (success, no retry) and never fetch,
+        // so account B's data can't be written under account A's job.
+        currentUserFlow.value = CurrentUser(uid = "uid-current", email = null)
+        val capturedCommits = mutableListOf<List<TweetEntities>>()
+
+        val result = runTwitterSync(
+            ctx = context,
+            syncFacade = syncFacade,
+            syncProgressDao = syncProgressDao,
+            deletedBookmarkRepository = deletedBookmarkRepository,
+            authGateway = authGateway,
+            enqueuedUid = "uid-other",
+            runAsForegroundService = false,
+            runAttemptCount = 0,
+            setForegroundInfo = {},
+            commitBatch = { batch, _ -> capturedCommits += batch },
+        )
+
+        assertEquals(ListenableWorker.Result.success(), result)
+        assertTrue("no batches should commit on uid mismatch", capturedCommits.isEmpty())
         coVerify(exactly = 0) { syncFacade.fetchMissingTweetsStream(any(), any()) }
     }
 
@@ -152,6 +179,7 @@ class TwitterSyncWorkerTest {
             syncProgressDao = syncProgressDao,
             deletedBookmarkRepository = deletedBookmarkRepository,
             authGateway = authGateway,
+            enqueuedUid = null,
             runAsForegroundService = false,
             runAttemptCount = 0,
             setForegroundInfo = {},
@@ -192,6 +220,7 @@ class TwitterSyncWorkerTest {
             syncProgressDao = syncProgressDao,
             deletedBookmarkRepository = deletedBookmarkRepository,
             authGateway = authGateway,
+            enqueuedUid = null,
             runAsForegroundService = false,
             runAttemptCount = 0,
             setForegroundInfo = {},
@@ -225,6 +254,7 @@ class TwitterSyncWorkerTest {
             syncProgressDao = syncProgressDao,
             deletedBookmarkRepository = deletedBookmarkRepository,
             authGateway = authGateway,
+            enqueuedUid = null,
             runAsForegroundService = false,
             runAttemptCount = 1,
             setForegroundInfo = {},
@@ -250,6 +280,7 @@ class TwitterSyncWorkerTest {
             syncProgressDao = syncProgressDao,
             deletedBookmarkRepository = deletedBookmarkRepository,
             authGateway = authGateway,
+            enqueuedUid = null,
             runAsForegroundService = false,
             runAttemptCount = TwitterSyncWorker.MAX_RETRY_ATTEMPTS,
             setForegroundInfo = {},
@@ -275,6 +306,7 @@ class TwitterSyncWorkerTest {
             syncProgressDao = syncProgressDao,
             deletedBookmarkRepository = deletedBookmarkRepository,
             authGateway = authGateway,
+            enqueuedUid = null,
             runAsForegroundService = false,
             runAttemptCount = 0,
             setForegroundInfo = {},
@@ -300,6 +332,7 @@ class TwitterSyncWorkerTest {
             syncProgressDao = syncProgressDao,
             deletedBookmarkRepository = deletedBookmarkRepository,
             authGateway = authGateway,
+            enqueuedUid = null,
             runAsForegroundService = false,
             runAttemptCount = 0,
             setForegroundInfo = {},
@@ -322,6 +355,7 @@ class TwitterSyncWorkerTest {
             syncProgressDao = syncProgressDao,
             deletedBookmarkRepository = deletedBookmarkRepository,
             authGateway = authGateway,
+            enqueuedUid = null,
             runAsForegroundService = false,
             runAttemptCount = 0,
             setForegroundInfo = {},
@@ -344,6 +378,12 @@ class TwitterSyncWorkerTest {
         val refreshRequest = TwitterSyncWorker.buildRequest("uid-abc", runAsForegroundService = false)
         val refreshInput = refreshRequest.workSpec.input.getBoolean(TwitterSyncWorker.KEY_RUN_AS_FOREGROUND, true)
         assertEquals(false, refreshInput)
+
+        assertEquals(
+            "uid should round-trip through workDataOf",
+            "uid-abc",
+            request.workSpec.input.getString(TwitterSyncWorker.KEY_UID),
+        )
     }
 
     @Test
@@ -360,6 +400,7 @@ class TwitterSyncWorkerTest {
             syncProgressDao = syncProgressDao,
             deletedBookmarkRepository = deletedBookmarkRepository,
             authGateway = authGateway,
+            enqueuedUid = null,
             runAsForegroundService = false,
             runAttemptCount = 0,
             setForegroundInfo = {},

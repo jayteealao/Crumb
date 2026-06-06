@@ -98,6 +98,10 @@ internal suspend fun runXTokenMigration(
     } catch (e: TimeoutCancellationException) {
         Timber.w(e, "XTokenMigrationWorker: callable timed out after ${TIMEOUT_MS}ms, failing")
         androidx.work.ListenableWorker.Result.failure()
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        // The worker was stopped/cancelled cooperatively. Rethrow so WorkManager
+        // records the cancellation instead of mistaking it for a transient retry.
+        throw e
     } catch (e: Exception) {
         Timber.w(e, "XTokenMigrationWorker: transient failure, retrying")
         androidx.work.ListenableWorker.Result.retry()
