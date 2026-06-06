@@ -2,6 +2,16 @@
 
 Single-user Android bookmark manager for Twitter & Reddit. Kotlin + Jetpack Compose, brutalist mono design.
 
+## Features
+
+- Twitter bookmark cards render images (single and 2×2 grid), inline video
+  (HLS/DASH), link previews, and quoted tweets
+- Full-screen zoomable image viewer
+- Feed sorted by when items were saved, with an accurate saved count and per-card
+  number
+- Type filters (images, video, links, articles, threads, text)
+- Reddit bookmarks with OAuth sign-in
+
 ## Build
 
 ```
@@ -72,3 +82,9 @@ Flows depend on the debug-only `DebugDataInjector`, which seeds the Room databas
 - `core/models/` — shared data classes
 - `feature/twitter/`, `feature/reddit/` — provider integrations + per-feed view models
 - `maestro/` — end-to-end flows
+
+## Documentation
+
+- [Understanding how Twitter bookmark cards get their data](docs/twitter-bookmark-rendering.md)
+  — design rationale for timestamps, feed sort, media, quoted tweets, and link previews
+- [CHANGELOG](CHANGELOG.md) — notable changes by release
