@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
@@ -183,11 +184,12 @@ class HomeRouteEventTest {
      * HomeRoute's LaunchedEffect shows the "BOOKMARK DELETED" snackbar on receipt.
      */
     @Test
-    fun snackbarBus_twitterUndoableDelete_deliveredToActiveCollector() = runBlocking {
+    fun snackbarBus_twitterUndoableDelete_deliveredToActiveCollector() = runTest {
         val bus = SnackbarBus()
-        val scope = CoroutineScope(Dispatchers.Default)
-        val deferred = scope.async { bus.events.first() }
-        repeat(20) { yield() }
+        // UnconfinedTestDispatcher starts the collector eagerly so it is subscribed
+        // before we emit. SnackbarBus has replay=0, so a late subscriber would miss
+        // the event and await() would block forever; runTest also bounds the test.
+        val deferred = async(UnconfinedTestDispatcher(testScheduler)) { bus.events.first() }
 
         bus.emit(SnackbarEvent.UndoableDelete(id = "tweet-42", source = BookmarkSource.Twitter))
 
@@ -207,11 +209,9 @@ class HomeRouteEventTest {
      * redditViewModel.undoDelete(event.id) when source == Reddit.
      */
     @Test
-    fun snackbarBus_redditUndoableDelete_deliveredWithCorrectSource() = runBlocking {
+    fun snackbarBus_redditUndoableDelete_deliveredWithCorrectSource() = runTest {
         val bus = SnackbarBus()
-        val scope = CoroutineScope(Dispatchers.Default)
-        val deferred = scope.async { bus.events.first() }
-        repeat(20) { yield() }
+        val deferred = async(UnconfinedTestDispatcher(testScheduler)) { bus.events.first() }
 
         bus.emit(SnackbarEvent.UndoableDelete(id = "reddit-99", source = BookmarkSource.Reddit))
 
@@ -256,15 +256,13 @@ class HomeRouteEventTest {
      * activates if > 16 events queue simultaneously.
      */
     @Test
-    fun snackbarBus_burstOfDeletes_allDeliveredWithinCapacity() = runBlocking {
+    fun snackbarBus_burstOfDeletes_allDeliveredWithinCapacity() = runTest {
         val bus = SnackbarBus()
         val burstCount = 5
-        val scope = CoroutineScope(Dispatchers.Default)
-        // Collect burstCount events then cancel.
-        val deferred = scope.async {
+        // UnconfinedTestDispatcher subscribes the collector eagerly before the burst.
+        val deferred = async(UnconfinedTestDispatcher(testScheduler)) {
             bus.events.take(burstCount).toList()
         }
-        repeat(20) { yield() }
 
         repeat(burstCount) { i ->
             bus.emit(SnackbarEvent.UndoableDelete(id = "tweet-$i", source = BookmarkSource.Twitter))
@@ -352,7 +350,7 @@ class HomeRouteEventTest {
      * This mirrors what HomeRoute's LaunchedEffect collects.
      */
     @Test
-    fun twitterSnackbarFlow_allThreeEventTypes_deliveredInOrder() = runBlocking {
+    fun twitterSnackbarFlow_allThreeEventTypes_deliveredInOrder() = runTest {
         // Mirror Repository.snackbarEvents config (replay=0, extraBufferCapacity≥1).
         val flow = MutableSharedFlow<TwitterSnackbarEvent>(
             replay = 0,
@@ -360,15 +358,14 @@ class HomeRouteEventTest {
             onBufferOverflow = BufferOverflow.DROP_OLDEST,
         )
         val collected = mutableListOf<TwitterSnackbarEvent>()
-        val job = CoroutineScope(Dispatchers.Default).launch {
+        // UnconfinedTestDispatcher subscribes the collector eagerly before the emits.
+        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
             flow.collect { collected.add(it) }
         }
-        repeat(20) { yield() }
 
         flow.emit(TwitterSnackbarEvent.Debounced(retryAfterSeconds = 30))
         flow.emit(TwitterSnackbarEvent.InProgress)
         flow.emit(TwitterSnackbarEvent.GenericFailure(reason = "timeout"))
-        repeat(20) { yield() }
 
         job.cancel()
 

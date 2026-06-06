@@ -13,7 +13,11 @@ jest.mock("../src/lib/poll", () => ({
 }));
 
 const mockDocSet = jest.fn(async () => undefined);
-const mockDoc = jest.fn(() => ({ set: mockDocSet }));
+// The single-use nonce guard (SEC-2) calls nonceRef.create(); a real Firestore
+// DocumentReference has it, so the mock must stub it too or the handler throws
+// "nonceRef.create is not a function" and short-circuits to a 500.
+const mockDocCreate = jest.fn(async () => undefined);
+const mockDoc = jest.fn(() => ({ set: mockDocSet, create: mockDocCreate }));
 
 jest.mock("../src/lib/admin", () => ({
   db: jest.fn(() => ({ doc: mockDoc })),
