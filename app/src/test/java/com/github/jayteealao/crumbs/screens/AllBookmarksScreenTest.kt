@@ -43,7 +43,8 @@ class AllBookmarksScreenTest {
                     onLongPress = { _, _ -> },
                     onConnectAccountClick = {},
                     onLoadTags = {},
-                    onLoadTagsForIds = {},
+                    onLoadTwitterTags = {},
+                    onLoadRedditTags = {},
                 )
             }
         }
@@ -63,7 +64,8 @@ class AllBookmarksScreenTest {
                     onLongPress = { _, _ -> },
                     onConnectAccountClick = {},
                     onLoadTags = {},
-                    onLoadTagsForIds = {},
+                    onLoadTwitterTags = {},
+                    onLoadRedditTags = {},
                 )
             }
         }
@@ -85,7 +87,8 @@ class AllBookmarksScreenTest {
                     onLongPress = { _, _ -> },
                     onConnectAccountClick = { fired = true },
                     onLoadTags = {},
-                    onLoadTagsForIds = {},
+                    onLoadTwitterTags = {},
+                    onLoadRedditTags = {},
                 )
             }
         }

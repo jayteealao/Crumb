@@ -899,4 +899,94 @@ class BookmarksViewModelTest {
 
         job.cancel()
     }
+
+    // -------------------------------------------------------------------------
+    // 27. Delta loading + overwrite (R2-PERF-05 / R2-CR-6)
+    //
+    // A paging append re-runs loadTagsForItems with the full accumulated id set.
+    // Only the new (delta) ids — plus any edited (dirty) id — must be re-queried,
+    // and the merge must overwrite so an emptied tag set clears its chips.
+    // -------------------------------------------------------------------------
+
+    // Force an id into the private dirty set so the overwrite path can be exercised
+    // in isolation (mirrors the wasPlayingBeforePause reflection precedent above).
+    private fun markTweetDirty(id: String) {
+        val field = BookmarksViewModel::class.java.getDeclaredField("_dirtyTweetIds")
+        field.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        (field.get(vm) as MutableSet<String>).add(id)
+    }
+
+    @Test
+    fun loadTagsForItems_deltaOnly_queriesOnlyNewIds() = runTest(dispatcher) {
+        coEvery { repository.getTagsForItems(listOf("t1", "t2")) } returns mapOf(
+            "t1" to listOf("kotlin"),
+            "t2" to emptyList(),
+        )
+        coEvery { repository.getTagsForItems(listOf("t3")) } returns mapOf("t3" to listOf("compose"))
+
+        // First snapshot loads t1 + t2.
+        vm.loadTagsForItems(listOf("t1", "t2"))
+        advanceUntilIdle()
+
+        // Next snapshot appends t3 — only the delta [t3] must hit the repository.
+        vm.loadTagsForItems(listOf("t1", "t2", "t3"))
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { repository.getTagsForItems(listOf("t1", "t2")) }
+        coVerify(exactly = 1) { repository.getTagsForItems(listOf("t3")) }
+        // The full accumulated set must never be re-queried wholesale.
+        coVerify(exactly = 0) { repository.getTagsForItems(listOf("t1", "t2", "t3")) }
+    }
+
+    @Test
+    fun loadTagsForItems_alreadyLoadedIds_skipRepositoryEntirely() = runTest(dispatcher) {
+        coEvery { repository.getTagsForItems(listOf("t1")) } returns mapOf("t1" to listOf("kotlin"))
+
+        vm.loadTagsForItems(listOf("t1"))
+        advanceUntilIdle()
+        // Re-issuing the identical snapshot (no new ids, nothing dirty) must short-circuit.
+        vm.loadTagsForItems(listOf("t1"))
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { repository.getTagsForItems(listOf("t1")) }
+    }
+
+    @Test
+    fun loadTagsForItems_overwrite_clearsStaleChips() = runTest(dispatcher) {
+        coEvery { repository.getTagsForItems(listOf("t1")) } returns mapOf("t1" to listOf("kotlin"))
+        vm.loadTagsForItems(listOf("t1"))
+        advanceUntilIdle()
+        assertEquals(listOf("kotlin"), vm.tagsForTweet.value["t1"])
+
+        // The tag was removed; the repository now returns an explicit empty entry. Mark
+        // t1 dirty so the delta guard re-queries it, then assert the chips clear (the
+        // map entry is overwritten with the empty list, not unioned with the stale one).
+        markTweetDirty("t1")
+        coEvery { repository.getTagsForItems(listOf("t1")) } returns mapOf("t1" to emptyList())
+        vm.loadTagsForItems(listOf("t1"))
+        advanceUntilIdle()
+
+        assertEquals(emptyList<String>(), vm.tagsForTweet.value["t1"])
+    }
+
+    @Test
+    fun saveTags_invalidatesId_causingReloadOnNextBatch() = runTest(dispatcher) {
+        coEvery { repository.getTagsForItems(listOf("t1")) } returns mapOf("t1" to listOf("kotlin"))
+        coEvery { repository.getTagsForTweet("t1") } returns listOf("kotlin")
+        coEvery { repository.getAllTags() } returns listOf("kotlin")
+
+        // Initial batch load marks t1 as loaded.
+        vm.loadTagsForItems(listOf("t1"))
+        advanceUntilIdle()
+
+        // Editing tags marks t1 dirty so the next identical snapshot re-queries it
+        // instead of skipping it as already-loaded.
+        vm.saveTags("t1", listOf("kotlin"))
+        advanceUntilIdle()
+        vm.loadTagsForItems(listOf("t1"))
+        advanceUntilIdle()
+
+        coVerify(exactly = 2) { repository.getTagsForItems(listOf("t1")) }
+    }
 }

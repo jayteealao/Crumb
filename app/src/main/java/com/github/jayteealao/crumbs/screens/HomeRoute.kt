@@ -33,6 +33,7 @@ import com.github.jayteealao.twitter.screens.BookmarksViewModel
 import com.github.jayteealao.twitter.screens.LoginViewModel
 import com.github.jayteealao.twitter.screens.TwitterBookmarksRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
@@ -108,9 +109,12 @@ fun HomeRoute(
     }
 
     // Surface triggerPoll feedback (debounce / in-progress) as snackbars on
-    // the home host so the user sees pull-to-refresh outcomes.
+    // the home host so the user sees pull-to-refresh outcomes. collectLatest (not
+    // collect) cancels an in-flight showSnackbar when a newer event arrives, so a
+    // superseded transient "Fetching…" is dropped instead of queuing behind a
+    // long-lived snackbar (e.g. "BOOKMARK DELETED").
     LaunchedEffect(Unit) {
-        bookmarksViewModel.snackbarEvents.collect { event ->
+        bookmarksViewModel.snackbarEvents.collectLatest { event ->
             val message = when (event) {
                 is TwitterSnackbarEvent.Debounced -> {
                     val secs = event.retryAfterSeconds ?: 60

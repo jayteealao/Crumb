@@ -49,6 +49,10 @@ class RedditRepository @Inject constructor(
     companion object {
         const val BUFFER = 250
         const val PAGE_SIZE = 100 // Max allowed by Reddit API
+        // Cap the size of any `IN (:ids)` list so a large paging snapshot cannot
+        // exceed SQLite's default 999 host-parameter limit. 900 leaves headroom
+        // for any other bound parameters in the same statement.
+        const val MAX_IN_CLAUSE_PARAMS = 900
     }
 
     init {
@@ -249,8 +253,19 @@ class RedditRepository @Inject constructor(
 
     override suspend fun getTagsForItems(ids: List<String>): Map<String, List<String>> {
         if (ids.isEmpty()) return emptyMap()
-        return redditDao.getTagsForRedditPosts(ids)
-            .groupBy({ it.postId }, { it.tagName })
+        // Chunk the IN-clause to stay under SQLite's host-parameter limit, then
+        // merge the per-chunk rows. Each id lands in exactly one chunk, so a flat
+        // overwrite-merge cannot drop or double-count tags.
+        val tagsById = mutableMapOf<String, List<String>>()
+        ids.chunked(MAX_IN_CLAUSE_PARAMS).forEach { chunk ->
+            redditDao.getTagsForRedditPosts(chunk)
+                .groupBy({ it.postId }, { it.tagName })
+                .forEach { (id, tags) -> tagsById[id] = tags }
+        }
+        // Inject an explicit empty entry for every requested id with no tags so the
+        // ViewModel's overwrite-merge clears chips for ids whose tags were removed.
+        ids.forEach { id -> tagsById.getOrPut(id) { emptyList() } }
+        return tagsById
     }
 
     override suspend fun getAllTags(): List<String> {

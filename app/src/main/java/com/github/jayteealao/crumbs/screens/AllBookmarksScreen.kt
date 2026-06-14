@@ -66,7 +66,8 @@ data class AllBookmarksUiState(
  * @param onLongPress Called with the [Bookmark] and screen-space anchor when the user long-presses a card.
  * @param onConnectAccountClick Called when the user taps the connect-account CTA in the empty state.
  * @param onLoadTags Called with a single bookmark id to lazily load its tags (legacy path).
- * @param onLoadTagsForIds Called with a batch of bookmark ids when a new page snapshot is available.
+ * @param onLoadTwitterTags Called with a batch of Twitter bookmark ids when a new page snapshot is available.
+ * @param onLoadRedditTags Called with a batch of Reddit bookmark ids when a new page snapshot is available.
  */
 @Composable
 fun AllBookmarksScreen(
@@ -77,7 +78,8 @@ fun AllBookmarksScreen(
     onLongPress: (Bookmark, Offset) -> Unit,
     onConnectAccountClick: () -> Unit,
     onLoadTags: (String) -> Unit,
-    onLoadTagsForIds: (List<String>) -> Unit,
+    onLoadTwitterTags: (List<String>) -> Unit,
+    onLoadRedditTags: (List<String>) -> Unit,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     modifier: Modifier = Modifier,
 ) {
@@ -102,14 +104,14 @@ fun AllBookmarksScreen(
         twitterItems?.itemSnapshotList?.mapNotNull { it?.tweet?.id } ?: emptyList()
     }
     LaunchedEffect(twitterIds) {
-        if (twitterIds.isNotEmpty()) onLoadTagsForIds(twitterIds)
+        if (twitterIds.isNotEmpty()) onLoadTwitterTags(twitterIds)
     }
 
     val redditIds = remember(redditItems?.itemSnapshotList) {
         redditItems?.itemSnapshotList?.mapNotNull { it?.post?.id } ?: emptyList()
     }
     LaunchedEffect(redditIds) {
-        if (redditIds.isNotEmpty()) onLoadTagsForIds(redditIds)
+        if (redditIds.isNotEmpty()) onLoadRedditTags(redditIds)
     }
 
     Box(
@@ -253,8 +255,13 @@ fun AllBookmarksRoute(
     val redditItems = redditViewModel.pagingFlowData().collectAsLazyPagingItems()
     val redditLoggedIn by redditViewModel.isAccessTokenAvailable.collectAsStateWithLifecycle()
 
-    val tagsMap by bookmarksViewModel.tagsForTweet.collectAsStateWithLifecycle()
+    val twitterTagsMap by bookmarksViewModel.tagsForTweet.collectAsStateWithLifecycle()
+    val redditTagsMap by redditViewModel.tagsForTweet.collectAsStateWithLifecycle()
     val allTags by bookmarksViewModel.allTags.collectAsStateWithLifecycle()
+    // Twitter and Reddit ids occupy disjoint namespaces, so this union is collision-free.
+    // Merging both maps lets Reddit bookmarks resolve their own chips on the mixed ALL
+    // feed — previously every id was routed through the Twitter-only tag query.
+    val tagsMap = twitterTagsMap + redditTagsMap
 
     val lps = rememberLongPressState()
 
@@ -278,7 +285,8 @@ fun AllBookmarksRoute(
             navController?.navigate(Screens.LOGINSCREEN.name)
         },
         onLoadTags = { id -> bookmarksViewModel.loadTagsForTweet(id) },
-        onLoadTagsForIds = { ids -> bookmarksViewModel.loadTagsForItems(ids) },
+        onLoadTwitterTags = { ids -> bookmarksViewModel.loadTagsForItems(ids) },
+        onLoadRedditTags = { ids -> redditViewModel.loadTagsForItems(ids) },
         contentPadding = contentPadding,
     )
 
@@ -346,7 +354,8 @@ private fun PreviewAllBookmarksEmptyLight() {
             onLongPress = { _, _ -> },
             onConnectAccountClick = {},
             onLoadTags = {},
-            onLoadTagsForIds = {},
+            onLoadTwitterTags = {},
+            onLoadRedditTags = {},
         )
     }
 }
@@ -363,7 +372,8 @@ private fun PreviewAllBookmarksEmptyDark() {
             onLongPress = { _, _ -> },
             onConnectAccountClick = {},
             onLoadTags = {},
-            onLoadTagsForIds = {},
+            onLoadTwitterTags = {},
+            onLoadRedditTags = {},
         )
     }
 }

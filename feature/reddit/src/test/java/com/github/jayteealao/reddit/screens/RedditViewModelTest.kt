@@ -495,4 +495,80 @@ class RedditViewModelTest {
 
         job.cancel()
     }
+
+    // -------------------------------------------------------------------------
+    // 20. Delta loading + overwrite (Reddit parity, R2-PERF-05 / R2-CR-6)
+    //
+    // Mirrors BookmarksViewModelTest section 27: only new/dirty ids are queried
+    // and the merge overwrites so emptied tag sets clear their chips. The Reddit
+    // VM resolves tags through the @RedditTags TagRepository (tagRepository mock).
+    // -------------------------------------------------------------------------
+
+    private fun markPostDirty(id: String) {
+        val field = RedditViewModel::class.java.getDeclaredField("_dirtyPostIds")
+        field.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        (field.get(vm) as MutableSet<String>).add(id)
+    }
+
+    @Test
+    fun loadTagsForItems_deltaOnly_queriesOnlyNewIds() = runTest(dispatcher) {
+        coEvery { tagRepository.getTagsForItems(listOf("p1", "p2")) } returns mapOf(
+            "p1" to listOf("kotlin"),
+            "p2" to emptyList(),
+        )
+        coEvery { tagRepository.getTagsForItems(listOf("p3")) } returns mapOf("p3" to listOf("compose"))
+
+        vm.loadTagsForItems(listOf("p1", "p2"))
+        advanceUntilIdle()
+        vm.loadTagsForItems(listOf("p1", "p2", "p3"))
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { tagRepository.getTagsForItems(listOf("p1", "p2")) }
+        coVerify(exactly = 1) { tagRepository.getTagsForItems(listOf("p3")) }
+        coVerify(exactly = 0) { tagRepository.getTagsForItems(listOf("p1", "p2", "p3")) }
+    }
+
+    @Test
+    fun loadTagsForItems_alreadyLoadedIds_skipRepositoryEntirely() = runTest(dispatcher) {
+        coEvery { tagRepository.getTagsForItems(listOf("p1")) } returns mapOf("p1" to listOf("kotlin"))
+
+        vm.loadTagsForItems(listOf("p1"))
+        advanceUntilIdle()
+        vm.loadTagsForItems(listOf("p1"))
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { tagRepository.getTagsForItems(listOf("p1")) }
+    }
+
+    @Test
+    fun loadTagsForItems_overwrite_clearsStaleChips() = runTest(dispatcher) {
+        coEvery { tagRepository.getTagsForItems(listOf("p1")) } returns mapOf("p1" to listOf("kotlin"))
+        vm.loadTagsForItems(listOf("p1"))
+        advanceUntilIdle()
+        assertEquals(listOf("kotlin"), vm.tagsForTweet.value["p1"])
+
+        markPostDirty("p1")
+        coEvery { tagRepository.getTagsForItems(listOf("p1")) } returns mapOf("p1" to emptyList())
+        vm.loadTagsForItems(listOf("p1"))
+        advanceUntilIdle()
+
+        assertEquals(emptyList<String>(), vm.tagsForTweet.value["p1"])
+    }
+
+    @Test
+    fun saveTags_invalidatesId_causingReloadOnNextBatch() = runTest(dispatcher) {
+        coEvery { tagRepository.getTagsForItems(listOf("p1")) } returns mapOf("p1" to listOf("kotlin"))
+        coEvery { tagRepository.getTagsForTweet("p1") } returns listOf("kotlin")
+        coEvery { tagRepository.getAllTags() } returns listOf("kotlin")
+
+        vm.loadTagsForItems(listOf("p1"))
+        advanceUntilIdle()
+        vm.saveTags("p1", listOf("kotlin"))
+        advanceUntilIdle()
+        vm.loadTagsForItems(listOf("p1"))
+        advanceUntilIdle()
+
+        coVerify(exactly = 2) { tagRepository.getTagsForItems(listOf("p1")) }
+    }
 }

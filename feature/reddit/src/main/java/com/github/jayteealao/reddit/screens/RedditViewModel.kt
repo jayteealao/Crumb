@@ -29,6 +29,8 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 
 /**
@@ -59,6 +61,14 @@ class RedditViewModel @Inject constructor(
 
     private val _tagsForTweet = MutableStateFlow<Map<String, List<String>>>(emptyMap())
     val tagsForTweet: StateFlow<Map<String, List<String>>> = _tagsForTweet
+
+    // Ids whose tags have already been loaded this session, so a paging append queries
+    // only the new (delta) ids instead of re-fetching the full accumulated snapshot.
+    // ConcurrentHashMap-backed so it is safe under any dispatcher.
+    private val _loadedPostIds: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
+    // Ids edited via [saveTags] since their last batch load; force-included in the next
+    // delta so freshly-edited tags are re-queried even though they are "loaded".
+    private val _dirtyPostIds: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
 
     private val _allTags = MutableStateFlow<List<String>>(emptyList())
     val allTags: StateFlow<List<String>> = _allTags
@@ -178,9 +188,17 @@ class RedditViewModel @Inject constructor(
 
     fun loadTagsForItems(ids: List<String>) {
         if (ids.isEmpty()) return
+        // Query only ids not yet loaded, plus any edited (dirty) id whose chips would
+        // otherwise stay stale. Empty delta → nothing changed → skip the query entirely.
+        val delta = ids.filter { it !in _loadedPostIds || it in _dirtyPostIds }
+        if (delta.isEmpty()) return
         viewModelScope.launch {
-            val batch = tagRepository.getTagsForItems(ids)
+            val batch = tagRepository.getTagsForItems(delta)
+            // The repository returns an explicit (possibly empty) entry for every delta
+            // id, so this merge overwrites — clearing chips for ids whose tags were removed.
             _tagsForTweet.update { it + batch }
+            _loadedPostIds.addAll(delta)
+            _dirtyPostIds.removeAll(delta.toSet())
         }
     }
 
@@ -193,6 +211,9 @@ class RedditViewModel @Inject constructor(
     fun saveTags(id: String, tags: List<String>) {
         viewModelScope.launch {
             tagRepository.saveTags(id, tags)
+            // Mark dirty so the next batch load re-queries this id — a pure delta load
+            // would otherwise skip it as already-loaded and leave its chips stale.
+            _dirtyPostIds.add(id)
             loadTagsForTweet(id)
             loadAllTags()
         }
