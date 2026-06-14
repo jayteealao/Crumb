@@ -90,6 +90,10 @@ fun HomeRoute(
     val syncStatus by bookmarksViewModel.syncStatus.collectAsStateWithLifecycle()
     // Live Twitter feed count for the SAVED header; tracks the active tag/type filter.
     val twitterCount by bookmarksViewModel.itemCount.collectAsStateWithLifecycle()
+    // User tags per source, surfaced as the Tags section in the filter overlay.
+    // Loads asynchronously at VM init; the section appears on the next emission.
+    val twitterAllTags by bookmarksViewModel.allTags.collectAsStateWithLifecycle()
+    val redditAllTags by redditViewModel.allTags.collectAsStateWithLifecycle()
 
     // Reconnect banner reflects sync_status.linked from the server doc; takes
     // precedence over the legacy 401 banner because the new server-driven
@@ -179,6 +183,16 @@ fun HomeRoute(
             }
         }
     }
+    // Tags follow the same tab routing as the filter: Reddit reads its own tag
+    // set; Twitter/All/Map share the Twitter (bookmarks) tag set.
+    val activeAllTags by remember {
+        derivedStateOf {
+            when (selectedTab) {
+                BottomNavTab.REDDIT -> redditAllTags
+                else -> twitterAllTags
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         services.syncErrorBus.events.collect { event ->
@@ -229,7 +243,7 @@ fun HomeRoute(
             selectedTab = selectedTab,
             isSearchActive = isSearchActive,
             searchQuery = searchQuery,
-            selectedFilterChipIds = setOf(activeFilter.type.name.lowercase()),
+            selectedFilterChipIds = filterChipIdsFor(activeFilter),
             bannerState = activeBanner,
             itemCount = activeCount,
         ),
@@ -242,10 +256,24 @@ fun HomeRoute(
             }
         },
         onChipToggled = { id ->
-            when (selectedTab) {
-                BottomNavTab.TWITTER, BottomNavTab.ALL, BottomNavTab.MAP -> bookmarksViewModel.onTypeChipToggled(id)
-                BottomNavTab.REDDIT -> redditViewModel.onTypeChipToggled(id)
-            }
+            // Tag chip ids are namespaced `tag:<name>`; dispatchChipToggle strips the prefix and
+            // routes to the tag filter, while bare type ids route to the type filter. Per-tab
+            // routing follows the existing pattern: Reddit -> redditViewModel, else bookmarksViewModel.
+            dispatchChipToggle(
+                chipId = id,
+                onType = { typeId ->
+                    when (selectedTab) {
+                        BottomNavTab.TWITTER, BottomNavTab.ALL, BottomNavTab.MAP -> bookmarksViewModel.onTypeChipToggled(typeId)
+                        BottomNavTab.REDDIT -> redditViewModel.onTypeChipToggled(typeId)
+                    }
+                },
+                onTag = { tag ->
+                    when (selectedTab) {
+                        BottomNavTab.REDDIT -> redditViewModel.onTagToggled(tag)
+                        else -> bookmarksViewModel.onTagToggled(tag)
+                    }
+                },
+            )
         },
         onSortClick = { /* sort dialog deferred to a follow-up slice */ },
         onBannerCta = {
@@ -273,6 +301,7 @@ fun HomeRoute(
             }
         },
         snackbarHostState = snackbarHostState,
+        allTags = activeAllTags,
     ) { tab, padding ->
         when (tab) {
             BottomNavTab.TWITTER -> TwitterBookmarksRoute(

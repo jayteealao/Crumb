@@ -140,4 +140,44 @@ class FilterOverlayTest {
         composeTestRule.onRoot()
             .captureRoboImage("src/test/screenshots/FilterOverlay_visible_withSelection_dark.png")
     }
+
+    /**
+     * AC6: overlay rendering both the Type and Tags sections with one chip active in each — light.
+     * Uses the [multiSections] fixture's bare chip ids; FilterOverlay is namespace-agnostic (the
+     * `tag:` prefix is HomeRoute's concern), so the selected ids match the fixture ids directly.
+     */
+    @Test
+    fun filterOverlay_typeAndTags_light() {
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = false) {
+                FilterOverlay(
+                    visible = true,
+                    sections = multiSections,
+                    selectedChipIds = setOf("article", "android"),
+                    onChipToggled = {},
+                    onDismiss = {},
+                )
+            }
+        }
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/FilterOverlay_typeAndTags_light.png")
+    }
+
+    /** AC6: overlay rendering both the Type and Tags sections with one chip active in each — dark. */
+    @Test
+    fun filterOverlay_typeAndTags_dark() {
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = true) {
+                FilterOverlay(
+                    visible = true,
+                    sections = multiSections,
+                    selectedChipIds = setOf("article", "android"),
+                    onChipToggled = {},
+                    onDismiss = {},
+                )
+            }
+        }
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/FilterOverlay_typeAndTags_dark.png")
+    }
 }

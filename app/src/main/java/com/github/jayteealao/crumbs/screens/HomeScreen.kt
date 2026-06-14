@@ -6,12 +6,14 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import com.github.jayteealao.crumbs.data.BannerState
+import com.github.jayteealao.crumbs.data.FilterState
 import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.designsystem.components.BottomNavTab
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsBanner
@@ -26,6 +28,7 @@ import com.github.jayteealao.crumbs.designsystem.layouts.HomeScaffold
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
 
 @androidx.compose.runtime.Immutable
 data class HomeUiState(
@@ -62,9 +65,59 @@ internal val HomeFilterChips: ImmutableList<FilterChipItem> = persistentListOf(
     FilterChipItem("text", "TEXT"),
 )
 
-private val HomeFilterSections: ImmutableList<FilterOverlaySection> = persistentListOf(
-    FilterOverlaySection(title = "Type", chips = HomeFilterChips),
-)
+/**
+ * Namespace prefix for tag filter-chip ids. Keeps tag ids disjoint from the plain type ids in
+ * [HomeFilterChips] so a user tag named "text"/"image" can never alias a type chip.
+ */
+internal const val TAG_CHIP_PREFIX = "tag:"
+
+/** Namespaced filter-overlay chip id for a user [tag] (e.g. "kotlin" -> "tag:kotlin"). */
+internal fun tagChipId(tag: String): String = "$TAG_CHIP_PREFIX$tag"
+
+/**
+ * Selected filter-overlay chip ids for a given [state]: the active type id plus a namespaced id per
+ * selected tag. Mirrors [rememberHomeFilterSections] so selected tag chips render in the active state.
+ */
+internal fun filterChipIdsFor(state: FilterState): Set<String> = buildSet {
+    add(state.type.name.lowercase())
+    state.selectedTags.forEach { add(tagChipId(it)) }
+}
+
+/**
+ * Routes a filter-overlay chip toggle by id: namespaced `tag:` ids strip the prefix and go to
+ * [onTag]; bare ids are type chips and go to [onType]. Pure so the dispatch decision is unit-testable
+ * without a Compose host; the per-tab ViewModel routing stays at the call site.
+ */
+internal inline fun dispatchChipToggle(
+    chipId: String,
+    onType: (String) -> Unit,
+    onTag: (String) -> Unit,
+) {
+    if (chipId.startsWith(TAG_CHIP_PREFIX)) onTag(chipId.removePrefix(TAG_CHIP_PREFIX)) else onType(chipId)
+}
+
+/**
+ * Builds the filter-overlay sections for the current tab. The Type section is always present;
+ * a Tags section is appended only when [allTags] is non-empty so an account with no tags shows
+ * no empty section. Memoized on [allTags] so it recomposes when tags load asynchronously without
+ * rebuilding on unrelated state changes. Tag chip ids are namespaced `tag:<name>` so they never
+ * collide with the plain type ids (e.g. a user tag named "text" vs the TEXT type chip).
+ */
+@Composable
+private fun rememberHomeFilterSections(allTags: List<String>): ImmutableList<FilterOverlaySection> =
+    remember(allTags) {
+        if (allTags.isEmpty()) {
+            persistentListOf(FilterOverlaySection(title = "Type", chips = HomeFilterChips))
+        } else {
+            persistentListOf(
+                FilterOverlaySection(title = "Type", chips = HomeFilterChips),
+                FilterOverlaySection(
+                    title = "Tags",
+                    chips = allTags.map { FilterChipItem(tagChipId(it), it.uppercase()) }.toPersistentList(),
+                ),
+            )
+        }
+    }
 
 /**
  * Root scaffold for the bookmark feed. Hosts the top bar, filter bar, bottom nav, and an
@@ -78,6 +131,7 @@ private val HomeFilterSections: ImmutableList<FilterOverlaySection> = persistent
  * @param onSortClick Called when the user taps the sort pill (handler currently deferred).
  * @param onBannerCta Called when the user taps the reconnect CTA on the service-error banner.
  * @param snackbarHostState Shared [SnackbarHostState] used to show undo-delete and sync feedback.
+ * @param allTags The active tab's tags, surfaced as a Tags section in the filter overlay; empty hides the section.
  * @param tabContent Slot that renders the active tab content given the selected [BottomNavTab] and scaffold padding.
  */
 @Composable
@@ -90,6 +144,7 @@ fun HomeScreen(
     onSortClick: () -> Unit,
     onBannerCta: () -> Unit,
     snackbarHostState: SnackbarHostState,
+    allTags: List<String> = emptyList(),
     modifier: Modifier = Modifier,
     tabContent: @Composable (BottomNavTab, PaddingValues) -> Unit,
 ) {
@@ -147,7 +202,7 @@ fun HomeScreen(
 
     FilterOverlay(
         visible = showFilterOverlay,
-        sections = HomeFilterSections,
+        sections = rememberHomeFilterSections(allTags),
         selectedChipIds = uiState.selectedFilterChipIds,
         onChipToggled = onChipToggled,
         onDismiss = { showFilterOverlay = false },
