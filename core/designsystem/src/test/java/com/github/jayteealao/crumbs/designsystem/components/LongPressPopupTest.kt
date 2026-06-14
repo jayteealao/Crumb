@@ -1,10 +1,17 @@
 package com.github.jayteealao.crumbs.designsystem.components
 
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Assert.assertEquals
@@ -100,5 +107,44 @@ class LongPressPopupTest {
             "Every action click must also dismiss the popup (got $dismissCount dismisses)",
             dismissCount == 4,
         )
+    }
+
+    // AC1 — the full-screen scrim must absorb taps anywhere off the action card,
+    // including the region above/left of the fingertip anchor, and dismiss the
+    // popup instead of leaking the tap to the list beneath.
+    @Test
+    fun popup_scrim_absorbs_tap_above_anchor() {
+        var dismissed = false
+
+        composeTestRule.setContent {
+            var visible by remember { mutableStateOf(true) }
+            CrumbsTheme(darkTheme = false) {
+                val bundle = bookmarkPopupActions(
+                    onTag = {},
+                    onOpen = {},
+                    onShare = {},
+                    onDelete = {},
+                )
+                CrumbsLongPressPopup(
+                    visible = visible,
+                    onDismiss = {
+                        dismissed = true
+                        visible = false
+                    },
+                    actions = bundle.actions,
+                    onSelect = bundle.onSelect,
+                    // Anchor well away from the top-left corner so (10, 10) is
+                    // guaranteed to land on the scrim, not the card.
+                    anchorOffsetPx = Offset(300f, 400f),
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("popup-scrim")
+            .performTouchInput { click(position = Offset(10f, 10f)) }
+        composeTestRule.waitForIdle()
+
+        assertTrue("Tap above/left of the anchor must dismiss via the scrim", dismissed)
+        composeTestRule.onNodeWithTag("popup").assertDoesNotExist()
     }
 }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -35,6 +36,8 @@ import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -106,12 +109,8 @@ fun CrumbsLongPressPopup(
     val typography = LocalCrumbsTypography.current
     val spacing = LocalCrumbsSpacing.current
 
-    val positionProvider = remember(anchorOffsetPx) {
-        FingertipPopupPositionProvider(anchorOffsetPx)
-    }
-
     Popup(
-        popupPositionProvider = positionProvider,
+        popupPositionProvider = ScreenOriginPopupPositionProvider,
         onDismissRequest = onDismiss,
         properties = PopupProperties(
             focusable = true,
@@ -120,17 +119,43 @@ fun CrumbsLongPressPopup(
             clippingEnabled = false,
         ),
     ) {
-        // Full-screen 32% black scrim — handoff-components.jsx:619.
+        // Bug 1 fix: the Popup window is anchored at the screen origin (the
+        // position provider returns IntOffset.Zero) so the scrim always fills
+        // the entire screen. The action card is offset to the fingertip *inside*
+        // the full-screen window via Modifier.offset rather than by moving the
+        // whole window — previously a fingertip-anchored window left the region
+        // above/left of the anchor uncovered, leaking taps to the list beneath.
+        val windowSize = LocalWindowInfo.current.containerSize
+        var cardSize by remember { mutableStateOf(IntSize.Zero) }
+        val scrimInteraction = remember { MutableInteractionSource() }
+        // Full-screen 32% black scrim — handoff-components.jsx:619. With the
+        // screen-origin window, scrim taps fall *inside* the popup window where
+        // dismissOnClickOutside can't observe them, so dismiss explicitly here.
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.32f))
+                .clickable(
+                    interactionSource = scrimInteraction,
+                    indication = null,
+                ) { onDismiss() }
                 .testTag("popup-scrim"),
         )
         // Brutalist hard offset shadow via Compose 1.11.x native Modifier.dropShadow —
         // radius=0, spread=0, +6dp/+6dp offset, ink color (handoff-tokens.jsx:273-274).
+        // The card is positioned at the fingertip via Modifier.offset, clamped to
+        // the window bounds (the clamp formerly lived in the position provider).
         Column(
             modifier = modifier
+                .onSizeChanged { cardSize = it }
+                .offset {
+                    val maxX = (windowSize.width - cardSize.width).coerceAtLeast(0)
+                    val maxY = (windowSize.height - cardSize.height).coerceAtLeast(0)
+                    IntOffset(
+                        x = anchorOffsetPx.x.roundToInt().coerceIn(0, maxX),
+                        y = anchorOffsetPx.y.roundToInt().coerceIn(0, maxY),
+                    )
+                }
                 .dropShadow(
                     shape = shapes.dialog,
                     shadow = Shadow(
@@ -239,7 +264,7 @@ fun CrumbsLongPressPopup(
 }
 
 @Composable
-private fun PopupActionCell(
+internal fun PopupActionCell(
     action: CrumbsAction,
     modifier: Modifier = Modifier,
 ) {
@@ -300,26 +325,18 @@ private fun actionIcon(id: String): ImageVector? = when (id) {
     else -> null
 }
 
-// Anchors the popup near the fingertip Offset (window pixels); clamps to
-// window bounds so the popup never overflows the screen.
-private class FingertipPopupPositionProvider(
-    private val anchorOffsetPx: Offset,
-) : PopupPositionProvider {
+// Anchors the Popup window at the host-window origin so its full-screen scrim
+// covers the entire screen. The action card is positioned at the fingertip
+// inside the window via Modifier.offset (see CrumbsLongPressPopup) rather than
+// by moving the window — this keeps the scrim absorbing taps above/left of the
+// anchor instead of leaking them to the list beneath.
+private object ScreenOriginPopupPositionProvider : PopupPositionProvider {
     override fun calculatePosition(
         anchorBounds: IntRect,
         windowSize: IntSize,
         layoutDirection: LayoutDirection,
         popupContentSize: IntSize,
-    ): IntOffset {
-        val rawX = anchorBounds.left + anchorOffsetPx.x.roundToInt()
-        val rawY = anchorBounds.top + anchorOffsetPx.y.roundToInt()
-        val maxX = (windowSize.width - popupContentSize.width).coerceAtLeast(0)
-        val maxY = (windowSize.height - popupContentSize.height).coerceAtLeast(0)
-        return IntOffset(
-            x = rawX.coerceIn(0, maxX),
-            y = rawY.coerceIn(0, maxY),
-        )
-    }
+    ): IntOffset = IntOffset.Zero
 }
 
 // ---------------------------------------------------------------------------

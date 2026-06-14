@@ -1,38 +1,51 @@
 package com.github.jayteealao.crumbs.designsystem.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import com.github.jayteealao.crumbs.designsystem.layouts.OverlayShell
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsSpacing
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsTypography
 import com.github.jayteealao.crumbs.models.Bookmark
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 
 /**
- * Screen-level bookmark long-press overlay. Wraps the existing
- * [CrumbsLongPressPopup] inside an [OverlayShell] so the action menu inherits
- * the brutalist offset shadow + hatched scrim chrome, then layers the
- * `CURRENT TAGS:` row + plain `+ add tag…` text-link affordance underneath
- * per option-d-screens.jsx DQuickActions lines 664-759.
+ * Screen-level bookmark long-press overlay. Renders the action cells inline in
+ * a single [OverlayShell] (one offset shadow + one hatched scrim), then layers
+ * the `CURRENT TAGS:` row + plain `+ add tag…` text-link affordance underneath
+ * per option-d-screens.jsx DQuickActions lines 664-759. The cells reuse the
+ * [PopupActionCell] primitive but are drawn directly in the shell body — the
+ * overlay no longer mounts a nested [CrumbsLongPressPopup] (which opened a
+ * second Popup window with its own scrim + back handler).
  *
  * Action set preserved as TAG / OPEN / SHARE / DELETE (the behaviors-slice
  * canonical set). The handoff spec calls for TAG/SHARE/ARCHIVE/DELETE, but
@@ -64,6 +77,15 @@ fun BookmarkActionsOverlay(
     val colors = LocalCrumbsColors.current
     val typography = LocalCrumbsTypography.current
     val spacing = LocalCrumbsSpacing.current
+    val stroke = LocalCrumbsStroke.current
+
+    // Bug 3 fix: when the active bookmark is cleared externally (the route calls
+    // LongPressState.dismiss(), which nulls the bookmark), collapse the tag
+    // editor so a later long-press on a *different* bookmark never reopens it
+    // unprompted.
+    LaunchedEffect(bookmark) {
+        if (bookmark == null) tagEditorVisible = false
+    }
 
     OverlayShell(
         visible = visible && bookmark != null,
@@ -76,9 +98,52 @@ fun BookmarkActionsOverlay(
                     .padding(spacing.md)
                     .testTag("bookmark-actions-overlay"),
             ) {
-                CrumbsLongPressPopup(
-                    visible = true,
-                    onDismiss = onDismiss,
+                // Bug 2 fix: render the action cells inline instead of mounting a
+                // nested CrumbsLongPressPopup, which opened a *second* Popup window
+                // with its own scrim + back handler (double-darkening, and Back
+                // tearing down the whole overlay). The "ACTIONS · @handle" header
+                // is replicated here since the inline cells no longer carry the
+                // popup card's own header. testTags and the TAG/OPEN/SHARE/DELETE
+                // action set are preserved verbatim for the Maestro selectors.
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .background(colors.accent),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "·",
+                            style = typography.captionMono,
+                            color = colors.onAccent,
+                        )
+                    }
+                    Text(
+                        text = "ACTIONS",
+                        style = typography.captionMono,
+                        color = colors.ink,
+                    )
+                    bookmark?.author?.let { author ->
+                        Text(
+                            text = author,
+                            style = typography.bodyMono,
+                            color = colors.onSurfaceVariant,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(spacing.sm))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(stroke.hairline)
+                        .background(colors.ink),
+                )
+                Spacer(Modifier.height(spacing.sm))
+                BookmarkActionGrid(
                     actions = POPUP_ACTION_TEMPLATE,
                     onSelect = { action ->
                         when (action.id) {
@@ -89,9 +154,6 @@ fun BookmarkActionsOverlay(
                             }
                         }
                     },
-                    anchorOffsetPx = Offset.Zero,
-                    headerKicker = "ACTIONS",
-                    headerHandle = bookmark?.author,
                 )
                 Spacer(Modifier.height(spacing.md))
                 Column(
@@ -146,6 +208,52 @@ fun BookmarkActionsOverlay(
             onDismiss()
         },
     )
+}
+
+/**
+ * Inline 2×2 action grid — the un-nested replacement for the action cells that
+ * [CrumbsLongPressPopup] used to draw inside its own Popup window. Reuses the
+ * [PopupActionCell] primitive (promoted to `internal`) so the cell visuals stay
+ * byte-identical, and preserves the `popup-action-<id>` testTag + button
+ * semantics on every cell. TAG routes to the tag editor via [onSelect]; the
+ * dismiss for the other actions is owned by the caller's [onSelect] lambda.
+ */
+@Composable
+private fun BookmarkActionGrid(
+    actions: ImmutableList<CrumbsAction>,
+    onSelect: (CrumbsAction) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        actions.chunked(2).forEach { rowActions ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                rowActions.forEach { action ->
+                    PopupActionCell(
+                        action = action,
+                        modifier = Modifier
+                            .weight(1f)
+                            .semantics(mergeDescendants = true) {
+                                role = Role.Button
+                                contentDescription = action.label
+                            }
+                            .clickable { onSelect(action) }
+                            .testTag("popup-action-${action.id}"),
+                    )
+                }
+                // Pad a short final row with a weighted spacer so cell widths
+                // stay consistent across rows.
+                if (rowActions.size == 1) {
+                    Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+    }
 }
 
 /**
