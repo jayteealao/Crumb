@@ -46,7 +46,7 @@ import com.github.jayteealao.twitter.models.TwitterUserEntity
         RedditFts::class,
         SyncProgress::class,
     ],
-    version = 17,
+    version = 18,
     exportSchema = true
 )
 // MediaConverters is the project's first TypeConverter — backs the JSON

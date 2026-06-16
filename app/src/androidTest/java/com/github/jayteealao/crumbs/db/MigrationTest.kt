@@ -18,6 +18,7 @@ import com.github.jayteealao.crumbs.db.MIGRATION_13_14
 import com.github.jayteealao.crumbs.db.MIGRATION_14_15
 import com.github.jayteealao.crumbs.db.MIGRATION_15_16
 import com.github.jayteealao.crumbs.db.MIGRATION_16_17
+import com.github.jayteealao.crumbs.db.MIGRATION_17_18
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -882,6 +883,75 @@ class MigrationTest {
         db.query("SELECT tweet_id FROM tweetReferencedTweets WHERE id = 'quoted-2'").use { cursor ->
             assertTrue(cursor.moveToFirst())
             assertEquals("parent-1", cursor.getString(0))
+        }
+
+        db.close()
+    }
+
+    @Test
+    fun migrate17To18_backfillsNullTweetIdFromMediaKeysJunction() {
+        // Reproduce the defect on a v17 database: media rows persisted with a NULL tweet_id
+        // (the assembly bug), while the mediaKeys junction still holds the correct mapping.
+        helper.createDatabase(TEST_DB, 17).apply {
+            execSQL(
+                "INSERT INTO tweetEntity " +
+                    "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete, retrieved_at) " +
+                    "VALUES ('tweet-1', 'hi', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0, NULL)"
+            )
+            // Broken row: tweet_id NULL, but a junction entry maps its media_key → tweet-1.
+            execSQL(
+                "INSERT INTO tweetMedia " +
+                    "(media_key, type, url, duration_ms, height, width, preview_image_url, alt_text, tweet_id) " +
+                    "VALUES ('mk-null', 'photo', 'https://img/a.jpg', 0, 0, 0, NULL, NULL, NULL)"
+            )
+            execSQL("INSERT INTO mediaKeys (tweet_id, media_key) VALUES ('tweet-1', 'mk-null')")
+            // Orphan row: tweet_id NULL and NO junction entry — nothing on-device to repair from.
+            execSQL(
+                "INSERT INTO tweetMedia " +
+                    "(media_key, type, url, duration_ms, height, width, preview_image_url, alt_text, tweet_id) " +
+                    "VALUES ('mk-orphan', 'photo', 'https://img/b.jpg', 0, 0, 0, NULL, NULL, NULL)"
+            )
+            // Control row: already correct — the `WHERE tweet_id IS NULL` guard must skip it.
+            execSQL(
+                "INSERT INTO tweetMedia " +
+                    "(media_key, type, url, duration_ms, height, width, preview_image_url, alt_text, tweet_id) " +
+                    "VALUES ('mk-ok', 'photo', 'https://img/c.jpg', 0, 0, 0, NULL, NULL, 'tweet-1')"
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB,
+            18,
+            true,
+            MIGRATION_17_18,
+        )
+
+        // Broken row is repaired from the junction.
+        db.query("SELECT tweet_id FROM tweetMedia WHERE media_key = 'mk-null'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("mk-null must be backfilled from mediaKeys", "tweet-1", cursor.getString(0))
+        }
+
+        // Orphan row (no junction mapping) stays NULL — benign; repaired later via media re-fetch.
+        db.query("SELECT tweet_id FROM tweetMedia WHERE media_key = 'mk-orphan'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertTrue("mk-orphan has no junction row, so tweet_id must remain NULL", cursor.isNull(0))
+        }
+
+        // Control row is untouched by the IS NULL guard.
+        db.query("SELECT tweet_id FROM tweetMedia WHERE media_key = 'mk-ok'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("tweet-1", cursor.getString(0))
+        }
+
+        // No media row that HAS a junction mapping is left NULL after the migration.
+        db.query(
+            "SELECT COUNT(*) FROM tweetMedia m WHERE m.tweet_id IS NULL " +
+                "AND EXISTS (SELECT 1 FROM mediaKeys k WHERE k.media_key = m.media_key)"
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("no repairable media row should remain NULL", 0, cursor.getInt(0))
         }
 
         db.close()

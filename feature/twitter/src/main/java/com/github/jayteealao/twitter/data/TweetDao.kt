@@ -7,6 +7,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
+import androidx.room.Upsert
 import com.github.jayteealao.twitter.models.MediaKeys
 import com.github.jayteealao.twitter.models.PollIds
 import com.github.jayteealao.twitter.models.TagEntity
@@ -71,6 +72,18 @@ interface TweetDao {
     )
 
     /**
+     * Media-scoped self-heal for re-syncs. [insertTweetEntities] is IGNORE-on-conflict
+     * (media PK = `media_key`), so a media row already persisted with a stale or NULL
+     * `tweet_id` is never overwritten when the same tweet re-syncs. Upserting the media
+     * list separately updates those rows in place (Room 2.5+ `@Upsert` = insert-or-update,
+     * no FK / rowid churn that `REPLACE`'s delete+insert would cause). Scoped to media
+     * ONLY — flipping the multi-entity insert to REPLACE would clobber locally-tracked
+     * fields (`pending_delete`, `retrieved_at`, `order`) on tweet / user / metric rows.
+     */
+    @Upsert
+    fun upsertTweetMedia(media: List<TweetMediaEntity>)
+
+    /**
      * Atomic write of the full tweet aggregate. Wraps the multi-entity insert and
      * the optional pollIds insert in one SQLite transaction so Paging3's
      * InvalidationTracker emits exactly one invalidation and never observes a
@@ -102,6 +115,10 @@ interface TweetDao {
             tweetTextEntity,
             mediaKeys,
         )
+        // Re-sync self-heal: the IGNORE-on-conflict insert above leaves an existing media
+        // row's tweet_id untouched, so upsert the media set to land the corrected FK in
+        // place (same @Transaction → Paging's InvalidationTracker still fires once).
+        upsertTweetMedia(tweetMediaEntity)
         pollIds?.let { insertPollId(it) }
     }
 

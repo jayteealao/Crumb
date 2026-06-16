@@ -70,7 +70,11 @@ internal fun assembleTweetEntities(
         twitterUserEntity = authorEntities,
         tweetPublicMetrics = metrics[tweetId]?.toTweetPublicMetrics()
             ?: tweetPublicMetrics().copy(tweetId = tweetId),
-        tweetMediaEntity = media[tweetId]?.map { it.toTweetMediaEntity() } ?: emptyList(),
+        // Thread the in-scope parent tweetId onto each media row. FirestoreMedia docs
+        // carry no tweetId of their own (the server keys them by mediaKey), so without
+        // this every tweetMedia row persists with tweet_id = NULL and the TweetData.media
+        // @Relation matches nothing. Mirrors the MediaKeys(tweetId, …) threading below.
+        tweetMediaEntity = media[tweetId]?.map { it.toTweetMediaEntity(tweetId) } ?: emptyList(),
         // Firestore includes rows carry mention/reply user ids that are not present
         // in this tweet's TwitterUserEntity batch.  Persisting them trips the
         // TweetIncludesEntity foreign keys and rolls back the whole batch insert.

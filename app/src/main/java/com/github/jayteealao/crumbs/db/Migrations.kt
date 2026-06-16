@@ -403,6 +403,42 @@ val MIGRATION_16_17: Migration = object : Migration(16, 17) {
     }
 }
 
+/**
+ * v17 → v18: one-time data repair for media rows persisted with a NULL `tweet_id`.
+ *
+ * The Firestore→Room assembly dropped the tweet↔media association during the
+ * mediaKey→includes→tweetId join, so every `tweetMedia` row was written with
+ * `tweet_id = NULL`. Room's `TweetData.media` @Relation joins on `tweet_id`, and SQL
+ * `IN (…)` never matches NULL, so media never resolved for any synced tweet (cards
+ * collapsed to text-only). The code fix threads the parent id at assembly time, which
+ * only corrects FUTURE syncs; the `mediaKeys` junction already holds the correct
+ * `(tweet_id, media_key)` mapping on-device, so the persisted corpus is repaired here
+ * with no network re-fetch.
+ *
+ * Pure data migration — no DDL. The `tweet_id` column already exists (added structurally
+ * before v15), so the exported `18.json` is structurally identical to `17.json` and only
+ * the version field differs. The correlated-subquery `UPDATE` form is used deliberately
+ * (NOT `UPDATE … FROM`, which needs SQLite 3.33 / API 33) so it is safe at minSdk 24.
+ * Media rows whose `media_key` has no junction entry keep `tweet_id = NULL` — there is
+ * nothing on-device to repair them from (they fall to the existing media re-fetch /
+ * backfill sweep). Idempotent: the `WHERE tweet_id IS NULL` guard makes a re-run a no-op
+ * once a row is backfilled.
+ */
+val MIGRATION_17_18: Migration = object : Migration(17, 18) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            UPDATE tweetMedia
+               SET tweet_id = (
+                   SELECT tweet_id FROM mediaKeys
+                    WHERE mediaKeys.media_key = tweetMedia.media_key
+               )
+             WHERE tweet_id IS NULL
+            """.trimIndent()
+        )
+    }
+}
+
 /** Full list registered by the DI module's `addMigrations(*ALL_MIGRATIONS)`. */
 val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_2_3,
@@ -420,4 +456,5 @@ val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_14_15,
     MIGRATION_15_16,
     MIGRATION_16_17,
+    MIGRATION_17_18,
 )

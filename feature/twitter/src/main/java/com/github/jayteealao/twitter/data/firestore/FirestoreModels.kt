@@ -159,7 +159,11 @@ data class FirestoreMedia(
     @get:PropertyName("variants") @set:PropertyName("variants")
     var variants: List<Map<String, Any?>>? = null,
 ) {
-    fun toTweetMediaEntity(): TweetMediaEntity = TweetMediaEntity(
+    // The server writes media docs keyed by mediaKey with NO tweetId field (the
+    // tweet↔media link is a separate `includes` doc), so `this.tweetId` is null for
+    // every synced media row. Callers that know the parent tweet (the assembly map key)
+    // pass it explicitly via this parameter; the default preserves every other call site.
+    fun toTweetMediaEntity(tweetId: String? = this.tweetId): TweetMediaEntity = TweetMediaEntity(
         mediaKey = mediaKey,
         type = type,
         url = url ?: previewImageUrl,
