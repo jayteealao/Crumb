@@ -61,12 +61,14 @@ export interface FakeQuery {
   limit: (n: number) => FakeQuery;
   select: (...fields: string[]) => FakeQuery;
   where: (field: string, op: string, value: unknown) => FakeQuery;
+  startAfter: (doc: FakeDocSnap) => FakeQuery;
   get: () => Promise<FakeQuerySnap>;
 }
 
 export interface FakeCollectionRef extends FakeQuery {
   path: string;
   doc: (id: string) => FakeDocRef;
+  startAfter: (doc: FakeDocSnap) => FakeQuery;
 }
 
 export interface FakeWriteBatch {
@@ -243,6 +245,8 @@ export function createFakeDb(): FakeContext {
     limit?: number;
     where: Array<{ field: string; op: string; value: unknown }>;
     collectionGroup?: string;
+    // M4: cursor for startAfter() pagination — the doc id of the last seen doc.
+    startAfterId?: string;
   }): FakeQuery {
     const exec = async (): Promise<FakeQuerySnap> => {
       journal.push({
@@ -298,16 +302,29 @@ export function createFakeDb(): FakeContext {
         });
       }
       if (options.orderBy) {
+        const orderField = options.orderBy.field;
         docs.sort((a, b) => {
-          const av = (a.data() as Record<string, unknown> | undefined)?.[options.orderBy!.field];
-          const bv = (b.data() as Record<string, unknown> | undefined)?.[options.orderBy!.field];
+          // For __name__ (FieldPath.documentId()) sort by doc id, not a field value.
+          const av = orderField === "__name__"
+            ? a.id
+            : (a.data() as Record<string, unknown> | undefined)?.[orderField];
+          const bv = orderField === "__name__"
+            ? b.id
+            : (b.data() as Record<string, unknown> | undefined)?.[orderField];
           const aStr = String(av ?? "");
           const bStr = String(bv ?? "");
           const cmp = aStr < bStr ? -1 : aStr > bStr ? 1 : 0;
           return options.orderBy!.dir === "desc" ? -cmp : cmp;
         });
       }
-      const limited = options.limit !== undefined ? docs.slice(0, options.limit) : docs;
+      // M4: apply startAfter cursor — drop all docs up to and including the
+      // cursor doc, then return the next `limit` docs.
+      let sliced = docs;
+      if (options.startAfterId !== undefined) {
+        const idx = docs.findIndex((d) => d.id === options.startAfterId);
+        sliced = idx >= 0 ? docs.slice(idx + 1) : docs;
+      }
+      const limited = options.limit !== undefined ? sliced.slice(0, options.limit) : sliced;
       return { empty: limited.length === 0, docs: limited };
     };
 
@@ -321,6 +338,9 @@ export function createFakeDb(): FakeContext {
           ...options,
           where: [...options.where, { field, op, value }],
         }),
+      // M4: startAfter records the cursor doc's id; the exec above slices past it.
+      startAfter: (doc: FakeDocSnap) =>
+        makeQuery(collectionPath, { ...options, startAfterId: doc.id }),
       get: exec,
     };
     return q;
@@ -335,6 +355,7 @@ export function createFakeDb(): FakeContext {
       limit: baseQuery.limit,
       select: baseQuery.select,
       where: baseQuery.where,
+      startAfter: baseQuery.startAfter,
       get: baseQuery.get,
     };
   }

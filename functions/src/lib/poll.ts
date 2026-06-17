@@ -27,6 +27,7 @@ import { assertValidUid } from "./uid";
 import { refreshXToken, NoRefreshTokenError, RefreshRevokedError } from "./oauthRefresh";
 import {
   ownedMediaFor,
+  buildPageMediaMap,
   mediaDocData,
   mediaJunctionData,
   mediaJunctionDocId,
@@ -135,7 +136,30 @@ async function fetchWithBackoff(
   accessToken: string,
 ): Promise<Response | null> {
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    let resp: Response;
+    try {
+      // M7: wrap the bare fetch() so DNS/TCP/network errors are retried by the
+      // same backoff logic instead of propagating uncaught out of the caller.
+      resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    } catch (networkErr) {
+      if (attempt === MAX_RETRIES) {
+        logger.warn("daily_poll_network_error_exhausted", {
+          url,
+          attempt,
+          code: (networkErr as Error).message,
+        });
+        return null;
+      }
+      const waitMs = Math.min(BACKOFF_BASE_MS * Math.pow(2, attempt), MAX_BACKOFF_WAIT_MS);
+      logger.warn("daily_poll_network_error_retry", {
+        url,
+        attempt,
+        code: (networkErr as Error).message,
+        waitMs,
+      });
+      await new Promise((r) => setTimeout(r, waitMs));
+      continue;
+    }
     if (resp.status !== 429 && resp.status < 500) return resp;
     if (attempt === MAX_RETRIES) return null;
     const resetHeader = resp.headers.get("x-rate-limit-reset");
@@ -458,6 +482,9 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
         });
       }
 
+      // M5: build the page-level media map once per (tweet, includes) pair here.
+      // The same includes object is shared across the top-level tweet and its
+      // quoted body, so we build the map once per collected entry and pass it in.
       // Attribute media to THIS tweet by its OWN attachments.media_keys, not the
       // page-level includes.media bag. includes.media is page-scoped (every media
       // object for every tweet on the page); the previous "loop the whole bag per
@@ -467,7 +494,8 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
       // only the keys this tweet names against the page bag. The media doc + the
       // camelCase/variant mapping are identical to before (lib/media-attribution.ts);
       // only WHICH (tweet, media) junctions are written changed.
-      for (const { mediaKey, media } of ownedMediaFor(tweet, includes?.media)) {
+      const pageMediaMap = buildPageMediaMap(includes?.media);
+      for (const { mediaKey, media } of ownedMediaFor(tweet, pageMediaMap, tweet.id)) {
         enqueue(
           database.doc(`users/${uid}/media/${mediaKey}`),
           mediaDocData(media, FieldValue.serverTimestamp()),
@@ -528,7 +556,7 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
             // attachments.media_keys expansion populates it), and the media objects are
             // in the same page-level includes.media bag. Mirrors the top-level write so
             // the quoted block renders its own image/video on the correct (quoted) tweet.
-            for (const { mediaKey, media } of ownedMediaFor(qt, includes?.media)) {
+            for (const { mediaKey, media } of ownedMediaFor(qt, pageMediaMap, qt.id as string)) {
               enqueue(
                 database.doc(`users/${uid}/media/${mediaKey}`),
                 mediaDocData(media, FieldValue.serverTimestamp()),

@@ -59,6 +59,10 @@ class MediaBackfillWorker(
         // One keyset-paginated sweep: re-fetch each tweet a page query returns, counting how
         // many actually carried data back. Bounded by MAX_BACKFILL_TWEETS. [refetch] is the
         // idempotent repair (media re-fetch, or the duplicate-safe link re-fetch).
+        //
+        // M8 fix: the page/cursor fetch is wrapped in try/catch so a transient Firestore
+        // error is surfaced as a thrown exception that propagates to the outer doWork()
+        // handler, which returns Result.retry() without stamping markBackfillDone.
         suspend fun sweep(
             label: String,
             page: suspend (String) -> List<String>,
@@ -68,7 +72,14 @@ class MediaBackfillWorker(
             var processed = 0
             var recovered = 0
             while (processed < MAX_BACKFILL_TWEETS) {
-                val ids = page(cursor)
+                val ids = try {
+                    page(cursor)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Timber.tag(TAG).w(e, "page fetch failed for $label cursor=$cursor; will retry")
+                    throw e
+                }
                 if (ids.isEmpty()) break
                 for (id in ids) {
                     if (runCatching { refetch(id) }.getOrDefault(false)) {
@@ -82,7 +93,7 @@ class MediaBackfillWorker(
             if (capped) {
                 Timber.tag(TAG).w(
                     "backfill cap ($MAX_BACKFILL_TWEETS) reached for $label; remaining tweets " +
-                        "are repaired lazily on scroll-into-view",
+                        "will be re-swept on retry",
                 )
             }
             return SweepResult(processed, recovered, capped)
@@ -121,15 +132,28 @@ class MediaBackfillWorker(
             // locally, repaired from the server-written quoted doc via refetchTweetQuotes
             // (quoted tweets); resolves the FK-free junction so the card renders the quote.
             val quotes = sweepQuotes()
-            markBackfillDone(ctx, uid)
+
+            // H1 fix: only stamp the generation as done when ALL sweeps drained fully
+            // (none were capped). If any sweep hit the cap, more tweets remain — return
+            // retry() so WorkManager re-runs the worker and continues draining. The
+            // generation flag is NOT advanced so a future run picks up from a fresh sweep.
+            val allComplete = !media.capped && !variants.capped && !links.capped && !quotes.capped
             Timber.tag(TAG).i(
-                "completed media[processed=${media.processed} recovered=${media.recovered} " +
+                "sweep_pass media[processed=${media.processed} recovered=${media.recovered} " +
                     "capped=${media.capped}] variants[processed=${variants.processed} " +
                     "recovered=${variants.recovered} capped=${variants.capped}] " +
                     "links[processed=${links.processed} recovered=${links.recovered} capped=${links.capped}] " +
-                    "quotes[processed=${quotes.processed} recovered=${quotes.recovered} capped=${quotes.capped}]",
+                    "quotes[processed=${quotes.processed} recovered=${quotes.recovered} capped=${quotes.capped}] " +
+                    "allComplete=$allComplete",
             )
-            Result.success()
+            if (allComplete) {
+                markBackfillDone(ctx, uid)
+                Timber.tag(TAG).i("completed all sweeps; generation stamped done")
+                Result.success()
+            } else {
+                Timber.tag(TAG).d("sweep capped; scheduling retry to drain remaining tweets")
+                Result.retry()
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

@@ -129,6 +129,49 @@ describe("runPoll — per-tweet media attribution", () => {
     expect(junctionA.data).toMatchObject({ tweetId: "A", mediaKey: "M1", kind: "media" });
   });
 
+  // M1: a tweet whose attachments.media_keys lists a key NOT present in
+  // includes.media should write no media junction and no media doc for that key,
+  // and the path should be exercised (logger.warn is emitted).
+  it("skips an owned media key that is absent from includes.media (unresolved key)", async () => {
+    const ctx = setupFake();
+    ctx.seed("users/uid1/sync_status/state", { linked: true, xUserId: "x-123" });
+
+    // Tweet D owns key M99 but includes.media only has M1 (a different key).
+    jest
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(jsonResponse({ access_token: "at-1" }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: [
+            {
+              id: "D",
+              text: "tweet with missing media",
+              author_id: "u-d",
+              created_at: "2026-05-01T00:00:00.000Z",
+              conversation_id: "D",
+              attachments: { media_keys: ["M99"] },
+            },
+          ],
+          includes: {
+            users: [{ id: "u-d", username: "dd", name: "DD" }],
+            // M99 is absent — only an unrelated M1 is in the bag.
+            media: [{ media_key: "M1", type: "photo", url: "https://img/M1.jpg" }],
+          },
+          meta: {},
+        }),
+      );
+
+    const result = await runPoll("uid1", { reason: "scheduled" });
+    expect(result.ok).toBe(true);
+
+    // No junction doc for the missing key.
+    expect(findSet(ctx, "users/uid1/includes/D_media_M99")).toBeUndefined();
+    // No media doc for the missing key either.
+    expect(findSet(ctx, "users/uid1/media/M99")).toBeUndefined();
+    // The tweet doc itself is still written.
+    expect(findSet(ctx, "users/uid1/tweets/D")).toBeDefined();
+  });
+
   it("routes a quoted tweet's media to the QUOTED id, never the quoter", async () => {
     const ctx = setupFake();
     ctx.seed("users/uid1/sync_status/state", { linked: true, xUserId: "x-123" });

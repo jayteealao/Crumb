@@ -12,6 +12,8 @@
 // and the backfillTweetMedia handler share one tested implementation and write
 // byte-identical media + junction docs.
 
+import { logger } from "firebase-functions/v2";
+
 export interface MediaLike {
   media_key: string;
   [key: string]: unknown;
@@ -43,25 +45,49 @@ export function mediaJunctionData(tweetId: string, mediaKey: string): Record<str
 }
 
 /**
- * Resolve a tweet's owned media against the page-level media bag. Returns one entry
- * per owned key that is actually present in `pageMedia` (an owned key with no
- * resolvable media object is skipped — the media doc cannot be written without its
- * fields, and a junction pointing at a missing media doc would render nothing).
+ * Build a Map from media_key → MediaLike from the page-level includes.media array.
+ * Callers should build this once per page (not per tweet) and pass it to
+ * {@link ownedMediaFor} to avoid O(tweets × media) rebuilds per page.
  */
-export function ownedMediaFor(
-  tweet: Record<string, unknown>,
-  pageMedia: MediaLike[] | undefined,
-): Array<{ mediaKey: string; media: MediaLike }> {
-  const owned = ownedMediaKeys(tweet);
-  if (owned.length === 0) return [];
+export function buildPageMediaMap(pageMedia: MediaLike[] | undefined): Map<string, MediaLike> {
   const byKey = new Map<string, MediaLike>();
   for (const m of pageMedia ?? []) {
     if (m && typeof m.media_key === "string") byKey.set(m.media_key, m);
   }
+  return byKey;
+}
+
+/**
+ * Resolve a tweet's owned media against the page-level media bag. Returns one entry
+ * per owned key that is actually present in `pageMediaMap` (an owned key with no
+ * resolvable media object is warned and skipped — the media doc cannot be written
+ * without its fields, and a junction pointing at a missing media doc would render
+ * nothing).
+ *
+ * M5: accepts a pre-built Map (built once per page via {@link buildPageMediaMap})
+ * instead of rebuilding it on every call.
+ * M1: emits a logger.warn for any owned key that has no entry in the map so the
+ * miss is visible in Cloud Logging.
+ */
+export function ownedMediaFor(
+  tweet: Record<string, unknown>,
+  pageMediaMap: Map<string, MediaLike>,
+  tweetId?: string,
+): Array<{ mediaKey: string; media: MediaLike }> {
+  const owned = ownedMediaKeys(tweet);
+  if (owned.length === 0) return [];
   const out: Array<{ mediaKey: string; media: MediaLike }> = [];
   for (const key of owned) {
-    const media = byKey.get(key);
-    if (media) out.push({ mediaKey: key, media });
+    const media = pageMediaMap.get(key);
+    if (media) {
+      out.push({ mediaKey: key, media });
+    } else {
+      // M1: warn on unresolved owned media key so the miss surfaces in logs.
+      logger.warn("media_attribution_unresolved_key", {
+        mediaKey: key,
+        tweetId: tweetId ?? (tweet.id as string | undefined) ?? "unknown",
+      });
+    }
   }
   return out;
 }
