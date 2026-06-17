@@ -115,4 +115,45 @@ class FirestoreTweetMapperAssemblyTest {
         )
         assertEquals("mk-photo", junction.mediaKey)
     }
+
+    @Test
+    fun sharedMediaKey_isAttributedToEachOwnerTweet_notCollapsed() {
+        // The wrong-media-attached regression: two tweets on one fetch page reference the
+        // SAME media_key (a quote/co-page asset). assembleTweetEntities runs once per tweet
+        // with that tweet as the map key, so each must stamp its OWN id onto the media row
+        // (and the mediaKeys junction). The composite (tweet_id, media_key) PK then stores
+        // both pairings instead of collapsing the asset onto one arbitrary tweet.
+        val sharedKey = "mk-shared"
+        fun tweetWithId(id: String) = FirestoreTweet(
+            tweetId = id,
+            text = "t-$id",
+            authorId = "u1",
+            createdAt = "2026-01-01T00:00:00.000Z",
+            conversationId = id,
+        )
+        fun assembleFor(id: String): TweetEntities = assembleTweetEntities(
+            firestoreTweet = tweetWithId(id),
+            users = mapOf("u1" to author()),
+            metrics = emptyMap(),
+            includes = emptyMap(),
+            media = mapOf(
+                id to listOf(FirestoreMedia(mediaKey = sharedKey, type = "photo", url = "https://img/s.jpg", tweetId = null)),
+            ),
+            textAnnotations = emptyMap(),
+            quotedTweets = emptyMap(),
+            quotedAuthors = emptyMap(),
+        )!!
+
+        val a = assembleFor("A")
+        val b = assembleFor("B")
+
+        // Each tweet owns the shared asset under its OWN id — no collapse.
+        assertEquals("A", a.tweetMediaEntity.single().tweetId)
+        assertEquals("B", b.tweetMediaEntity.single().tweetId)
+        assertEquals(sharedKey, a.tweetMediaEntity.single().mediaKey)
+        assertEquals(sharedKey, b.tweetMediaEntity.single().mediaKey)
+        // The junction rows agree per tweet (the @Relation join key).
+        assertEquals("A", a.mediaKeys.single().tweetId)
+        assertEquals("B", b.mediaKeys.single().tweetId)
+    }
 }

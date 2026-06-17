@@ -25,6 +25,12 @@ import { buildBookmarksUrl, USERS_ME_URL } from "./twitter-api";
 import { normalizeCreatedAt } from "./tweet-utils";
 import { assertValidUid } from "./uid";
 import { refreshXToken, NoRefreshTokenError, RefreshRevokedError } from "./oauthRefresh";
+import {
+  ownedMediaFor,
+  mediaDocData,
+  mediaJunctionData,
+  mediaJunctionDocId,
+} from "./media-attribution";
 
 const BATCH_SIZE = 450;
 const DEBOUNCE_MS = 60_000;
@@ -56,6 +62,10 @@ interface TweetData {
   public_metrics?: Record<string, unknown>;
   referenced_tweets?: Array<{ id: string; type: string }>;
   entities?: { annotations?: Array<{ type: string; start: number; end: number; normalized_text?: string }> };
+  // The tweet's OWN media keys (requested via the attachments.media_keys expansion
+  // and spread onto the stored doc). Typed explicitly — not left to the index
+  // signature — so the media-attribution loop reads it without an `unknown` cast.
+  attachments?: { media_keys?: string[] };
   [key: string]: unknown;
 }
 
@@ -448,38 +458,24 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
         });
       }
 
-      const includesMedia = includes?.media ?? [];
-      for (const m of includesMedia) {
-        // Media doc: snake_case raw + camelCase aliases for Android
-        // FirestoreMedia (mediaKey, previewImageUrl, durationMs, altText).
-        const mr = m as Record<string, unknown>;
-        // Defensive, explicit video-variant mapping (HLS/DASH/progressive stream URLs
-        // the Android inline player needs). The raw `...mr` spread already carries a
-        // snake_case `variants` array, but we re-map it to the canonical camelCase shape
-        // ({bitRate, contentType, url}) AFTER the spread so the field is typed and
-        // overrides the raw one — the Android FirestoreMedia reader prefers camelCase.
-        // `bit_rate` is absent on adaptive (HLS/DASH) variants, so it defaults to 0.
-        const rawVariants =
-          (mr.variants as Array<Record<string, unknown>> | undefined) ?? [];
-        const variants = rawVariants.map((v) => ({
-          bitRate: typeof v.bit_rate === "number" ? v.bit_rate : 0,
-          contentType: v.content_type,
-          url: v.url,
-        }));
-        enqueue(database.doc(`users/${uid}/media/${m.media_key}`), {
-          ...mr,
-          mediaKey: m.media_key,
-          previewImageUrl: mr.preview_image_url,
-          durationMs: mr.duration_ms,
-          altText: mr.alt_text,
-          variants,
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-        enqueue(database.doc(`users/${uid}/includes/${tweet.id}_media_${m.media_key}`), {
-          tweetId: tweet.id,
-          mediaKey: m.media_key,
-          kind: "media",
-        });
+      // Attribute media to THIS tweet by its OWN attachments.media_keys, not the
+      // page-level includes.media bag. includes.media is page-scoped (every media
+      // object for every tweet on the page); the previous "loop the whole bag per
+      // tweet" wrote a cross-product of includes junction docs, so a neighbour's
+      // media — most visibly a quoted/co-page tweet's image or video — was recorded
+      // as this tweet's own and rendered on the wrong card. ownedMediaFor resolves
+      // only the keys this tweet names against the page bag. The media doc + the
+      // camelCase/variant mapping are identical to before (lib/media-attribution.ts);
+      // only WHICH (tweet, media) junctions are written changed.
+      for (const { mediaKey, media } of ownedMediaFor(tweet, includes?.media)) {
+        enqueue(
+          database.doc(`users/${uid}/media/${mediaKey}`),
+          mediaDocData(media, FieldValue.serverTimestamp()),
+        );
+        enqueue(
+          database.doc(`users/${uid}/includes/${mediaJunctionDocId(tweet.id, mediaKey)}`),
+          mediaJunctionData(tweet.id, mediaKey),
+        );
       }
 
       const refs = tweet.referenced_tweets ?? [];
@@ -525,6 +521,23 @@ export async function runPoll(uid: string, opts: PollOptions = {}): Promise<Poll
               pending_delete: false,
               updatedAt: FieldValue.serverTimestamp(),
             });
+
+            // Attribute the quoted tweet's OWN media to its body doc. X v2 does NOT
+            // promote a quoted tweet's media into the quoter's attachments.media_keys —
+            // it lives on the quoted tweet object in includes.tweets (the global
+            // attachments.media_keys expansion populates it), and the media objects are
+            // in the same page-level includes.media bag. Mirrors the top-level write so
+            // the quoted block renders its own image/video on the correct (quoted) tweet.
+            for (const { mediaKey, media } of ownedMediaFor(qt, includes?.media)) {
+              enqueue(
+                database.doc(`users/${uid}/media/${mediaKey}`),
+                mediaDocData(media, FieldValue.serverTimestamp()),
+              );
+              enqueue(
+                database.doc(`users/${uid}/includes/${mediaJunctionDocId(qt.id, mediaKey)}`),
+                mediaJunctionData(qt.id, mediaKey),
+              );
+            }
           }
         }
       }

@@ -27,7 +27,14 @@ data class Variant(
 
 @Entity(
     tableName = "tweetMedia",
-    primaryKeys = ["media_key"],
+    // Composite PK (tweet_id, media_key): the X v2 bookmarks API returns media once
+    // per page, and a media_key can legitimately belong to more than one tweet on that
+    // page (a quote/retweet surfaces the same asset on each owner). A sole `media_key`
+    // PK could store only ONE tweet_id globally, so a shared asset collapsed onto an
+    // arbitrary tweet (last-writer-wins) — the structural half of the wrong-media bug.
+    // tweet_id leads the PK, but Room still warns MISSING_INDEX_ON_FOREIGN_KEY_CHILD
+    // without the explicit @Index, so it is kept.
+    primaryKeys = ["tweet_id", "media_key"],
     foreignKeys = [
         ForeignKey(
             entity = TweetEntity::class,
@@ -48,7 +55,10 @@ data class TweetMediaEntity(
     val width: Int,
     @ColumnInfo(name = "preview_image_url") val previewImageUrl: String?,
     @ColumnInfo(name = "alt_text") val altText: String?,
-    @ColumnInfo(name = "tweet_id") val tweetId: String? = null,
+    // Non-null: it is part of the composite PK. Every assembly/re-fetch path threads the
+    // owning tweet id; the old nullable column (with a NULL-tweet_id rendering bug) was
+    // repaired by migration v17→v18 and is wiped + re-pulled correctly by v18→v19.
+    @ColumnInfo(name = "tweet_id") val tweetId: String,
     // HLS / DASH / progressive stream variants for video & animated_gif rows,
     // persisted as JSON via [MediaConverters] (column added in migration v14→v15).
     // Null for photo rows and for legacy rows synced before the column existed —

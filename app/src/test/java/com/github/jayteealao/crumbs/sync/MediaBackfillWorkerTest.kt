@@ -139,4 +139,32 @@ class MediaBackfillWorkerTest {
             isBackfillDone("uid-c"),
         )
     }
+
+    // -------------------------------------------------------------------------
+    // 6. Generation bump: a device that completed the original (pre-generation)
+    //    backfill carries only the legacy boolean flag. The v18→v19 media wipe needs
+    //    it to re-pull ONCE, so it must read as NOT done until it completes the
+    //    current generation. This is the post-wipe re-pull nudge.
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun legacyBooleanFlag_isTreatedAsGeneration1_andRerunsForCurrentGeneration() {
+        // Simulate a legacy install: only the old boolean key is set, no generation int.
+        context.getSharedPreferences("media_backfill_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(doneKey("uid-legacy"), true)
+            .commit()
+
+        assertFalse(
+            "a legacy gen-1 install must re-run after the generation bump (post-wipe re-pull)",
+            isBackfillDone("uid-legacy"),
+        )
+
+        // Completing the sweep stamps the current generation; it is then done.
+        markBackfillDone("uid-legacy")
+        assertTrue(
+            "after completing the current generation the worker must short-circuit again",
+            isBackfillDone("uid-legacy"),
+        )
+    }
 }

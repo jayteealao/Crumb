@@ -161,9 +161,9 @@ data class FirestoreMedia(
 ) {
     // The server writes media docs keyed by mediaKey with NO tweetId field (the
     // tweet↔media link is a separate `includes` doc), so `this.tweetId` is null for
-    // every synced media row. Callers that know the parent tweet (the assembly map key)
-    // pass it explicitly via this parameter; the default preserves every other call site.
-    fun toTweetMediaEntity(tweetId: String? = this.tweetId): TweetMediaEntity = TweetMediaEntity(
+    // every synced media row. The parent tweet id is REQUIRED (tweetMedia's composite
+    // PK leads with tweet_id); the assembler passes the in-scope map key explicitly.
+    fun toTweetMediaEntity(tweetId: String): TweetMediaEntity = TweetMediaEntity(
         mediaKey = mediaKey,
         type = type,
         url = url ?: previewImageUrl,

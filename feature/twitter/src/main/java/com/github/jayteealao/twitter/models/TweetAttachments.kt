@@ -33,6 +33,9 @@ data class PollIds(
 
 @Entity(
     tableName = "mediaKeys",
+    // Composite PK (tweet_id, media_key), matching tweetMedia: a media_key shared across
+    // tweets on one fetch page must map to each owner, not collapse onto one arbitrarily.
+    primaryKeys = ["tweet_id", "media_key"],
     foreignKeys = [
         ForeignKey(
             entity = TweetEntity::class,
@@ -45,7 +48,6 @@ data class PollIds(
 )
 data class MediaKeys(
     @ColumnInfo(name = "tweet_id") val tweetId: String,
-    @PrimaryKey
     @ColumnInfo(name = "media_key")
     val mediaKey: String
 )

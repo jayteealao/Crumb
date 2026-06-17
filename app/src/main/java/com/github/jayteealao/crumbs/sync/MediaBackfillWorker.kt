@@ -150,19 +150,45 @@ class MediaBackfillWorker(
         const val MAX_BACKFILL_TWEETS = 500
 
         private const val PREFS_NAME = "media_backfill_prefs"
+        // Legacy boolean flag (pre-generation): a `true` value means the original
+        // backfill completed and is treated as generation 1.
         private const val KEY_DONE_PREFIX = "media_backfill_done_"
+        // Current per-UID marker: the last backfill GENERATION this account completed.
+        private const val KEY_GEN_PREFIX = "media_backfill_gen_"
 
-        /** Returns the per-UID SharedPreferences key so each account gets its own flag. */
+        /**
+         * The backfill generation this build requires. Bumped to 2 for the v18→v19 media
+         * wipe (wrong-media-attached fix): the migration empties tweetMedia/mediaKeys, so a
+         * device that already finished the original (generation-1) sweep MUST re-pull once to
+         * refill them with the server-corrected attribution. Bump again to force any future
+         * one-time re-pull; the lazy on-scroll re-fetch still heals visible cards meanwhile.
+         */
+        const val CURRENT_GENERATION = 2
+
+        /** Legacy boolean key — kept for back-compat reads; embeds the UID per account. */
         private fun doneKey(uid: String) = "$KEY_DONE_PREFIX$uid"
 
+        /** Current generation key — embeds the UID so each account tracks its own progress. */
+        private fun genKey(uid: String) = "$KEY_GEN_PREFIX$uid"
+
+        /**
+         * The highest backfill generation this UID has completed. Prefers the explicit
+         * generation int; falls back to the legacy boolean (`true` ⇒ generation 1) for installs
+         * that completed before the generation marker existed; 0 when nothing has run.
+         */
+        private fun completedGeneration(context: Context, uid: String): Int {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            if (prefs.contains(genKey(uid))) return prefs.getInt(genKey(uid), 0)
+            return if (prefs.getBoolean(doneKey(uid), false)) 1 else 0
+        }
+
         private fun isBackfillDone(context: Context, uid: String): Boolean =
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .getBoolean(doneKey(uid), false)
+            completedGeneration(context, uid) >= CURRENT_GENERATION
 
         private fun markBackfillDone(context: Context, uid: String) {
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
-                .putBoolean(doneKey(uid), true)
+                .putInt(genKey(uid), CURRENT_GENERATION)
                 .apply()
         }
 

@@ -22,6 +22,7 @@ export type JournalEntry =
   | { op: "set"; path: string; data: Record<string, unknown>; merge: boolean }
   | { op: "update"; path: string; data: Record<string, unknown> }
   | { op: "get"; path: string }
+  | { op: "delete"; path: string }
   | { op: "queryGet"; path: string; orderBy?: { field: string; dir: "asc" | "desc" }; limit?: number; where?: Array<{ field: string; op: string; value: unknown }>; collectionGroup?: string }
   | { op: "batchCommit"; count: number }
   | { op: "transactionStart" }
@@ -52,6 +53,7 @@ export interface FakeDocRef {
   get: () => Promise<FakeDocSnap>;
   set: (data: Record<string, unknown>, opts?: { merge?: boolean }) => Promise<void>;
   update: (data: Record<string, unknown>) => Promise<void>;
+  delete: () => Promise<void>;
 }
 
 export interface FakeQuery {
@@ -69,6 +71,7 @@ export interface FakeCollectionRef extends FakeQuery {
 
 export interface FakeWriteBatch {
   set: (ref: { path: string }, data: Record<string, unknown>, opts?: { merge?: boolean }) => FakeWriteBatch;
+  delete: (ref: { path: string }) => FakeWriteBatch;
   commit: () => Promise<void>;
 }
 
@@ -227,6 +230,10 @@ export function createFakeDb(): FakeContext {
         const prev = store.get(path) ?? {};
         store.set(path, { ...prev, ...data });
       },
+      delete: async () => {
+        journal.push({ op: "delete", path });
+        store.delete(path);
+      },
     };
     return ref;
   }
@@ -338,14 +345,24 @@ export function createFakeDb(): FakeContext {
     collectionGroup: (name) =>
       makeQuery("", { where: [], collectionGroup: name }),
     batch: () => {
-      const queued: Array<[string, Record<string, unknown>, boolean]> = [];
+      // A queued op is either a set (data + merge) or a delete (data === null).
+      const queued: Array<[string, Record<string, unknown> | null, boolean]> = [];
       const batch: FakeWriteBatch = {
         set: (ref, data, opts) => {
           queued.push([ref.path, data, opts?.merge === true]);
           return batch;
         },
+        delete: (ref) => {
+          queued.push([ref.path, null, false]);
+          return batch;
+        },
         commit: async () => {
           for (const [path, data, merge] of queued) {
+            if (data === null) {
+              journal.push({ op: "delete", path });
+              store.delete(path);
+              continue;
+            }
             journal.push({ op: "set", path, data, merge });
             const prev = store.get(path);
             if (merge && prev) {

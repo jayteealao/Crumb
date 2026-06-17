@@ -439,6 +439,99 @@ val MIGRATION_17_18: Migration = object : Migration(17, 18) {
     }
 }
 
+/**
+ * v18 → v19: harden tweet↔media against the wrong-media-attached defect, then wipe the
+ * corrupted media tables so the corrected attribution re-pulls from server.
+ *
+ * Three coordinated table recreations (SQLite cannot ALTER a PRIMARY KEY or DROP a FK, so
+ * each table is rebuilt via the create→[copy]→drop→rename recipe — the in-repo precedent is
+ * [MIGRATION_5_6] / [MIGRATION_3_4]):
+ *
+ * 1. `tweetIncludes` — recreated to DROP its now-invalid `FOREIGN KEY(media_key) REFERENCES
+ *    tweetMedia(media_key)`. Once tweetMedia's PK becomes the composite `(tweet_id, media_key)`,
+ *    `media_key` alone is no longer a unique/PK parent column, so SQLite cannot reference it.
+ *    Rows are PRESERVED (copied) — the Firestore path writes this table empty anyway, but a
+ *    legacy install may carry rows. The `media_key` column + its index are kept; only the FK
+ *    constraint is removed. Recreated FIRST so dropping tweetMedia below has no referrer.
+ * 2. `tweetMedia` — recreated with the composite PK `(tweet_id, media_key)` and a NOT-NULL
+ *    `tweet_id`, then left EMPTY. The old rows carried a single, frequently-WRONG `tweet_id`
+ *    per media_key (sole-PK collapse); neither on-device table can recover the correct
+ *    pairings, so they are discarded and re-pulled from the server-corrected Firestore.
+ * 3. `mediaKeys` — recreated with the same composite PK and left EMPTY (same rationale).
+ *
+ * Re-pull: the server poll + the `backfillTweetMedia` callable fix Firestore's attribution;
+ * on-device, [com.github.jayteealao.crumbs.sync.MediaBackfillWorker] (its run-once flag is
+ * re-armed for this generation) re-pulls every now-media-less tweet, and the lazy on-scroll
+ * re-fetch heals visible cards immediately. Until then cards render text-only (transient).
+ *
+ * `PRAGMA defer_foreign_keys = TRUE` defers any FK enforcement to transaction commit (a no-op
+ * when FKs are disabled, as they are here — DatabaseModule does not enable them — but it makes
+ * the parent-table drop safe regardless). Each new table re-declares its FKs + indices, or
+ * Room's identityHash check fails at startup; the instrumented [MigrationTest] asserts the
+ * composite schema AND the wiped/preserved data, not just `runMigrationsAndValidate`.
+ *
+ * Once released, do NOT alter this migration — a new migration would be required for any
+ * further structural change to these tables.
+ */
+val MIGRATION_18_19: Migration = object : Migration(18, 19) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("PRAGMA defer_foreign_keys = TRUE")
+
+        // 1. tweetIncludes — drop the media_key FK, preserve rows.
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `tweetIncludes_new` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`tweet_id` TEXT NOT NULL, " +
+                "`twitter_user` TEXT, " +
+                "`referenced_tweet_id` TEXT, " +
+                "`media_key` TEXT, " +
+                "FOREIGN KEY(`twitter_user`) REFERENCES `twitterUser`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION, " +
+                "FOREIGN KEY(`referenced_tweet_id`) REFERENCES `tweetEntity`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION)"
+        )
+        db.execSQL(
+            "INSERT INTO `tweetIncludes_new` (`id`, `tweet_id`, `twitter_user`, `referenced_tweet_id`, `media_key`) " +
+                "SELECT `id`, `tweet_id`, `twitter_user`, `referenced_tweet_id`, `media_key` FROM `tweetIncludes`"
+        )
+        db.execSQL("DROP TABLE `tweetIncludes`")
+        db.execSQL("ALTER TABLE `tweetIncludes_new` RENAME TO `tweetIncludes`")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweetIncludes_twitter_user` ON `tweetIncludes` (`twitter_user`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweetIncludes_referenced_tweet_id` ON `tweetIncludes` (`referenced_tweet_id`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweetIncludes_media_key` ON `tweetIncludes` (`media_key`)")
+
+        // 2. tweetMedia — composite PK (tweet_id, media_key), tweet_id NOT NULL, WIPED.
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `tweetMedia_new` (" +
+                "`media_key` TEXT NOT NULL, " +
+                "`type` TEXT NOT NULL, " +
+                "`url` TEXT, " +
+                "`duration_ms` INTEGER NOT NULL, " +
+                "`height` INTEGER NOT NULL, " +
+                "`width` INTEGER NOT NULL, " +
+                "`preview_image_url` TEXT, " +
+                "`alt_text` TEXT, " +
+                "`tweet_id` TEXT NOT NULL, " +
+                "`video_variants` TEXT, " +
+                "PRIMARY KEY(`tweet_id`, `media_key`), " +
+                "FOREIGN KEY(`tweet_id`) REFERENCES `tweetEntity`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION)"
+        )
+        db.execSQL("DROP TABLE `tweetMedia`")
+        db.execSQL("ALTER TABLE `tweetMedia_new` RENAME TO `tweetMedia`")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweetMedia_tweet_id` ON `tweetMedia` (`tweet_id`)")
+
+        // 3. mediaKeys — composite PK (tweet_id, media_key), WIPED.
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `mediaKeys_new` (" +
+                "`tweet_id` TEXT NOT NULL, " +
+                "`media_key` TEXT NOT NULL, " +
+                "PRIMARY KEY(`tweet_id`, `media_key`), " +
+                "FOREIGN KEY(`tweet_id`) REFERENCES `tweetEntity`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION)"
+        )
+        db.execSQL("DROP TABLE `mediaKeys`")
+        db.execSQL("ALTER TABLE `mediaKeys_new` RENAME TO `mediaKeys`")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_mediaKeys_tweet_id` ON `mediaKeys` (`tweet_id`)")
+    }
+}
+
 /** Full list registered by the DI module's `addMigrations(*ALL_MIGRATIONS)`. */
 val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_2_3,
@@ -457,4 +550,5 @@ val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_15_16,
     MIGRATION_16_17,
     MIGRATION_17_18,
+    MIGRATION_18_19,
 )

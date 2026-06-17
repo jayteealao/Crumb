@@ -14,7 +14,6 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -22,13 +21,14 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Locks the media @Relation contract that the "cards render text-only" defect violated.
+ * Locks the media @Relation contract behind both media-attribution defects.
  * `TweetData.media` is `@Relation(parentColumn = "id", entityColumn = "tweet_id")`, so a
- * media row's `tweet_id` MUST equal its parent tweet id for the relation to resolve. A row
- * written with `tweet_id = NULL` (the pre-fix assembly bug) resolves to an EMPTY relation —
- * SQL `IN (…)` never matches NULL — which is the exact mechanism behind the missing images
- * and video. Both directions are asserted so the fix is guarded and the failure mode is
- * documented in code.
+ * media row's `tweet_id` MUST equal its parent tweet id for the relation to resolve.
+ *
+ * 1. A correct `tweet_id` resolves the relation (the rendering fix).
+ * 2. A media_key SHARED across two tweets attaches to BOTH owners under the composite
+ *    `(tweet_id, media_key)` PK — the wrong-media-attached fix. Under the old sole-`media_key`
+ *    PK the second insert collided and the asset collapsed onto one arbitrary tweet.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -77,7 +77,7 @@ class TweetDaoMediaRelationTest {
         referenced = false,
     )
 
-    private fun photo(mediaKey: String, tweetId: String?) = TweetMediaEntity(
+    private fun photo(mediaKey: String, tweetId: String) = TweetMediaEntity(
         mediaKey = mediaKey,
         type = "photo",
         url = "https://img/$mediaKey.jpg",
@@ -102,18 +102,24 @@ class TweetDaoMediaRelationTest {
     }
 
     @Test
-    fun mediaRowWithNullTweetId_leavesTheRelationEmpty() = runTest {
-        // The pre-fix failure mode: a NULL tweet_id is never matched by the @Relation's
-        // `WHERE tweet_id IN (…)`, so the card sees no media and falls through to text.
+    fun sharedMediaKey_resolvesIntoBothOwnerTweets() = runTest {
+        // The wrong-media-attached regression: one media_key belongs to two tweets (a
+        // quote/co-page asset). Under the composite (tweet_id, media_key) PK both rows
+        // coexist, so the @Relation resolves the asset onto EACH owner — not collapsed
+        // onto one. The old sole-media_key PK rejected the second insert.
+        dao.insertTweet(tweet("t1"))
         dao.insertTweet(tweet("t2"))
-        dao.insertTweetMedia(photo("mk2", tweetId = null))
+        dao.insertTweetMedia(photo("mk-shared", tweetId = "t1"))
+        dao.insertTweetMedia(photo("mk-shared", tweetId = "t2"))
 
-        val data = dao.getTweetById("t2")
+        val d1 = dao.getTweetById("t1")
+        val d2 = dao.getTweetById("t2")
 
-        assertNotNull(data)
-        assertTrue(
-            "a NULL-tweet_id media row must NOT resolve into any tweet's relation",
-            data!!.media.isEmpty(),
-        )
+        assertNotNull(d1)
+        assertNotNull(d2)
+        assertEquals("t1 must own the shared asset", 1, d1!!.media.size)
+        assertEquals("mk-shared", d1.media.single().mediaKey)
+        assertEquals("t2 must independently own the same asset", 1, d2!!.media.size)
+        assertEquals("mk-shared", d2.media.single().mediaKey)
     }
 }

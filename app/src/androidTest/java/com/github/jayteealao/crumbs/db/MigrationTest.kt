@@ -19,7 +19,9 @@ import com.github.jayteealao.crumbs.db.MIGRATION_14_15
 import com.github.jayteealao.crumbs.db.MIGRATION_15_16
 import com.github.jayteealao.crumbs.db.MIGRATION_16_17
 import com.github.jayteealao.crumbs.db.MIGRATION_17_18
+import com.github.jayteealao.crumbs.db.MIGRATION_18_19
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -953,6 +955,144 @@ class MigrationTest {
             assertTrue(cursor.moveToFirst())
             assertEquals("no repairable media row should remain NULL", 0, cursor.getInt(0))
         }
+
+        db.close()
+    }
+
+    @Test
+    fun migrate18To19_compositeKeyWipesMediaPreservesIncludesAndDropsMediaFk() {
+        // Seed a v18 database: a parent tweet, two media rows + two junction rows (to be
+        // WIPED), and one tweetIncludes row carrying a media_key (to be PRESERVED, FK dropped).
+        helper.createDatabase(TEST_DB, 18).apply {
+            execSQL(
+                "INSERT INTO tweetEntity " +
+                    "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete, retrieved_at) " +
+                    "VALUES ('tweet-1', 'hi', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0, NULL)"
+            )
+            execSQL(
+                "INSERT INTO tweetEntity " +
+                    "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete, retrieved_at) " +
+                    "VALUES ('tweet-2', 'yo', '2024-01-02T00:00:00Z', 'u1', 'tweet-2', NULL, 'en', 0, 2, 0, NULL)"
+            )
+            // Media + junction rows that the wipe must discard.
+            execSQL(
+                "INSERT INTO tweetMedia " +
+                    "(media_key, type, url, duration_ms, height, width, preview_image_url, alt_text, tweet_id, video_variants) " +
+                    "VALUES ('mk1', 'photo', 'https://img/1.jpg', 0, 0, 0, NULL, NULL, 'tweet-1', NULL)"
+            )
+            execSQL(
+                "INSERT INTO tweetMedia " +
+                    "(media_key, type, url, duration_ms, height, width, preview_image_url, alt_text, tweet_id, video_variants) " +
+                    "VALUES ('mk2', 'photo', 'https://img/2.jpg', 0, 0, 0, NULL, NULL, 'tweet-2', NULL)"
+            )
+            execSQL("INSERT INTO mediaKeys (tweet_id, media_key) VALUES ('tweet-1', 'mk1')")
+            execSQL("INSERT INTO mediaKeys (tweet_id, media_key) VALUES ('tweet-2', 'mk2')")
+            // tweetIncludes row to be preserved (its media_key references mk1 under the v18 FK).
+            execSQL(
+                "INSERT INTO tweetIncludes (tweet_id, twitter_user, referenced_tweet_id, media_key) " +
+                    "VALUES ('tweet-1', NULL, NULL, 'mk1')"
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB,
+            19,
+            true,
+            MIGRATION_18_19,
+        )
+
+        // Media tables are WIPED (their corrupt single-attribution rows are unrecoverable).
+        db.query("SELECT COUNT(*) FROM tweetMedia").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("tweetMedia must be wiped by 18→19", 0, cursor.getInt(0))
+        }
+        db.query("SELECT COUNT(*) FROM mediaKeys").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("mediaKeys must be wiped by 18→19", 0, cursor.getInt(0))
+        }
+
+        // tweetIncludes rows are PRESERVED (only the FK is dropped, not the data).
+        db.query("SELECT tweet_id, media_key FROM tweetIncludes").use { cursor ->
+            assertTrue("the tweetIncludes row must survive 18→19", cursor.moveToFirst())
+            assertEquals("tweet-1", cursor.getString(0))
+            assertEquals("mk1", cursor.getString(1))
+            assertFalse("exactly one tweetIncludes row expected", cursor.moveToNext())
+        }
+
+        // tweetMedia PK is the composite (tweet_id, media_key); tweet_id is NOT NULL.
+        val pkPos = mutableMapOf<String, Int>()
+        val notNull = mutableMapOf<String, Int>()
+        db.query("PRAGMA table_info(`tweetMedia`)").use { cursor ->
+            val nameIdx = cursor.getColumnIndexOrThrow("name")
+            val nnIdx = cursor.getColumnIndexOrThrow("notnull")
+            val pkIdx = cursor.getColumnIndexOrThrow("pk")
+            while (cursor.moveToNext()) {
+                val name = cursor.getString(nameIdx)
+                pkPos[name] = cursor.getInt(pkIdx)
+                notNull[name] = cursor.getInt(nnIdx)
+            }
+        }
+        assertEquals("tweet_id must be PK position 1", 1, pkPos["tweet_id"])
+        assertEquals("media_key must be PK position 2", 2, pkPos["media_key"])
+        assertEquals("tweet_id must be NOT NULL", 1, notNull["tweet_id"])
+
+        // mediaKeys mirrors the same composite PK.
+        val mkPkPos = mutableMapOf<String, Int>()
+        db.query("PRAGMA table_info(`mediaKeys`)").use { cursor ->
+            val nameIdx = cursor.getColumnIndexOrThrow("name")
+            val pkIdx = cursor.getColumnIndexOrThrow("pk")
+            while (cursor.moveToNext()) mkPkPos[cursor.getString(nameIdx)] = cursor.getInt(pkIdx)
+        }
+        assertEquals("mediaKeys tweet_id must be PK position 1", 1, mkPkPos["tweet_id"])
+        assertEquals("mediaKeys media_key must be PK position 2", 2, mkPkPos["media_key"])
+
+        // tweetIncludes no longer carries a FK to tweetMedia (only twitterUser + tweetEntity).
+        val fkTargets = mutableSetOf<String>()
+        db.query("PRAGMA foreign_key_list(`tweetIncludes`)").use { cursor ->
+            val tableIdx = cursor.getColumnIndexOrThrow("table")
+            while (cursor.moveToNext()) fkTargets += cursor.getString(tableIdx)
+        }
+        assertFalse(
+            "the tweetIncludes → tweetMedia FK must be dropped; found targets $fkTargets",
+            fkTargets.contains("tweetMedia"),
+        )
+
+        // The tweet_id index survives on the recreated tweetMedia.
+        val indexNames = mutableSetOf<String>()
+        db.query("PRAGMA index_list(`tweetMedia`)").use { cursor ->
+            val nameIdx = cursor.getColumnIndexOrThrow("name")
+            while (cursor.moveToNext()) indexNames += cursor.getString(nameIdx)
+        }
+        assertTrue(
+            "index_tweetMedia_tweet_id must exist after 18→19; found $indexNames",
+            indexNames.contains("index_tweetMedia_tweet_id"),
+        )
+
+        // Composite-key round-trip: the SAME media_key attaches to two different tweets...
+        db.execSQL(
+            "INSERT INTO tweetMedia (media_key, type, url, duration_ms, height, width, preview_image_url, alt_text, tweet_id, video_variants) " +
+                "VALUES ('mk-shared', 'photo', NULL, 0, 0, 0, NULL, NULL, 'tweet-1', NULL)"
+        )
+        db.execSQL(
+            "INSERT INTO tweetMedia (media_key, type, url, duration_ms, height, width, preview_image_url, alt_text, tweet_id, video_variants) " +
+                "VALUES ('mk-shared', 'photo', NULL, 0, 0, 0, NULL, NULL, 'tweet-2', NULL)"
+        )
+        db.query("SELECT COUNT(*) FROM tweetMedia WHERE media_key = 'mk-shared'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("a shared media_key must attach to both tweets under the composite PK", 2, cursor.getInt(0))
+        }
+        // ...but the same (tweet_id, media_key) pair is rejected.
+        var pkCollision = false
+        try {
+            db.execSQL(
+                "INSERT INTO tweetMedia (media_key, type, url, duration_ms, height, width, preview_image_url, alt_text, tweet_id, video_variants) " +
+                    "VALUES ('mk-shared', 'photo', NULL, 0, 0, 0, NULL, NULL, 'tweet-1', NULL)"
+            )
+        } catch (e: Exception) {
+            pkCollision = true
+        }
+        assertTrue("a duplicate (tweet_id, media_key) must violate the composite PK", pkCollision)
 
         db.close()
     }
