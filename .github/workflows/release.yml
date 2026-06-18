@@ -178,3 +178,37 @@ jobs:
         with:
           name: Crumbs-${{ steps.find_outputs.outputs.tag }}-release.apk
           path: ${{ steps.find_outputs.outputs.release_apk }}
+
+  # Release verification gate: confirm the published GitHub Release has assets.
+  verify-release:
+    needs: build-and-release
+    if: ${{ env.ACT != 'true' }}   # the real release is only created on GitHub runs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Verify GitHub Release exists with assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          MAX_WAIT=300
+          ELAPSED=0
+          while [ "$ELAPSED" -lt "$MAX_WAIT" ]; do
+            if gh release view "$TAG" --repo "$REPO" --json tagName,assets > release.json 2>/dev/null; then
+              COUNT=$(jq '.assets | length' release.json)
+              if [ "$COUNT" -gt 0 ]; then
+                echo "Release $TAG present with $COUNT asset(s):"
+                jq -r '.assets[].name' release.json
+                exit 0
+              fi
+              echo "Release $TAG exists but has no assets yet; retrying in 30s..."
+            else
+              echo "Release $TAG not found yet; retrying in 30s..."
+            fi
+            sleep 30
+            ELAPSED=$(( ELAPSED + 30 ))
+          done
+          echo "Timed out after ${MAX_WAIT}s waiting for release $TAG with assets."
+          exit 1

@@ -25,3 +25,7 @@ scripts/firestore-migrate/node_modules/
 .ai/**/*
 .claude/scheduled_tasks.lock
 Crumbs-handoff.zip
+functions/.ai/**/*
+functions/node_modules/
+.idea/
+*.iml
