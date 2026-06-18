@@ -6,11 +6,14 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Update
+import androidx.room.Upsert
 import com.github.jayteealao.twitter.models.MediaKeys
 import com.github.jayteealao.twitter.models.PollIds
 import com.github.jayteealao.twitter.models.TagEntity
 import com.github.jayteealao.twitter.models.TweetContextAnnotationEntity
 import com.github.jayteealao.twitter.models.TweetData
+import com.github.jayteealao.twitter.models.TweetEntities
 import com.github.jayteealao.twitter.models.TweetEntity
 import com.github.jayteealao.twitter.models.TweetIncludesEntity
 import com.github.jayteealao.twitter.models.TweetMediaEntity
@@ -19,6 +22,7 @@ import com.github.jayteealao.twitter.models.TweetReferencedTweets
 import com.github.jayteealao.twitter.models.TweetTagCrossRef
 import com.github.jayteealao.twitter.models.TweetTextEntityAnnotation
 import com.github.jayteealao.twitter.models.TwitterUserEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface TweetDao {
@@ -52,6 +56,7 @@ interface TweetDao {
     @Insert
     fun insertMediaKeys(mediaKeys: MediaKeys)
 
+    @Transaction
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun insertTweetEntities(
         tweet: TweetEntity,
@@ -63,22 +68,383 @@ interface TweetDao {
         tweetReferencedTweets: List<TweetReferencedTweets>,
         tweetContextAnnotationEntity: List<TweetContextAnnotationEntity>,
         tweetTextEntity: List<TweetTextEntityAnnotation>,
-        mediaKeys: List<MediaKeys>,
-        pollIds: PollIds?
+        mediaKeys: List<MediaKeys>
     )
 
+    /**
+     * Media-scoped self-heal for re-syncs. [insertTweetEntities] is IGNORE-on-conflict
+     * (media PK = `media_key`), so a media row already persisted with a stale or NULL
+     * `tweet_id` is never overwritten when the same tweet re-syncs. Upserting the media
+     * list separately updates those rows in place (Room 2.5+ `@Upsert` = insert-or-update,
+     * no FK / rowid churn that `REPLACE`'s delete+insert would cause). Scoped to media
+     * ONLY — flipping the multi-entity insert to REPLACE would clobber locally-tracked
+     * fields (`pending_delete`, `retrieved_at`, `order`) on tweet / user / metric rows.
+     */
+    @Upsert
+    fun upsertTweetMedia(media: List<TweetMediaEntity>)
+
+    /**
+     * Atomic write of the full tweet aggregate. Wraps the multi-entity insert and
+     * the optional pollIds insert in one SQLite transaction so Paging3's
+     * InvalidationTracker emits exactly one invalidation and never observes a
+     * partially-hydrated row (orphaned pollIds, missing public-metrics, etc.).
+     */
     @Transaction
-    @Query("SELECT * FROM tweetEntity WHERE referenced = false ORDER BY `order` DESC")
+    fun insertTweetEntitiesAtomic(
+        tweet: TweetEntity,
+        tweetsReferenced: List<TweetEntity>,
+        twitterUserEntity: List<TwitterUserEntity>,
+        tweetPublicMetrics: TweetPublicMetrics,
+        tweetMediaEntity: List<TweetMediaEntity>,
+        tweetIncludesEntity: List<TweetIncludesEntity>,
+        tweetReferencedTweets: List<TweetReferencedTweets>,
+        tweetContextAnnotationEntity: List<TweetContextAnnotationEntity>,
+        tweetTextEntity: List<TweetTextEntityAnnotation>,
+        mediaKeys: List<MediaKeys>,
+        pollIds: PollIds?,
+    ) {
+        insertTweetEntities(
+            tweet,
+            tweetsReferenced,
+            twitterUserEntity,
+            tweetPublicMetrics,
+            tweetMediaEntity,
+            tweetIncludesEntity,
+            tweetReferencedTweets,
+            tweetContextAnnotationEntity,
+            tweetTextEntity,
+            mediaKeys,
+        )
+        // Re-sync self-heal: the IGNORE-on-conflict insert above leaves an existing media
+        // row's tweet_id untouched, so upsert the media set to land the corrected FK in
+        // place (same @Transaction → Paging's InvalidationTracker still fires once).
+        upsertTweetMedia(tweetMediaEntity)
+        pollIds?.let { insertPollId(it) }
+    }
+
+    /**
+     * Insert a whole batch of tweet aggregates in one Room transaction so the
+     * Paging source's `InvalidationTracker` fires exactly once per batch (not
+     * once per row). Used by the streaming sync worker; the orchestrator
+     * wraps this call + `SyncProgressDao.upsert(...)` in `db.withTransaction`
+     * so cursor advancement and the batch insert commit atomically.
+     */
+    @Transaction
+    fun insertTweetEntitiesBatch(batch: List<TweetEntities>) {
+        batch.forEach { entities ->
+            insertTweetEntitiesAtomic(
+                entities.tweetEntity,
+                entities.tweetReferencedTweets.mapNotNull { it.tweet },
+                entities.twitterUserEntity,
+                entities.tweetPublicMetrics,
+                entities.tweetMediaEntity,
+                entities.tweetIncludesEntity,
+                entities.tweetReferencedTweets.map { it.referencedTweets },
+                entities.tweetContextAnnotationEntity,
+                entities.tweetTextEntity,
+                entities.mediaKeys,
+                entities.pollIds,
+            )
+        }
+    }
+
+    @Transaction
+    @Query("SELECT rowid AS db_rowid, * FROM tweetEntity WHERE referenced = false ORDER BY retrieved_at DESC, created_at DESC")
     fun getTweets(): PagingSource<Int, TweetData>
 
+    @Transaction
+    @Query("""
+        SELECT t.rowid AS db_rowid, t.* FROM tweetEntity t
+        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
+        WHERE t.referenced = 0
+          AND d.bookmarkId IS NULL
+          AND (
+            :type = 'ALL'
+            OR (:type = 'IMAGE'   AND EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id AND m.type = 'photo'))
+            OR (:type = 'VIDEO'   AND EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id AND m.type IN ('video','animated_gif')))
+            OR (:type = 'ARTICLE' AND EXISTS (SELECT 1 FROM tweetTextEntityAnnotation a
+                  WHERE a.tweet_id = t.id AND a.type = 'urls' AND a.expanded_url IS NOT NULL
+                    AND a.expanded_url NOT LIKE '%twitter.com%' AND a.expanded_url NOT LIKE '%x.com%'))
+            OR (:type = 'THREAD'  AND (t.conversation_id <> t.id
+                  OR EXISTS (SELECT 1 FROM tweetEntity s WHERE s.conversation_id = t.conversation_id AND s.id <> t.id AND s.referenced = 0)))
+            OR (:type = 'TEXT'    AND NOT EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id)
+                  AND NOT EXISTS (SELECT 1 FROM tweetTextEntityAnnotation a WHERE a.tweet_id = t.id AND a.type = 'urls'
+                    AND a.expanded_url IS NOT NULL AND a.expanded_url NOT LIKE '%twitter.com%' AND a.expanded_url NOT LIKE '%x.com%'))
+          )
+        ORDER BY t.retrieved_at DESC,
+                 CAST(CASE WHEN t.created_at GLOB '????-??-??T*'
+                           THEN STRFTIME('%s', t.created_at) * 1000
+                           ELSE 0 END AS INTEGER) DESC
+    """)
+    fun getTweetsTombstoneAware(type: String): PagingSource<Int, TweetData>
+
+    @Transaction
+    @Query("""
+        SELECT t.rowid AS db_rowid, t.* FROM tweetEntity t
+        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
+        INNER JOIN tweet_tags tt ON tt.tweetId = t.id
+        WHERE t.referenced = 0
+          AND d.bookmarkId IS NULL
+          AND tt.tagName IN (:tagNames)
+          AND (
+            :type = 'ALL'
+            OR (:type = 'IMAGE'   AND EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id AND m.type = 'photo'))
+            OR (:type = 'VIDEO'   AND EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id AND m.type IN ('video','animated_gif')))
+            OR (:type = 'ARTICLE' AND EXISTS (SELECT 1 FROM tweetTextEntityAnnotation a
+                  WHERE a.tweet_id = t.id AND a.type = 'urls' AND a.expanded_url IS NOT NULL
+                    AND a.expanded_url NOT LIKE '%twitter.com%' AND a.expanded_url NOT LIKE '%x.com%'))
+            OR (:type = 'THREAD'  AND (t.conversation_id <> t.id
+                  OR EXISTS (SELECT 1 FROM tweetEntity s WHERE s.conversation_id = t.conversation_id AND s.id <> t.id AND s.referenced = 0)))
+            OR (:type = 'TEXT'    AND NOT EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id)
+                  AND NOT EXISTS (SELECT 1 FROM tweetTextEntityAnnotation a WHERE a.tweet_id = t.id AND a.type = 'urls'
+                    AND a.expanded_url IS NOT NULL AND a.expanded_url NOT LIKE '%twitter.com%' AND a.expanded_url NOT LIKE '%x.com%'))
+          )
+        GROUP BY t.id
+        ORDER BY t.retrieved_at DESC,
+                 CAST(CASE WHEN t.created_at GLOB '????-??-??T*'
+                           THEN STRFTIME('%s', t.created_at) * 1000
+                           ELSE 0 END AS INTEGER) DESC
+    """)
+    fun getTweetsByTagsTombstoneAware(tagNames: List<String>, type: String): PagingSource<Int, TweetData>
+
+    /**
+     * Reactive count of the visible (no-tag) feed for the SAVED header. The WHERE
+     * is kept byte-for-byte identical to [getTweetsTombstoneAware] — same tombstone
+     * filter, same `:type` predicate block — so the header can never disagree with
+     * the rendered list. Emits via Room's InvalidationTracker on any matching write.
+     */
+    @Query("""
+        SELECT COUNT(*) FROM tweetEntity t
+        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
+        WHERE t.referenced = 0
+          AND d.bookmarkId IS NULL
+          AND (
+            :type = 'ALL'
+            OR (:type = 'IMAGE'   AND EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id AND m.type = 'photo'))
+            OR (:type = 'VIDEO'   AND EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id AND m.type IN ('video','animated_gif')))
+            OR (:type = 'ARTICLE' AND EXISTS (SELECT 1 FROM tweetTextEntityAnnotation a
+                  WHERE a.tweet_id = t.id AND a.type = 'urls' AND a.expanded_url IS NOT NULL
+                    AND a.expanded_url NOT LIKE '%twitter.com%' AND a.expanded_url NOT LIKE '%x.com%'))
+            OR (:type = 'THREAD'  AND (t.conversation_id <> t.id
+                  OR EXISTS (SELECT 1 FROM tweetEntity s WHERE s.conversation_id = t.conversation_id AND s.id <> t.id AND s.referenced = 0)))
+            OR (:type = 'TEXT'    AND NOT EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id)
+                  AND NOT EXISTS (SELECT 1 FROM tweetTextEntityAnnotation a WHERE a.tweet_id = t.id AND a.type = 'urls'
+                    AND a.expanded_url IS NOT NULL AND a.expanded_url NOT LIKE '%twitter.com%' AND a.expanded_url NOT LIKE '%x.com%'))
+          )
+    """)
+    fun countTombstoneAware(type: String): Flow<Int>
+
+    /**
+     * Reactive count for the tag-filtered feed. Mirrors [getTweetsByTagsTombstoneAware]'s
+     * WHERE exactly; uses `COUNT(DISTINCT t.id)` because the `tweet_tags` INNER JOIN can
+     * fan a single tweet across multiple matching tags (the list query collapses those
+     * with `GROUP BY t.id`).
+     */
+    @Query("""
+        SELECT COUNT(DISTINCT t.id) FROM tweetEntity t
+        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
+        INNER JOIN tweet_tags tt ON tt.tweetId = t.id
+        WHERE t.referenced = 0
+          AND d.bookmarkId IS NULL
+          AND tt.tagName IN (:tagNames)
+          AND (
+            :type = 'ALL'
+            OR (:type = 'IMAGE'   AND EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id AND m.type = 'photo'))
+            OR (:type = 'VIDEO'   AND EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id AND m.type IN ('video','animated_gif')))
+            OR (:type = 'ARTICLE' AND EXISTS (SELECT 1 FROM tweetTextEntityAnnotation a
+                  WHERE a.tweet_id = t.id AND a.type = 'urls' AND a.expanded_url IS NOT NULL
+                    AND a.expanded_url NOT LIKE '%twitter.com%' AND a.expanded_url NOT LIKE '%x.com%'))
+            OR (:type = 'THREAD'  AND (t.conversation_id <> t.id
+                  OR EXISTS (SELECT 1 FROM tweetEntity s WHERE s.conversation_id = t.conversation_id AND s.id <> t.id AND s.referenced = 0)))
+            OR (:type = 'TEXT'    AND NOT EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id)
+                  AND NOT EXISTS (SELECT 1 FROM tweetTextEntityAnnotation a WHERE a.tweet_id = t.id AND a.type = 'urls'
+                    AND a.expanded_url IS NOT NULL AND a.expanded_url NOT LIKE '%twitter.com%' AND a.expanded_url NOT LIKE '%x.com%'))
+          )
+    """)
+    fun countByTagsTombstoneAware(tagNames: List<String>, type: String): Flow<Int>
+
     @Query("SELECT * FROM tweetEntity WHERE referenced = false ORDER BY `order` DESC LIMIT 1")
-    fun getLatestBookmark(): TweetEntity
+    fun getLatestBookmark(): TweetEntity?
+
+    /**
+     * Single-bookmark fetch used by ThreadDetail navigation. Returns the full
+     * [TweetData] aggregate so the caller can render the root card without a
+     * second author/media round trip. Tombstoned and referenced rows are
+     * excluded — opening a thread for a deleted bookmark falls through to a
+     * caller-side empty state.
+     */
+    @Transaction
+    @Query(
+        """
+        SELECT t.rowid AS db_rowid, t.* FROM tweetEntity t
+        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
+        WHERE t.id = :id
+          AND t.referenced = 0
+          AND d.bookmarkId IS NULL
+        LIMIT 1
+        """
+    )
+    suspend fun getTweetById(id: String): TweetData?
+
+    /**
+     * All bookmarked tweets sharing the given Twitter conversation id, ordered
+     * chronologically. Backs the ThreadDetail reply rendering — the root is
+     * filtered out at the VM layer (the conversation includes the root tweet
+     * by definition). Tombstone-aware so deleted replies do not surface.
+     */
+    @Transaction
+    @Query(
+        """
+        SELECT t.rowid AS db_rowid, t.* FROM tweetEntity t
+        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
+        WHERE t.conversation_id = :conversationId
+          AND d.bookmarkId IS NULL
+        ORDER BY t.created_at ASC
+        """
+    )
+    fun tweetsByConversationId(conversationId: String): Flow<List<TweetData>>
 
     @Query("SELECT id FROM tweetEntity WHERE referenced = false")
     suspend fun getAllTweetIds(): List<String>
 
+    /**
+     * Tweet ids for the one-time media backfill: non-referenced, non-tombstoned
+     * tweets that currently have NO `tweetMedia` rows. Keyset-paginated by id
+     * (`id > :afterId`, ascending) so the backfill worker sweeps each media-less
+     * tweet exactly once and terminates when a page returns empty — even though
+     * genuinely media-less (text) tweets never leave the result set, the cursor
+     * still advances past them. Used only by `MediaBackfillWorker`.
+     */
+    @Query(
+        """
+        SELECT t.id FROM tweetEntity t
+        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
+        WHERE t.referenced = 0
+          AND d.bookmarkId IS NULL
+          AND t.id > :afterId
+          AND NOT EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id)
+        ORDER BY t.id ASC
+        LIMIT :limit
+        """
+    )
+    suspend fun getTweetsWithoutMedia(afterId: String, limit: Int): List<String>
+
+    /**
+     * Tweet ids for the widened video-variant backfill: non-referenced, non-tombstoned
+     * tweets that HAVE a video / animated_gif media row whose `video_variants` is still
+     * NULL (the column was added empty for the legacy corpus). Keyset-paginated by id
+     * (`id > :afterId`, ascending) so the backfill worker sweeps each such tweet once and
+     * terminates when a page returns empty. Used only by `MediaBackfillWorker`.
+     */
+    @Query(
+        """
+        SELECT t.id FROM tweetEntity t
+        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
+        WHERE t.referenced = 0
+          AND d.bookmarkId IS NULL
+          AND t.id > :afterId
+          AND EXISTS (
+            SELECT 1 FROM tweetMedia m
+            WHERE m.tweet_id = t.id
+              AND m.type IN ('video', 'animated_gif')
+              AND m.video_variants IS NULL
+          )
+        ORDER BY t.id ASC
+        LIMIT :limit
+        """
+    )
+    suspend fun getVideoTweetsWithoutVariants(afterId: String, limit: Int): List<String>
+
+    /**
+     * Refresh a single media row in place (keyed by `media_key`). Used by the media re-fetch
+     * to land freshly-fetched `video_variants` onto an EXISTING video row — the aggregate
+     * insert is IGNORE-on-conflict and would otherwise leave a present-but-variant-less row
+     * untouched.
+     */
+    @Update
+    suspend fun updateMedia(media: TweetMediaEntity)
+
+    /**
+     * Tweet ids for the one-time link-preview backfill: non-referenced, non-tombstoned tweets
+     * whose text carries a URL but which have NO external `type='urls'` annotation row yet (so
+     * the card shows no preview). Keyset-paginated by id (`id > :afterId`, ascending). The
+     * external predicate mirrors the ARTICLE filter exactly so the swept set is precisely the
+     * one missing a preview. Used only by `MediaBackfillWorker`'s link sweep.
+     */
+    @Query(
+        """
+        SELECT t.id FROM tweetEntity t
+        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
+        WHERE t.referenced = 0
+          AND d.bookmarkId IS NULL
+          AND t.id > :afterId
+          AND NOT EXISTS (
+            SELECT 1 FROM tweetTextEntityAnnotation a
+            WHERE a.tweet_id = t.id AND a.type = 'urls' AND a.expanded_url IS NOT NULL
+              AND a.expanded_url NOT LIKE '%twitter.com%' AND a.expanded_url NOT LIKE '%x.com%'
+          )
+        ORDER BY t.id ASC
+        LIMIT :limit
+        """
+    )
+    suspend fun getExternalLinkTweetsWithoutPreview(afterId: String, limit: Int): List<String>
+
+    /**
+     * Tweet ids for the one-time quoted-tweet backfill: non-referenced, non-tombstoned
+     * bookmarks that carry a `type='quoted'` reference row whose quoted body
+     * [TweetEntity] is not (yet) stored locally — so the card shows the "unavailable"
+     * placeholder. Keyset-paginated by id (`id > :afterId`, ascending). The quoted body
+     * lands once the server has written it (the poll's includes.tweets loop or the
+     * backfill callable). Used by `MediaBackfillWorker`'s quoted sweep.
+     */
+    @Query(
+        """
+        SELECT t.id FROM tweetEntity t
+        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
+        WHERE t.referenced = 0
+          AND d.bookmarkId IS NULL
+          AND t.id > :afterId
+          AND EXISTS (
+            SELECT 1 FROM tweetReferencedTweets r
+            WHERE r.tweet_id = t.id AND r.type = 'quoted'
+              AND NOT EXISTS (SELECT 1 FROM tweetEntity q WHERE q.id = r.id)
+          )
+        ORDER BY t.id ASC
+        LIMIT :limit
+        """
+    )
+    suspend fun getQuoteTweetsWithoutBody(afterId: String, limit: Int): List<String>
+
+    /** Delete a tweet's url-entity annotation rows. Backs the duplicate-safe link re-fetch. */
+    @Query("DELETE FROM tweetTextEntityAnnotation WHERE tweet_id = :tweetId AND type = 'urls'")
+    suspend fun deleteUrlAnnotationsForTweet(tweetId: String)
+
+    /**
+     * Replace a tweet's url-entity annotation rows with the freshly-fetched set. `entityId`
+     * autogenerates, so a plain re-insert via the aggregate path would DUPLICATE rows on every
+     * re-fetch; deleting first makes the link re-fetch idempotent AND lets a later server
+     * enrichment (title/image landing on a row that was URL-only) overwrite the stale row.
+     * `entityId` is reset to 0 so Room assigns fresh ids.
+     */
+    @Transaction
+    suspend fun replaceUrlAnnotations(tweetId: String, rows: List<TweetTextEntityAnnotation>) {
+        deleteUrlAnnotationsForTweet(tweetId)
+        rows.forEach { insertTweetTextEntityAnnotationSuspend(it.copy(entityId = 0)) }
+    }
+
+    @Insert
+    suspend fun insertTweetTextEntityAnnotationSuspend(annotation: TweetTextEntityAnnotation)
+
     @Query("SELECT MAX(`order`) FROM tweetEntity")
     suspend fun getMaxOrder(): Int?
+
+    /**
+     * Flip the per-tweet `pending_delete` flag. Driven by the cancel-swipe path
+     * (sets value=false); the confirm-swipe path writes a tombstone via
+     * DeletedBookmarkDao instead and does not call this.
+     */
+    @Query("UPDATE tweetEntity SET pending_delete = :value WHERE id = :id")
+    suspend fun updatePendingDelete(id: String, value: Boolean)
 
     // Tag operations
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -90,11 +456,38 @@ interface TweetDao {
     @Query("SELECT tags.name FROM tags INNER JOIN tweet_tags ON tags.name = tweet_tags.tagName WHERE tweet_tags.tweetId = :tweetId")
     suspend fun getTagsForTweet(tweetId: String): List<String>
 
+    /**
+     * Batch variant — fetches tag names for multiple tweet ids in a single query.
+     * Returns all matching rows as (tweetId, tagName) pairs; callers group by tweetId.
+     */
+    @Query("SELECT tweetId, tagName FROM tweet_tags WHERE tweetId IN (:tweetIds)")
+    suspend fun getTagsForTweets(tweetIds: List<String>): List<TweetTagCrossRef>
+
     @Query("SELECT * FROM tags ORDER BY name ASC")
     suspend fun getAllTags(): List<TagEntity>
 
     @Query("DELETE FROM tweet_tags WHERE tweetId = :tweetId AND tagName = :tagName")
     suspend fun deleteTweetTag(tweetId: String, tagName: String)
+
+    /**
+     * Atomically replaces a tweet's full tag set. The read-modify-write
+     * (read current tags, diff, delete/insert) runs inside a single Room
+     * transaction so concurrent saves for the same tweet cannot interleave
+     * and produce lost updates.
+     */
+    @Transaction
+    suspend fun saveTagsAtomic(tweetId: String, tags: List<String>) {
+        val currentTags = getTagsForTweet(tweetId)
+        currentTags.forEach { tag ->
+            if (tag !in tags) deleteTweetTag(tweetId, tag)
+        }
+        tags.forEach { tag ->
+            if (tag !in currentTags) {
+                insertTag(TagEntity(tag))
+                insertTweetTag(TweetTagCrossRef(tweetId, tag))
+            }
+        }
+    }
 
     @Query("DELETE FROM tags WHERE name = :tagName")
     suspend fun deleteTag(tagName: String)

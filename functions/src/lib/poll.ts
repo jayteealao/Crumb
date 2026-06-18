@@ -1,0 +1,780 @@
+// Shared X-bookmarks poll engine. Invoked by:
+//   - handlers/dailyPoll.ts  (onSchedule, twice daily UTC)
+//   - handlers/triggerPoll.ts (onCall, on-demand)
+//
+// Invariants:
+//   - Every Firestore write goes through a path guard that asserts the doc path
+//     starts with `users/${uid}/`. A guard violation throws before any write.
+//   - The poll-lease + lastPolledAt write is in a `finally` block: even on
+//     uncaught exception, the lease is released so the next caller does not
+//     have to wait for the 30s TTL.
+//   - The refresh-token is persisted via `setRefreshToken` ONLY when X returns
+//     a rotated token (`response.refresh_token !== storedRt`). X v2 refresh
+//     tokens are single-use in 2026, so a missed rotation breaks the user.
+//   - Firestore batched writes are capped at 450 ops per commit (Firestore hard
+//     cap is 500; 450 leaves headroom).
+//   - X bookmarks request is locked to max_results=50 because max_results=100
+//     has an active pagination bug (see lib/twitter-api.ts).
+
+import { logger } from "firebase-functions/v2";
+import { FieldValue, FieldPath, Timestamp } from "firebase-admin/firestore";
+import type { DocumentReference, WriteBatch, Firestore } from "firebase-admin/firestore";
+
+import { db } from "./admin";
+import { buildBookmarksUrl, USERS_ME_URL } from "./twitter-api";
+import { normalizeCreatedAt } from "./tweet-utils";
+import { assertValidUid } from "./uid";
+import { refreshXToken, NoRefreshTokenError, RefreshRevokedError } from "./oauthRefresh";
+import {
+  ownedMediaFor,
+  buildPageMediaMap,
+  mediaDocData,
+  mediaJunctionData,
+  mediaJunctionDocId,
+} from "./media-attribution";
+
+const BATCH_SIZE = 450;
+const DEBOUNCE_MS = 60_000;
+const LEASE_TTL_MS = 30_000;
+const MAX_RETRIES = 3;
+const BACKOFF_BASE_MS = 1_000;
+const MAX_BACKOFF_WAIT_MS = 60_000;
+
+export type PollFailureReason =
+  | "refresh_revoked"
+  | "rate_limited"
+  | "no_refresh_token"
+  | "missing_x_user_id"
+  | "x_user_lookup_failed"
+  | "in_progress"
+  | "debounced";
+
+export type PollResult =
+  | { ok: true; itemsAdded: number; itemsFlaggedPendingDelete: number }
+  | { ok: false; reason: "debounced"; retryAfter: number }
+  | { ok: false; reason: Exclude<PollFailureReason, "debounced"> };
+
+export interface PollOptions {
+  reason?: "scheduled" | "trigger";
+}
+
+interface TweetData {
+  id: string;
+  public_metrics?: Record<string, unknown>;
+  referenced_tweets?: Array<{ id: string; type: string }>;
+  entities?: { annotations?: Array<{ type: string; start: number; end: number; normalized_text?: string }> };
+  // The tweet's OWN media keys (requested via the attachments.media_keys expansion
+  // and spread onto the stored doc). Typed explicitly — not left to the index
+  // signature — so the media-attribution loop reads it without an `unknown` cast.
+  attachments?: { media_keys?: string[] };
+  [key: string]: unknown;
+}
+
+interface IncludesData {
+  users?: Array<{ id: string; [key: string]: unknown }>;
+  media?: Array<{ media_key: string; [key: string]: unknown }>;
+  tweets?: Array<{ id: string; [key: string]: unknown }>;
+}
+
+interface BookmarksPage {
+  data?: TweetData[];
+  includes?: IncludesData;
+  meta?: { next_token?: string };
+}
+
+interface LeaseState {
+  holder: string;
+  acquired_at: Timestamp;
+  expires_at: Timestamp;
+}
+
+interface SyncStatusData {
+  linked?: boolean;
+  lastPolledAt?: Timestamp;
+  lastError?: string | null;
+  xUserId?: string;
+  // BigInt-string of the numerically-largest stored tweet id. Seeded by
+  // scripts/backfill-tweet-id-field.mjs and maintained by runPoll's success
+  // path. Used as the stop-on-overlap boundary; replaces the broken
+  // `orderBy("id", "desc").limit(1)` which compared snowflakes lexicographically.
+  latest_tweet_id?: string;
+  poll_lease?: LeaseState | null;
+  [key: string]: unknown;
+}
+
+function assertPathScoped(path: string, uid: string): void {
+  const prefix = `users/${uid}/`;
+  if (!path.startsWith(prefix)) {
+    throw new Error(`path_guard_violation: ${path}`);
+  }
+}
+
+// Numeric-snowflake comparison helpers. In production every tweet id is a
+// valid u64 snowflake string, so BigInt conversion succeeds. Test fixtures
+// use synthetic ids like `T1` that are not numeric — fall back to string
+// equality (NOT lex `<`/`>`, which is the original defect for mixed-length
+// snowflakes).
+function isAtOrBelowBoundary(id: string, boundary: string): boolean {
+  try {
+    return BigInt(id) <= BigInt(boundary);
+  } catch {
+    return id === boundary;
+  }
+}
+
+function isStrictlyAboveBoundary(id: string, boundary: string): boolean {
+  try {
+    return BigInt(id) > BigInt(boundary);
+  } catch {
+    return false;
+  }
+}
+
+
+async function fetchWithBackoff(
+  url: string,
+  accessToken: string,
+): Promise<Response | null> {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    let resp: Response;
+    try {
+      // M7: wrap the bare fetch() so DNS/TCP/network errors are retried by the
+      // same backoff logic instead of propagating uncaught out of the caller.
+      resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    } catch (networkErr) {
+      if (attempt === MAX_RETRIES) {
+        logger.warn("daily_poll_network_error_exhausted", {
+          url,
+          attempt,
+          code: (networkErr as Error).message,
+        });
+        return null;
+      }
+      const waitMs = Math.min(BACKOFF_BASE_MS * Math.pow(2, attempt), MAX_BACKOFF_WAIT_MS);
+      logger.warn("daily_poll_network_error_retry", {
+        url,
+        attempt,
+        code: (networkErr as Error).message,
+        waitMs,
+      });
+      await new Promise((r) => setTimeout(r, waitMs));
+      continue;
+    }
+    if (resp.status !== 429 && resp.status < 500) return resp;
+    if (attempt === MAX_RETRIES) return null;
+    const resetHeader = resp.headers.get("x-rate-limit-reset");
+    let waitMs: number;
+    if (resetHeader) {
+      const resetUnix = Number(resetHeader);
+      if (Number.isFinite(resetUnix)) {
+        waitMs = Math.max(0, resetUnix * 1000 - Date.now() + 1_000);
+      } else {
+        waitMs = BACKOFF_BASE_MS * Math.pow(2, attempt);
+      }
+    } else {
+      waitMs = BACKOFF_BASE_MS * Math.pow(2, attempt);
+    }
+    const capped = Math.min(waitMs, MAX_BACKOFF_WAIT_MS);
+    logger.warn("daily_poll_backoff", { url, attempt, status: resp.status, waitMs: capped });
+    await new Promise((r) => setTimeout(r, capped));
+  }
+  return null;
+}
+
+async function releaseLeaseWithError(
+  database: Firestore,
+  uid: string,
+  errorCode: string,
+  opts: { setUnlinked?: boolean } = {},
+): Promise<void> {
+  const statusRef = database.doc(`users/${uid}/sync_status/state`);
+  assertPathScoped(statusRef.path, uid);
+  const patch: Record<string, unknown> = {
+    poll_lease: null,
+    lastError: errorCode,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  if (opts.setUnlinked) {
+    patch.linked = false;
+  }
+  await statusRef.set(patch, { merge: true });
+}
+
+export async function runPoll(uid: string, opts: PollOptions = {}): Promise<PollResult> {
+  assertValidUid(uid);
+  const database = db();
+  const statusRef = database.doc(`users/${uid}/sync_status/state`);
+  assertPathScoped(statusRef.path, uid);
+
+  // Sub-step 4a: lease + debounce transaction.
+  type ClaimResult =
+    | { kind: "debounced"; retryAfter: number }
+    | { kind: "in_progress" }
+    | { kind: "acquired"; holder: string };
+
+  const claim: ClaimResult = await database.runTransaction(async (tx) => {
+    const snap = await tx.get(statusRef);
+    const data = (snap.data() ?? {}) as SyncStatusData;
+    const now = Timestamp.now();
+
+    if (opts.reason === "trigger" && data.lastPolledAt) {
+      const elapsedMs = now.toMillis() - data.lastPolledAt.toMillis();
+      if (elapsedMs < DEBOUNCE_MS) {
+        return {
+          kind: "debounced" as const,
+          retryAfter: Math.ceil((DEBOUNCE_MS - elapsedMs) / 1000),
+        };
+      }
+    }
+
+    const lease = data.poll_lease;
+    if (lease && lease.expires_at && lease.expires_at.toMillis() > now.toMillis()) {
+      return { kind: "in_progress" as const };
+    }
+
+    const holder = `${opts.reason ?? "unknown"}_${now.toMillis()}_${Math.random().toString(36).slice(2, 10)}`;
+    tx.set(
+      statusRef,
+      {
+        poll_lease: {
+          holder,
+          acquired_at: now,
+          expires_at: Timestamp.fromMillis(now.toMillis() + LEASE_TTL_MS),
+        },
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    return { kind: "acquired" as const, holder };
+  });
+
+  if (claim.kind === "debounced") {
+    return { ok: false, reason: "debounced", retryAfter: claim.retryAfter };
+  }
+  if (claim.kind === "in_progress") {
+    return { ok: false, reason: "in_progress" };
+  }
+
+  let collectedCount = 0;
+  let flaggedCount = 0;
+  let resolvedXUserId: string | undefined;
+  let pollFailed: PollFailureReason | null = null;
+  let newLatestTweetId: string | undefined;
+
+  try {
+    // Sub-step 4b: refresh-token grant + conditional rotation persist.
+    let accessToken: string;
+    try {
+      ({ accessToken } = await refreshXToken(uid));
+    } catch (err) {
+      if (err instanceof NoRefreshTokenError) {
+        pollFailed = "no_refresh_token";
+        logger.warn("daily_poll_no_refresh_token", { uid });
+        return { ok: false, reason: "no_refresh_token" };
+      }
+      if (err instanceof RefreshRevokedError) {
+        pollFailed = "refresh_revoked";
+        logger.warn("daily_poll_refresh_revoked", { uid });
+        return { ok: false, reason: "refresh_revoked" };
+      }
+      pollFailed = "rate_limited";
+      logger.warn("daily_poll_refresh_failed", { uid, code: (err as Error).message });
+      return { ok: false, reason: "rate_limited" };
+    }
+
+    // Sub-step 4c: X user-id lookup with cache.
+    const statusSnap = await statusRef.get();
+    const currentStatus = (statusSnap.data() ?? {}) as SyncStatusData;
+    let xUserId = currentStatus.xUserId;
+    if (!xUserId) {
+      const meResp = await fetchWithBackoff(USERS_ME_URL, accessToken);
+      if (!meResp || !meResp.ok) {
+        pollFailed = "x_user_lookup_failed";
+        logger.warn("daily_poll_users_me_failed", { uid, status: meResp?.status });
+        return { ok: false, reason: "x_user_lookup_failed" };
+      }
+      const me = (await meResp.json()) as { data?: { id?: string } };
+      if (!me.data?.id) {
+        pollFailed = "missing_x_user_id";
+        logger.warn("daily_poll_users_me_empty", { uid });
+        return { ok: false, reason: "missing_x_user_id" };
+      }
+      xUserId = me.data.id;
+    }
+    resolvedXUserId = xUserId;
+
+    // Sub-step 4d: paginated bookmark fetch with stop-on-overlap.
+    //
+    // `latest_tweet_id` is the BigInt-max-string of stored tweet ids — seeded
+    // by scripts/backfill-tweet-id-field.mjs and re-written by this function's
+    // success-path finally patch (see `newLatestTweetId` below). It replaces
+    // an earlier `orderBy("id", "desc").limit(1)` query that compared snowflake
+    // strings lexicographically (2017-era 18-char ids sorted AFTER 2024+
+    // 19-char ids because `'9' > '2'` at position 0), which caused
+    // stop-on-overlap to mis-fire and the function to silently drop work.
+    const latestIdInDb: string | undefined = currentStatus.latest_tweet_id;
+
+    const collected: Array<{ tweet: TweetData; includes?: IncludesData }> = [];
+    const seenIds = new Set<string>();
+    let nextToken: string | undefined;
+    let stop = false;
+    let stoppedOnOverlap = false;
+
+    // Keep the poll lease valid for the full (multi-page) poll. LEASE_TTL_MS is
+    // a short 30s TTL chosen for fast crash recovery, but a real poll can run
+    // far longer than that across pages — without renewal the lease would expire
+    // mid-run and a concurrent scheduled/trigger poll could acquire it and race
+    // our refresh-token rotation, writes, and pending-delete diff. Renew per
+    // page under a guard that only extends a lease we still hold; a crashed
+    // instance simply stops renewing and the short TTL frees it for the next.
+    const leaseHolder = claim.holder;
+    const renewLease = async (): Promise<void> => {
+      try {
+        await database.runTransaction(async (tx) => {
+          const snap = await tx.get(statusRef);
+          const lease = (snap.data() as SyncStatusData | undefined)?.poll_lease;
+          if (!lease || lease.holder !== leaseHolder) return;
+          tx.set(
+            statusRef,
+            {
+              poll_lease: {
+                ...lease,
+                expires_at: Timestamp.fromMillis(
+                  Timestamp.now().toMillis() + LEASE_TTL_MS,
+                ),
+              },
+            },
+            { merge: true },
+          );
+        });
+      } catch {
+        // Best-effort renewal; on failure the lease keeps its prior TTL.
+      }
+    };
+
+    do {
+      await renewLease();
+      const url = buildBookmarksUrl(xUserId, nextToken);
+      const resp = await fetchWithBackoff(url, accessToken);
+      if (!resp) {
+        pollFailed = "rate_limited";
+        logger.warn("daily_poll_bookmarks_rate_limited", { uid });
+        return { ok: false, reason: "rate_limited" };
+      }
+      if (!resp.ok) {
+        pollFailed = "rate_limited";
+        logger.warn("daily_poll_bookmarks_failed", { uid, status: resp.status });
+        return { ok: false, reason: "rate_limited" };
+      }
+      const json = (await resp.json()) as BookmarksPage;
+      const page = json.data ?? [];
+      for (const tweet of page) {
+        // BigInt comparison: snowflake ids are variable-length numeric strings;
+        // lexicographic compare misclassifies 18-char (2017-era) vs 19-char
+        // (2024+) ids. `<=` includes the boundary tweet itself as still-present.
+        if (latestIdInDb && isAtOrBelowBoundary(tweet.id, latestIdInDb)) {
+          // An at-or-below-boundary id is USUALLY already synced — but the
+          // bookmarks endpoint is ordered by bookmark ACTIVITY, not tweet age,
+          // so a freshly bookmarked OLD tweet also lands here. Treat it as the
+          // overlap boundary ONLY if the doc actually exists; otherwise it is a
+          // new bookmark of an old tweet and must be collected, not dropped.
+          const existingRef = database.doc(`users/${uid}/tweets/${tweet.id}`);
+          assertPathScoped(existingRef.path, uid);
+          const existing = await existingRef.get();
+          if (existing.exists) {
+            // Genuinely already stored → real overlap. Record as seen but do
+            // not re-write; anything strictly below was not paged this poll.
+            seenIds.add(tweet.id);
+            stoppedOnOverlap = true;
+            stop = true;
+            break;
+          }
+          // Not stored yet → fall through and collect it as a new bookmark.
+        }
+        seenIds.add(tweet.id);
+        collected.push({ tweet, includes: json.includes });
+      }
+      nextToken = json.meta?.next_token;
+    } while (!stop && nextToken);
+
+    collectedCount = collected.length;
+
+    // Sub-step 4f: batched writes with content-derived composite IDs.
+    const writes: Array<[DocumentReference, Record<string, unknown>]> = [];
+    const seenRefs = new Set<string>();
+
+    function enqueue(ref: DocumentReference, data: Record<string, unknown>): void {
+      assertPathScoped(ref.path, uid);
+      if (seenRefs.has(ref.path)) return;
+      seenRefs.add(ref.path);
+      writes.push([ref, data]);
+    }
+
+    for (const { tweet, includes } of collected) {
+      const { public_metrics, ...tweetWithoutMetrics } = tweet;
+      // Tweet doc: spread the raw X-API snake_case payload first (preserves
+      // every field for future readers), then overlay camelCase aliases the
+      // Android FirestoreTweet / FirestoreRepository.getAllTweetIds reader
+      // requires. Without these, getAllTweetIds() returns 0 ids and the
+      // device's Room cache never hydrates from server-written docs.
+      const tweetDoc: Record<string, unknown> = {
+        ...tweetWithoutMetrics,
+        tweetId: tweet.id,
+        authorId: (tweet as Record<string, unknown>).author_id,
+        // Normalize the camelCase createdAt the Android reader and orderBy("createdAt")
+        // depend on to canonical ISO-8601; the raw snake_case created_at from the spread
+        // above is left verbatim for future readers.
+        createdAt: normalizeCreatedAt((tweet as Record<string, unknown>).created_at),
+        conversationId: (tweet as Record<string, unknown>).conversation_id,
+        inReplyToUserId: (tweet as Record<string, unknown>).in_reply_to_user_id,
+        pending_delete: false,
+        updatedAt: FieldValue.serverTimestamp(),
+        // First-seen / poll observation time. The X v2 bookmarks API exposes no true
+        // bookmark timestamp, so this stamps when the poll first collected the tweet. Only
+        // tweets in `collected` reach this loop (ids strictly above the stored boundary),
+        // so it is written once and never overwritten on later polls.
+        retrievedAt: FieldValue.serverTimestamp(),
+      };
+      enqueue(database.doc(`users/${uid}/tweets/${tweet.id}`), tweetDoc);
+
+      if (public_metrics && typeof public_metrics === "object") {
+        // Metrics doc: same shape contract — snake_case raw + camelCase aliases
+        // the Android FirestoreMetrics reader expects (likeCount, retweetCount,
+        // replyCount, quoteCount, bookmarkCount, impressionCount).
+        const pm = public_metrics as Record<string, unknown>;
+        enqueue(database.doc(`users/${uid}/metrics/${tweet.id}`), {
+          ...pm,
+          tweetId: tweet.id,
+          likeCount: pm.like_count,
+          retweetCount: pm.retweet_count,
+          replyCount: pm.reply_count,
+          quoteCount: pm.quote_count,
+          bookmarkCount: pm.bookmark_count,
+          impressionCount: pm.impression_count,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+
+      const includesUsers = includes?.users ?? [];
+      for (const u of includesUsers) {
+        // User doc: snake_case raw + camelCase aliases for Android FirestoreUser
+        // (userId, profileImageUrl, verifiedType, followersCount, etc.).
+        const ur = u as Record<string, unknown>;
+        const userPublicMetrics =
+          (ur.public_metrics as Record<string, unknown> | undefined) ?? {};
+        enqueue(database.doc(`users/${uid}/twitter_users/${u.id}`), {
+          ...ur,
+          userId: u.id,
+          profileImageUrl: ur.profile_image_url,
+          verifiedType: ur.verified_type,
+          pinnedTweetId: ur.pinned_tweet_id,
+          createdAt: ur.created_at,
+          followersCount: userPublicMetrics.followers_count,
+          followingCount: userPublicMetrics.following_count,
+          tweetCount: userPublicMetrics.tweet_count,
+          listedCount: userPublicMetrics.listed_count,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        enqueue(database.doc(`users/${uid}/includes/${tweet.id}_user_${u.id}`), {
+          tweetId: tweet.id,
+          userId: u.id,
+          kind: "user",
+        });
+      }
+
+      // M5: build the page-level media map once per (tweet, includes) pair here.
+      // The same includes object is shared across the top-level tweet and its
+      // quoted body, so we build the map once per collected entry and pass it in.
+      // Attribute media to THIS tweet by its OWN attachments.media_keys, not the
+      // page-level includes.media bag. includes.media is page-scoped (every media
+      // object for every tweet on the page); the previous "loop the whole bag per
+      // tweet" wrote a cross-product of includes junction docs, so a neighbour's
+      // media — most visibly a quoted/co-page tweet's image or video — was recorded
+      // as this tweet's own and rendered on the wrong card. ownedMediaFor resolves
+      // only the keys this tweet names against the page bag. The media doc + the
+      // camelCase/variant mapping are identical to before (lib/media-attribution.ts);
+      // only WHICH (tweet, media) junctions are written changed.
+      const pageMediaMap = buildPageMediaMap(includes?.media);
+      for (const { mediaKey, media } of ownedMediaFor(tweet, pageMediaMap, tweet.id)) {
+        enqueue(
+          database.doc(`users/${uid}/media/${mediaKey}`),
+          mediaDocData(media, FieldValue.serverTimestamp()),
+        );
+        enqueue(
+          database.doc(`users/${uid}/includes/${mediaJunctionDocId(tweet.id, mediaKey)}`),
+          mediaJunctionData(tweet.id, mediaKey),
+        );
+      }
+
+      const refs = tweet.referenced_tweets ?? [];
+      const includesTweets = includes?.tweets ?? [];
+      for (const r of refs) {
+        enqueue(database.doc(`users/${uid}/includes/${tweet.id}_ref_${r.id}`), {
+          tweetId: tweet.id,
+          referencedTweetId: r.id,
+          type: r.type,
+          kind: "referenced_tweet",
+        });
+
+        // Persist the quoted tweet's body as a referenced=true tweet doc so the
+        // Android card can render the quote (author + text). The X API already
+        // returns the body in includes.tweets[] (the referenced_tweets.id +
+        // referenced_tweets.id.author_id expansions); we just never wrote it.
+        //
+        // Only `quoted` references carry a body we surface — replied_to/retweeted
+        // are excluded. A deleted/protected/suspended quote is silently omitted
+        // from includes.tweets (no errors[]), so we write only the _ref_ doc above
+        // and the client renders the "unavailable" placeholder.
+        //
+        // `referenced: true` keeps it out of the top-level feed: the Android reader
+        // skips referenced docs in getAllTweetIds and the server pending_delete diff
+        // excludes them (see sub-step 4g), and the quoted author was already written
+        // by the includes.users loop above. The quoted body is keyed by its own id;
+        // enqueue() dedups by path, so a quote shared by several bookmarked tweets in
+        // one page is written once, and a tweet the user independently bookmarked keeps
+        // its real (referenced-absent) doc because the main loop enqueued it first.
+        if (r.type === "quoted") {
+          const qt = includesTweets.find((t) => t.id === r.id);
+          if (qt) {
+            const qtr = qt as Record<string, unknown>;
+            const { public_metrics: _qtMetrics, ...qtWithoutMetrics } = qtr;
+            enqueue(database.doc(`users/${uid}/tweets/${qt.id}`), {
+              ...qtWithoutMetrics,
+              tweetId: qt.id,
+              authorId: qtr.author_id,
+              createdAt: normalizeCreatedAt(qtr.created_at),
+              conversationId: qtr.conversation_id,
+              inReplyToUserId: qtr.in_reply_to_user_id,
+              referenced: true,
+              pending_delete: false,
+              updatedAt: FieldValue.serverTimestamp(),
+            });
+
+            // Attribute the quoted tweet's OWN media to its body doc. X v2 does NOT
+            // promote a quoted tweet's media into the quoter's attachments.media_keys —
+            // it lives on the quoted tweet object in includes.tweets (the global
+            // attachments.media_keys expansion populates it), and the media objects are
+            // in the same page-level includes.media bag. Mirrors the top-level write so
+            // the quoted block renders its own image/video on the correct (quoted) tweet.
+            for (const { mediaKey, media } of ownedMediaFor(qt, pageMediaMap, qt.id as string)) {
+              enqueue(
+                database.doc(`users/${uid}/media/${mediaKey}`),
+                mediaDocData(media, FieldValue.serverTimestamp()),
+              );
+              enqueue(
+                database.doc(`users/${uid}/includes/${mediaJunctionDocId(qt.id, mediaKey)}`),
+                mediaJunctionData(qt.id, mediaKey),
+              );
+            }
+          }
+        }
+      }
+
+      const annotations = tweet.entities?.annotations ?? [];
+      for (const ann of annotations) {
+        enqueue(
+          database.doc(
+            `users/${uid}/textAnnotations/${tweet.id}_${ann.type}_${ann.start}_${ann.end}`,
+          ),
+          { tweetId: tweet.id, ...ann },
+        );
+      }
+    }
+
+    // Sub-step 4g: pending_delete diff.
+    //
+    // Semantics: a stored tweet is "still present" if X echoed it in this poll's
+    // response stream (either collected as new OR encountered as the stop-on-overlap
+    // boundary). When stop-on-overlap fires, anything stored BELOW the boundary
+    // (older snowflake id) was not examined this poll — its presence is unknown
+    // and we MUST NOT flag it. Only tweets strictly above the boundary that are
+    // both stored and unseen this poll get the pending_delete flag.
+    //
+    // When pagination completes naturally (no overlap), the response stream
+    // covers everything X has → unseen stored ids are safely flaggable.
+    //
+    // Read the pre-write snapshot BEFORE the batch commit so a concurrent poll
+    // that writes new docs between our commit and this read cannot cause those
+    // freshly-written docs to appear as "unseen" in the diff.
+    //
+    // PERF note: `.select("referenced")` projects only the `referenced` field
+    // (plus the document ID) so each returned stub is minimal. A full keyset/
+    // incremental redesign (storing known ids in a summary doc) would eliminate
+    // the O(n) scan entirely; that larger redesign remains as future work.
+    const existingIdsSnap = await database
+      .collection(`users/${uid}/tweets`)
+      .select("referenced")
+      .get();
+    // Quoted-tweet body docs are stored referenced=true and are NOT the user's
+    // bookmarks, so they are never echoed in this poll's response (never in seenIds).
+    // Excluding them here keeps the diff from flagging every quoted body
+    // pending_delete on every poll.
+    const existingIds = new Set(
+      existingIdsSnap.docs
+        .filter((d) => (d.data() as Record<string, unknown>)?.referenced !== true)
+        .map((d) => d.id),
+    );
+
+    // Commit writes in 450-op chunks.
+    for (let i = 0; i < writes.length; i += BATCH_SIZE) {
+      const batch: WriteBatch = database.batch();
+      const chunk = writes.slice(i, i + BATCH_SIZE);
+      for (const [ref, data] of chunk) {
+        batch.set(ref, data, { merge: true });
+      }
+      await batch.commit();
+    }
+    const missingNow: string[] = [];
+    for (const id of existingIds) {
+      if (seenIds.has(id)) continue;
+      if (stoppedOnOverlap) {
+        // Only flag if strictly above the overlap boundary. BigInt compare
+        // for the same reason as the overlap check above.
+        if (latestIdInDb && isStrictlyAboveBoundary(id, latestIdInDb)) {
+          missingNow.push(id);
+        }
+      } else {
+        missingNow.push(id);
+      }
+    }
+
+    if (missingNow.length > 0) {
+      // Read the `deleted` precondition for every candidate via chunked `in`
+      // queries — 30 ids per query is the Firestore documentId-in cap. One
+      // RPC per chunk; up to 30 docs returned. Replaces a serial loop of
+      // 3,000+ individual docRef.get() calls.
+      const IN_CHUNK = 30;
+      const idChunks: string[][] = [];
+      for (let i = 0; i < missingNow.length; i += IN_CHUNK) {
+        idChunks.push(missingNow.slice(i, i + IN_CHUNK));
+      }
+      const snaps = await Promise.all(
+        idChunks.map((ids) =>
+          database
+            .collection(`users/${uid}/tweets`)
+            .where(FieldPath.documentId(), "in", ids)
+            .select("deleted")
+            .get(),
+        ),
+      );
+      const deletedSet = new Set<string>();
+      for (const snap of snaps) {
+        for (const d of snap.docs) {
+          if ((d.data() as Record<string, unknown>)?.deleted === true) {
+            deletedSet.add(d.id);
+          }
+        }
+      }
+
+      const pdWrites: Array<[DocumentReference, Record<string, unknown>]> = [];
+      for (const id of missingNow) {
+        if (deletedSet.has(id)) continue;
+        const docRef = database.doc(`users/${uid}/tweets/${id}`);
+        assertPathScoped(docRef.path, uid);
+        pdWrites.push([
+          docRef,
+          {
+            pending_delete: true,
+            pending_delete_detected_at: Timestamp.now(),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+        ]);
+      }
+
+      // Same 450-chunk commit pattern as the collection-write loop above.
+      // Hard cap is 500 ops per batch; 450 leaves headroom.
+      for (let i = 0; i < pdWrites.length; i += BATCH_SIZE) {
+        const batch: WriteBatch = database.batch();
+        const chunk = pdWrites.slice(i, i + BATCH_SIZE);
+        for (const [ref, data] of chunk) {
+          batch.set(ref, data, { merge: true });
+        }
+        await batch.commit();
+      }
+      flaggedCount = pdWrites.length;
+    }
+
+    // Compute new BigInt-max boundary for the success-path patch (used in
+    // finally below). Newer collected ids supersede the existing cache.
+    // Wrapped in try/catch: defensive against non-numeric ids (test fixtures
+    // use synthetic strings; production snowflakes are always numeric).
+    if (collected.length > 0) {
+      try {
+        const base = latestIdInDb ? BigInt(latestIdInDb) : 0n;
+        const newMax = collected.reduce(
+          (max, { tweet }) => (BigInt(tweet.id) > max ? BigInt(tweet.id) : max),
+          base,
+        );
+        if (newMax > 0n && (!latestIdInDb || newMax > BigInt(latestIdInDb))) {
+          newLatestTweetId = newMax.toString();
+        }
+      } catch {
+        // Non-numeric id — skip cache update; the existing cache stays.
+      }
+    }
+
+    return {
+      ok: true,
+      itemsAdded: collectedCount,
+      itemsFlaggedPendingDelete: flaggedCount,
+    };
+  } finally {
+    // Sub-step 4h: release lease + write sync_status (always runs).
+    //
+    // Observability: the firebase-functions logger buffers async, so on Gen 2
+    // post-response CPU throttling its log lines can be lost. Wrap the work
+    // in a 5s Promise.race timeout, then emit BOTH the firebase logger line
+    // (for normal cases) AND a synchronous console.error JSON envelope (for
+    // when the logger's async flush is too slow). stderr is captured
+    // immediately by Cloud Logging.
+    const finallyWork = async (): Promise<void> => {
+      if (pollFailed) {
+        await releaseLeaseWithError(database, uid, pollFailed, {
+          setUnlinked: pollFailed === "refresh_revoked",
+        });
+      } else {
+        const finalPatch: Record<string, unknown> = {
+          linked: true,
+          lastPolledAt: FieldValue.serverTimestamp(),
+          lastError: null,
+          itemsAdded: collectedCount,
+          poll_lease: null,
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+        if (resolvedXUserId) finalPatch.xUserId = resolvedXUserId;
+        if (newLatestTweetId) finalPatch.latest_tweet_id = newLatestTweetId;
+        await statusRef.set(finalPatch, { merge: true });
+      }
+    };
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        finallyWork(),
+        new Promise<never>((_, reject) => {
+          timeoutHandle = setTimeout(
+            () => reject(new Error("finally_timeout_5s")),
+            5000,
+          );
+        }),
+      ]);
+    } catch (e) {
+      const msg = (e as Error).message;
+      const where = msg === "finally_timeout_5s" ? "timeout" : "throw";
+      logger.error("daily_poll_finally_failed", { uid, code: msg, where });
+      // Synchronous fallback bypasses the firebase-functions logger's async
+      // flush path; stderr is captured immediately by Cloud Logging.
+      // eslint-disable-next-line no-console
+      console.error(
+        JSON.stringify({
+          severity: "ERROR",
+          message: "daily_poll_finally_failed",
+          uid,
+          code: msg,
+          where,
+        }),
+      );
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+    }
+  }
+}

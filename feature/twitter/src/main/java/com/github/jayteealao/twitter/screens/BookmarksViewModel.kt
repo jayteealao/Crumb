@@ -1,54 +1,290 @@
 package com.github.jayteealao.twitter.screens
 
-import androidx.compose.runtime.mutableStateMapOf
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.paging.PagingData
+import androidx.paging.cachedIn
+import com.github.jayteealao.crumbs.models.Bookmark
+import com.github.jayteealao.crumbs.data.FilterState
+import com.github.jayteealao.crumbs.data.TypeFilter
 import com.github.jayteealao.twitter.data.Repository
+import com.github.jayteealao.twitter.data.TwitterSnackbarEvent
+import com.github.jayteealao.twitter.data.SyncStatusRepository
+import com.github.jayteealao.twitter.data.dto.SyncStatus
 import com.github.jayteealao.twitter.models.TweetData
+import com.github.jayteealao.twitter.player.VariantSelection
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.collections.immutable.persistentSetOf
+import kotlinx.collections.immutable.toPersistentSet
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class BookmarksViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val savedStateHandle: SavedStateHandle,
-    private val repository: Repository
+    private val repository: Repository,
+    private val syncStatusRepository: SyncStatusRepository,
 ) : ViewModel() {
 
     init {
-        repository.buildDatabase()
+        // Kick off an initial sync_status read so the reconnect banner can
+        // render before the user touches anything. Server-side polling owns
+        // the actual bookmark fetching post-cutover.
+        viewModelScope.launch { syncStatusRepository.refresh() }
     }
-
-//    val refreshed = checkNotNull(savedStateHandle.get<Boolean>("refreshed"))
 
     val isRefreshing: StateFlow<Boolean> = repository.isRefreshing
 
-    fun pagingFlowData(order: String = "default"): Flow<PagingData<TweetData>> = sortOrder[order]!!()
+    val syncStatus: StateFlow<SyncStatus?> = syncStatusRepository.flow
 
-    fun buildDatabase() = repository.buildDatabase()
+    val snackbarEvents: SharedFlow<TwitterSnackbarEvent> = repository.snackbarEvents
+
+    private val _filter = MutableStateFlow(FilterState())
+    val filter: StateFlow<FilterState> = _filter.asStateFlow()
+
+    val pagingFlow: Flow<PagingData<TweetData>> = _filter
+        .flatMapLatest { state -> repository.pagingTweetData(state) }
+        .cachedIn(viewModelScope)
+
+    /**
+     * Live count of the current Twitter feed for the SAVED header. Re-derives on every
+     * [_filter] change (tag or type) via the same repository source the paging feed uses,
+     * so the header and the visible list stay in lockstep. `stateIn` + `WhileSubscribed`
+     * keeps the underlying count query observed only while the UI is on-screen; seeds `0`
+     * (which the header renders as `000`) until the first emission.
+     */
+    val itemCount: StateFlow<Int> = _filter
+        .flatMapLatest { state -> repository.countFlow(state) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    fun pagingFlowData(): Flow<PagingData<TweetData>> = pagingFlow
 
     fun refresh() {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 repository.refreshBookmarks()
+                // Re-read sync_status so a freshly-linked user sees lastPolledAt
+                // advance without waiting for the next foreground transition.
+                syncStatusRepository.refresh(force = true)
             }
         }
     }
 
-    private val sortOrder = mutableStateMapOf(
-        "default" to { repository.pagingTweetData() }
-    )
+    fun refreshSyncStatus() {
+        viewModelScope.launch { syncStatusRepository.refresh() }
+    }
+
+    // Per-session deduplication for on-view lazy re-fetches (media / link / quote).
+    // Each kind gets its own slot in the map so a tweet that needs both a link and
+    // a media re-fetch is retried once per kind, not once total. The backing sets
+    // are ConcurrentHashMap-based so they are safe under any dispatcher (including
+    // test dispatchers that may not be single-threaded).
+    private val refetchAttempts: MutableMap<String, MutableSet<String>> =
+        Collections.synchronizedMap(HashMap())
+
+    private fun lazyRefetch(kind: String, tweetId: String, block: suspend () -> Unit) {
+        val seen = refetchAttempts.getOrPut(kind) {
+            Collections.newSetFromMap(ConcurrentHashMap())
+        }
+        if (!seen.add(tweetId)) return
+        viewModelScope.launch { runCatching { block() } }
+    }
+
+    /**
+     * Lazy on-view media re-fetch (image-rendering AC). Attempts at most one
+     * re-fetch per tweet per session; on success Room invalidation re-emits the
+     * paged card with its images. A tweet with no media in Firestore settles to
+     * text-only and is not retried until the next session (the one-time backfill
+     * worker repairs the back-catalogue in bulk).
+     */
+    fun refetchMediaIfMissing(tweetId: String) =
+        lazyRefetch("media", tweetId) { repository.refetchTweetMedia(tweetId) }
+
+    /**
+     * Lazy on-view link re-fetch (link-previews AC). Attempts at most one re-fetch per
+     * tweet per session; on success the server-enriched url entity lands and Room
+     * invalidation re-emits the card as a Link with its preview.
+     */
+    fun refetchLinksIfMissing(tweetId: String) =
+        lazyRefetch("link", tweetId) { repository.refetchTweetLinks(tweetId) }
+
+    /**
+     * Lazy on-view quoted-body re-fetch (quoted-tweets AC). Attempts at most one
+     * re-fetch per tweet per session; on success the server-written quoted body lands
+     * and Room invalidation re-emits the card with the rendered quote.
+     */
+    fun refetchQuotesIfMissing(tweetId: String) =
+        lazyRefetch("quote", tweetId) { repository.refetchTweetQuotes(tweetId) }
+
+    // ---- Inline video (single shared, leak-free ExoPlayer) ----
+    //
+    // The feed is the only video surface, so one player scoped to this ViewModel is
+    // enough: it is created lazily on first play, survives config changes (the VM
+    // outlives recomposition), and is released in [onCleared] (frees the decoder lease
+    // when the user leaves the feed). A `@Singleton` app-wide player was rejected (it
+    // would hold a decoder off-screen) and a `remember`ed composable player was rejected
+    // (lost across config changes). All player mutation + [release] happens on the main
+    // thread (these methods are called from composition / lifecycle callbacks) — never
+    // from a background dispatcher, which is the most common Media3 wrong-thread crash.
+
+    private var exoPlayer: ExoPlayer? = null
+
+    /** Tweet id of the single active video card, or null when none is playing inline. */
+    private val _activeVideoId = MutableStateFlow<String?>(null)
+    val activeVideoId: StateFlow<String?> = _activeVideoId.asStateFlow()
+
+    /** True while the full-screen video viewer is open (it borrows the same shared player). */
+    private val _videoViewerOpen = MutableStateFlow(false)
+    val videoViewerOpen: StateFlow<Boolean> = _videoViewerOpen.asStateFlow()
+
+    /** Whether playback was running when the app backgrounded, so ON_RESUME can restore it. */
+    private var wasPlayingBeforePause = false
+
+    /** The shared player for the UI to bind to the active card / viewer surface. Null until first play. */
+    val player: ExoPlayer? get() = exoPlayer
+
+    private fun obtainPlayer(): ExoPlayer = exoPlayer ?: ExoPlayer.Builder(context)
+        .setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                .build(),
+            /* handleAudioFocus = */ true,
+        )
+        .setHandleAudioBecomingNoisy(true)
+        .build()
+        .also { exoPlayer = it }
+
+    /**
+     * Make [bookmark] the single active inline video and start playback. Selects the best
+     * stream (HLS → DASH → highest-bitrate MP4) via [VariantSelection]; falls back to the
+     * flat [Bookmark.videoUrl]. No playable source → no-op (the card stays on its poster).
+     */
+    fun playVideo(bookmark: Bookmark) {
+        val item = VariantSelection.toMediaItem(bookmark.videoVariants)
+            ?: bookmark.videoUrl?.let { MediaItem.fromUri(it) }
+            ?: return
+        val p = obtainPlayer()
+        p.setMediaItem(item)
+        p.prepare()
+        p.playWhenReady = true
+        _activeVideoId.value = bookmark.id
+    }
+
+    /** Open the full-screen viewer for [bookmark], starting playback first if it is not already active. */
+    fun expandVideo(bookmark: Bookmark) {
+        if (_activeVideoId.value != bookmark.id) playVideo(bookmark)
+        _videoViewerOpen.value = true
+    }
+
+    fun closeVideoViewer() {
+        _videoViewerOpen.value = false
+    }
+
+    /**
+     * The active video card scrolled out of view: detach the surface and stop playback so a
+     * scrolling feed keeps at most one live, audible player. The player instance is retained
+     * (a later tap re-uses it); it is fully released only in [onCleared].
+     */
+    fun clearActiveVideo() {
+        val p = exoPlayer ?: return
+        p.playWhenReady = false
+        p.clearVideoSurface()
+        _activeVideoId.value = null
+    }
+
+    /** Lifecycle ON_PAUSE: pause, remembering whether to resume on ON_RESUME. */
+    fun onAppPaused() {
+        val p = exoPlayer ?: return
+        wasPlayingBeforePause = p.isPlaying
+        p.pause()
+    }
+
+    /** Lifecycle ON_RESUME: resume only if playback was running when we backgrounded. */
+    fun onAppResumed() {
+        val p = exoPlayer ?: return
+        if (wasPlayingBeforePause) p.play()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        // Main-thread release — frees the decoder lease when the feed VM is destroyed.
+        exoPlayer?.release()
+        exoPlayer = null
+    }
+
+    fun onTypeChipToggled(typeId: String) {
+        val next = runCatching { TypeFilter.valueOf(typeId.uppercase()) }.getOrDefault(TypeFilter.ALL)
+        _filter.update { it.copy(type = next) }
+    }
+
+    fun onTagToggled(tag: String) {
+        _filter.update {
+            val tags = if (tag in it.selectedTags) it.selectedTags - tag else it.selectedTags + tag
+            it.copy(selectedTags = tags.toPersistentSet())
+        }
+    }
+
+    fun onTagsApplied(tags: Set<String>) {
+        _filter.update { it.copy(selectedTags = tags.toPersistentSet()) }
+    }
+
+    fun clearTagFilter() {
+        _filter.update { it.copy(selectedTags = persistentSetOf()) }
+    }
+
+    fun softDelete(id: String) {
+        viewModelScope.launch { repository.softDelete(id) }
+    }
+
+    fun undoDelete(id: String) {
+        viewModelScope.launch { repository.undoDelete(id) }
+    }
+
+    fun confirmDeletePending(id: String) {
+        viewModelScope.launch { repository.confirmDeletePending(id) }
+    }
+
+    fun cancelDeletePending(id: String) {
+        viewModelScope.launch { repository.cancelDeletePending(id) }
+    }
 
     // Tag operations
     private val _tagsForTweet = MutableStateFlow<Map<String, List<String>>>(emptyMap())
     val tagsForTweet: StateFlow<Map<String, List<String>>> = _tagsForTweet
+
+    // Ids whose tags have already been loaded this session. A paging append re-runs
+    // [loadTagsForItems] with the full accumulated snapshot, so this set lets us query
+    // only the new (delta) ids instead of re-fetching everything on every append.
+    // ConcurrentHashMap-backed so it is safe under any dispatcher.
+    private val _loadedTweetIds: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
+    // Ids edited via [saveTags] since their last batch load. They are force-included in
+    // the next delta so freshly-edited tags are re-queried even though they are "loaded".
+    private val _dirtyTweetIds: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
 
     private val _allTags = MutableStateFlow<List<String>>(emptyList())
     val allTags: StateFlow<List<String>> = _allTags
@@ -60,7 +296,28 @@ class BookmarksViewModel @Inject constructor(
     fun loadTagsForTweet(tweetId: String) {
         viewModelScope.launch {
             val tags = repository.getTagsForTweet(tweetId)
-            _tagsForTweet.value = _tagsForTweet.value + (tweetId to tags)
+            // .update is an atomic CAS — two concurrent single-item loads
+            // can no longer lose each other's writes (the previous
+            // `value = value + pair` was a read-modify-write race).
+            _tagsForTweet.update { it + (tweetId to tags) }
+        }
+    }
+
+    fun loadTagsForItems(ids: List<String>) {
+        if (ids.isEmpty()) return
+        // Query only ids not yet loaded, plus any edited (dirty) id whose chips would
+        // otherwise stay stale. The dirty check comes first so an edited-but-loaded id
+        // is still re-fetched. Empty delta → nothing changed → skip the query entirely.
+        val delta = ids.filter { it !in _loadedTweetIds || it in _dirtyTweetIds }
+        if (delta.isEmpty()) return
+        viewModelScope.launch {
+            val batch = repository.getTagsForItems(delta)
+            // The repository returns an explicit (possibly empty) entry for every delta
+            // id, so this merge overwrites — clearing chips for ids whose tags were
+            // removed while preserving entries for ids outside the delta.
+            _tagsForTweet.update { it + batch }
+            _loadedTweetIds.addAll(delta)
+            _dirtyTweetIds.removeAll(delta.toSet())
         }
     }
 
@@ -73,6 +330,9 @@ class BookmarksViewModel @Inject constructor(
     fun saveTags(tweetId: String, tags: List<String>) {
         viewModelScope.launch {
             repository.saveTags(tweetId, tags)
+            // Mark dirty so the next batch load re-queries this id — a pure delta load
+            // would otherwise skip it as already-loaded and leave its chips stale.
+            _dirtyTweetIds.add(tweetId)
             loadTagsForTweet(tweetId)
             loadAllTags()
         }
@@ -83,4 +343,25 @@ class BookmarksViewModel @Inject constructor(
             repository.logout()
         }
     }
+
+    private val _disconnectEvents = MutableSharedFlow<DisconnectEvent>(replay = 0, extraBufferCapacity = 1)
+    val disconnectEvents: SharedFlow<DisconnectEvent> = _disconnectEvents
+
+    fun disconnectX() {
+        viewModelScope.launch {
+            repository.disconnectX()
+                .onSuccess {
+                    syncStatusRepository.refresh(force = true)
+                    _disconnectEvents.tryEmit(DisconnectEvent.Success)
+                }
+                .onFailure { e ->
+                    _disconnectEvents.tryEmit(DisconnectEvent.Failure(e.message ?: "disconnect_failed"))
+                }
+        }
+    }
+}
+
+sealed interface DisconnectEvent {
+    data object Success : DisconnectEvent
+    data class Failure(val reason: String) : DisconnectEvent
 }

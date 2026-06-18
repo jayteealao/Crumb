@@ -1,53 +1,45 @@
 package com.github.jayteealao.crumbs.designsystem.components
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsShapes
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsSpacing
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsTypography
+import com.github.jayteealao.crumbs.models.BookmarkSource
 
-/**
- * Crumbs user profile display component
- *
- * Features:
- * - Displays user avatar, name, username, and optional stats
- * - Three sizes: Small (40dp avatar), Medium (56dp), Large (80dp)
- * - Circular avatar with Coil image loading
- * - Optional verified badge
- * - Optional follower/post count stats
- * - Clickable for navigation
- * - Theme-aware colors
- *
- * Component variants for testing:
- * - Size: Small/Medium/Large
- * - With/without stats
- * - With/without verified badge
- * - Clickable / non-clickable
- */
+// Brutalist UserProfileDisplay — square avatar (RectangleShape, NOT CircleShape)
+// with 1.5dp ink border; mono kicker handle; Funnel Display name; optional
+// stats kicker. Click handler optional.
 
-enum class ProfileSize(val avatarSize: androidx.compose.ui.unit.Dp) {
+enum class ProfileSize(val avatarSize: Dp) {
     Small(40.dp),
     Medium(56.dp),
-    Large(80.dp)
+    Large(80.dp),
 }
 
 data class UserProfile(
@@ -57,7 +49,7 @@ data class UserProfile(
     val source: BookmarkSource,
     val verified: Boolean = false,
     val followerCount: Int? = null,
-    val postCount: Int? = null
+    val postCount: Int? = null,
 )
 
 @Composable
@@ -70,76 +62,63 @@ fun UserProfileDisplay(
 ) {
     val colors = LocalCrumbsColors.current
     val spacing = LocalCrumbsSpacing.current
+    val stroke = LocalCrumbsStroke.current
+    val shapes = LocalCrumbsShapes.current
     val typography = LocalCrumbsTypography.current
 
-    val baseModifier = if (onClick != null) {
-        modifier.clickable { onClick() }
-    } else modifier
+    var rowMod: Modifier = modifier
+        .testTag("user-profile")
+        .semantics(mergeDescendants = true) {
+            if (onClick != null) role = Role.Button
+        }
+    if (onClick != null) rowMod = rowMod.clickable { onClick() }
 
-    Row(
-        modifier = baseModifier,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Avatar
-        Surface(
-            modifier = Modifier.size(size.avatarSize),
-            shape = CircleShape,
-            color = colors.surfaceVariant
+    Row(modifier = rowMod, verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(size.avatarSize)
+                .background(colors.surface)
+                .border(stroke.regular, colors.ink, shapes.rectangle),
         ) {
             AsyncImage(
                 model = profile.avatarUrl,
                 contentDescription = "${profile.displayName} avatar",
-                modifier = Modifier
-                    .size(size.avatarSize)
-                    .clip(CircleShape),
-                contentScale = ContentScale.Crop
+                modifier = Modifier.size(size.avatarSize),
+                contentScale = ContentScale.Crop,
             )
         }
-
         Spacer(modifier = Modifier.width(spacing.md))
-
-        // Info
-        Column(
-            verticalArrangement = Arrangement.Center
-        ) {
-            // Display name
+        Column(verticalArrangement = Arrangement.Center) {
             Text(
                 text = profile.displayName,
                 style = when (size) {
-                    ProfileSize.Small -> typography.bodyLarge
-                    ProfileSize.Medium, ProfileSize.Large -> typography.titleMedium
+                    ProfileSize.Small -> typography.bodyMono
+                    ProfileSize.Medium, ProfileSize.Large -> typography.displaySmall
                 },
-                color = colors.textPrimary
+                color = colors.ink,
+                modifier = Modifier.testTag("user-profile-name"),
             )
-
-            // Username
             Text(
                 text = "@${profile.username}",
-                style = when (size) {
-                    ProfileSize.Small -> typography.labelMedium
-                    ProfileSize.Medium, ProfileSize.Large -> typography.bodyMedium
-                },
-                color = colors.textSecondary
+                style = typography.captionMono,
+                color = colors.onSurfaceVariant,
+                modifier = Modifier.testTag("user-profile-handle"),
             )
-
-            // Stats
             if (showStats && (profile.followerCount != null || profile.postCount != null)) {
                 Spacer(modifier = Modifier.height(spacing.xs))
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(spacing.md)
-                ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(spacing.md)) {
                     profile.followerCount?.let { count ->
                         Text(
-                            text = "${formatCount(count)} followers",
-                            style = typography.labelMedium,
-                            color = colors.textSecondary
+                            text = "${formatCount(count)} FOLLOWERS",
+                            style = typography.metaMono,
+                            color = colors.onSurfaceVariant,
                         )
                     }
                     profile.postCount?.let { count ->
                         Text(
-                            text = "${formatCount(count)} posts",
-                            style = typography.labelMedium,
-                            color = colors.textSecondary
+                            text = "${formatCount(count)} POSTS",
+                            style = typography.metaMono,
+                            color = colors.onSurfaceVariant,
                         )
                     }
                 }
@@ -148,15 +127,12 @@ fun UserProfileDisplay(
     }
 }
 
-private fun formatCount(count: Int): String {
-    return when {
-        count >= 1_000_000 -> "%.1fM".format(count / 1_000_000.0)
-        count >= 1_000 -> "%.1fK".format(count / 1_000.0)
-        else -> count.toString()
-    }
+private fun formatCount(count: Int): String = when {
+    count >= 1_000_000 -> "%.1fM".format(count / 1_000_000.0)
+    count >= 1_000 -> "%.1fK".format(count / 1_000.0)
+    else -> count.toString()
 }
 
-// Previews
 @Preview(name = "Medium No Stats Light", showBackground = true)
 @Composable
 private fun PreviewUserProfileMediumLight() {
@@ -166,9 +142,8 @@ private fun PreviewUserProfileMediumLight() {
                 username = "johndoe",
                 displayName = "John Doe",
                 avatarUrl = "https://via.placeholder.com/150",
-                source = BookmarkSource.Twitter
+                source = BookmarkSource.Twitter,
             ),
-            size = ProfileSize.Medium
         )
     }
 }
@@ -182,9 +157,8 @@ private fun PreviewUserProfileMediumDark() {
                 username = "johndoe",
                 displayName = "John Doe",
                 avatarUrl = "https://via.placeholder.com/150",
-                source = BookmarkSource.Twitter
+                source = BookmarkSource.Twitter,
             ),
-            size = ProfileSize.Medium
         )
     }
 }
@@ -200,46 +174,9 @@ private fun PreviewUserProfileMediumWithStatsLight() {
                 avatarUrl = "https://via.placeholder.com/150",
                 source = BookmarkSource.Twitter,
                 followerCount = 1234,
-                postCount = 567
+                postCount = 567,
             ),
-            size = ProfileSize.Medium,
-            showStats = true
-        )
-    }
-}
-
-@Preview(name = "Small Light", showBackground = true)
-@Composable
-private fun PreviewUserProfileSmallLight() {
-    CrumbsTheme(darkTheme = false) {
-        UserProfileDisplay(
-            profile = UserProfile(
-                username = "janedoe",
-                displayName = "Jane Doe",
-                avatarUrl = "https://via.placeholder.com/150",
-                source = BookmarkSource.Reddit
-            ),
-            size = ProfileSize.Small
-        )
-    }
-}
-
-@Preview(name = "Large With Stats Light", showBackground = true)
-@Composable
-private fun PreviewUserProfileLargeWithStatsLight() {
-    CrumbsTheme(darkTheme = false) {
-        UserProfileDisplay(
-            profile = UserProfile(
-                username = "popular_user",
-                displayName = "Popular User",
-                avatarUrl = "https://via.placeholder.com/150",
-                source = BookmarkSource.Twitter,
-                verified = true,
-                followerCount = 1500000,
-                postCount = 8900
-            ),
-            size = ProfileSize.Large,
-            showStats = true
+            showStats = true,
         )
     }
 }

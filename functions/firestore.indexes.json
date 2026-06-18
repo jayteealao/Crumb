@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "includes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tweetId", "order": "ASCENDING" },
+        { "fieldPath": "kind",    "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

@@ -40,7 +40,7 @@ fun mapTweetDataToTweetEntity(tweets: List<Tweet>, includes: TweetIncludes, page
             tweetIncludesEntity = includes.toTweetIncludesEntityForTweet(tweet),
             twitterUserEntity = includes.extractUsersInTweet(tweet),
             tweetReferencedTweets = tweet.referencedTweets
-                ?.map { it.toTweetReferencedTweetsFull(includes) } ?: emptyList(),
+                ?.map { it.toTweetReferencedTweetsFull(tweet.id, includes) } ?: emptyList(),
             tweetContextAnnotationEntity = tweet.contextAnnotation
                 ?.map { it.toTweetContextAnnotationEntity(tweet.id) } ?: emptyList(),
             tweetTextEntity = tweet.entities?.toTweetTextEntityAnnotation(tweet.id) ?: emptyList(),

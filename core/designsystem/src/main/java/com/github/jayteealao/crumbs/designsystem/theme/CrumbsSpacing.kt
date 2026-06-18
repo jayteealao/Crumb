@@ -13,4 +13,7 @@ object CrumbsSpacing {
     val lg: Dp = 16.dp
     val xl: Dp = 24.dp
     val xxl: Dp = 32.dp
+
+    /** Content inset for bookmark cards — keeps body, media, and footer aligned. */
+    val cardContentInset: Dp = md + 2.dp
 }

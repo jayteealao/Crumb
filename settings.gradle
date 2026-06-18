@@ -11,7 +11,14 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven { url "https://jitpack.io" }
+        maven {
+            url "https://jitpack.io"
+            content {
+                // coil-transformations is not published on Maven Central; restrict JitPack
+                // to only resolve this specific artifact group to limit supply-chain exposure.
+                includeGroup "com.github.Commit451.coil-transformations"
+            }
+        }
     }
 }
 rootProject.name = "Crumbs"
@@ -22,3 +29,4 @@ include ':feature:twitter'
 include ':core:pref'
 include ':core:models'
 include ':core:designsystem'
+include ':core:data'

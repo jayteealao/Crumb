@@ -3,125 +3,90 @@ package com.github.jayteealao.crumbs.designsystem.theme
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontLoadingStrategy
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.github.jayteealao.crumbs.designsystem.R
 
-/**
- * Crumbs typography scale
- * Uses Funnel Display for display/heading text (bold, geometric)
- * Uses system default for body text (optimal readability)
- *
- * Font Loading Strategy: Async
- * - Loads fonts asynchronously in the background
- * - Falls back to system fonts if loading fails
- * - Non-blocking, doesn't crash the app
- */
-
-/**
- * Funnel Display font family with async loading strategy.
- * Async strategy loads fonts in background and gracefully falls back to system fonts on failure.
- * This prevents crashes while still attempting to load custom fonts.
- */
+// Brutalist type pairing: Funnel Display for headlines, IBM Plex Mono for
+// everything index/meta/body. Bundled in res/font/ so default Blocking
+// loading matches the offline-rendering NFR.
 private val FunnelDisplay = FontFamily(
-    Font(
-        resId = R.font.funnel_display_regular,
-        weight = FontWeight.Normal,
-        loadingStrategy = FontLoadingStrategy.Async
-    ),
-    Font(
-        resId = R.font.funnel_display_medium,
-        weight = FontWeight.Medium,
-        loadingStrategy = FontLoadingStrategy.Async
-    ),
-    Font(
-        resId = R.font.funnel_display_semibold,
-        weight = FontWeight.SemiBold,
-        loadingStrategy = FontLoadingStrategy.Async
-    ),
-    Font(
-        resId = R.font.funnel_display_bold,
-        weight = FontWeight.Bold,
-        loadingStrategy = FontLoadingStrategy.Async
-    )
+    Font(resId = R.font.funnel_display_regular, weight = FontWeight.Normal),
+    Font(resId = R.font.funnel_display_medium, weight = FontWeight.Medium),
+    Font(resId = R.font.funnel_display_bold, weight = FontWeight.Bold),
+)
+
+private val IBMPlexMono = FontFamily(
+    Font(resId = R.font.ibm_plex_mono_regular, weight = FontWeight.Normal),
+    Font(resId = R.font.ibm_plex_mono_medium, weight = FontWeight.Medium),
+    Font(resId = R.font.ibm_plex_mono_bold, weight = FontWeight.Bold),
 )
 
 object CrumbsTypography {
-    val displayLarge = TextStyle(
-        fontFamily = FunnelDisplay,
-        fontSize = 57.sp,
-        lineHeight = 64.sp,
-        fontWeight = FontWeight.Bold
-    )
-
-    val displayMedium = TextStyle(
-        fontFamily = FunnelDisplay,
-        fontSize = 45.sp,
-        lineHeight = 52.sp,
-        fontWeight = FontWeight.Bold
-    )
-
-    val headingLarge = TextStyle(
+    val displayHeadline = TextStyle(
         fontFamily = FunnelDisplay,
         fontSize = 32.sp,
-        lineHeight = 40.sp,
-        fontWeight = FontWeight.SemiBold
+        lineHeight = 32.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = (-0.6).sp,
     )
 
-    val headingMedium = TextStyle(
-        fontFamily = FunnelDisplay,
-        fontSize = 28.sp,
-        lineHeight = 36.sp,
-        fontWeight = FontWeight.SemiBold
-    )
-
-    val titleLarge = TextStyle(
+    val displaySmall = TextStyle(
         fontFamily = FunnelDisplay,
         fontSize = 22.sp,
-        lineHeight = 28.sp,
-        fontWeight = FontWeight.Medium
-    )
-
-    val titleMedium = TextStyle(
-        fontFamily = FunnelDisplay,
-        fontSize = 16.sp,
         lineHeight = 24.sp,
-        fontWeight = FontWeight.Medium
+        fontWeight = FontWeight.Bold,
+        letterSpacing = (-0.4).sp,
     )
 
-    val bodyLarge = TextStyle(
-        fontFamily = FunnelDisplay,
-        fontSize = 16.sp,
-        lineHeight = 24.sp,
-        fontWeight = FontWeight.Normal
-    )
-
-    val bodyMedium = TextStyle(
-        fontFamily = FunnelDisplay,
-        fontSize = 14.sp,
-        lineHeight = 20.sp,
-        fontWeight = FontWeight.Normal
-    )
-
-    val labelLarge = TextStyle(
-        fontFamily = FunnelDisplay,
-        fontSize = 14.sp,
-        lineHeight = 20.sp,
-        fontWeight = FontWeight.Medium
-    )
-
-    val labelMedium = TextStyle(
-        fontFamily = FunnelDisplay,
-        fontSize = 12.sp,
-        lineHeight = 16.sp,
-        fontWeight = FontWeight.Medium
-    )
-
-    val caption = TextStyle(
-        fontFamily = FunnelDisplay,
+    val titleSection = TextStyle(
+        fontFamily = IBMPlexMono,
         fontSize = 11.sp,
         lineHeight = 16.sp,
-        fontWeight = FontWeight.Normal
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.5.sp,
+    )
+
+    val bodyMono = TextStyle(
+        fontFamily = IBMPlexMono,
+        fontSize = 12.sp,
+        lineHeight = 18.sp,
+        fontWeight = FontWeight.Normal,
+    )
+
+    val metaMono = TextStyle(
+        fontFamily = IBMPlexMono,
+        fontSize = 10.sp,
+        lineHeight = 14.sp,
+        fontWeight = FontWeight.Medium,
+        letterSpacing = 0.6.sp,
+    )
+
+    val captionMono = TextStyle(
+        fontFamily = IBMPlexMono,
+        fontSize = 10.sp,
+        lineHeight = 14.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.4.sp,
+    )
+
+    val tagMono = TextStyle(
+        fontFamily = IBMPlexMono,
+        fontSize = 10.sp,
+        lineHeight = 14.sp,
+        fontWeight = FontWeight.Medium,
+    )
+
+    // Interpretive scale (not defined in handoff-tokens.jsx token table — only
+    // referenced by name in handoff-components.jsx CrumbsButton spec for the
+    // Small/inline variant). Derived by proportional scale from captionMono:
+    // letterSpacing 1.4 × (12/10) ≈ 1.7. Pending maintainer adjudication via
+    // the handoff-fidelity audit (AC-K4 extension).
+    val labelLarge = TextStyle(
+        fontFamily = IBMPlexMono,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.7.sp,
     )
 }

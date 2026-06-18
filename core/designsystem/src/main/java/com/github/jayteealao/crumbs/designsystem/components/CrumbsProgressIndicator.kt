@@ -1,100 +1,128 @@
 package com.github.jayteealao.crumbs.designsystem.components
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 
-/**
- * Crumbs progress indicator with theme colors
- *
- * Features:
- * - Two styles: Circular (spinning) and Linear (progress bar)
- * - Three sizes: Small (24dp), Medium (40dp), Large (56dp)
- * - Indeterminate (spinning) and determinate (progress value) modes
- * - Theme-aware accent color
- *
- * Component variants for testing:
- * - Style: Circular/Linear
- * - Size: Small/Medium/Large
- * - Mode: Indeterminate/Determinate
- */
+// Brutalist CrumbsProgressIndicator — Material3 stripped. Manual Canvas-drawn
+// arc (circular) or sliding bar (linear). Indeterminate variants hoist
+// progressFraction as an optional parameter so tests can pin a frame
+// (avoids infinite-transition test hangs documented in roborazzi#413).
 
-enum class ProgressSize {
-    Small,      // 24.dp
-    Medium,     // 40.dp
-    Large       // 56.dp
-}
+// Indeterminate-mode visible arc proportion of the full circle (0..1). 0.27
+// matches the original demo's swept-arc fraction.
+private const val INDETERMINATE_ARC_SWEEP_FRACTION = 0.27f
 
-enum class ProgressStyle {
-    Circular,
-    Linear
-}
+enum class ProgressSize { Small, Medium, Large }
+enum class ProgressStyle { Circular, Linear }
 
 @Composable
 fun CrumbsProgressIndicator(
     modifier: Modifier = Modifier,
     size: ProgressSize = ProgressSize.Medium,
     style: ProgressStyle = ProgressStyle.Circular,
-    progress: Float? = null,  // null = indeterminate, 0-1 = determinate
-    color: Color? = null
+    progress: Float? = null,                  // null = indeterminate, 0..1 = determinate
+    color: Color? = null,
+    progressFraction: Float? = null,          // test override for indeterminate frame pinning
 ) {
     val colors = LocalCrumbsColors.current
+    val stroke = LocalCrumbsStroke.current
     val indicatorColor = color ?: colors.accent
+    val trackColor = colors.onSurfaceVariant
 
     val diameter = when (size) {
         ProgressSize.Small -> 24.dp
         ProgressSize.Medium -> 40.dp
         ProgressSize.Large -> 56.dp
     }
-
     val strokeWidth = when (size) {
         ProgressSize.Small -> 2.dp
-        ProgressSize.Medium -> 3.dp
-        ProgressSize.Large -> 4.dp
+        ProgressSize.Medium -> stroke.regular
+        ProgressSize.Large -> stroke.emphasis
     }
+
+    val animatedFraction by rememberInfiniteTransition(label = "progress").animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "progress-fraction",
+    )
+    val fraction = progressFraction ?: animatedFraction
 
     when (style) {
         ProgressStyle.Circular -> {
-            if (progress != null) {
-                CircularProgressIndicator(
-                    progress = { progress },
-                    modifier = modifier.size(diameter),
-                    color = indicatorColor,
-                    strokeWidth = strokeWidth,
-                    trackColor = colors.surfaceVariant
+            Canvas(modifier.size(diameter).semantics { contentDescription = "Loading" }.testTag("progress-circular")) {
+                val px = strokeWidth.toPx()
+                val outline = Stroke(width = px, cap = StrokeCap.Square)
+                drawArc(
+                    color = trackColor,
+                    startAngle = 0f,
+                    sweepAngle = 360f,
+                    useCenter = false,
+                    topLeft = Offset(px / 2, px / 2),
+                    size = Size(this.size.width - px, this.size.height - px),
+                    style = outline,
                 )
-            } else {
-                CircularProgressIndicator(
-                    modifier = modifier.size(diameter),
+                val sweep = (progress?.coerceIn(0f, 1f) ?: INDETERMINATE_ARC_SWEEP_FRACTION) * 360f
+                val startAngle = if (progress != null) -90f else (fraction * 360f - 90f)
+                drawArc(
                     color = indicatorColor,
-                    strokeWidth = strokeWidth,
-                    trackColor = colors.surfaceVariant
+                    startAngle = startAngle,
+                    sweepAngle = sweep,
+                    useCenter = false,
+                    topLeft = Offset(px / 2, px / 2),
+                    size = Size(this.size.width - px, this.size.height - px),
+                    style = outline,
                 )
             }
         }
-
         ProgressStyle.Linear -> {
-            if (progress != null) {
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = modifier.width(diameter * 4),
-                    color = indicatorColor,
-                    trackColor = colors.surfaceVariant
-                )
-            } else {
-                LinearProgressIndicator(
-                    modifier = modifier.width(diameter * 4),
-                    color = indicatorColor,
-                    trackColor = colors.surfaceVariant
-                )
+            Canvas(modifier.width(diameter * 4).size(width = diameter * 4, height = strokeWidth * 2).semantics { contentDescription = "Loading" }.testTag("progress-linear")) {
+                val totalWidth = this.size.width
+                val totalHeight = this.size.height
+                drawRect(color = trackColor, size = this.size)
+                if (progress != null) {
+                    val w = totalWidth * progress.coerceIn(0f, 1f)
+                    drawRect(color = indicatorColor, size = Size(w, totalHeight))
+                } else {
+                    val barWidth = totalWidth * 0.3f
+                    val travel = totalWidth + barWidth
+                    val x = fraction * travel - barWidth
+                    drawRect(
+                        color = indicatorColor,
+                        topLeft = Offset(x.coerceAtLeast(0f), 0f),
+                        size = Size(
+                            barWidth.coerceAtMost(totalWidth - x.coerceAtLeast(0f))
+                                .coerceAtLeast(0f),
+                            totalHeight,
+                        ),
+                    )
+                }
             }
         }
     }
@@ -105,77 +133,22 @@ fun CrumbsProgressIndicator(
 @Composable
 private fun PreviewProgressCircularMediumIndeterminateLight() {
     CrumbsTheme(darkTheme = false) {
-        CrumbsProgressIndicator(
-            style = ProgressStyle.Circular,
-            size = ProgressSize.Medium
-        )
-    }
-}
-
-@Preview(name = "Circular Medium Indeterminate Dark", showBackground = true)
-@Composable
-private fun PreviewProgressCircularMediumIndeterminateDark() {
-    CrumbsTheme(darkTheme = true) {
-        CrumbsProgressIndicator(
-            style = ProgressStyle.Circular,
-            size = ProgressSize.Medium
-        )
-    }
-}
-
-@Preview(name = "Circular Small Light", showBackground = true)
-@Composable
-private fun PreviewProgressCircularSmallLight() {
-    CrumbsTheme(darkTheme = false) {
-        CrumbsProgressIndicator(
-            style = ProgressStyle.Circular,
-            size = ProgressSize.Small
-        )
-    }
-}
-
-@Preview(name = "Circular Large Light", showBackground = true)
-@Composable
-private fun PreviewProgressCircularLargeLight() {
-    CrumbsTheme(darkTheme = false) {
-        CrumbsProgressIndicator(
-            style = ProgressStyle.Circular,
-            size = ProgressSize.Large
-        )
+        CrumbsProgressIndicator(progressFraction = 0.25f)
     }
 }
 
 @Preview(name = "Circular Medium Determinate Light", showBackground = true)
 @Composable
-private fun PreviewProgressCircularMediumDeterminateLight() {
+private fun PreviewProgressCircularMediumDeterminate() {
     CrumbsTheme(darkTheme = false) {
-        CrumbsProgressIndicator(
-            style = ProgressStyle.Circular,
-            size = ProgressSize.Medium,
-            progress = 0.65f
-        )
-    }
-}
-
-@Preview(name = "Linear Medium Indeterminate Light", showBackground = true)
-@Composable
-private fun PreviewProgressLinearMediumIndeterminateLight() {
-    CrumbsTheme(darkTheme = false) {
-        CrumbsProgressIndicator(
-            style = ProgressStyle.Linear,
-            size = ProgressSize.Medium
-        )
+        CrumbsProgressIndicator(progress = 0.65f)
     }
 }
 
 @Preview(name = "Linear Medium Determinate Light", showBackground = true)
 @Composable
-private fun PreviewProgressLinearMediumDeterminateLight() {
+private fun PreviewProgressLinearMediumDeterminate() {
     CrumbsTheme(darkTheme = false) {
-        CrumbsProgressIndicator(
-            style = ProgressStyle.Linear,
-            size = ProgressSize.Medium,
-            progress = 0.75f
-        )
+        CrumbsProgressIndicator(style = ProgressStyle.Linear, progress = 0.75f)
     }
 }

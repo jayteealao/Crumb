@@ -1,0 +1,64 @@
+# Link previews — seed the debug corpus (incl. an external-link ARTICLE tweet with
+# server-enriched OpenGraph title/description/image), narrow to the ARTICLE type chip,
+# assert the brutalist link-preview panel renders, then tap it: the destination opens in
+# the EXTERNAL browser (the app leaves the foreground). System Back returns to the feed.
+#
+# NOTE: the bookmark-card surfaces render only on an authenticated/synced feed (the
+# !uiState.loggedIn server-auth gate), so this flow is a device-fidelity gate run with a
+# linked X session — the off-device contract is covered by ToBookmarkMapperTest (mapping +
+# precedence) and the CardComponentsTest link goldens (rich + URL-only states).
+appId: com.github.jayteealao.crumbs
+---
+- launchApp:
+    arguments:
+      debug_action: "seed"
+      wipe: true
+- runFlow:
+    when:
+      visible:
+        id: "login-screen"
+    commands:
+      - tapOn:
+          id: "login-skip-auth"
+- extendedWaitUntil:
+    visible:
+      id: "home-screen"
+    timeout: 10000
+
+- tapOn:
+    id: "nav-tab-twitter"
+
+# --- Narrow to ARTICLE via the filter overlay ---
+- tapOn:
+    id: "filter-bar-cell"
+- extendedWaitUntil:
+    visible:
+      id: "filter-overlay"
+    timeout: 3000
+- tapOn:
+    id: "filter-overlay-chip-article"
+- tapOn:
+    id: "filter-overlay-apply"
+- assertNotVisible:
+    id: "filter-overlay"
+
+# --- Link preview panel renders for the external-link tweet ---
+- extendedWaitUntil:
+    visible:
+      id: "bookmark-card-link-preview"
+    timeout: 5000
+
+# --- Tap the preview → external browser launches (the app leaves the foreground) ---
+- tapOn:
+    id: "bookmark-card-link-preview"
+- extendedWaitUntil:
+    notVisible:
+      id: "twitter-bookmarks-screen"
+    timeout: 5000
+
+# --- Back returns to the feed ---
+- pressKey: Back
+- extendedWaitUntil:
+    visible:
+      id: "twitter-bookmarks-screen"
+    timeout: 5000

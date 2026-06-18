@@ -7,216 +7,138 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.github.jayteealao.crumbs.designsystem.theme.CrumbsShapes
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsShapes
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsSpacing
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 
-/**
- * Shimmer effect modifier for loading placeholders
- *
- * Creates an animated gradient sweep from surfaceVariant to surface
- * with smooth alpha animation.
- */
-fun Modifier.shimmerEffect(): Modifier = composed {
-    val colors = LocalCrumbsColors.current
-    val transition = rememberInfiniteTransition(label = "shimmer")
-    val alpha by transition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 0.9f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "shimmerAlpha"
-    )
-    background(colors.surfaceVariant.copy(alpha = alpha))
-}
+// Brutalist LoadingCard — sharp-edged skeleton blocks (no shimmer) + a single
+// horizontal scan-line that animates top-to-bottom on infinite loop. Skeleton
+// blocks are static; the scan-line is the only animated element.
+//
+// Tests pass `scanLinePositionFraction` (a constant) to pin a frame — avoids
+// the infinite-transition Roborazzi hang documented in issue #413.
 
-/**
- * Skeleton placeholder card shown while bookmark cards load
- *
- * Matches the structure of CrumbsBookmarkCard with shimmer animation
- * on all content areas. Provides visual feedback during data loading.
- *
- * @param hasImage Whether to show image placeholder at top
- * @param modifier Modifier to be applied to the component
- */
 @Composable
 fun LoadingCard(
     hasImage: Boolean = true,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    scanLinePositionFraction: Float? = null,
 ) {
     val colors = LocalCrumbsColors.current
     val spacing = LocalCrumbsSpacing.current
+    val stroke = LocalCrumbsStroke.current
+    val shapes = LocalCrumbsShapes.current
 
-    Surface(
-        modifier = modifier,
-        shape = CrumbsShapes.card, // bottom-end cut corner (12dp)
-        color = colors.surface,
-        border = androidx.compose.foundation.BorderStroke(1.dp, colors.textSecondary.copy(alpha = 0.1f))
+    val transition = rememberInfiniteTransition(label = "loading-card")
+    val animatedFraction by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1800, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "scan-line-fraction",
+    )
+    val fraction = scanLinePositionFraction ?: animatedFraction
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(colors.surface)
+            .border(stroke.regular, colors.ink, shapes.card)
+            .testTag("loading-card")
+            .semantics {
+                contentDescription = "Loading content"
+                liveRegion = LiveRegionMode.Polite
+            }
+            .drawBehind {
+                val y = size.height * fraction
+                drawLine(
+                    color = colors.ink,
+                    start = Offset(0f, y),
+                    end = Offset(size.width, y),
+                    strokeWidth = stroke.hairline.toPx(),
+                )
+            },
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            // Image placeholder (if hasImage)
+        Column(modifier = Modifier.fillMaxWidth()) {
             if (hasImage) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(200.dp)
-                        .shimmerEffect()
+                        .height(160.dp)
+                        .background(colors.ink.copy(alpha = 0.08f))
+                        .testTag("loading-card-skeleton"),
                 )
             }
-
-            // Content column
             Column(
-                modifier = Modifier.padding(spacing.lg),
-                verticalArrangement = Arrangement.spacedBy(spacing.md)
+                modifier = Modifier.padding(spacing.md),
             ) {
-                // Metadata row (icon + username + timestamp)
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(spacing.sm)
-                ) {
-                    // Source icon placeholder
-                    Box(
-                        modifier = Modifier
-                            .size(20.dp)
-                            .clip(CircleShape)
-                            .shimmerEffect()
-                    )
-
-                    // Username placeholder
-                    Box(
-                        modifier = Modifier
-                            .width(100.dp)
-                            .height(16.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .shimmerEffect()
-                    )
-
-                    // Separator spacer
-                    Spacer(modifier = Modifier.width(spacing.xs))
-
-                    // Timestamp placeholder
-                    Box(
-                        modifier = Modifier
-                            .width(60.dp)
-                            .height(16.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .shimmerEffect()
-                    )
-                }
-
-                // Title placeholder (70% width, larger height)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(0.7f)
-                        .height(24.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .shimmerEffect()
+                        .height(20.dp)
+                        .background(colors.ink.copy(alpha = 0.08f)),
                 )
-
-                // Preview text placeholders (3-4 lines with varying widths)
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(spacing.sm)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(0.95f)
-                            .height(16.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .shimmerEffect()
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(0.85f)
-                            .height(16.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .shimmerEffect()
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(0.75f)
-                            .height(16.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .shimmerEffect()
-                    )
-                }
-
-                // Tags placeholders (2 small pill-shaped rectangles)
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(spacing.sm)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(80.dp)
-                            .height(24.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .shimmerEffect()
-                    )
-                    Box(
-                        modifier = Modifier
-                            .width(100.dp)
-                            .height(24.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .shimmerEffect()
-                    )
-                }
+                Spacer(modifier = Modifier.height(spacing.sm))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.95f)
+                        .height(12.dp)
+                        .background(colors.ink.copy(alpha = 0.08f)),
+                )
+                Spacer(modifier = Modifier.height(spacing.xs))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.8f)
+                        .height(12.dp)
+                        .background(colors.ink.copy(alpha = 0.08f)),
+                )
+                Spacer(modifier = Modifier.height(spacing.xs))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.5f)
+                        .height(12.dp)
+                        .background(colors.ink.copy(alpha = 0.08f)),
+                )
             }
         }
     }
 }
 
-// Previews
-@Preview(name = "With Image Placeholder - Light", showBackground = true)
+@Preview(name = "With Image Light", showBackground = true)
 @Composable
 private fun PreviewLoadingCardWithImage() {
     CrumbsTheme(darkTheme = false) {
-        LoadingCard(hasImage = true)
+        LoadingCard(hasImage = true, scanLinePositionFraction = 0.5f)
     }
 }
 
-@Preview(name = "With Image Placeholder - Dark", showBackground = true)
-@Composable
-private fun PreviewLoadingCardWithImageDark() {
-    CrumbsTheme(darkTheme = true) {
-        LoadingCard(hasImage = true)
-    }
-}
-
-@Preview(name = "Text Only - Light", showBackground = true)
-@Composable
-private fun PreviewLoadingCardTextOnly() {
-    CrumbsTheme(darkTheme = false) {
-        LoadingCard(hasImage = false)
-    }
-}
-
-@Preview(name = "Text Only - Dark", showBackground = true)
+@Preview(name = "Text Only Dark", showBackground = true)
 @Composable
 private fun PreviewLoadingCardTextOnlyDark() {
     CrumbsTheme(darkTheme = true) {
-        LoadingCard(hasImage = false)
+        LoadingCard(hasImage = false, scanLinePositionFraction = 0.5f)
     }
 }

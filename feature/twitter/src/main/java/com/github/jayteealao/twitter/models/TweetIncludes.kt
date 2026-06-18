@@ -23,6 +23,10 @@ fun tweetIncludes() = TweetIncludes(
 
 @Entity(
     tableName = "tweetIncludes",
+    // The FK to tweetMedia(media_key) was dropped: tweetMedia's PK is now the composite
+    // (tweet_id, media_key), so media_key alone is no longer a unique/PK parent column and
+    // SQLite cannot reference it. The media_key column + its @Index are kept (harmless; the
+    // Firestore path writes this table empty anyway), only the foreign-key constraint is gone.
     foreignKeys = [
         ForeignKey(
             entity = TwitterUserEntity::class,
@@ -33,11 +37,6 @@ fun tweetIncludes() = TweetIncludes(
             entity = TweetEntity::class,
             parentColumns = ["id"],
             childColumns = ["referenced_tweet_id"]
-        ),
-        ForeignKey(
-            entity = TweetMediaEntity::class,
-            parentColumns = ["media_key"],
-            childColumns = ["media_key"]
         )
     ],
     indices = [

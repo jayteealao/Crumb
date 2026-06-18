@@ -61,7 +61,9 @@ data class RedditPost(
  */
 @Entity(
     tableName = "reddit_posts",
-    indices = [Index("author"), Index("subreddit")]
+    // `order` indexed because the saved-posts feed sorts by `order DESC`;
+    // without it Room scans the full table on every page boundary.
+    indices = [Index("author"), Index("subreddit"), Index("order")]
 )
 data class RedditPostEntity(
     @PrimaryKey val id: String,
@@ -84,6 +86,25 @@ data class RedditPostEntity(
     val gilded: Int,
     @ColumnInfo(name = "over_18") val over18: Boolean,
     val order: Int = 0 // For sorting saved posts
+)
+
+/**
+ * Reddit-side tag cross-reference. Distinct from `tweet_tags` because the
+ * Twitter cross-ref carries an FK to `tweetEntity.id` — wiring Reddit through
+ * that table would throw SQLITE_CONSTRAINT_FOREIGNKEY on every Reddit tag
+ * save. The `tags` table is reused for tag names; only the link table is
+ * source-scoped. No FK to `reddit_posts` here so a tag can survive a post
+ * being purged from the local cache (matches Twitter's behavior after the
+ * v8 FK changes).
+ */
+@Entity(
+    tableName = "reddit_tag_crossref",
+    primaryKeys = ["postId", "tagName"],
+    indices = [Index("postId"), Index("tagName")]
+)
+data class RedditTagCrossRef(
+    val postId: String,
+    val tagName: String,
 )
 
 /**

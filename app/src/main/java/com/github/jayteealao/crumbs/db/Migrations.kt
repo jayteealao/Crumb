@@ -1,0 +1,554 @@
+package com.github.jayteealao.crumbs.db
+
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
+
+/**
+ * AppDatabase migrations live in this file rather than embedded in
+ * `DatabaseModule.kt` so the DI module stays focused on Hilt wiring. Add the
+ * next migration here in ordered declaration form, then include it in
+ * [ALL_MIGRATIONS] below. [MigrationTest] covers each one in
+ * `androidTest`.
+ */
+
+val MIGRATION_2_3: Migration = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `tags` (
+                `name` TEXT NOT NULL,
+                PRIMARY KEY(`name`)
+            )
+            """.trimIndent()
+        )
+
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `tweet_tags` (
+                `tweetId` TEXT NOT NULL,
+                `tagName` TEXT NOT NULL,
+                PRIMARY KEY(`tweetId`, `tagName`),
+                FOREIGN KEY(`tweetId`) REFERENCES `tweetentity`(`id`) ON DELETE CASCADE,
+                FOREIGN KEY(`tagName`) REFERENCES `tags`(`name`) ON DELETE CASCADE
+            )
+            """.trimIndent()
+        )
+
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweet_tags_tweetId` ON `tweet_tags` (`tweetId`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweet_tags_tagName` ON `tweet_tags` (`tagName`)")
+    }
+}
+
+val MIGRATION_3_4: Migration = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // Fix tweet_tags table foreign key reference case issue.
+        db.execSQL(
+            """
+            CREATE TEMPORARY TABLE `tweet_tags_backup` (
+                `tweetId` TEXT NOT NULL,
+                `tagName` TEXT NOT NULL
+            )
+            """.trimIndent()
+        )
+
+        db.execSQL("INSERT INTO `tweet_tags_backup` SELECT `tweetId`, `tagName` FROM `tweet_tags`")
+        db.execSQL("DROP TABLE `tweet_tags`")
+        db.execSQL(
+            """
+            CREATE TABLE `tweet_tags` (
+                `tweetId` TEXT NOT NULL,
+                `tagName` TEXT NOT NULL,
+                PRIMARY KEY(`tweetId`, `tagName`),
+                FOREIGN KEY(`tweetId`) REFERENCES `tweetEntity`(`id`) ON DELETE CASCADE,
+                FOREIGN KEY(`tagName`) REFERENCES `tags`(`name`) ON DELETE CASCADE
+            )
+            """.trimIndent()
+        )
+        db.execSQL("INSERT INTO `tweet_tags` SELECT `tweetId`, `tagName` FROM `tweet_tags_backup`")
+        db.execSQL("DROP TABLE `tweet_tags_backup`")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweet_tags_tweetId` ON `tweet_tags` (`tweetId`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweet_tags_tagName` ON `tweet_tags` (`tagName`)")
+
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `reddit_posts` (
+                `id` TEXT NOT NULL,
+                `name` TEXT NOT NULL,
+                `title` TEXT NOT NULL,
+                `selftext` TEXT NOT NULL,
+                `author` TEXT NOT NULL,
+                `subreddit` TEXT NOT NULL,
+                `subreddit_prefixed` TEXT NOT NULL,
+                `created_utc` INTEGER NOT NULL,
+                `url` TEXT NOT NULL,
+                `permalink` TEXT NOT NULL,
+                `thumbnail` TEXT,
+                `num_comments` INTEGER NOT NULL,
+                `score` INTEGER NOT NULL,
+                `is_self` INTEGER NOT NULL,
+                `is_video` INTEGER NOT NULL,
+                `domain` TEXT NOT NULL,
+                `link_flair_text` TEXT,
+                `gilded` INTEGER NOT NULL,
+                `over_18` INTEGER NOT NULL,
+                `order` INTEGER NOT NULL,
+                PRIMARY KEY(`id`)
+            )
+            """.trimIndent()
+        )
+
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_reddit_posts_author` ON `reddit_posts` (`author`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_reddit_posts_subreddit` ON `reddit_posts` (`subreddit`)")
+    }
+}
+
+val MIGRATION_4_5: Migration = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `deleted_bookmarks` (
+                `bookmarkId` TEXT NOT NULL,
+                `source` TEXT NOT NULL,
+                `deletedAt` INTEGER NOT NULL,
+                PRIMARY KEY(`bookmarkId`)
+            )
+            """.trimIndent()
+        )
+    }
+}
+
+/**
+ * v5 → v6: widen `deleted_bookmarks` PK from `bookmarkId` alone to the
+ * composite `(bookmarkId, source)`. SQLite cannot ALTER PRIMARY KEY, so the
+ * table is recreated; INSERT OR IGNORE collapses any pre-existing duplicates
+ * (which the old single-column PK already prevented).
+ *
+ * NOTE on atomicity: Room runs each Migration.migrate(db) callback inside
+ * an outer transaction (`SupportSQLiteDatabase.beginTransaction()` /
+ * `endTransaction()` are managed by RoomOpenHelper). The four execSQL calls
+ * below therefore commit or rollback together — a torn process cannot leave
+ * the DB with `deleted_bookmarks_new` populated but the original table
+ * still present.
+ */
+val MIGRATION_5_6: Migration = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `deleted_bookmarks_new` (" +
+                "`bookmarkId` TEXT NOT NULL, " +
+                "`source` TEXT NOT NULL, " +
+                "`deletedAt` INTEGER NOT NULL, " +
+                "PRIMARY KEY(`bookmarkId`, `source`))"
+        )
+        db.execSQL(
+            "INSERT OR IGNORE INTO `deleted_bookmarks_new` (`bookmarkId`, `source`, `deletedAt`) " +
+                "SELECT `bookmarkId`, `source`, `deletedAt` FROM `deleted_bookmarks`"
+        )
+        db.execSQL("DROP TABLE `deleted_bookmarks`")
+        db.execSQL("ALTER TABLE `deleted_bookmarks_new` RENAME TO `deleted_bookmarks`")
+    }
+}
+
+/**
+ * v6 → v7: index `order` on tweetEntity and reddit_posts.
+ *
+ * The feed paging queries ORDER BY `order` DESC, but neither table had an
+ * index on that column — Room degraded to a full-table scan on every page
+ * boundary as the bookmark count grew.
+ */
+val MIGRATION_6_7: Migration = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweetEntity_order` ON `tweetEntity` (`order`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_reddit_posts_order` ON `reddit_posts` (`order`)")
+    }
+}
+
+/**
+ * v7 → v8: index FK columns on pollIds and mediaKeys. Without these the
+ * parent tweetEntity cascade scans the whole child table on every update.
+ */
+val MIGRATION_7_8: Migration = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_pollIds_tweetId` ON `pollIds` (`tweetId`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_mediaKeys_tweet_id` ON `mediaKeys` (`tweet_id`)")
+    }
+}
+
+/**
+ * v8 → v9: add Reddit-side tag cross-reference table. Routing Reddit tags
+ * through `tweet_tags` (which carries an FK to `tweetEntity.id`) crashed
+ * with SQLITE_CONSTRAINT_FOREIGNKEY; this table is source-scoped and FK-free.
+ */
+val MIGRATION_8_9: Migration = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `reddit_tag_crossref` (" +
+                "`postId` TEXT NOT NULL, " +
+                "`tagName` TEXT NOT NULL, " +
+                "PRIMARY KEY(`postId`, `tagName`))"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_reddit_tag_crossref_postId` ON `reddit_tag_crossref` (`postId`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_reddit_tag_crossref_tagName` ON `reddit_tag_crossref` (`tagName`)")
+    }
+}
+
+/**
+ * v9 → v10: surface the server-side `pending_delete` flag on `tweetEntity`.
+ * `daily-poll` writes this on tweet docs that disappear from a fresh X
+ * bookmarks page; the device renders strikethrough + swipe affordances when
+ * the column is true. INTEGER NOT NULL DEFAULT 0 maps Kotlin Boolean → SQLite
+ * with the safe default for every existing row.
+ */
+val MIGRATION_9_10: Migration = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `tweetEntity` ADD COLUMN `pending_delete` INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
+/**
+ * v10 → v11: add `tweet_fts` and `reddit_fts` virtual tables (FTS4, unicode61
+ * tokenizer) backed by `tweetEntity.text` and `reddit_posts.title` +
+ * `reddit_posts.selftext`. The content-sync triggers mirror what Room's
+ * generated `createAllTables` would emit on a fresh install — they keep the
+ * FTS shadow tables aligned with the parent rows on every INSERT/UPDATE/DELETE
+ * (Room only writes those triggers at fresh-DB creation time, so a migration
+ * has to author them itself). The closing `INSERT INTO <fts>(<fts>) VALUES
+ * ('rebuild')` repopulates the indices from the existing parent rows in one
+ * pass; subsequent writes ride the triggers.
+ *
+ * The FTS row identifier is SQLite's implicit `rowid` on the parent table, not
+ * the entities' String PK — `@Fts4(contentEntity = ...)` relies on this
+ * linkage. DAO joins use `JOIN <fts> ON parent.rowid = <fts>.rowid`.
+ */
+val MIGRATION_10_11: Migration = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // tweet_fts — single `text` column from tweetEntity.text
+        db.execSQL(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS `tweet_fts` USING FTS4(" +
+                "`text` TEXT NOT NULL, content=`tweetEntity`, tokenize=unicode61)"
+        )
+        db.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_tweet_fts_BEFORE_UPDATE` " +
+                "BEFORE UPDATE ON `tweetEntity` " +
+                "BEGIN DELETE FROM `tweet_fts` WHERE `docid`=OLD.`rowid`; END"
+        )
+        db.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_tweet_fts_BEFORE_DELETE` " +
+                "BEFORE DELETE ON `tweetEntity` " +
+                "BEGIN DELETE FROM `tweet_fts` WHERE `docid`=OLD.`rowid`; END"
+        )
+        db.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_tweet_fts_AFTER_UPDATE` " +
+                "AFTER UPDATE ON `tweetEntity` " +
+                "BEGIN INSERT INTO `tweet_fts`(`docid`, `text`) VALUES (NEW.`rowid`, NEW.`text`); END"
+        )
+        db.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_tweet_fts_AFTER_INSERT` " +
+                "AFTER INSERT ON `tweetEntity` " +
+                "BEGIN INSERT INTO `tweet_fts`(`docid`, `text`) VALUES (NEW.`rowid`, NEW.`text`); END"
+        )
+        // NOTE: FTS 'rebuild' intentionally omitted here. Re-tokenizing all rows inside
+        // the migration transaction would hold the SQLite write lock for O(N) on large
+        // corpora and risk a busy-timeout. The rebuild is deferred to
+        // DatabaseModule's RoomDatabase.Callback#onOpen, which runs it once after the
+        // database is first opened on this device version, guarded by an emptiness check.
+
+        // reddit_fts — `title` + `selftext` columns from reddit_posts
+        db.execSQL(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS `reddit_fts` USING FTS4(" +
+                "`title` TEXT NOT NULL, `selftext` TEXT NOT NULL, " +
+                "content=`reddit_posts`, tokenize=unicode61)"
+        )
+        db.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_reddit_fts_BEFORE_UPDATE` " +
+                "BEFORE UPDATE ON `reddit_posts` " +
+                "BEGIN DELETE FROM `reddit_fts` WHERE `docid`=OLD.`rowid`; END"
+        )
+        db.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_reddit_fts_BEFORE_DELETE` " +
+                "BEFORE DELETE ON `reddit_posts` " +
+                "BEGIN DELETE FROM `reddit_fts` WHERE `docid`=OLD.`rowid`; END"
+        )
+        db.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_reddit_fts_AFTER_UPDATE` " +
+                "AFTER UPDATE ON `reddit_posts` " +
+                "BEGIN INSERT INTO `reddit_fts`(`docid`, `title`, `selftext`) " +
+                "VALUES (NEW.`rowid`, NEW.`title`, NEW.`selftext`); END"
+        )
+        db.execSQL(
+            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_reddit_fts_AFTER_INSERT` " +
+                "AFTER INSERT ON `reddit_posts` " +
+                "BEGIN INSERT INTO `reddit_fts`(`docid`, `title`, `selftext`) " +
+                "VALUES (NEW.`rowid`, NEW.`title`, NEW.`selftext`); END"
+        )
+        // NOTE: FTS 'rebuild' intentionally omitted here — deferred to onOpen (see above).
+    }
+}
+
+/**
+ * v11 → v12: per-uid cursor checkpoint for the streaming Twitter sync.
+ * `sync_progress` stores the high-watermark (newest createdAt seen) and the
+ * low-watermark (oldest createdAt successfully written) as `(createdAt,
+ * tweetId)` tuples so the worker can resume mid-stream after process death.
+ */
+val MIGRATION_11_12: Migration = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `sync_progress` (" +
+                "`uid` TEXT NOT NULL, " +
+                "`last_high_cursor_created_at` TEXT, " +
+                "`last_high_cursor_tweet_id` TEXT, " +
+                "`last_low_cursor_created_at` TEXT, " +
+                "`last_low_cursor_tweet_id` TEXT, " +
+                "`total_batches_ingested` INTEGER NOT NULL, " +
+                "`last_updated_at_ms` INTEGER NOT NULL, " +
+                "PRIMARY KEY(`uid`))"
+        )
+    }
+}
+
+/**
+ * v12 → v13: add the server-stamped `retrieved_at` column (nullable epoch-millis), the
+ * primary feed recency key, plus the composite `(retrieved_at, created_at)` index that backs
+ * `ORDER BY retrieved_at DESC, created_at DESC` as a reverse B-tree scan (no full-table sort).
+ * Pre-existing rows get NULL `retrieved_at`, which sorts last under a DESC order. The index
+ * name must match Room's generated `index_<table>_<col1>_<col2>` or schema validation fails.
+ */
+val MIGRATION_12_13: Migration = object : Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `tweetEntity` ADD COLUMN `retrieved_at` INTEGER")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_tweetEntity_retrieved_at_created_at` " +
+                "ON `tweetEntity` (`retrieved_at`, `created_at`)"
+        )
+    }
+}
+
+/**
+ * v13 → v14: add an index on `tweetEntity.conversation_id`. It backs the THREAD type-filter's
+ * correlated "a sibling tweet shares this conversation" subquery so it runs as an index lookup
+ * rather than an O(n²) self-join scan. Index-only change — no column or data is added, so
+ * pre-existing rows are untouched. The index name must match Room's generated
+ * `index_<table>_<col>` (`index_tweetEntity_conversation_id`) or schema validation fails.
+ */
+val MIGRATION_13_14: Migration = object : Migration(13, 14) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_tweetEntity_conversation_id` " +
+                "ON `tweetEntity` (`conversation_id`)"
+        )
+    }
+}
+
+/**
+ * v14 → v15: add the JSON `video_variants` column to `tweetMedia`. It stores a media
+ * row's HLS / DASH / progressive stream variants (serialized by [MediaConverters], the
+ * project's first Room `@TypeConverter`) so the inline player can pick HLS first and
+ * fall back to highest-bitrate MP4. Additive `ALTER TABLE ... ADD COLUMN` — pre-existing
+ * rows get NULL (decoded as an empty variant list), so photo rows and legacy video rows
+ * are untouched. The column type must match Room's generated schema (`TEXT`, nullable) or
+ * schema validation fails.
+ */
+val MIGRATION_14_15: Migration = object : Migration(14, 15) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `tweetMedia` ADD COLUMN `video_variants` TEXT")
+    }
+}
+
+/**
+ * v15 → v16: add the `image_url` column to `tweetTextEntityAnnotation`. It stores a
+ * link entity's preview thumbnail (the destination page's `og:image`), enriched
+ * server-side; `title`/`description` already exist on the table. Additive
+ * `ALTER TABLE ... ADD COLUMN` — pre-existing rows get NULL (a URL-only preview),
+ * so legacy annotation rows are untouched. The column type must match Room's
+ * generated schema (`TEXT`, nullable) or schema validation fails.
+ */
+val MIGRATION_15_16: Migration = object : Migration(15, 16) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `tweetTextEntityAnnotation` ADD COLUMN `image_url` TEXT")
+    }
+}
+
+/**
+ * v16 → v17: add the `tweet_id` parent-link column to `tweetReferencedTweets` (the
+ * FK-free junction for the quoted-tweet @Relation) plus the index that backs the
+ * junction lookup. The referenced-tweet relation was previously suppressed; this
+ * column lets a parent tweet resolve its quoted body without the FK-rollback the old
+ * `tweetIncludes` relation caused.
+ *
+ * Sentinel choice — `NOT NULL DEFAULT ''`:
+ * SQLite's ALTER TABLE ADD COLUMN requires either a default value or a nullable type
+ * for pre-existing rows. The column is declared NOT NULL (matching the entity class
+ * and Room's generated schema) so a DEFAULT is mandatory. `DEFAULT ''` (empty string)
+ * is the chosen sentinel meaning "no parent tweet" — semantically equivalent to NULL
+ * for the quoted-tweet relation. All DAO queries that join on `tweet_id` must include
+ * `AND tweet_id != ''` (or equivalent) to exclude these orphan rows; the quoted-tweet
+ * @Relation already filters via the entity PK equality so orphan rows resolve to an
+ * empty list, producing the harmless "unavailable" placeholder state.
+ *
+ * This migration is released — do NOT change the DEFAULT or column nullability here;
+ * doing so would break existing installed databases. A new migration would be required
+ * for any structural change.
+ *
+ * The new column's type (`TEXT`, not-null) and the index name
+ * (`index_<table>_<col>`) must match Room's generated schema or
+ * `runMigrationsAndValidate` fails.
+ */
+val MIGRATION_16_17: Migration = object : Migration(16, 17) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `tweetReferencedTweets` ADD COLUMN `tweet_id` TEXT NOT NULL DEFAULT ''")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_tweetReferencedTweets_tweet_id` " +
+                "ON `tweetReferencedTweets` (`tweet_id`)"
+        )
+    }
+}
+
+/**
+ * v17 → v18: one-time data repair for media rows persisted with a NULL `tweet_id`.
+ *
+ * The Firestore→Room assembly dropped the tweet↔media association during the
+ * mediaKey→includes→tweetId join, so every `tweetMedia` row was written with
+ * `tweet_id = NULL`. Room's `TweetData.media` @Relation joins on `tweet_id`, and SQL
+ * `IN (…)` never matches NULL, so media never resolved for any synced tweet (cards
+ * collapsed to text-only). The code fix threads the parent id at assembly time, which
+ * only corrects FUTURE syncs; the `mediaKeys` junction already holds the correct
+ * `(tweet_id, media_key)` mapping on-device, so the persisted corpus is repaired here
+ * with no network re-fetch.
+ *
+ * Pure data migration — no DDL. The `tweet_id` column already exists (added structurally
+ * before v15), so the exported `18.json` is structurally identical to `17.json` and only
+ * the version field differs. The correlated-subquery `UPDATE` form is used deliberately
+ * (NOT `UPDATE … FROM`, which needs SQLite 3.33 / API 33) so it is safe at minSdk 24.
+ * Media rows whose `media_key` has no junction entry keep `tweet_id = NULL` — there is
+ * nothing on-device to repair them from (they fall to the existing media re-fetch /
+ * backfill sweep). Idempotent: the `WHERE tweet_id IS NULL` guard makes a re-run a no-op
+ * once a row is backfilled.
+ */
+val MIGRATION_17_18: Migration = object : Migration(17, 18) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            UPDATE tweetMedia
+               SET tweet_id = (
+                   SELECT tweet_id FROM mediaKeys
+                    WHERE mediaKeys.media_key = tweetMedia.media_key
+               )
+             WHERE tweet_id IS NULL
+            """.trimIndent()
+        )
+    }
+}
+
+/**
+ * v18 → v19: harden tweet↔media against the wrong-media-attached defect, then wipe the
+ * corrupted media tables so the corrected attribution re-pulls from server.
+ *
+ * Three coordinated table recreations (SQLite cannot ALTER a PRIMARY KEY or DROP a FK, so
+ * each table is rebuilt via the create→[copy]→drop→rename recipe — the in-repo precedent is
+ * [MIGRATION_5_6] / [MIGRATION_3_4]):
+ *
+ * 1. `tweetIncludes` — recreated to DROP its now-invalid `FOREIGN KEY(media_key) REFERENCES
+ *    tweetMedia(media_key)`. Once tweetMedia's PK becomes the composite `(tweet_id, media_key)`,
+ *    `media_key` alone is no longer a unique/PK parent column, so SQLite cannot reference it.
+ *    Rows are PRESERVED (copied) — the Firestore path writes this table empty anyway, but a
+ *    legacy install may carry rows. The `media_key` column + its index are kept; only the FK
+ *    constraint is removed. Recreated FIRST so dropping tweetMedia below has no referrer.
+ * 2. `tweetMedia` — recreated with the composite PK `(tweet_id, media_key)` and a NOT-NULL
+ *    `tweet_id`, then left EMPTY. The old rows carried a single, frequently-WRONG `tweet_id`
+ *    per media_key (sole-PK collapse); neither on-device table can recover the correct
+ *    pairings, so they are discarded and re-pulled from the server-corrected Firestore.
+ * 3. `mediaKeys` — recreated with the same composite PK and left EMPTY (same rationale).
+ *
+ * Re-pull: the server poll + the `backfillTweetMedia` callable fix Firestore's attribution;
+ * on-device, [com.github.jayteealao.crumbs.sync.MediaBackfillWorker] (its run-once flag is
+ * re-armed for this generation) re-pulls every now-media-less tweet, and the lazy on-scroll
+ * re-fetch heals visible cards immediately. Until then cards render text-only (transient).
+ *
+ * `PRAGMA defer_foreign_keys = TRUE` defers any FK enforcement to transaction commit (a no-op
+ * when FKs are disabled, as they are here — DatabaseModule does not enable them — but it makes
+ * the parent-table drop safe regardless). Each new table re-declares its FKs + indices, or
+ * Room's identityHash check fails at startup; the instrumented [MigrationTest] asserts the
+ * composite schema AND the wiped/preserved data, not just `runMigrationsAndValidate`.
+ *
+ * Once released, do NOT alter this migration — a new migration would be required for any
+ * further structural change to these tables.
+ */
+val MIGRATION_18_19: Migration = object : Migration(18, 19) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("PRAGMA defer_foreign_keys = TRUE")
+
+        // 1. tweetIncludes — drop the media_key FK, preserve rows.
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `tweetIncludes_new` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                "`tweet_id` TEXT NOT NULL, " +
+                "`twitter_user` TEXT, " +
+                "`referenced_tweet_id` TEXT, " +
+                "`media_key` TEXT, " +
+                "FOREIGN KEY(`twitter_user`) REFERENCES `twitterUser`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION, " +
+                "FOREIGN KEY(`referenced_tweet_id`) REFERENCES `tweetEntity`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION)"
+        )
+        db.execSQL(
+            "INSERT INTO `tweetIncludes_new` (`id`, `tweet_id`, `twitter_user`, `referenced_tweet_id`, `media_key`) " +
+                "SELECT `id`, `tweet_id`, `twitter_user`, `referenced_tweet_id`, `media_key` FROM `tweetIncludes`"
+        )
+        db.execSQL("DROP TABLE `tweetIncludes`")
+        db.execSQL("ALTER TABLE `tweetIncludes_new` RENAME TO `tweetIncludes`")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweetIncludes_twitter_user` ON `tweetIncludes` (`twitter_user`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweetIncludes_referenced_tweet_id` ON `tweetIncludes` (`referenced_tweet_id`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweetIncludes_media_key` ON `tweetIncludes` (`media_key`)")
+
+        // 2. tweetMedia — composite PK (tweet_id, media_key), tweet_id NOT NULL, WIPED.
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `tweetMedia_new` (" +
+                "`media_key` TEXT NOT NULL, " +
+                "`type` TEXT NOT NULL, " +
+                "`url` TEXT, " +
+                "`duration_ms` INTEGER NOT NULL, " +
+                "`height` INTEGER NOT NULL, " +
+                "`width` INTEGER NOT NULL, " +
+                "`preview_image_url` TEXT, " +
+                "`alt_text` TEXT, " +
+                "`tweet_id` TEXT NOT NULL, " +
+                "`video_variants` TEXT, " +
+                "PRIMARY KEY(`tweet_id`, `media_key`), " +
+                "FOREIGN KEY(`tweet_id`) REFERENCES `tweetEntity`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION)"
+        )
+        db.execSQL("DROP TABLE `tweetMedia`")
+        db.execSQL("ALTER TABLE `tweetMedia_new` RENAME TO `tweetMedia`")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweetMedia_tweet_id` ON `tweetMedia` (`tweet_id`)")
+
+        // 3. mediaKeys — composite PK (tweet_id, media_key), WIPED.
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `mediaKeys_new` (" +
+                "`tweet_id` TEXT NOT NULL, " +
+                "`media_key` TEXT NOT NULL, " +
+                "PRIMARY KEY(`tweet_id`, `media_key`), " +
+                "FOREIGN KEY(`tweet_id`) REFERENCES `tweetEntity`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION)"
+        )
+        db.execSQL("DROP TABLE `mediaKeys`")
+        db.execSQL("ALTER TABLE `mediaKeys_new` RENAME TO `mediaKeys`")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_mediaKeys_tweet_id` ON `mediaKeys` (`tweet_id`)")
+    }
+}
+
+/** Full list registered by the DI module's `addMigrations(*ALL_MIGRATIONS)`. */
+val ALL_MIGRATIONS: Array<Migration> = arrayOf(
+    MIGRATION_2_3,
+    MIGRATION_3_4,
+    MIGRATION_4_5,
+    MIGRATION_5_6,
+    MIGRATION_6_7,
+    MIGRATION_7_8,
+    MIGRATION_8_9,
+    MIGRATION_9_10,
+    MIGRATION_10_11,
+    MIGRATION_11_12,
+    MIGRATION_12_13,
+    MIGRATION_13_14,
+    MIGRATION_14_15,
+    MIGRATION_15_16,
+    MIGRATION_16_17,
+    MIGRATION_17_18,
+    MIGRATION_18_19,
+)

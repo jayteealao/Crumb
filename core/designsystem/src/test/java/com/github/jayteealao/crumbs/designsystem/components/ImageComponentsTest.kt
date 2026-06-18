@@ -23,7 +23,7 @@ import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [33])
+@Config(sdk = [34])
 class ImageComponentsTest {
 
     @get:Rule
@@ -184,7 +184,7 @@ class ImageComponentsTest {
                         ) {
                             Text(
                                 text = "Overlay Text",
-                                style = typography.titleLarge,
+                                style = typography.displaySmall,
                                 color = Color.White
                             )
                         }
@@ -216,7 +216,7 @@ class ImageComponentsTest {
                         ) {
                             Text(
                                 text = "Overlay Text",
-                                style = typography.titleLarge,
+                                style = typography.displaySmall,
                                 color = Color.White
                             )
                         }

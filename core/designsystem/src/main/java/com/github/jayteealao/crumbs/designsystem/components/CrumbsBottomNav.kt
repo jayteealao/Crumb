@@ -3,142 +3,106 @@ package com.github.jayteealao.crumbs.designsystem.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.ViewList
-import androidx.compose.material.ripple.rememberRipple
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected as semanticsSelected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.github.jayteealao.crumbs.designsystem.theme.CrumbsShapes
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsTypography
 
-/**
- * Bottom navigation for Crumbs
- * Source-first organization: Twitter, Reddit, All, Map
- *
- * Component variants for testing:
- * - Each tab selected state
- * - Light/dark theme
- *
- * @param selectedTab The currently selected tab
- * @param onTabSelected Callback invoked when a tab is selected
- * @param modifier Modifier to be applied to the navigation bar
- */
+// Brutalist CrumbsBottomNav — Material3 NavigationBar stripped.
+// Manual Row of 4 fixed-weight cells (TWITTER / REDDIT / ALL / MAP), each a
+// clickable Box. Selected cell flips to ink background + accent text. No
+// ripple. Hairline ink dividers between cells. 8dp safe-area below.
 
-enum class BottomNavTab(
-    val label: String,
-    val icon: ImageVector
-) {
-    TWITTER("Twitter", Icons.Default.Language),  // TODO: Replace with ic_twitter.xml
-    REDDIT("Reddit", Icons.Default.Language),    // TODO: Replace with ic_reddit.xml
-    ALL("All", Icons.Default.ViewList),
-    MAP("Map", Icons.Default.Map)
+enum class BottomNavTab(val label: String) {
+    TWITTER("Twitter"),
+    REDDIT("Reddit"),
+    ALL("All"),
+    MAP("Map"),
 }
 
 @Composable
 fun CrumbsBottomNav(
-    selectedTab: BottomNavTab,
+    selected: BottomNavTab,
     onTabSelected: (BottomNavTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = LocalCrumbsColors.current
-
-    NavigationBar(
-        modifier = modifier,
-        containerColor = colors.surface
-    ) {
-        BottomNavTab.entries.forEach { tab ->
-            CrumbsNavigationBarItem(
-                selected = selectedTab == tab,
-                onClick = { onTabSelected(tab) },
-                icon = tab.icon,
-                label = tab.label
-            )
-        }
-    }
-}
-
-/**
- * Custom navigation bar item with cut-corner selection indicator
- */
-@Composable
-private fun RowScope.CrumbsNavigationBarItem(
-    selected: Boolean,
-    onClick: () -> Unit,
-    icon: ImageVector,
-    label: String,
-    modifier: Modifier = Modifier
-) {
-    val colors = LocalCrumbsColors.current
+    val stroke = LocalCrumbsStroke.current
     val typography = LocalCrumbsTypography.current
-    val interactionSource = remember { MutableInteractionSource() }
 
-    Box(
+    Column(
         modifier = modifier
-            .weight(1f)
-            .clickable(
-                onClick = onClick,
-                enabled = true,
-                role = Role.Tab,
-                interactionSource = interactionSource,
-                indication = rememberRipple(bounded = true, color = colors.accent)
-            )
-            .padding(vertical = 8.dp),
-        contentAlignment = Alignment.Center
+            .fillMaxWidth()
+            .background(colors.surface)
+            .testTag("bottom-nav"),
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            // Icon with background indicator when selected
-            Box(
-                contentAlignment = Alignment.Center
-            ) {
-                // Selection indicator with cut-corner shape
-                if (selected) {
-                    Box(
-                        modifier = Modifier
-                            .size(64.dp, 32.dp)
-                            .clip(CrumbsShapes.navigationBar)
-                            .background(colors.navIndicator)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(stroke.regular)
+                .background(colors.ink),
+        )
+        Row(modifier = Modifier.fillMaxWidth().height(52.dp)) {
+            BottomNavTab.entries.forEachIndexed { index, tab ->
+                val isSelected = tab == selected
+                val interactionSource = remember { MutableInteractionSource() }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .background(if (isSelected) colors.ink else Color.Transparent)
+                        .semantics(mergeDescendants = true) {
+                            role = Role.Tab
+                            semanticsSelected = isSelected
+                            contentDescription = tab.label
+                        }
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = null,
+                        ) { onTabSelected(tab) }
+                        .testTag("nav-tab-${tab.name.lowercase()}"),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = tab.label.uppercase(),
+                        style = typography.captionMono,
+                        color = if (isSelected) colors.accent else colors.ink,
                     )
                 }
-
-                Icon(
-                    imageVector = icon,
-                    contentDescription = label,
-                    tint = if (selected) colors.textPrimary else colors.textSecondary,
-                    modifier = Modifier.size(24.dp)
-                )
+                if (index < BottomNavTab.entries.size - 1) {
+                    Box(
+                        modifier = Modifier
+                            .width(stroke.hairline)
+                            .fillMaxHeight()
+                            .background(colors.ink),
+                    )
+                }
             }
-
-            // Label
-            Text(
-                text = label,
-                style = typography.labelMedium,
-                color = if (selected) colors.textPrimary else colors.textSecondary
-            )
         }
+        Spacer(Modifier.fillMaxWidth().height(8.dp).background(colors.surface).padding(0.dp))
     }
 }
 
@@ -147,10 +111,7 @@ private fun RowScope.CrumbsNavigationBarItem(
 @Composable
 private fun PreviewBottomNavTwitterLight() {
     CrumbsTheme(darkTheme = false) {
-        CrumbsBottomNav(
-            selectedTab = BottomNavTab.TWITTER,
-            onTabSelected = {}
-        )
+        CrumbsBottomNav(selected =BottomNavTab.TWITTER, onTabSelected = {})
     }
 }
 
@@ -158,21 +119,7 @@ private fun PreviewBottomNavTwitterLight() {
 @Composable
 private fun PreviewBottomNavTwitterDark() {
     CrumbsTheme(darkTheme = true) {
-        CrumbsBottomNav(
-            selectedTab = BottomNavTab.TWITTER,
-            onTabSelected = {}
-        )
-    }
-}
-
-@Preview(name = "Reddit Selected Light", showBackground = true)
-@Composable
-private fun PreviewBottomNavReddit() {
-    CrumbsTheme(darkTheme = false) {
-        CrumbsBottomNav(
-            selectedTab = BottomNavTab.REDDIT,
-            onTabSelected = {}
-        )
+        CrumbsBottomNav(selected =BottomNavTab.TWITTER, onTabSelected = {})
     }
 }
 
@@ -180,10 +127,7 @@ private fun PreviewBottomNavReddit() {
 @Composable
 private fun PreviewBottomNavAllLight() {
     CrumbsTheme(darkTheme = false) {
-        CrumbsBottomNav(
-            selectedTab = BottomNavTab.ALL,
-            onTabSelected = {}
-        )
+        CrumbsBottomNav(selected =BottomNavTab.ALL, onTabSelected = {})
     }
 }
 
@@ -191,9 +135,6 @@ private fun PreviewBottomNavAllLight() {
 @Composable
 private fun PreviewBottomNavMapLight() {
     CrumbsTheme(darkTheme = false) {
-        CrumbsBottomNav(
-            selectedTab = BottomNavTab.MAP,
-            onTabSelected = {}
-        )
+        CrumbsBottomNav(selected =BottomNavTab.MAP, onTabSelected = {})
     }
 }

@@ -1,0 +1,56 @@
+# Focused long-press popup verification — 4 actions visible + backdrop/back dismiss.
+# Popup renders via Compose Popup{} primitive (separate window) — uses text-based
+# selectors. Each action's downstream behavior (TAG opens dialog, OPEN launches
+# browser, SHARE opens chooser, DELETE shows snackbar) is exercised in happy_path.
+appId: com.github.jayteealao.crumbs
+---
+- launchApp:
+    arguments:
+      debug_action: "seed"
+      wipe: true
+- runFlow:
+    when:
+      visible:
+        id: "login-screen"
+    commands:
+      - tapOn:
+          id: "login-skip-auth"
+- extendedWaitUntil:
+    visible:
+      id: "home-screen"
+    timeout: 10000
+- tapOn:
+    id: "nav-tab-all"
+- extendedWaitUntil:
+    visible:
+      id: "all-bookmarks-feed"
+    timeout: 5000
+
+# --- Long-press surfaces all 4 actions ---
+- longPressOn:
+    id: "bookmark-card"
+    index: 0
+- extendedWaitUntil:
+    visible: "TAG"
+    timeout: 3000
+- assertVisible: "OPEN"
+- assertVisible: "SHARE"
+- assertVisible: "DELETE"
+
+# --- Back dismisses the popup ---
+- back
+- assertNotVisible: "OPEN"
+- assertNotVisible: "SHARE"
+
+# --- Re-open and exercise DELETE → snackbar undo ---
+- longPressOn:
+    id: "bookmark-card"
+    index: 0
+- extendedWaitUntil:
+    visible: "DELETE"
+    timeout: 3000
+- tapOn: "DELETE"
+- extendedWaitUntil:
+    visible: "UNDO"
+    timeout: 3000
+- tapOn: "UNDO"

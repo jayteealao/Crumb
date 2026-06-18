@@ -1,17 +1,16 @@
 plugins {
     id 'com.android.library'
-    id 'org.jetbrains.kotlin.android'
     id 'org.jetbrains.kotlin.plugin.compose'
-    id 'io.github.takahirom.roborazzi' version '1.7.0'
+    id 'io.github.takahirom.roborazzi' version '1.60.0'
 }
 
 android {
     namespace 'com.github.jayteealao.crumbs.designsystem'
-    compileSdk 34
+    compileSdk 36
 
     defaultConfig {
         minSdk 24
-        targetSdk 34
+        targetSdk 35
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -25,10 +24,6 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = '17'
-    }
-
     testOptions {
         unitTests {
             includeAndroidResources = true
@@ -37,10 +32,18 @@ android {
     }
 }
 
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
+}
+
 dependencies {
-    implementation platform('androidx.compose:compose-bom:2024.02.00')
+    implementation(platform(libs.compose.bom))
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.foundation:foundation'
+    // BackHandler in OverlayShell + Compose-native pager state lifecycle hooks
+    implementation libs.activityCompose
     implementation 'androidx.compose.material3:material3'
     implementation 'androidx.compose.material:material-icons-extended'
     implementation 'androidx.compose.ui:ui-tooling-preview'
@@ -50,20 +53,35 @@ dependencies {
     // Core modules
     implementation project(':core:models')
 
-    // Image loading
-    implementation 'io.coil-kt:coil-compose:2.5.0'
+    // Immutable collections for Compose stability (FilterBar, TagEditorDialog, LongPressPopup).
+    // `api` so call-site modules (app, feature/*) can read ImmutableList without re-declaring the dep.
+    api libs.kotlinx.collections.immutable
 
-    // Video playback
-    implementation 'androidx.media3:media3-exoplayer:1.2.0'
-    implementation 'androidx.media3:media3-exoplayer-dash:1.2.0'
-    implementation 'androidx.media3:media3-exoplayer-hls:1.2.0'
-    implementation 'androidx.media3:media3-ui:1.2.0'
+    // Image loading
+    implementation libs.coil.compose
+    // Full-screen zoomable image viewer (CrumbsImageViewer) — sub-sampling,
+    // double-tap/pinch-zoom; Coil-2 artifact pinned to the bumped coil 2.7.0.
+    implementation libs.telephoto.zoomable.coil
+
+    // Video playback. ui-compose carries PlayerSurface/ContentFrame + the state
+    // holders the brutalist inline player (CrumbsVideoPlayer) is built from.
+    implementation libs.media3.exoplayer
+    implementation libs.media3.exoplayer.dash
+    implementation libs.media3.exoplayer.hls
+    implementation libs.media3.ui
+    implementation libs.media3.ui.compose
 
     testImplementation 'junit:junit:4.13.2'
-    testImplementation 'io.github.takahirom.roborazzi:roborazzi:1.7.0'
-    testImplementation 'io.github.takahirom.roborazzi:roborazzi-compose:1.7.0'
-    testImplementation 'io.github.takahirom.roborazzi:roborazzi-junit-rule:1.7.0'
-    testImplementation 'org.robolectric:robolectric:4.14.1'
+    // Deterministic Coil fake (FakeImageLoaderEngine → solid-color drawables) so the
+    // image-card Roborazzi goldens render synchronously in Robolectric.
+    testImplementation libs.coil.test
+    // JVM ExoPlayer (TestExoPlayerBuilder) for CrumbsVideoPlayerTest's lifecycle invariant.
+    testImplementation(libs.media3.test.utils.robolectric)
+    testImplementation(libs.roborazzi.core)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.roborazzi.junit.rule)
+    testImplementation(libs.robolectric)
+    testImplementation(platform(libs.compose.bom))
     testImplementation 'androidx.compose.ui:ui-test-junit4'
     testImplementation 'androidx.activity:activity-compose:1.8.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.4'

@@ -1,11 +1,12 @@
 package com.github.jayteealao.crumbs
 
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -13,12 +14,18 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.navigation.navDeepLink
-import com.github.jayteealao.crumbs.screens.HomeScreen
-import com.github.jayteealao.crumbs.screens.OnboardingScreen
-import com.github.jayteealao.crumbs.screens.SplashScreen
-import com.github.jayteealao.crumbs.screens.login.LoginScreen
-import com.github.jayteealao.twitter.screens.LoginViewModel
+import com.github.jayteealao.crumbs.screens.ConnectXRoute
+import com.github.jayteealao.crumbs.screens.DeleteAccountRoute
+import com.github.jayteealao.crumbs.screens.HomeRoute
+import com.github.jayteealao.crumbs.screens.OnboardingRoute
+import com.github.jayteealao.crumbs.screens.SearchRoute
+import com.github.jayteealao.crumbs.screens.SettingsRoute
+import com.github.jayteealao.crumbs.screens.SplashRoute
+import com.github.jayteealao.crumbs.screens.ThreadDetailRoute
+import com.github.jayteealao.crumbs.screens.login.LoginRoute
+import com.github.jayteealao.twitter.oauth.TwitterOAuthCoordinator
 import com.github.jayteealao.twitter.screens.BookmarksViewModel
+import com.github.jayteealao.twitter.screens.LoginViewModel
 
 @Composable
 fun CrumbsNavHost(
@@ -26,52 +33,103 @@ fun CrumbsNavHost(
     navController: NavHostController = rememberNavController(),
     startDestination: String = Screens.SPLASHSCREEN.name,
     loginViewModel: LoginViewModel = hiltViewModel(),
-    bookmarksViewModel: BookmarksViewModel = hiltViewModel()
+    bookmarksViewModel: BookmarksViewModel = hiltViewModel(),
+    twitterOAuthCoordinator: TwitterOAuthCoordinator,
 ) {
-    val isAccessTokenAvailable by loginViewModel.isAccessTokenAvailable.collectAsState()
+    // Refresh sync_status on every ON_START so the reconnect banner state
+    // reflects reality after the user returns from Custom Tabs or the Play
+    // Store. The repository throttles to one read per 5s internally.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) {
+                bookmarksViewModel.refreshSyncStatus()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     NavHost(
         navController = navController,
         modifier = modifier,
-        startDestination = startDestination
+        startDestination = startDestination,
     ) {
         composable(Screens.ONBOARDING.name) {
-            OnboardingScreen(navController = navController)
+            OnboardingRoute(navController = navController)
         }
 
         composable(
             Screens.LOGINSCREEN.name,
-            deepLinks = listOf(navDeepLink { uriPattern = "crumbs://graphitenerd.xyz?code={code}" })
+            deepLinks = listOf(navDeepLink { uriPattern = "crumbs://graphitenerd.xyz?code={code}" }),
         ) {
-            LoginScreen(
-                viewModel = loginViewModel,
+            LoginRoute(
                 navController = navController,
                 authorizationCode = navController
-                    .currentBackStackEntry?.arguments?.getString("code")
+                    .currentBackStackEntry?.arguments?.getString("code"),
+                loginViewModel = loginViewModel,
             )
         }
 
         composable(
             "${Screens.HOMESCREEN.name}/{refreshed}",
-            arguments = listOf(navArgument(name = "refreshed") { type = NavType.BoolType })
+            arguments = listOf(navArgument(name = "refreshed") { type = NavType.BoolType }),
         ) {
-            HomeScreen(
+            HomeRoute(
                 navController = navController,
+                twitterAuthCode = navController
+                    .currentBackStackEntry?.arguments?.getString("code") ?: "",
                 loginViewModel = loginViewModel,
                 bookmarksViewModel = bookmarksViewModel,
-                twitterAuthCode = navController
-                    .currentBackStackEntry?.arguments?.getString("code") ?: ""
             )
         }
 
-        composable(
-            Screens.SPLASHSCREEN.name
-        ) {
-            SplashScreen(
-                isLoggedIn = isAccessTokenAvailable,
+        composable(Screens.CONNECTX.name) {
+            ConnectXRoute(
                 navController = navController,
-                loginViewModel = loginViewModel
+                twitterOAuthCoordinator = twitterOAuthCoordinator,
+                bookmarksViewModel = bookmarksViewModel,
             )
+        }
+
+        composable(Screens.SETTINGS.name) {
+            SettingsRoute(
+                navController = navController,
+                bookmarksViewModel = bookmarksViewModel,
+            )
+        }
+
+        composable(Screens.DELETE_ACCOUNT.name) {
+            DeleteAccountRoute(
+                onAccountDeleted = {
+                    navController.navigate(Screens.LOGINSCREEN.name) {
+                        popUpTo(navController.graph.id) { inclusive = true }
+                    }
+                },
+            )
+        }
+
+        composable(Screens.SPLASHSCREEN.name) {
+            SplashRoute(
+                navController = navController,
+                loginViewModel = loginViewModel,
+            )
+        }
+
+        composable(Screens.SEARCHSCREEN.name) {
+            SearchRoute(navController = navController)
+        }
+
+        composable(
+            "${Screens.THREADDETAIL.name}?bookmarkId={bookmarkId}",
+            arguments = listOf(
+                navArgument("bookmarkId") {
+                    type = NavType.StringType
+                    nullable = true
+                },
+            ),
+        ) {
+            ThreadDetailRoute(navController = navController)
         }
     }
 }
@@ -80,6 +138,11 @@ enum class Screens {
     SPLASHSCREEN,
     ONBOARDING,
     LOGINSCREEN,
+    CONNECTX,
+    SETTINGS,
+    SEARCHSCREEN,
+    THREADDETAIL,
+    DELETE_ACCOUNT,
     HOMESCREEN {
         override fun screenRoute(refreshed: Boolean) = "${this.name}/$refreshed"
     };

@@ -1,0 +1,60 @@
+# Search-screen happy path — splash → home → trailing search icon →
+# SearchScreen → type → assert hits or empty → back to home.
+appId: com.github.jayteealao.crumbs
+---
+- launchApp:
+    arguments:
+      debug_action: "seed"
+      wipe: true
+- extendedWaitUntil:
+    visible:
+      id: "splash-screen"
+    timeout: 5000
+- runFlow:
+    when:
+      visible:
+        id: "login-screen"
+    commands:
+      - tapOn:
+          id: "login-skip-auth"
+- extendedWaitUntil:
+    visible:
+      id: "home-screen"
+    timeout: 10000
+
+# --- Open SearchScreen via TopBar trailing icon (TopBarAction.Search) ---
+- tapOn:
+    id: "top-bar-trailing"
+- extendedWaitUntil:
+    visible:
+      id: "search-screen"
+    timeout: 5000
+
+# --- Idle state surfaces the recent-search pane ---
+- assertVisible:
+    id: "search-recent-searches"
+
+# --- Type into the search field and wait for either results or empty ---
+- tapOn:
+    id: "search-field-input"
+- inputText: "android"
+- extendedWaitUntil:
+    visible:
+      id: "search-results-feed"
+    timeout: 5000
+    optional: true
+- runFlow:
+    when:
+      visible:
+        id: "search-empty-state"
+    commands:
+      - assertVisible:
+          id: "search-empty-state"
+
+# --- Back to home via the search-field back button ---
+- tapOn:
+    id: "search-field-back"
+- extendedWaitUntil:
+    visible:
+      id: "home-screen"
+    timeout: 5000

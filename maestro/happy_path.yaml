@@ -1,0 +1,82 @@
+# Happy path — splash → login (auto-skipped via seeded tokens) → all 4 tabs → long-press → filter overlay.
+# Cold-start seeds via launchApp.arguments (Maestro 2.4+); seed action also writes fake auth tokens
+# so the empty-state branch (which is auth-gated, not data-gated) doesn't fire.
+appId: com.github.jayteealao.crumbs
+---
+- launchApp:
+    arguments:
+      debug_action: "seed"
+      wipe: true
+- extendedWaitUntil:
+    visible:
+      id: "splash-screen"
+    timeout: 5000
+- runFlow:
+    when:
+      visible:
+        id: "login-screen"
+    commands:
+      - tapOn:
+          id: "login-skip-auth"
+- extendedWaitUntil:
+    visible:
+      id: "home-screen"
+    timeout: 10000
+
+# --- Tab traversal ---
+- tapOn:
+    id: "nav-tab-twitter"
+- extendedWaitUntil:
+    visible:
+      id: "twitter-bookmarks-screen"
+    timeout: 5000
+
+- tapOn:
+    id: "nav-tab-reddit"
+- extendedWaitUntil:
+    visible:
+      id: "reddit-bookmarks-screen"
+    timeout: 5000
+
+- tapOn:
+    id: "nav-tab-all"
+- extendedWaitUntil:
+    visible:
+      id: "all-bookmarks-screen"
+    timeout: 5000
+
+- tapOn:
+    id: "nav-tab-map"
+- assertVisible: "COMING SOON"
+
+- tapOn:
+    id: "nav-tab-all"
+- extendedWaitUntil:
+    visible:
+      id: "all-bookmarks-feed"
+    timeout: 5000
+
+# --- Long-press → popup → DELETE → snackbar ---
+# Popup renders via Compose Popup{} primitive — children unreachable by testTag from Maestro
+# (separate Window). Text-based selectors target the visible action labels instead.
+- longPressOn:
+    id: "bookmark-card"
+    index: 0
+- extendedWaitUntil:
+    visible: "DELETE"
+    timeout: 3000
+- tapOn: "DELETE"
+
+# --- Filter overlay toggle ---
+- tapOn:
+    id: "filter-bar-cell"
+- extendedWaitUntil:
+    visible:
+      id: "filter-overlay"
+    timeout: 3000
+- tapOn:
+    id: "filter-overlay-chip-article"
+- tapOn:
+    id: "filter-overlay-apply"
+- assertNotVisible:
+    id: "filter-overlay"

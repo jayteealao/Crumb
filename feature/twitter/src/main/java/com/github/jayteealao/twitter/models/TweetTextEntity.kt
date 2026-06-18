@@ -38,6 +38,13 @@ data class TweetTextEntityAnnotation(
     val tag: String?,
     val title: String?,
     val description: String?,
+    // Link-preview thumbnail URL — the destination page's `og:image`, written
+    // server-side by the link-enrichment function (title/description are stored
+    // here too). Nullable: best-effort enrichment means a link with no obtainable
+    // image degrades to a URL-only chip. Added in Room migration v16.
+    @ColumnInfo(name = "image_url")
+    @SerializedName("image_url")
+    val imageUrl: String? = null,
     val url: String?,
     @ColumnInfo(name = "expanded_url")
     @SerializedName("expanded_url")

@@ -1,21 +1,32 @@
 plugins {
     id 'com.android.library'
-    id 'org.jetbrains.kotlin.android'
     id 'org.jetbrains.kotlin.plugin.compose'
     id 'com.google.devtools.ksp'
     id 'com.google.dagger.hilt.android'
+    id 'io.github.takahirom.roborazzi' version '1.60.0'
 }
+
+def twitterLocalProps = new Properties()
+def twitterLocalFile = rootProject.file('local.properties')
+if (twitterLocalFile.exists()) {
+    twitterLocalProps.load(twitterLocalFile.newReader())
+}
+def twitterClientId = twitterLocalProps.getProperty('twitter.clientId', '')
+def twitterClientSecret = twitterLocalProps.getProperty('twitter.clientSecret', '')
 
 android {
     namespace 'com.github.jayteealao.twitter'
-    compileSdk 34
+    compileSdk 36
 
     defaultConfig {
 //        applicationId "com.github.jayteealao.twitter"
         minSdk 24
-        targetSdk 34
+        targetSdk 35
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField "String", "TWITTER_CLIENT_ID", "\"${twitterClientId}\""
+        buildConfigField "String", "TWITTER_CLIENT_SECRET", "\"${twitterClientSecret}\""
     }
 
     buildTypes {
@@ -25,43 +36,56 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-    kotlinOptions {
-        jvmTarget = '1.8'
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+        // Enables java.time (Instant/DateTimeFormatter) on minSdk 24 via library desugaring.
+        coreLibraryDesugaringEnabled true
     }
 
     buildFeatures {
         compose true
-    }
-    composeOptions {
-        kotlinCompilerExtensionVersion '1.5.15'
+        buildConfig true
     }
     packagingOptions {
         resources {
             excludes += '/META-INF/{AL2.0,LGPL2.1}'
         }
     }
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+            returnDefaultValues = true
+        }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
 }
 
 dependencies {
 
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
+
     implementation(project(":core:pref"))
     implementation(project(":core:models"))
     implementation(project(":core:designsystem"))
+    implementation(project(":core:data"))
 
+    implementation(platform(libs.compose.bom))
     implementation(libs.bundles.androidx)
     implementation(libs.bundles.composeInterop)
     implementation(libs.bundles.compose)
-    implementation "androidx.compose.material3:material3:1.3.0"
+    implementation(libs.compose.material3)
 //    room
     implementation(libs.bundles.room)
     ksp(libs.room.compiler)
 
 //    hilt
-    implementation "com.google.dagger:hilt-android:2.50"
-    ksp "com.google.dagger:hilt-compiler:2.50"
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
 
 //    retrofit
     implementation(libs.bundles.retrofit)
@@ -70,9 +94,9 @@ dependencies {
 //    implementation "androidx.datastore:datastore-preferences:1.0.0"
 
 //    coil
-    implementation("io.coil-kt:coil-compose:2.2.2")
-    implementation "com.github.Commit451.coil-transformations:transformations:2.0.2"
-    implementation "com.github.Commit451.coil-transformations:transformations-gpu:2.0.2"
+    implementation(libs.coil.compose)
+    implementation(libs.coil.transformations)
+    implementation(libs.coil.transformations.gpu)
 
 //    timber
     implementation(libs.timber)
@@ -80,25 +104,41 @@ dependencies {
 //    firebase
     implementation platform(libs.firebase.bom)
     implementation libs.firebase.firestore
+    implementation libs.firebase.auth
+    implementation libs.firebase.functions
+
+//    chrome custom tabs (for X OAuth Custom Tab launch)
+    implementation libs.androidx.browser
 
 //    arrow-optics
-    implementation "io.arrow-kt:arrow-optics:$arrowVersion"
+    implementation(libs.arrow.optics)
 
-//    accompanist
-    implementation "com.google.accompanist:accompanist-pager:0.27.0"
-    implementation "com.google.accompanist:accompanist-pager-indicators:0.27.0"
-
-//    media3-exoplayer
-    implementation("androidx.media3:media3-exoplayer:1.0.0-beta02")
-    implementation("androidx.media3:media3-ui:1.0.0-beta02")
-
-//    chrome custom tabs
-//    implementation "androidx.browser:browser:1.4.0"
+//    media3-exoplayer (HLS + DASH modules on the classpath so DefaultMediaSourceFactory's
+//    ServiceLoader can resolve adaptive sources for video tweets)
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.exoplayer.hls)
+    implementation(libs.media3.exoplayer.dash)
+    implementation(libs.media3.ui)
+    implementation(libs.media3.ui.compose)
 
     testImplementation 'junit:junit:4.13.2'
+    testImplementation(libs.roborazzi.core)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.roborazzi.junit.rule)
+    testImplementation(libs.robolectric)
+    testImplementation(platform(libs.compose.bom))
+    testImplementation 'androidx.compose.ui:ui-test-junit4'
+    testImplementation 'androidx.activity:activity-compose:1.8.2'
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation 'io.mockk:mockk-android:1.13.10'
+    testImplementation 'io.mockk:mockk:1.13.10'
+    // JVM ExoPlayer (TestExoPlayerBuilder) for the single-player lifecycle invariant test.
+    testImplementation(libs.media3.test.utils.robolectric)
     androidTestImplementation 'androidx.test.ext:junit:1.1.4'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.0'
-    androidTestImplementation "androidx.compose.ui:ui-test-junit4:$compose_ui_version"
-    debugImplementation "androidx.compose.ui:ui-tooling:$compose_ui_version"
-    debugImplementation "androidx.compose.ui:ui-test-manifest:$compose_ui_version"
+    androidTestImplementation(platform(libs.compose.bom))
+    androidTestImplementation(libs.compose.uiTestJunit4)
+    debugImplementation(platform(libs.compose.bom))
+    debugImplementation(libs.compose.uiToolingDebug)
+    debugImplementation(libs.compose.uiTestManifest)
 }

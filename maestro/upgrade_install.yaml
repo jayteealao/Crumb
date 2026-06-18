@@ -1,0 +1,37 @@
+# Upgrade-install migration — seeds synthetic legacy X access/refresh tokens then
+# cold-launches the app. CrumbApplication.onCreate enqueues XTokenMigrationWorker
+# which uploads the legacy refresh token to migrateXToken, clears the local Prefs,
+# and flips X_TOKEN_MIGRATED=true. The home screen renders as soon as Firebase
+# Auth is satisfied — no UI assertion on the worker itself (Robolectric covers
+# the worker logic; this flow asserts the brutalist UI does not crash and the
+# migration runs in the background without blocking the user).
+appId: com.github.jayteealao.crumbs
+---
+- launchApp:
+    clearState: true
+    arguments:
+      debug_action: "seed_legacy_x_tokens"
+- runFlow:
+    when:
+      visible:
+        id: "login-screen"
+    commands:
+      - tapOn:
+          id: "login-skip-auth"
+- extendedWaitUntil:
+    visible:
+      id: "home-screen"
+    timeout: 15000
+- takeScreenshot: upgrade_install_01_home
+# Worker fires in CrumbApplication.onCreate; the callable round-trip needs network
+# and a signed-in user, so this assertion is `optional` — Robolectric proves the
+# logic; this just confirms the UI did not crash while the worker ran.
+- tapOn:
+    id: "nav-tab-settings"
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: "settings-x-state"
+    timeout: 10000
+    optional: true
+- takeScreenshot: upgrade_install_02_settings

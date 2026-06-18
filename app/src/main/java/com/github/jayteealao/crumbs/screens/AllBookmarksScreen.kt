@@ -1,347 +1,379 @@
 package com.github.jayteealao.crumbs.screens
 
 import android.content.Intent
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.LocalOffer
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
 import androidx.paging.LoadState
+import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
-import androidx.paging.compose.items
+import androidx.paging.compose.itemKey
+import com.github.jayteealao.crumbs.Screens
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsBookmarkCard
 import com.github.jayteealao.crumbs.designsystem.components.EmptyState
 import com.github.jayteealao.crumbs.designsystem.components.LoadingCard
-import com.github.jayteealao.crumbs.designsystem.components.QuickAction
-import com.github.jayteealao.crumbs.designsystem.components.QuickActionMenu
-import com.github.jayteealao.crumbs.designsystem.components.TagEditorDialog
+import com.github.jayteealao.crumbs.designsystem.components.BookmarkActionsOverlay
+import com.github.jayteealao.crumbs.designsystem.components.rememberLongPressState
+import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
+import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsTypography
 import com.github.jayteealao.crumbs.models.Bookmark
 import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.models.ContentType
 import com.github.jayteealao.reddit.models.RedditPostData
 import com.github.jayteealao.reddit.screens.RedditViewModel
+import com.github.jayteealao.reddit.screens.toBookmark
 import com.github.jayteealao.twitter.models.TweetData
 import com.github.jayteealao.twitter.screens.BookmarksViewModel
 import com.github.jayteealao.twitter.screens.LoginViewModel
 import com.github.jayteealao.twitter.screens.toBookmark
+import kotlinx.collections.immutable.toImmutableList
+import timber.log.Timber
+
+@androidx.compose.runtime.Immutable
+data class AllBookmarksUiState(
+    val twitterConnected: Boolean = false,
+    val redditConnected: Boolean = false,
+    val tagsMap: Map<String, List<String>> = emptyMap(),
+)
 
 /**
- * Screen displaying all bookmarks from both Twitter and Reddit sources
+ * Unified feed that interleaves Twitter and Reddit bookmarks in a single scrollable list.
+ * Shows an empty-state prompt when neither source is connected, or per-section loading /
+ * error states as paged data loads.
+ *
+ * @param uiState Connection flags for each source and the shared tag map.
+ * @param twitterItems Paged Twitter bookmark data, or `null` when Twitter is not connected.
+ * @param redditItems Paged Reddit bookmark data, or `null` when Reddit is not connected.
+ * @param onCardClick Called with the source URL when the user taps a bookmark card.
+ * @param onLongPress Called with the [Bookmark] and screen-space anchor when the user long-presses a card.
+ * @param onConnectAccountClick Called when the user taps the connect-account CTA in the empty state.
+ * @param onLoadTags Called with a single bookmark id to lazily load its tags (legacy path).
+ * @param onLoadTwitterTags Called with a batch of Twitter bookmark ids when a new page snapshot is available.
+ * @param onLoadRedditTags Called with a batch of Reddit bookmark ids when a new page snapshot is available.
  */
 @Composable
 fun AllBookmarksScreen(
-    loginViewModel: LoginViewModel = hiltViewModel(),
-    redditViewModel: RedditViewModel = hiltViewModel(),
-    bookmarksViewModel: BookmarksViewModel = hiltViewModel()
+    uiState: AllBookmarksUiState,
+    twitterItems: LazyPagingItems<TweetData>?,
+    redditItems: LazyPagingItems<RedditPostData>?,
+    onCardClick: (String) -> Unit,
+    onLongPress: (Bookmark, Offset) -> Unit,
+    onConnectAccountClick: () -> Unit,
+    onLoadTags: (String) -> Unit,
+    onLoadTwitterTags: (List<String>) -> Unit,
+    onLoadRedditTags: (List<String>) -> Unit,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
-
-    // Twitter bookmarks
-    val twitterPosts = bookmarksViewModel.pagingFlowData().collectAsLazyPagingItems()
-    val twitterLoggedIn by loginViewModel.isAccessTokenAvailable.collectAsState()
-
-    // Reddit bookmarks
-    val redditPosts = redditViewModel.pagingFlowData().collectAsLazyPagingItems()
-    val redditLoggedIn by redditViewModel.isAccessTokenAvailable.collectAsState()
-
-    // Tags
-    val tagsMap by bookmarksViewModel.tagsForTweet.collectAsState()
-    val allTags by bookmarksViewModel.allTags.collectAsState()
-
-    // Quick actions state
-    var showQuickActions by remember { mutableStateOf(false) }
-    var selectedBookmark by remember { mutableStateOf<Bookmark?>(null) }
-    var selectedBookmarkId by remember { mutableStateOf<String?>(null) }
-    var showTagEditor by remember { mutableStateOf(false) }
-
-    // Check if either service is logged in
-    val hasAnySource = twitterLoggedIn || redditLoggedIn
+    val hasAnySource = uiState.twitterConnected || uiState.redditConnected
+    val typography = LocalCrumbsTypography.current
+    val colors = LocalCrumbsColors.current
 
     if (!hasAnySource) {
-        // No sources connected
         EmptyState(
-            title = "No Sources Connected",
-            message = "Connect to Twitter or Reddit to see your bookmarks here",
+            title = "NO CRUMBS YET",
+            message = "Connect an account to start saving bookmarks.",
+            actionText = "CONNECT AN ACCOUNT",
+            onActionClick = onConnectAccountClick,
+            modifier = modifier
+                .testTag("all-bookmarks-empty"),
+        )
+        return
+    }
+
+    // Single batch tag load per page-snapshot change — replaces per-item LaunchedEffect.
+    val twitterIds = remember(twitterItems?.itemSnapshotList) {
+        twitterItems?.itemSnapshotList?.mapNotNull { it?.tweet?.id } ?: emptyList()
+    }
+    LaunchedEffect(twitterIds) {
+        if (twitterIds.isNotEmpty()) onLoadTwitterTags(twitterIds)
+    }
+
+    val redditIds = remember(redditItems?.itemSnapshotList) {
+        redditItems?.itemSnapshotList?.mapNotNull { it?.post?.id } ?: emptyList()
+    }
+    LaunchedEffect(redditIds) {
+        if (redditIds.isNotEmpty()) onLoadRedditTags(redditIds)
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .testTag("all-bookmarks-screen"),
+    ) {
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp)
-        )
-    } else {
-        Box(modifier = Modifier.fillMaxSize()) {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Twitter Section
-                if (twitterLoggedIn) {
-                    // Twitter section header
-                    item {
-                        Text(
-                            text = "Twitter",
-                            style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
-                        )
-                    }
-
-                    // Twitter loading state
-                    when (twitterPosts.loadState.refresh) {
-                        is LoadState.Loading -> {
-                            items(3) {
-                                LoadingCard(
-                                    hasImage = it % 2 == 0,
-                                    modifier = Modifier.padding(horizontal = 16.dp)
-                                )
-                            }
-                        }
-                        is LoadState.Error -> {
-                            item {
-                                EmptyState(
-                                    title = "Error loading Twitter bookmarks",
-                                    message = "Something went wrong. Pull to refresh to try again.",
-                                    modifier = Modifier.padding(16.dp)
-                                )
-                            }
-                        }
-                        else -> Unit
-                    }
-
-                    // Twitter posts
-                    items(
-                        twitterPosts,
-                        key = { "twitter_${it.tweet.id}" }
-                    ) { tweetData ->
-                        if (tweetData != null) {
-                            LaunchedEffect(tweetData.tweet.id) {
-                                bookmarksViewModel.loadTagsForTweet(tweetData.tweet.id)
-                            }
-
-                            val tags = tagsMap[tweetData.tweet.id] ?: emptyList()
-                            val bookmark = tweetData.toBookmark(tags)
-
-                            CrumbsBookmarkCard(
-                                bookmark = bookmark,
-                                onCardClick = { url ->
-                                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
-                                    context.startActivity(intent)
-                                },
-                                onLongPress = {
-                                    selectedBookmark = bookmark
-                                    selectedBookmarkId = tweetData.tweet.id
-                                    showQuickActions = true
-                                },
-                                modifier = Modifier.padding(horizontal = 16.dp)
-                            )
-                        }
-                    }
-
-                    // Twitter empty state (if no items but loaded)
-                    if (twitterPosts.loadState.refresh is LoadState.NotLoading && twitterPosts.itemCount == 0) {
-                        item {
-                            EmptyState(
-                                title = "No Twitter bookmarks yet",
-                                message = "Start bookmarking tweets to see them here",
-                                modifier = Modifier.padding(16.dp)
-                            )
-                        }
-                    }
-                }
-
-                // Reddit Section
-                if (redditLoggedIn) {
-                    // Reddit section header
-                    item {
-                        Text(
-                            text = "Reddit",
-                            style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
-                        )
-                    }
-
-                    // Reddit loading state
-                    when (redditPosts.loadState.refresh) {
-                        is LoadState.Loading -> {
-                            items(3) {
-                                LoadingCard(
-                                    hasImage = it % 2 == 0,
-                                    modifier = Modifier.padding(horizontal = 16.dp)
-                                )
-                            }
-                        }
-                        is LoadState.Error -> {
-                            item {
-                                EmptyState(
-                                    title = "Error loading Reddit posts",
-                                    message = "Something went wrong. Pull to refresh to try again.",
-                                    modifier = Modifier.padding(16.dp)
-                                )
-                            }
-                        }
-                        else -> Unit
-                    }
-
-                    // Reddit posts
-                    items(
-                        redditPosts,
-                        key = { "reddit_${it.post.id}" }
-                    ) { postData ->
-                        if (postData != null) {
-                            LaunchedEffect(postData.post.id) {
-                                bookmarksViewModel.loadTagsForTweet(postData.post.id)
-                            }
-
-                            val tags = tagsMap[postData.post.id] ?: emptyList()
-                            val bookmark = postData.toBookmark(tags)
-
-                            CrumbsBookmarkCard(
-                                bookmark = bookmark,
-                                onCardClick = { url ->
-                                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
-                                    context.startActivity(intent)
-                                },
-                                onLongPress = {
-                                    selectedBookmark = bookmark
-                                    selectedBookmarkId = postData.post.id
-                                    showQuickActions = true
-                                },
-                                modifier = Modifier.padding(horizontal = 16.dp)
-                            )
-                        }
-                    }
-
-                    // Reddit empty state (if no items but loaded)
-                    if (redditPosts.loadState.refresh is LoadState.NotLoading && redditPosts.itemCount == 0) {
-                        item {
-                            EmptyState(
-                                title = "No Reddit posts yet",
-                                message = "Start saving Reddit posts to see them here",
-                                modifier = Modifier.padding(16.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Quick action menu
-            if (showQuickActions && selectedBookmark != null && selectedBookmarkId != null) {
-                QuickActionMenu(
-                    visible = showQuickActions,
-                    onDismiss = { showQuickActions = false },
-                    actions = listOf(
-                        QuickAction(
-                            label = "Add Tags",
-                            icon = Icons.Default.LocalOffer
-                        ) {
-                            showTagEditor = true
-                        },
-                        QuickAction(
-                            label = "Open URL",
-                            icon = Icons.Default.Language
-                        ) {
-                            val url = selectedBookmark!!.sourceUrl
-                            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
-                            context.startActivity(intent)
-                        },
-                        QuickAction(
-                            label = "Share",
-                            icon = Icons.Default.Share
-                        ) {
-                            val url = selectedBookmark!!.sourceUrl
-                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, url)
-                            }
-                            context.startActivity(Intent.createChooser(shareIntent, "Share bookmark"))
-                        }
+                .testTag("all-bookmarks-feed"),
+            contentPadding = contentPadding,
+        ) {
+            if (uiState.twitterConnected && twitterItems != null) {
+                item("twitter-header") {
+                    Text(
+                        text = "TWITTER",
+                        style = typography.titleSection,
+                        color = colors.ink,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
                     )
+                }
+                renderPagingSection(
+                    items = twitterItems,
+                    tagsMap = uiState.tagsMap,
+                    onCardClick = onCardClick,
+                    onLongPress = onLongPress,
+                    idOf = { it.tweet.id },
+                    toBookmark = { item, tags -> item.toBookmark(tags) },
+                    emptyTitle = "NO TWITTER CRUMBS YET",
+                    emptyMessage = "Start saving tweets to see them here.",
                 )
             }
-
-            // Tag editor dialog
-            if (showTagEditor && selectedBookmarkId != null) {
-                val currentTags = tagsMap[selectedBookmarkId!!] ?: emptyList()
-
-                TagEditorDialog(
-                    isVisible = showTagEditor,
-                    currentTags = currentTags,
-                    availableTags = allTags,
-                    onDismiss = {
-                        showTagEditor = false
-                        showQuickActions = false
-                    },
-                    onSave = { newTags ->
-                        bookmarksViewModel.saveTags(selectedBookmarkId!!, newTags)
-                        showTagEditor = false
-                        showQuickActions = false
-                    }
+            if (uiState.redditConnected && redditItems != null) {
+                item("reddit-header") {
+                    Text(
+                        text = "REDDIT",
+                        style = typography.titleSection,
+                        color = colors.ink,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
+                renderPagingSection(
+                    items = redditItems,
+                    tagsMap = uiState.tagsMap,
+                    onCardClick = onCardClick,
+                    onLongPress = onLongPress,
+                    idOf = { it.post.id },
+                    toBookmark = { item, tags -> item.toBookmark(tags) },
+                    emptyTitle = "NO REDDIT CRUMBS YET",
+                    emptyMessage = "Start saving Reddit posts to see them here.",
                 )
             }
         }
     }
 }
 
-/**
- * Convert RedditPostData to Bookmark model for display
- */
-private fun RedditPostData.toBookmark(tags: List<String> = emptyList()): Bookmark {
-    // Determine content type
-    val contentType = when {
-        post.isVideo -> ContentType.Video
-        post.thumbnail != null && post.thumbnail !in listOf("self", "default", "nsfw") -> ContentType.Image
-        !post.isSelf -> ContentType.Link
-        else -> ContentType.Text
+private fun <T : Any> androidx.compose.foundation.lazy.LazyListScope.renderPagingSection(
+    items: LazyPagingItems<T>,
+    tagsMap: Map<String, List<String>>,
+    onCardClick: (String) -> Unit,
+    onLongPress: (Bookmark, Offset) -> Unit,
+    idOf: (T) -> String,
+    toBookmark: (T, List<String>) -> Bookmark,
+    emptyTitle: String,
+    emptyMessage: String,
+) {
+    when (items.loadState.refresh) {
+        is LoadState.Loading -> items(3) {
+            LoadingCard(
+                hasImage = it % 2 == 0,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+        }
+        is LoadState.Error -> item("error") {
+            EmptyState(
+                title = "ERROR LOADING CRUMBS",
+                message = "SOMETHING WENT WRONG. PULL TO REFRESH TO TRY AGAIN.",
+                modifier = Modifier.padding(16.dp),
+            )
+        }
+        else -> Unit
     }
+    items(
+        count = items.itemCount,
+        key = items.itemKey { idOf(it) },
+    ) { index ->
+        val item = items[index]
+        if (item != null) {
+            val id = idOf(item)
+            val tags = tagsMap[id] ?: emptyList()
+            val bookmark = toBookmark(item, tags)
+            CrumbsBookmarkCard(
+                bookmark = bookmark,
+                onCardClick = onCardClick,
+                onLongPress = onLongPress,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            )
+        }
+    }
+    if (items.loadState.refresh is LoadState.NotLoading && items.itemCount == 0) {
+        item("empty") {
+            EmptyState(
+                title = emptyTitle,
+                message = emptyMessage,
+                modifier = Modifier.padding(16.dp),
+            )
+        }
+    }
+}
 
-    // Get image URL from thumbnail or URL (if image post)
-    val imageUrl = if (post.thumbnail != null && post.thumbnail !in listOf("self", "default", "nsfw")) {
-        post.thumbnail
-    } else if (contentType == ContentType.Image) {
-        post.url
-    } else null
+// Route — owns Hilt ViewModel injection, paging, popup state, tag editor.
 
-    // Video URL
-    val videoUrl = if (post.isVideo) post.url else null
+/**
+ * Navigation entry point for the "All" tab inside [HomeScreen]. Injects ViewModels, collects
+ * paged data from both sources, and manages the long-press [BookmarkActionsOverlay] for open,
+ * share, delete, and tag-edit actions.
+ *
+ * @param contentPadding Padding from the parent scaffold passed down to the lazy list.
+ * @param loginViewModel Provides Twitter login state.
+ * @param redditViewModel Provides Reddit login state and paging data.
+ * @param bookmarksViewModel Provides Twitter paging data and tag operations.
+ * @param navController Used to navigate to the login screen from the empty-state CTA.
+ */
+@Composable
+fun AllBookmarksRoute(
+    contentPadding: PaddingValues,
+    loginViewModel: LoginViewModel = hiltViewModel(),
+    redditViewModel: RedditViewModel = hiltViewModel(),
+    bookmarksViewModel: BookmarksViewModel = hiltViewModel(),
+    navController: NavController? = null,
+) {
+    val context = LocalContext.current
 
-    // Timestamp (Reddit uses Unix timestamp in seconds, we need milliseconds)
-    val timestamp = post.createdUtc * 1000
+    val twitterItems = bookmarksViewModel.pagingFlowData().collectAsLazyPagingItems()
+    val twitterLoggedIn by loginViewModel.isAccessTokenAvailable.collectAsStateWithLifecycle()
+    val redditItems = redditViewModel.pagingFlowData().collectAsLazyPagingItems()
+    val redditLoggedIn by redditViewModel.isAccessTokenAvailable.collectAsStateWithLifecycle()
 
-    return Bookmark(
-        id = post.id,
-        source = BookmarkSource.Reddit,
-        author = "u/${post.author}",
-        title = post.title,
-        previewText = if (post.selftext.isNotBlank()) post.selftext else post.title,
-        imageUrl = imageUrl,
-        videoUrl = videoUrl,
-        contentType = contentType,
-        savedAt = timestamp,
-        tags = tags,
-        isThread = false,
-        threadCount = 1,
-        isDeleted = false,
-        sourceUrl = "https://reddit.com${post.permalink}"
+    val twitterTagsMap by bookmarksViewModel.tagsForTweet.collectAsStateWithLifecycle()
+    val redditTagsMap by redditViewModel.tagsForTweet.collectAsStateWithLifecycle()
+    val allTags by bookmarksViewModel.allTags.collectAsStateWithLifecycle()
+    // Twitter and Reddit ids occupy disjoint namespaces, so this union is collision-free.
+    // Merging both maps lets Reddit bookmarks resolve their own chips on the mixed ALL
+    // feed — previously every id was routed through the Twitter-only tag query.
+    val tagsMap = twitterTagsMap + redditTagsMap
+
+    val lps = rememberLongPressState()
+
+    AllBookmarksScreen(
+        uiState = AllBookmarksUiState(
+            twitterConnected = twitterLoggedIn,
+            redditConnected = redditLoggedIn,
+            tagsMap = tagsMap,
+        ),
+        twitterItems = if (twitterLoggedIn) twitterItems else null,
+        redditItems = if (redditLoggedIn) redditItems else null,
+        onCardClick = { url ->
+            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+            context.startActivity(intent)
+        },
+        onLongPress = { bookmark, offset ->
+            lps.bookmark = bookmark
+            lps.anchor = offset
+        },
+        onConnectAccountClick = {
+            navController?.navigate(Screens.LOGINSCREEN.name)
+        },
+        onLoadTags = { id -> bookmarksViewModel.loadTagsForTweet(id) },
+        onLoadTwitterTags = { ids -> bookmarksViewModel.loadTagsForItems(ids) },
+        onLoadRedditTags = { ids -> redditViewModel.loadTagsForItems(ids) },
+        contentPadding = contentPadding,
     )
+
+    val activeBookmark = lps.bookmark
+    BookmarkActionsOverlay(
+        visible = activeBookmark != null,
+        bookmark = activeBookmark,
+        currentTags = (tagsMap[activeBookmark?.id] ?: emptyList()).toImmutableList(),
+        availableTags = allTags.toImmutableList(),
+        onDismiss = { lps.dismiss() },
+        onActionSelect = { action ->
+            val b = activeBookmark ?: return@BookmarkActionsOverlay
+            // Dismiss the overlay before running the action so it doesn't linger
+            // on screen behind the launched intent / completed mutation.
+            lps.dismiss()
+            when (action.id) {
+                "open" -> {
+                    Timber.d("AllBookmarks long-press: OPEN")
+                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(b.sourceUrl))
+                    context.startActivity(intent)
+                }
+                "share" -> {
+                    Timber.d("AllBookmarks long-press: SHARE")
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, b.sourceUrl)
+                    }
+                    context.startActivity(Intent.createChooser(shareIntent, "Share bookmark"))
+                }
+                "delete" -> {
+                    Timber.d("AllBookmarks long-press: DELETE")
+                    when (b.source) {
+                        BookmarkSource.Twitter -> bookmarksViewModel.softDelete(b.id)
+                        BookmarkSource.Reddit -> redditViewModel.softDelete(b.id)
+                    }
+                }
+            }
+        },
+        onTagsSave = { tags ->
+            // Source-route the save so Reddit tags do not land in the Twitter
+            // cross-ref (whose FK to tweetEntity would crash).
+            val b = activeBookmark ?: return@BookmarkActionsOverlay
+            when (b.source) {
+                BookmarkSource.Twitter -> bookmarksViewModel.saveTags(b.id, tags.toList())
+                BookmarkSource.Reddit -> redditViewModel.saveTags(b.id, tags.toList())
+            }
+        },
+    )
+}
+
+// `RedditPostData.toBookmark` lives in feature/reddit
+// (com.github.jayteealao.reddit.screens.toBookmark). Importing it here keeps
+// the conversion logic single-sourced — the duplicate that used to live below
+// drifted from the reddit copy and is removed.
+
+@Preview(name = "AllBookmarks Empty Light", showBackground = true)
+@Composable
+private fun PreviewAllBookmarksEmptyLight() {
+    CrumbsTheme(darkTheme = false) {
+        AllBookmarksScreen(
+            uiState = AllBookmarksUiState(),
+            twitterItems = null,
+            redditItems = null,
+            onCardClick = {},
+            onLongPress = { _, _ -> },
+            onConnectAccountClick = {},
+            onLoadTags = {},
+            onLoadTwitterTags = {},
+            onLoadRedditTags = {},
+        )
+    }
+}
+
+@Preview(name = "AllBookmarks Empty Dark", showBackground = true)
+@Composable
+private fun PreviewAllBookmarksEmptyDark() {
+    CrumbsTheme(darkTheme = true) {
+        AllBookmarksScreen(
+            uiState = AllBookmarksUiState(),
+            twitterItems = null,
+            redditItems = null,
+            onCardClick = {},
+            onLongPress = { _, _ -> },
+            onConnectAccountClick = {},
+            onLoadTags = {},
+            onLoadTwitterTags = {},
+            onLoadRedditTags = {},
+        )
+    }
 }

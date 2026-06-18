@@ -23,6 +23,13 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object RedditNetworkModule {
 
+    // OkHttpClient was previously provided by the deleted Twitter NetworkModule.
+    // Reddit is now the only HTTP consumer in the app, so the singleton lives
+    // here. No interceptors needed — Reddit-side auth is handled per-request.
+    @Provides
+    @Singleton
+    fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder().build()
+
     /**
      * Provide Retrofit for Reddit API
      */
