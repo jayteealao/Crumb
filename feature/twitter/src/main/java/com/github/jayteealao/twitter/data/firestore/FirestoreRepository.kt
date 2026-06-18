@@ -24,6 +24,17 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 
+/**
+ * Sort keys lifted per tweet doc for feed-aligned sync ordering. [retrievedAtMillis]
+ * is null for legacy docs written before the `retrievedAt` field existed; those
+ * sort last, mirroring the SQL feed's `retrieved_at DESC` NULLs-last behaviour.
+ */
+private data class TweetSortKey(
+    val id: String,
+    val retrievedAtMillis: Long?,
+    val createdAt: String,
+)
+
 @Singleton
 class FirestoreRepository @Inject constructor(
     private val db: FirebaseFirestore,
@@ -122,22 +133,28 @@ class FirestoreRepository @Inject constructor(
     }
 
     /**
-     * Sibling of [getAllTweetIds] that lifts each doc's `createdAt` alongside the
-     * tweet id, so the orchestrator can sort missing ids by `createdAt DESC`
-     * before chunking — newest tweets land in Room first and the Twitter tab
-     * paints within seconds of sign-in instead of waiting for the whole drain.
+     * Sibling of [getAllTweetIds] that lifts each doc's sort keys (`retrievedAt`
+     * and `createdAt`) alongside the tweet id, so the orchestrator can order
+     * missing ids to MATCH THE FEED (`retrievedAt DESC, createdAt DESC`) before
+     * chunking — the head of the feed lands in Room first and paints within
+     * seconds of sign-in instead of waiting for the whole drain.
      *
-     * Orders by `createdAt DESC, __name__ ASC` so the secondary order key
-     * disambiguates docs sharing the same server timestamp (common when a
-     * single poll batch lands 30 docs with identical `serverTimestamp()`
-     * values). The DocumentSnapshot-based `startAfter(lastDoc)` is stable
-     * across pages.
+     * Firestore ENUMERATION deliberately stays ordered by `createdAt DESC,
+     * __name__ ASC` (NOT `retrievedAt`): `createdAt` is present on every tweet
+     * doc, whereas legacy bookmarks predate the `retrievedAt` field — and a
+     * Firestore `orderBy` SILENTLY EXCLUDES docs missing the ordered field, which
+     * would drop those legacy bookmarks from the sync entirely. We therefore
+     * enumerate by the always-present `createdAt` (covered by the existing
+     * composite index, no new index required) and re-sort in memory to the feed
+     * order in [fetchTweetsNotInLocalStream], with NULL `retrievedAt` sorting
+     * last (mirroring the SQL `retrieved_at DESC` NULLs-last). The secondary
+     * `__name__ ASC` key keeps `startAfter(lastDoc)` paging stable across pages.
      */
-    suspend fun getAllTweetIdsWithCreatedAt(): List<Pair<String, String>> =
+    private suspend fun getAllTweetIdsWithSortKeys(): List<TweetSortKey> =
         withContext(Dispatchers.IO) {
             val uid = requireUid()
             try {
-                val result = mutableListOf<Pair<String, String>>()
+                val result = mutableListOf<TweetSortKey>()
                 var lastDoc: com.google.firebase.firestore.DocumentSnapshot? = null
                 var safetyHops = 0
                 var docsRead = 0
@@ -157,13 +174,15 @@ class FirestoreRepository @Inject constructor(
                         if (doc.getBoolean("referenced") == true) return@forEach
                         val id = doc.getString("tweetId") ?: return@forEach
                         val createdAt = doc.getString("createdAt") ?: ""
-                        result.add(id to createdAt)
+                        // serverTimestamp() field; null on legacy docs predating it.
+                        val retrievedAtMillis = doc.getTimestamp("retrievedAt")?.toDate()?.time
+                        result.add(TweetSortKey(id, retrievedAtMillis, createdAt))
                     }
                     lastDoc = snapshot.documents.last()
                     safetyHops++
                     if (snapshot.documents.size < READ_PAGE_SIZE) break
                 }
-                Timber.d("getAllTweetIdsWithCreatedAt: ${result.size} ids in $docsRead docs (page-hops=$safetyHops)")
+                Timber.d("getAllTweetIdsWithSortKeys: ${result.size} ids in $docsRead docs (page-hops=$safetyHops)")
                 result
             } catch (e: Exception) {
                 Timber.tag("IncrementalSync").e(e, "incremental_sync_failed reason=fetch_ids exception=${e.javaClass.simpleName}")
@@ -178,9 +197,10 @@ class FirestoreRepository @Inject constructor(
      * incrementally — Room's `InvalidationTracker` then fires per batch and
      * the Paging source paints the newest tweets within seconds.
      *
-     * Ordering: missing ids are sorted `createdAt DESC` before chunking so the
-     * head-of-feed paints first. Same-millisecond ties are broken by tweet id
-     * to keep the cursor encoding stable. Deleted-bookmark tombstones are
+     * Ordering: missing ids are sorted to match the feed query
+     * (`retrievedAt DESC, createdAt DESC`) before chunking so the head-of-feed
+     * paints first; NULL `retrievedAt` (legacy docs) sorts last and tweet id is
+     * the final tiebreaker for a stable cursor. Deleted-bookmark tombstones are
      * subtracted up front so we never spend a batch fetching a doc the user
      * already swiped away.
      *
@@ -193,21 +213,26 @@ class FirestoreRepository @Inject constructor(
         localIds: Set<String>,
         deletedIds: Set<String> = emptySet(),
     ): Flow<List<TweetEntities>> = flow {
-        val allWithCreatedAt = getAllTweetIdsWithCreatedAt()
-        val missing = allWithCreatedAt
-            .filter { (id, _) -> id !in localIds && id !in deletedIds }
+        val all = getAllTweetIdsWithSortKeys()
+        // Match the feed query order (TweetDao: ORDER BY retrieved_at DESC,
+        // created_at DESC) so the head of the feed is fetched and written to Room
+        // first. NULL retrievedAt sorts last (Long.MIN_VALUE) to mirror SQLite's
+        // `retrieved_at DESC` NULLs-last; tweet id is the final stable tiebreaker.
+        val missing = all
+            .filter { it.id !in localIds && it.id !in deletedIds }
             .sortedWith(
-                compareByDescending<Pair<String, String>> { it.second }
-                    .thenBy { it.first }
+                compareByDescending<TweetSortKey> { it.retrievedAtMillis ?: Long.MIN_VALUE }
+                    .thenByDescending { it.createdAt }
+                    .thenBy { it.id }
             )
         if (missing.isEmpty()) {
-            Timber.tag("IncrementalSync").d("stream_empty localIds=${localIds.size} firestoreIds=${allWithCreatedAt.size}")
+            Timber.tag("IncrementalSync").d("stream_empty localIds=${localIds.size} firestoreIds=${all.size}")
             return@flow
         }
         val batches = missing.chunked(30)
         Timber.tag("IncrementalSync").d("stream_start total_missing=${missing.size} batches=${batches.size}")
         batches.forEachIndexed { idx, batch ->
-            val ids = batch.map { it.first }
+            val ids = batch.map { it.id }
             val entities = fetchTweetEntitiesByIds(ids)
             Timber.tag("IncrementalSync")
                 .d("batch_fetched batchIdx=$idx total=${batches.size} requested=${ids.size} returned=${entities.size}")
