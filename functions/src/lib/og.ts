@@ -23,6 +23,13 @@ export interface OpenGraphData {
 
 const FETCH_TIMEOUT_SECONDS = 5;
 const USER_AGENT = "CrumbsLinkPreviewBot/1.0 (+https://graphitenerd.xyz)";
+// Cap the bytes we read per page. OpenGraph/Twitter-card meta tags live in
+// <head>, near the top of the document, so 512 KB is ample. Without this bound,
+// open-graph-scraper buffers the FULL response body — a handful of multi-MB
+// pages fetched concurrently exhausts the function heap (observed: 512 MiB OOM
+// during the bulk link backfill). Streaming + a hard byte cap keeps peak memory
+// bounded regardless of page size. (SUP-4 / PERF-5.)
+const MAX_HTML_BYTES = 512 * 1024;
 
 /**
  * Reject non-http(s) URLs and hosts that resolve to private / loopback /
@@ -70,11 +77,11 @@ export function isSafePublicUrl(rawUrl: string): boolean {
 export async function fetchOpenGraph(url: string): Promise<OpenGraphData> {
   if (!isSafePublicUrl(url)) return {};
   try {
-    const { error, result } = await ogs({
-      url,
-      timeout: FETCH_TIMEOUT_SECONDS,
-      fetchOptions: { headers: { "user-agent": USER_AGENT }, redirect: "error" },
-    });
+    const html = await fetchHtmlCapped(url);
+    if (!html) return {};
+    // Parse the already-fetched (size-bounded) HTML — `html` makes ogs skip its
+    // own unbounded request. `url` is passed only as the base for relative tags.
+    const { error, result } = await ogs({ html, url });
     if (error || !result) return {};
     const r = result as {
       ogTitle?: string;
@@ -94,5 +101,52 @@ export async function fetchOpenGraph(url: string): Promise<OpenGraphData> {
     return out;
   } catch {
     return {};
+  }
+}
+
+/**
+ * Fetch a page's HTML, streaming the body and stopping after [MAX_HTML_BYTES].
+ * Returns `null` on any non-HTML, non-2xx, redirect, or timeout — the caller
+ * treats that as "no preview". `redirect: "error"` preserves the SSRF guard
+ * (a public URL that 3xx-redirects to an internal/metadata host aborts rather
+ * than following). The byte cap is the memory fix: we never buffer more than
+ * ~512 KB per page regardless of Content-Length.
+ */
+async function fetchHtmlCapped(url: string): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_SECONDS * 1000);
+  try {
+    const resp = await fetch(url, {
+      headers: { "user-agent": USER_AGENT, accept: "text/html,application/xhtml+xml" },
+      redirect: "error",
+      signal: controller.signal,
+    });
+    if (!resp.ok || !resp.body) return null;
+    const contentType = (resp.headers.get("content-type") ?? "").toLowerCase();
+    if (!contentType.includes("html")) return null; // skip images/pdf/binary
+    const reader = resp.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    // Read the body to a graceful end, but RETAIN only the first MAX_HTML_BYTES;
+    // excess is drained and dropped so peak memory stays bounded regardless of
+    // page size. We deliberately do NOT call reader.cancel() to stop early: a
+    // mid-stream cancel leaves undici's HTTP/1 parser paused and trips an internal
+    // assertion (assert(!this.paused) in Parser.finish), crashing the instance.
+    // Draining to completion keeps the parser happy; the 5 s abort timeout caps
+    // pathologically large/slow responses.
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value && total < MAX_HTML_BYTES) {
+        const take = Math.min(value.length, MAX_HTML_BYTES - total);
+        chunks.push(take === value.length ? value : value.subarray(0, take));
+        total += take;
+      }
+    }
+    return Buffer.concat(chunks.map((c) => Buffer.from(c))).toString("utf8");
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
   }
 }

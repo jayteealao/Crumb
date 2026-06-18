@@ -11,7 +11,7 @@ module.exports = [
     languageOptions: {
       parser: tsParser,
       parserOptions: { project: ["./tsconfig.json"], sourceType: "module" },
-      globals: { fetch: "readonly", Response: "readonly", URLSearchParams: "readonly", Buffer: "readonly", console: "readonly", process: "readonly", setTimeout: "readonly", clearTimeout: "readonly" },
+      globals: { fetch: "readonly", Response: "readonly", URL: "readonly", URLSearchParams: "readonly", AbortController: "readonly", AbortSignal: "readonly", Buffer: "readonly", console: "readonly", process: "readonly", setTimeout: "readonly", clearTimeout: "readonly" },
     },
     plugins: { "@typescript-eslint": tsPlugin },
     rules: {
@@ -19,6 +19,7 @@ module.exports = [
       "no-console": "error",
       "no-implicit-coercion": "error",
       "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
       // The Node 20 runtime ships fetch via undici. Pulling undici as a direct
       // dependency drifts from what's actually loaded at runtime.
       "no-restricted-imports": [
