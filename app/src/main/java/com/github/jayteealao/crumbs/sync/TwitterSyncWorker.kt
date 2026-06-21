@@ -20,6 +20,7 @@ import com.github.jayteealao.crumbs.data.SyncProgress
 import com.github.jayteealao.crumbs.data.SyncProgressDao
 import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.twitter.data.TwitterSyncFacade
+import com.github.jayteealao.twitter.data.firestore.SyncCursor
 import com.github.jayteealao.twitter.models.tweetEntitiesToOrderLens
 import com.google.firebase.firestore.FirebaseFirestoreException
 import dagger.hilt.android.EntryPointAccessors
@@ -123,14 +124,16 @@ class TwitterSyncWorker(
  * Extracted decision logic — exposed as a top-level suspend so Robolectric
  * tests can exercise every branch without spinning up a Hilt application.
  *
- * Cursor semantics: this implementation streams the full unseen tail
- * client-side (via [TwitterSyncFacade.fetchMissingTweetsStream]) instead
- * of using the persisted high-cursor as a server-side `startAfter` boundary.
- * The persisted cursor still records progress so a kill mid-stream is
- * recoverable, but the next run does a fresh "what's missing locally?" pass.
- * Server-side cursor narrowing is a follow-up — keeping the client-driven
- * filter simple here avoids the same-millisecond ordering gotcha while the
- * verify stage exercises the new pipeline end-to-end.
+ * Cursor semantics: the persisted [SyncProgress] is read once and handed to
+ * [TwitterSyncFacade.fetchMissingTweetsStream] as the resume point, so the
+ * Firestore enumeration is NARROWED to the unsynced tail (server-side
+ * `startAfter` on the backfill, a `retrievedAt` watermark on the incremental
+ * head) instead of re-walking the whole corpus each run. The repository owns the
+ * phase-aware cursor math — a head item's old `createdAt` must not move the
+ * backfill cursor — and emits the cursor to persist with each batch; this worker
+ * just stamps the run-scoped fields (`uid`, batch count, timestamp) and commits
+ * it ATOMICALLY with the batch insert, so a kill mid-stream resumes from the last
+ * committed batch.
  *
  * Concurrency: the upstream Flow is cold and sequential by construction
  * (`flowOn(Dispatchers.IO)` + a forEach in the producer). Do NOT add
@@ -180,15 +183,22 @@ internal suspend fun runTwitterSync(
     }
 
     var batchIdx = priorProgress?.totalBatchesIngested ?: 0
-    var workingHighCreatedAt = priorProgress?.lastHighCursorCreatedAt
-    var workingHighTweetId = priorProgress?.lastHighCursorTweetId
-    var workingLowCreatedAt = priorProgress?.lastLowCursorCreatedAt
-    var workingLowTweetId = priorProgress?.lastLowCursorTweetId
     var nextOrder = (syncFacade.getMaxOrder() ?: 1000) + 1
     // Tally of items written this run. Drives the terminal "Synced N bookmarks"
     // alert; the diff already filters to missing ids, so batch size ≈ new items
     // (IGNORE-on-conflict makes this a close approximation, fine for copy).
     var syncedCount = 0
+
+    // The persisted cursor becomes the resume point for the narrowed enumeration: the
+    // `retrievedAt` watermark bounds the incremental head and the low createdAt cursor
+    // resumes the backfill tail. A null/fresh cursor seeds a full sync.
+    val resumeFrom = SyncCursor(
+        highCreatedAt = priorProgress?.lastHighCursorCreatedAt,
+        highTweetId = priorProgress?.lastHighCursorTweetId,
+        lowCreatedAt = priorProgress?.lastLowCursorCreatedAt,
+        lowTweetId = priorProgress?.lastLowCursorTweetId,
+        incrementalWatermarkMillis = priorProgress?.lastIncrementalRetrievedAtMs,
+    )
 
     val result: androidx.work.ListenableWorker.Result = try {
         // Bound the local-ID set to limit heap allocation. IDs are sorted by the
@@ -205,46 +215,35 @@ internal suspend fun runTwitterSync(
         val deletedIds = deletedBookmarkRepository.deletedIdsSnapshot(BookmarkSource.Twitter)
 
         syncFacade
-            .fetchMissingTweetsStream(localIds, deletedIds)
-            .collect { batch ->
-                if (batch.isEmpty()) return@collect
-
-                val orderedBatch = batch.map { entities ->
+            .fetchMissingTweetsStream(localIds, deletedIds, resumeFrom)
+            .collect { emission ->
+                val orderedBatch = emission.entities.map { entities ->
                     tweetEntitiesToOrderLens.modify(entities) { nextOrder++ }
                 }
-
-                val batchHigh = orderedBatch.firstOrNull()
-                val batchLow = orderedBatch.lastOrNull()
-                val batchHighCreatedAt = batchHigh?.tweetEntity?.createdAt
-                val batchHighTweetId = batchHigh?.tweetEntity?.id
-                val batchLowCreatedAt = batchLow?.tweetEntity?.createdAt
-                val batchLowTweetId = batchLow?.tweetEntity?.id
-
-                if (workingHighCreatedAt == null || (batchHighCreatedAt != null && batchHighCreatedAt > workingHighCreatedAt!!)) {
-                    workingHighCreatedAt = batchHighCreatedAt
-                    workingHighTweetId = batchHighTweetId
-                }
-                if (workingLowCreatedAt == null || (batchLowCreatedAt != null && batchLowCreatedAt < workingLowCreatedAt!!)) {
-                    workingLowCreatedAt = batchLowCreatedAt
-                    workingLowTweetId = batchLowTweetId
-                }
-
+                // The repository computed the phase-correct cursor (the `retrievedAt`
+                // watermark + the low backfill cursor); the worker only stamps the
+                // run-scoped fields and commits it ATOMICALLY with the batch insert. An
+                // empty-entity emission is a TERMINAL checkpoint — persist the advanced
+                // cursor, ingest nothing (it records the watermark on a nothing-new run).
+                val checkpointOnly = orderedBatch.isEmpty()
                 val advancedProgress = SyncProgress(
                     uid = uid,
-                    lastHighCursorCreatedAt = workingHighCreatedAt,
-                    lastHighCursorTweetId = workingHighTweetId,
-                    lastLowCursorCreatedAt = workingLowCreatedAt,
-                    lastLowCursorTweetId = workingLowTweetId,
-                    totalBatchesIngested = batchIdx + 1,
+                    lastHighCursorCreatedAt = emission.cursor.highCreatedAt,
+                    lastHighCursorTweetId = emission.cursor.highTweetId,
+                    lastLowCursorCreatedAt = emission.cursor.lowCreatedAt,
+                    lastLowCursorTweetId = emission.cursor.lowTweetId,
+                    totalBatchesIngested = if (checkpointOnly) batchIdx else batchIdx + 1,
                     lastUpdatedAtMs = System.currentTimeMillis(),
+                    lastIncrementalRetrievedAtMs = emission.cursor.incrementalWatermarkMillis,
                 )
 
                 commitBatch(orderedBatch, advancedProgress)
+                if (checkpointOnly) return@collect
 
                 batchIdx++
                 syncedCount += orderedBatch.size
                 Timber.tag("IncrementalSync")
-                    .i("batch_inserted batchIdx=$batchIdx size=${orderedBatch.size} cursorHi=$workingHighCreatedAt cursorLo=$workingLowCreatedAt")
+                    .i("batch_inserted batchIdx=$batchIdx size=${orderedBatch.size} cursorLo=${emission.cursor.lowCreatedAt} watermark=${emission.cursor.incrementalWatermarkMillis}")
 
                 if (runAsForegroundService) {
                     runCatching {

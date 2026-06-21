@@ -16,6 +16,8 @@ import com.github.jayteealao.crumbs.data.SyncProgress
 import com.github.jayteealao.crumbs.data.SyncProgressDao
 import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.twitter.data.TwitterSyncFacade
+import com.github.jayteealao.twitter.data.firestore.SyncCursor
+import com.github.jayteealao.twitter.data.firestore.SyncEmission
 import com.github.jayteealao.twitter.models.MediaKeys
 import com.github.jayteealao.twitter.models.PollIds
 import com.github.jayteealao.twitter.models.TweetEntities
@@ -119,8 +121,10 @@ class TwitterSyncWorkerTest {
         )
     }
 
-    private fun stubStream(vararg batches: List<TweetEntities>): Flow<List<TweetEntities>> = flow {
-        batches.forEach { emit(it) }
+    // Each batch is wrapped in a SyncEmission with a default (empty) cursor — the cursor-specific
+    // assertions live in their own tests + FirestoreCursorNarrowingTest.
+    private fun stubStream(vararg batches: List<TweetEntities>): Flow<SyncEmission> = flow {
+        batches.forEach { emit(SyncEmission(it, SyncCursor())) }
     }
 
     @Test
@@ -143,7 +147,7 @@ class TwitterSyncWorkerTest {
 
         assertEquals(ListenableWorker.Result.failure(), result)
         assertTrue("no batches should commit when uid is null", capturedCommits.isEmpty())
-        coVerify(exactly = 0) { syncFacade.fetchMissingTweetsStream(any(), any()) }
+        coVerify(exactly = 0) { syncFacade.fetchMissingTweetsStream(any(), any(), any()) }
     }
 
     @Test
@@ -169,23 +173,45 @@ class TwitterSyncWorkerTest {
 
         assertEquals(ListenableWorker.Result.success(), result)
         assertTrue("no batches should commit on uid mismatch", capturedCommits.isEmpty())
-        coVerify(exactly = 0) { syncFacade.fetchMissingTweetsStream(any(), any()) }
+        coVerify(exactly = 0) { syncFacade.fetchMissingTweetsStream(any(), any(), any()) }
     }
 
     @Test
-    fun coldStart_twoBatches_commitsBothAndAdvancesCursors() = runTest {
-        every {
-            syncFacade.fetchMissingTweetsStream(any(), any())
-        } returns stubStream(
-            listOf(
-                tweetEntities("tw-001", "2026-05-24T15:00:00Z"),
-                tweetEntities("tw-002", "2026-05-24T14:59:00Z"),
-            ),
-            listOf(
-                tweetEntities("tw-003", "2026-05-24T14:58:00Z"),
-                tweetEntities("tw-004", "2026-05-24T14:57:00Z"),
-            ),
+    fun coldStart_twoEmissions_persistRepoComputedCursorPerBatch() = runTest {
+        // The repository now owns the cursor math; the worker persists whatever cursor each
+        // emission carries (verbatim) and stamps only the run-scoped batch count.
+        val cursorA = SyncCursor(
+            highCreatedAt = "2026-05-24T15:00:00Z", highTweetId = "tw-001",
+            lowCreatedAt = "2026-05-24T14:59:00Z", lowTweetId = "tw-002",
+            incrementalWatermarkMillis = 1500L,
         )
+        val cursorB = SyncCursor(
+            highCreatedAt = "2026-05-24T15:00:00Z", highTweetId = "tw-001",
+            lowCreatedAt = "2026-05-24T14:57:00Z", lowTweetId = "tw-004",
+            incrementalWatermarkMillis = 1500L,
+        )
+        every {
+            syncFacade.fetchMissingTweetsStream(any(), any(), any())
+        } returns flow {
+            emit(
+                SyncEmission(
+                    listOf(
+                        tweetEntities("tw-001", "2026-05-24T15:00:00Z"),
+                        tweetEntities("tw-002", "2026-05-24T14:59:00Z"),
+                    ),
+                    cursorA,
+                ),
+            )
+            emit(
+                SyncEmission(
+                    listOf(
+                        tweetEntities("tw-003", "2026-05-24T14:58:00Z"),
+                        tweetEntities("tw-004", "2026-05-24T14:57:00Z"),
+                    ),
+                    cursorB,
+                ),
+            )
+        }
 
         val capturedProgress = mutableListOf<SyncProgress>()
 
@@ -204,16 +230,17 @@ class TwitterSyncWorkerTest {
 
         assertEquals(ListenableWorker.Result.success(), result)
         assertEquals(2, capturedProgress.size)
+        // The worker stamps the cumulative batch count...
         assertEquals(1, capturedProgress[0].totalBatchesIngested)
         assertEquals(2, capturedProgress[1].totalBatchesIngested)
-        // high watermark is the newest createdAt across all batches (batch 0 head)
-        assertEquals("2026-05-24T15:00:00Z", capturedProgress[1].lastHighCursorCreatedAt)
-        // low watermark advances to the oldest createdAt across all batches
+        // ...and persists the repo-computed cursor verbatim (watermark + low backfill cursor).
+        assertEquals(1500L, capturedProgress[1].lastIncrementalRetrievedAtMs)
         assertEquals("2026-05-24T14:57:00Z", capturedProgress[1].lastLowCursorCreatedAt)
+        assertEquals("tw-004", capturedProgress[1].lastLowCursorTweetId)
     }
 
     @Test
-    fun resume_withSeededCursor_carriesBatchCountForward() = runTest {
+    fun resume_seededCursor_passedToFacade_andBatchCountCarries() = runTest {
         coEvery { syncProgressDao.get("uid-test") } returns SyncProgress(
             uid = "uid-test",
             lastHighCursorCreatedAt = "2026-05-24T14:00:00Z",
@@ -222,12 +249,23 @@ class TwitterSyncWorkerTest {
             lastLowCursorTweetId = "tw-seed",
             totalBatchesIngested = 3,
             lastUpdatedAtMs = 0L,
+            lastIncrementalRetrievedAtMs = 900L,
         )
+        val resumeSlot = slot<SyncCursor>()
         every {
-            syncFacade.fetchMissingTweetsStream(any(), any())
-        } returns stubStream(listOf(tweetEntities("tw-100", "2026-05-24T11:00:00Z")))
+            syncFacade.fetchMissingTweetsStream(any(), any(), capture(resumeSlot))
+        } returns flow {
+            emit(
+                SyncEmission(
+                    listOf(tweetEntities("tw-100", "2026-05-24T11:00:00Z")),
+                    SyncCursor(
+                        lowCreatedAt = "2026-05-24T11:00:00Z", lowTweetId = "tw-100",
+                        incrementalWatermarkMillis = 900L,
+                    ),
+                ),
+            )
+        }
 
-        val capturedProgress = slot<SyncProgress>()
         val captured = mutableListOf<SyncProgress>()
 
         val result = runTwitterSync(
@@ -240,18 +278,70 @@ class TwitterSyncWorkerTest {
             runAsForegroundService = false,
             runAttemptCount = 0,
             setForegroundInfo = {},
-            commitBatch = { _, progress ->
-                capturedProgress.captured = progress
-                captured += progress
-            },
+            commitBatch = { _, progress -> captured += progress },
         )
 
         assertEquals(ListenableWorker.Result.success(), result)
-        assertEquals(1, captured.size)
+        // The seeded cursor (low createdAt + retrievedAt watermark) is handed to the repository
+        // as the resume point — proving the worker reads SyncProgress and narrows the enumeration.
+        assertEquals("2026-05-24T12:00:00Z", resumeSlot.captured.lowCreatedAt)
+        assertEquals("tw-seed", resumeSlot.captured.lowTweetId)
+        assertEquals(900L, resumeSlot.captured.incrementalWatermarkMillis)
         // Batch count carries from the seeded cursor (3 → 4 after one batch).
+        assertEquals(1, captured.size)
         assertEquals(4, captured.first().totalBatchesIngested)
-        // Low watermark advances past the seeded low (12:00) to the new batch's 11:00.
         assertEquals("2026-05-24T11:00:00Z", captured.first().lastLowCursorCreatedAt)
+    }
+
+    @Test
+    fun terminalCheckpoint_emptyEmission_persistsCursor_withoutBumpingBatchCount() = runTest {
+        every {
+            syncFacade.fetchMissingTweetsStream(any(), any(), any())
+        } returns flow {
+            emit(
+                SyncEmission(
+                    listOf(tweetEntities("tw-1", "2026-05-24T15:00:00Z")),
+                    SyncCursor(
+                        lowCreatedAt = "2026-05-24T15:00:00Z", lowTweetId = "tw-1",
+                        incrementalWatermarkMillis = 4242L,
+                    ),
+                ),
+            )
+            // TERMINAL checkpoint: empty entities, carrying the advanced watermark + backfill floor.
+            emit(
+                SyncEmission(
+                    emptyList(),
+                    SyncCursor(
+                        lowCreatedAt = "2026-01-01T00:00:00Z", lowTweetId = "floor",
+                        incrementalWatermarkMillis = 4242L,
+                    ),
+                ),
+            )
+        }
+
+        val captured = mutableListOf<SyncProgress>()
+
+        val result = runTwitterSync(
+            ctx = context,
+            syncFacade = syncFacade,
+            syncProgressDao = syncProgressDao,
+            deletedBookmarkRepository = deletedBookmarkRepository,
+            authGateway = authGateway,
+            enqueuedUid = null,
+            runAsForegroundService = false,
+            runAttemptCount = 0,
+            setForegroundInfo = {},
+            commitBatch = { _, progress -> captured += progress },
+        )
+
+        assertEquals(ListenableWorker.Result.success(), result)
+        assertEquals(2, captured.size)
+        // The real batch bumps the count to 1; the terminal checkpoint does NOT bump it again.
+        assertEquals(1, captured[0].totalBatchesIngested)
+        assertEquals(1, captured[1].totalBatchesIngested)
+        // The terminal checkpoint persists the advanced watermark + backfill floor.
+        assertEquals("2026-01-01T00:00:00Z", captured[1].lastLowCursorCreatedAt)
+        assertEquals(4242L, captured[1].lastIncrementalRetrievedAtMs)
     }
 
     @Test
@@ -261,7 +351,7 @@ class TwitterSyncWorkerTest {
             FirebaseFirestoreException.Code.UNAVAILABLE,
         )
         every {
-            syncFacade.fetchMissingTweetsStream(any(), any())
+            syncFacade.fetchMissingTweetsStream(any(), any(), any())
         } returns flow { throw unavailable }
 
         val result = runTwitterSync(
@@ -287,7 +377,7 @@ class TwitterSyncWorkerTest {
             FirebaseFirestoreException.Code.UNAVAILABLE,
         )
         every {
-            syncFacade.fetchMissingTweetsStream(any(), any())
+            syncFacade.fetchMissingTweetsStream(any(), any(), any())
         } returns flow { throw unavailable }
 
         val result = runTwitterSync(
@@ -313,7 +403,7 @@ class TwitterSyncWorkerTest {
             FirebaseFirestoreException.Code.PERMISSION_DENIED,
         )
         every {
-            syncFacade.fetchMissingTweetsStream(any(), any())
+            syncFacade.fetchMissingTweetsStream(any(), any(), any())
         } returns flow { throw denied }
 
         val result = runTwitterSync(
@@ -335,7 +425,7 @@ class TwitterSyncWorkerTest {
     @Test
     fun timeoutCancellation_underCap_returnsRetry() = runTest {
         every {
-            syncFacade.fetchMissingTweetsStream(any(), any())
+            syncFacade.fetchMissingTweetsStream(any(), any(), any())
         } returns flow {
             // Trigger a real TimeoutCancellationException — the constructor is
             // internal, so we route through withTimeout instead.
@@ -361,8 +451,8 @@ class TwitterSyncWorkerTest {
     @Test
     fun emptyStream_returnsSuccess_withoutCommits() = runTest {
         every {
-            syncFacade.fetchMissingTweetsStream(any(), any())
-        } returns flowOf()
+            syncFacade.fetchMissingTweetsStream(any(), any(), any())
+        } returns flowOf<SyncEmission>()
 
         var commits = 0
         val result = runTwitterSync(
@@ -405,7 +495,7 @@ class TwitterSyncWorkerTest {
     @Test
     fun coldStartFailureInjector_doesNotMarkProgress() = runTest {
         every {
-            syncFacade.fetchMissingTweetsStream(any(), any())
+            syncFacade.fetchMissingTweetsStream(any(), any(), any())
         } returns flow { throw RuntimeException("boom") }
 
         val capturedProgress: SyncProgress? = null
@@ -437,7 +527,7 @@ class TwitterSyncWorkerTest {
     @Test
     fun foregroundColdStart_publishesForegroundInfo_withMonochromeIcon() = runTest {
         every {
-            syncFacade.fetchMissingTweetsStream(any(), any())
+            syncFacade.fetchMissingTweetsStream(any(), any(), any())
         } returns stubStream(listOf(tweetEntities("tw-1", "2026-05-24T15:00:00Z")))
         val captured = mutableListOf<androidx.work.ForegroundInfo>()
 
@@ -469,7 +559,7 @@ class TwitterSyncWorkerTest {
     @Test
     fun foregroundSuccess_withNewItems_postsTerminalSuccess() = runTest {
         every {
-            syncFacade.fetchMissingTweetsStream(any(), any())
+            syncFacade.fetchMissingTweetsStream(any(), any(), any())
         } returns stubStream(
             listOf(
                 tweetEntities("tw-1", "2026-05-24T15:00:00Z"),
@@ -496,7 +586,7 @@ class TwitterSyncWorkerTest {
 
     @Test
     fun foregroundSuccess_withZeroItems_doesNotPostTerminal() = runTest {
-        every { syncFacade.fetchMissingTweetsStream(any(), any()) } returns flowOf()
+        every { syncFacade.fetchMissingTweetsStream(any(), any(), any()) } returns flowOf<SyncEmission>()
 
         val result = runTwitterSync(
             ctx = context,
@@ -523,7 +613,7 @@ class TwitterSyncWorkerTest {
         // Pull-to-refresh / sign-in re-triggers run as background work (no ongoing
         // notification); feedback is via snackbars, so no terminal alert should fire.
         every {
-            syncFacade.fetchMissingTweetsStream(any(), any())
+            syncFacade.fetchMissingTweetsStream(any(), any(), any())
         } returns stubStream(listOf(tweetEntities("tw-1", "2026-05-24T15:00:00Z")))
 
         val result = runTwitterSync(
@@ -553,7 +643,7 @@ class TwitterSyncWorkerTest {
             FirebaseFirestoreException.Code.PERMISSION_DENIED,
         )
         every {
-            syncFacade.fetchMissingTweetsStream(any(), any())
+            syncFacade.fetchMissingTweetsStream(any(), any(), any())
         } returns flow { throw denied }
 
         val result = runTwitterSync(
@@ -581,7 +671,7 @@ class TwitterSyncWorkerTest {
         // Android-15 dataSync 6h cap: WorkManager stops the worker (CancellationException)
         // with STOP_REASON_TIMEOUT. That must be a retry, not a false "sync failed" alert.
         every {
-            syncFacade.fetchMissingTweetsStream(any(), any())
+            syncFacade.fetchMissingTweetsStream(any(), any(), any())
         } returns flow { throw CancellationException("stopped by timeout") }
 
         val result = runTwitterSync(

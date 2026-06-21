@@ -1,5 +1,7 @@
 package com.github.jayteealao.twitter.data
 
+import com.github.jayteealao.twitter.data.firestore.SyncCursor
+import com.github.jayteealao.twitter.data.firestore.SyncEmission
 import com.github.jayteealao.twitter.models.TweetEntities
 import kotlinx.coroutines.flow.Flow
 
@@ -32,15 +34,17 @@ interface TwitterSyncFacade {
     fun insertTweetEntitiesBatch(batch: List<TweetEntities>)
 
     /**
-     * Returns a cold [Flow] of tweet-entity batches that are present in
-     * Firestore for the signed-in user but absent from the local [localIds] set
-     * (and not in [deletedIds]). Each emission is a page of ~30 aggregates ready
-     * for atomic Room insertion.
+     * Returns a cold [Flow] of cursor-narrowed sync batches for the signed-in user, resuming from
+     * [resumeFrom] (the persisted cursor) rather than re-enumerating the whole Firestore corpus.
+     * Each [SyncEmission] carries a page of ~30 aggregates absent from [localIds] (and not in
+     * [deletedIds]) PLUS the cursor to persist atomically with that batch's insert; a final
+     * empty-entity emission checkpoints the advanced cursor on a nothing-new run.
      */
     fun fetchMissingTweetsStream(
         localIds: Set<String>,
         deletedIds: Set<String> = emptySet(),
-    ): Flow<List<TweetEntities>>
+        resumeFrom: SyncCursor = SyncCursor(),
+    ): Flow<SyncEmission>
 
     // --- Backfill sweep queries (used by MediaBackfillWorker) ---
 

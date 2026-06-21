@@ -1,6 +1,8 @@
 package com.github.jayteealao.twitter.data
 
 import com.github.jayteealao.twitter.data.firestore.FirestoreRepository
+import com.github.jayteealao.twitter.data.firestore.SyncCursor
+import com.github.jayteealao.twitter.data.firestore.SyncEmission
 import com.github.jayteealao.twitter.models.TweetEntities
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
@@ -28,8 +30,9 @@ class TwitterSyncFacadeImpl @Inject constructor(
     override fun fetchMissingTweetsStream(
         localIds: Set<String>,
         deletedIds: Set<String>,
-    ): Flow<List<TweetEntities>> =
-        firestoreRepository.fetchTweetsNotInLocalStream(localIds, deletedIds)
+        resumeFrom: SyncCursor,
+    ): Flow<SyncEmission> =
+        firestoreRepository.fetchTweetsNotInLocalStream(localIds, deletedIds, resumeFrom)
 
     override suspend fun getTweetsWithoutMedia(afterId: String, limit: Int): List<String> =
         tweetDao.getTweetsWithoutMedia(afterId, limit)

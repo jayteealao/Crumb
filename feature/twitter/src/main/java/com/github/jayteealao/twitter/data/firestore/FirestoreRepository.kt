@@ -8,6 +8,7 @@ import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.Source
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
@@ -23,17 +24,6 @@ import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
-
-/**
- * Sort keys lifted per tweet doc for feed-aligned sync ordering. [retrievedAtMillis]
- * is null for legacy docs written before the `retrievedAt` field existed; those
- * sort last, mirroring the SQL feed's `retrieved_at DESC` NULLs-last behaviour.
- */
-private data class TweetSortKey(
-    val id: String,
-    val retrievedAtMillis: Long?,
-    val createdAt: String,
-)
 
 @Singleton
 class FirestoreRepository @Inject constructor(
@@ -52,15 +42,15 @@ class FirestoreRepository @Inject constructor(
         private const val MAX_BOOKMARK_READ = 10_000
         private const val READ_PAGE_SIZE = 500
         private const val MAX_PAGE_HOPS = 50
-        // Bumped from 30s → 120s. The 30s budget was getting blown on
-        // mid-range Android devices when a batch returned ~30 metrics docs:
-        // CustomClassMapper logs ~50 warnings per doc for unrecognized
-        // snake_case overlay keys (like_count, retweet_count, etc.) the
-        // server poll's pass-through writes — 1500+ logcat lines per batch
-        // serialized on the IO thread, enough to stall deserialization past
-        // 30s on a Samsung Galaxy class device. Either silence the warnings
-        // OR widen the window; widening is the least-invasive while we ship.
-        private const val BATCH_TIMEOUT_MS = 120_000L
+        // Was bumped 30s → 120s to ride out the CustomClassMapper warning storm
+        // (~50 unknown-snake_case-key warnings per metrics doc, 1500+ logcat lines
+        // per batch serialized on the IO thread) that stalled deserialization on
+        // mid-range devices. That storm is now silenced at the source —
+        // @IgnoreExtraProperties on the FirestoreModels POJOs — so the budget comes
+        // back down to 60s with generous headroom. A timeout here is non-destructive:
+        // the per-batch atomic commit + the resume cursor make a retried run continue
+        // from the last committed batch. On-device `batch_deser_ms` validates the margin.
+        private const val BATCH_TIMEOUT_MS = 60_000L
         // Per-sub-collection timeout: one slow collection cannot starve the others.
         private const val SUB_FETCH_TIMEOUT_MS = 30_000L
     }
@@ -132,111 +122,184 @@ class FirestoreRepository @Inject constructor(
         }
     }
 
+    /** A tail enumeration result: the docs read + whether the backfill floor was reached. */
+    private data class TailEnumeration(val docs: List<CursorDoc>, val reachedFloor: Boolean)
+
     /**
-     * Sibling of [getAllTweetIds] that lifts each doc's sort keys (`retrievedAt`
-     * and `createdAt`) alongside the tweet id, so the orchestrator can order
-     * missing ids to MATCH THE FEED (`retrievedAt DESC, createdAt DESC`) before
-     * chunking — the head of the feed lands in Room first and paints within
-     * seconds of sign-in instead of waiting for the whole drain.
+     * PHASE A — incremental head. Walks `retrievedAt DESC` from the top, stopping at the first
+     * doc whose `retrievedAt` is at/below [watermarkMillis] (descending order ⇒ everything after
+     * is too). Catches every newly-seen item — including a newly-bookmarked OLD tweet (fresh
+     * `retrievedAt`, old `createdAt`) a `createdAt`-only cursor would miss.
      *
-     * Firestore ENUMERATION deliberately stays ordered by `createdAt DESC,
-     * __name__ ASC` (NOT `retrievedAt`): `createdAt` is present on every tweet
-     * doc, whereas legacy bookmarks predate the `retrievedAt` field — and a
-     * Firestore `orderBy` SILENTLY EXCLUDES docs missing the ordered field, which
-     * would drop those legacy bookmarks from the sync entirely. We therefore
-     * enumerate by the always-present `createdAt` (covered by the existing
-     * composite index, no new index required) and re-sort in memory to the feed
-     * order in [fetchTweetsNotInLocalStream], with NULL `retrievedAt` sorting
-     * last (mirroring the SQL `retrieved_at DESC` NULLs-last). The secondary
-     * `__name__ ASC` key keeps `startAfter(lastDoc)` paging stable across pages.
+     * `orderBy(retrievedAt)` SILENTLY EXCLUDES legacy NULL-`retrievedAt` docs — correct here:
+     * those are never "new", they arrive only via the [enumerateBackfillTail] createdAt walk. A
+     * null watermark (first incremental run) reads a single bounded SEED page just to establish
+     * the watermark; the tail does the full-corpus heavy lifting on a cold start. The head needs
+     * NO new composite index (single-field `retrievedAt` is auto-indexed). `get(Source.SERVER)`
+     * pins server-authoritative ordering so a resumed cursor never reads off a stale cache.
      */
-    private suspend fun getAllTweetIdsWithSortKeys(): List<TweetSortKey> =
+    private suspend fun enumerateIncrementalHead(watermarkMillis: Long?): List<CursorDoc> =
         withContext(Dispatchers.IO) {
             val uid = requireUid()
             try {
-                val result = mutableListOf<TweetSortKey>()
+                val result = mutableListOf<CursorDoc>()
                 var lastDoc: com.google.firebase.firestore.DocumentSnapshot? = null
                 var safetyHops = 0
                 var docsRead = 0
-                while (docsRead < MAX_BOOKMARK_READ && safetyHops < MAX_PAGE_HOPS) {
+                var reachedWatermark = false
+                while (!reachedWatermark && docsRead < MAX_BOOKMARK_READ && safetyHops < MAX_PAGE_HOPS) {
                     val pageQuery = tweetsCol(uid)
-                        .orderBy("createdAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
-                        .orderBy(FieldPath.documentId(), com.google.firebase.firestore.Query.Direction.ASCENDING)
+                        .orderBy("retrievedAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
                         .let { q -> if (lastDoc != null) q.startAfter(lastDoc) else q }
                         .limit(READ_PAGE_SIZE.toLong())
 
-                    val snapshot = pageQuery.get().await()
+                    val snapshot = pageQuery.get(Source.SERVER).await()
                     if (snapshot.isEmpty) break
                     docsRead += snapshot.documents.size
-                    snapshot.documents.forEach { doc ->
-                        // Skip quoted-tweet body docs (referenced=true) — they are
-                        // hydrated as quoted sub-cards, never as top-level bookmarks.
-                        if (doc.getBoolean("referenced") == true) return@forEach
-                        val id = doc.getString("tweetId") ?: return@forEach
-                        val createdAt = doc.getString("createdAt") ?: ""
-                        // serverTimestamp() field; null on legacy docs predating it.
+                    for (doc in snapshot.documents) {
+                        // Skip quoted-tweet body docs (referenced=true) — hydrated as quoted
+                        // sub-cards, never top-level bookmarks. Page PAST them regardless.
+                        if (doc.getBoolean("referenced") == true) continue
                         val retrievedAtMillis = doc.getTimestamp("retrievedAt")?.toDate()?.time
-                        result.add(TweetSortKey(id, retrievedAtMillis, createdAt))
+                        if (watermarkMillis != null && retrievedAtMillis != null &&
+                            retrievedAtMillis <= watermarkMillis
+                        ) {
+                            reachedWatermark = true
+                            break
+                        }
+                        val id = doc.getString("tweetId") ?: continue
+                        val createdAt = doc.getString("createdAt") ?: ""
+                        result.add(CursorDoc(id, retrievedAtMillis, createdAt))
                     }
                     lastDoc = snapshot.documents.last()
                     safetyHops++
+                    // Null watermark = seed mode: one bounded page is enough to set the watermark.
+                    if (watermarkMillis == null) break
                     if (snapshot.documents.size < READ_PAGE_SIZE) break
                 }
-                Timber.d("getAllTweetIdsWithSortKeys: ${result.size} ids in $docsRead docs (page-hops=$safetyHops)")
+                Timber.tag("IncrementalSync")
+                    .d("head_enumerated docs_read=$docsRead kept=${result.size} watermark=$watermarkMillis hops=$safetyHops")
                 result
             } catch (e: Exception) {
-                Timber.tag("IncrementalSync").e(e, "incremental_sync_failed reason=fetch_ids exception=${e.javaClass.simpleName}")
+                Timber.tag("IncrementalSync").e(e, "incremental_sync_failed reason=head_enumerate exception=${e.javaClass.simpleName}")
                 throw e
             }
         }
 
     /**
-     * Streaming variant of [fetchTweetsNotInLocal]. Emits each batch's joined
-     * `List<TweetEntities>` as soon as the per-batch parallel fan-out lands,
-     * so a downstream collector (the WorkManager worker) can write to Room
-     * incrementally — Room's `InvalidationTracker` then fires per batch and
-     * the Paging source paints the newest tweets within seconds.
+     * PHASE B — backfill tail. Resumes the historical backfill via `createdAt DESC, __name__ ASC`
+     * with a cross-run `startAfter(lowCreatedAt, lowTweetId)` FIELD-VALUE cursor (survives process
+     * death, unlike a `DocumentSnapshot`) so an interrupted backfill continues from the last
+     * committed position instead of re-walking the whole corpus. `createdAt` is present on EVERY
+     * doc, so this phase (and only this phase) includes legacy NULL-`retrievedAt` bookmarks. The
+     * tweet doc id IS its `tweetId`, so `__name__` is the same tiebreaker the [SyncCursor] stores.
      *
-     * Ordering: missing ids are sorted to match the feed query
-     * (`retrievedAt DESC, createdAt DESC`) before chunking so the head-of-feed
-     * paints first; NULL `retrievedAt` (legacy docs) sorts last and tweet id is
-     * the final tiebreaker for a stable cursor. Deleted-bookmark tombstones are
-     * subtracted up front so we never spend a batch fetching a doc the user
-     * already swiped away.
+     * An empty/short page means the backfill reached the floor (complete); a safety-cap stop means
+     * there is more to read next run. The existing `(createdAt DESC, __name__ ASC)` composite index
+     * backs this unchanged. `get(Source.SERVER)` for the same stale-resume reason as the head.
+     */
+    private suspend fun enumerateBackfillTail(
+        lowCreatedAt: String?,
+        lowTweetId: String?,
+    ): TailEnumeration = withContext(Dispatchers.IO) {
+        val uid = requireUid()
+        try {
+            val result = mutableListOf<CursorDoc>()
+            var lastDoc: com.google.firebase.firestore.DocumentSnapshot? = null
+            var safetyHops = 0
+            var docsRead = 0
+            var reachedFloor = false
+            while (docsRead < MAX_BOOKMARK_READ && safetyHops < MAX_PAGE_HOPS) {
+                val base = tweetsCol(uid)
+                    .orderBy("createdAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                    .orderBy(FieldPath.documentId(), com.google.firebase.firestore.Query.Direction.ASCENDING)
+                val pageQuery = when {
+                    lastDoc != null -> base.startAfter(lastDoc)
+                    lowCreatedAt != null && lowTweetId != null -> base.startAfter(lowCreatedAt, lowTweetId)
+                    else -> base
+                }.limit(READ_PAGE_SIZE.toLong())
+
+                val snapshot = pageQuery.get(Source.SERVER).await()
+                if (snapshot.isEmpty) {
+                    reachedFloor = true
+                    break
+                }
+                docsRead += snapshot.documents.size
+                for (doc in snapshot.documents) {
+                    if (doc.getBoolean("referenced") == true) continue
+                    val id = doc.getString("tweetId") ?: continue
+                    val createdAt = doc.getString("createdAt") ?: ""
+                    // null on legacy docs predating the serverTimestamp() field — kept (the head
+                    // excludes them; the in-memory sort places them last, mirroring NULLs-last).
+                    val retrievedAtMillis = doc.getTimestamp("retrievedAt")?.toDate()?.time
+                    result.add(CursorDoc(id, retrievedAtMillis, createdAt))
+                }
+                lastDoc = snapshot.documents.last()
+                safetyHops++
+                if (snapshot.documents.size < READ_PAGE_SIZE) {
+                    reachedFloor = true
+                    break
+                }
+            }
+            Timber.tag("IncrementalSync")
+                .d("tail_enumerated docs_read=$docsRead kept=${result.size} resumeFrom=$lowCreatedAt reachedFloor=$reachedFloor hops=$safetyHops")
+            TailEnumeration(result, reachedFloor)
+        } catch (e: Exception) {
+            Timber.tag("IncrementalSync").e(e, "incremental_sync_failed reason=tail_enumerate exception=${e.javaClass.simpleName}")
+            throw e
+        }
+    }
+
+    /**
+     * Streaming, CURSOR-NARROWED variant of [fetchTweetsNotInLocal]. Resumes from [resumeFrom]
+     * (the persisted [SyncCursor]) instead of re-enumerating the whole Firestore corpus each run:
+     * a two-phase, key-split walk — incremental head ([enumerateIncrementalHead]) then backfill
+     * tail ([enumerateBackfillTail]) — whose union is deduped against [localIds]/[deletedIds] and
+     * planned by the pure [planNarrowedSync] into feed-ordered batches with phase-correct cursors.
      *
-     * The `flow { … }` builder is cold by design — each `collect` re-runs the
-     * read, which matches the WorkManager `doWork()` contract (one collect
-     * per invocation). Do NOT add `.buffer()` or `.flatMapMerge(...)` on the
-     * consumer side: cursor advancement assumes sequential per-batch commits.
+     * Each emission is a [SyncEmission]: the fetched aggregates plus the cursor the collector must
+     * persist ATOMICALLY with the batch insert. Head batches stream first (newest `retrievedAt`,
+     * so the feed head paints within seconds of sign-in); a final empty-entity TERMINAL emission
+     * checkpoints the advanced watermark / backfill floor even on a nothing-new run. The local-IDs
+     * diff is retained as the no-missed/no-duplicated backstop on top of the cursor narrowing.
+     *
+     * The `flow { … }` builder is cold by design — each `collect` re-runs the read, matching the
+     * WorkManager `doWork()` contract (one collect per invocation). Do NOT add `.buffer()` or
+     * `.flatMapMerge(...)` on the consumer side: cursor advancement assumes sequential per-batch
+     * commits.
      */
     fun fetchTweetsNotInLocalStream(
         localIds: Set<String>,
         deletedIds: Set<String> = emptySet(),
-    ): Flow<List<TweetEntities>> = flow {
-        val all = getAllTweetIdsWithSortKeys()
-        // Match the feed query order (TweetDao: ORDER BY retrieved_at DESC,
-        // created_at DESC) so the head of the feed is fetched and written to Room
-        // first. NULL retrievedAt sorts last (Long.MIN_VALUE) to mirror SQLite's
-        // `retrieved_at DESC` NULLs-last; tweet id is the final stable tiebreaker.
-        val missing = all
-            .filter { it.id !in localIds && it.id !in deletedIds }
-            .sortedWith(
-                compareByDescending<TweetSortKey> { it.retrievedAtMillis ?: Long.MIN_VALUE }
-                    .thenByDescending { it.createdAt }
-                    .thenBy { it.id }
+        resumeFrom: SyncCursor = SyncCursor(),
+    ): Flow<SyncEmission> = flow {
+        val headDocs = enumerateIncrementalHead(resumeFrom.incrementalWatermarkMillis)
+        val tail = enumerateBackfillTail(resumeFrom.lowCreatedAt, resumeFrom.lowTweetId)
+        val plans = planNarrowedSync(
+            headDocs = headDocs,
+            tailDocs = tail.docs,
+            prior = resumeFrom,
+            localIds = localIds,
+            deletedIds = deletedIds,
+        )
+        Timber.tag("IncrementalSync").d(
+            "stream_start head_docs=${headDocs.size} tail_docs=${tail.docs.size} plans=${plans.size} localIds=${localIds.size} tail_floor=${tail.reachedFloor}",
+        )
+        plans.forEach { plan ->
+            if (plan.ids.isEmpty()) {
+                // TERMINAL checkpoint — no fetch; carry the cursor (advanced watermark / floor).
+                emit(SyncEmission(emptyList(), plan.cursor))
+                return@forEach
+            }
+            // `batch_deser_ms` is the per-batch fetch + Firestore deserialization wall time — the
+            // headline AC5 evidence (it falls once @IgnoreExtraProperties kills the warning storm).
+            val startedNs = System.nanoTime()
+            val entities = fetchTweetEntitiesByIds(plan.ids)
+            val batchDeserMs = (System.nanoTime() - startedNs) / 1_000_000
+            Timber.tag("IncrementalSync").d(
+                "batch_fetched phase=${plan.phase} requested=${plan.ids.size} returned=${entities.size} batch_deser_ms=$batchDeserMs",
             )
-        if (missing.isEmpty()) {
-            Timber.tag("IncrementalSync").d("stream_empty localIds=${localIds.size} firestoreIds=${all.size}")
-            return@flow
-        }
-        val batches = missing.chunked(30)
-        Timber.tag("IncrementalSync").d("stream_start total_missing=${missing.size} batches=${batches.size}")
-        batches.forEachIndexed { idx, batch ->
-            val ids = batch.map { it.id }
-            val entities = fetchTweetEntitiesByIds(ids)
-            Timber.tag("IncrementalSync")
-                .d("batch_fetched batchIdx=$idx total=${batches.size} requested=${ids.size} returned=${entities.size}")
-            emit(entities)
+            emit(SyncEmission(entities, plan.cursor))
         }
     }.flowOn(Dispatchers.IO)
 

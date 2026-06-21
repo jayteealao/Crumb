@@ -9,12 +9,21 @@ import com.github.jayteealao.twitter.models.TweetTextEntityAnnotation
 import com.github.jayteealao.twitter.models.TwitterUserEntity
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentId
+import com.google.firebase.firestore.IgnoreExtraProperties
 import com.google.firebase.firestore.PropertyName
 import java.util.Date
 
 /**
  * Firestore document model for tweets collection
  */
+// @IgnoreExtraProperties sets warnOnUnknownProperties=false in Firestore's bean mapper.
+// The server poll writes a snake_case overlay (like_count, retweet_count, …) alongside the
+// canonical camelCase keys; without this, CustomClassMapper logs ~50 "No setter/field for X"
+// warnings PER DOC (1500+ logcat lines per batch) serialized on the IO thread — the cost the
+// 30s→120s timeout bump was papering over. Every field already maps via explicit @PropertyName,
+// so suppressing the unknown-key warning changes NO known-field mapping (the prior media /
+// timestamp / quoted-tweet fixes are untouched); it only drops the logging.
+@IgnoreExtraProperties
 data class FirestoreTweet(
     @DocumentId val documentId: String = "",
     @get:PropertyName("tweetId") @set:PropertyName("tweetId")
@@ -80,6 +89,7 @@ data class FirestoreTweet(
 /**
  * Firestore document model for users collection
  */
+@IgnoreExtraProperties
 data class FirestoreUser(
     @DocumentId val documentId: String = "",
     @get:PropertyName("userId") @set:PropertyName("userId")
@@ -134,6 +144,7 @@ data class FirestoreUser(
 /**
  * Firestore document model for media collection
  */
+@IgnoreExtraProperties
 data class FirestoreMedia(
     @DocumentId val documentId: String = "",
     @get:PropertyName("mediaKey") @set:PropertyName("mediaKey")
@@ -215,12 +226,13 @@ data class FirestoreMedia(
 // Field names are camelCase: the Android client is the writer of record for
 // metrics docs post-cutover, so its keys (likeCount, …) are the canonical
 // wire format. The server poll's snake_case overlay (like_count, …) is
-// best-effort additive and appears on only a subset of docs; CustomClassMapper
-// logs a one-time warning per unknown key and ignores it. Count fields are
-// nullable Int because some docs in the wild store these as explicit `null`
-// (impressionCount in particular is null on 100% of sampled docs); a primitive
-// `Int` setter would throw `IllegalArgumentException` on deserialize and
-// abort the whole tweet batch.
+// best-effort additive and lands on EVERY metrics doc; @IgnoreExtraProperties below
+// suppresses the per-unknown-key CustomClassMapper warning it would otherwise log (the
+// dominant per-batch cost). Count fields are nullable Int because some docs in the wild
+// store these as explicit `null` (impressionCount in particular is null on 100% of
+// sampled docs); a primitive `Int` setter would throw `IllegalArgumentException` on
+// deserialize and abort the whole tweet batch.
+@IgnoreExtraProperties
 data class FirestoreMetrics(
     @DocumentId val documentId: String = "",
     @get:PropertyName("tweetId") @set:PropertyName("tweetId")
@@ -262,6 +274,7 @@ data class FirestoreMetrics(
 /**
  * Firestore document model for includes collection
  */
+@IgnoreExtraProperties
 data class FirestoreIncludes(
     @DocumentId val documentId: String = "",
     @get:PropertyName("tweetId") @set:PropertyName("tweetId")
@@ -299,6 +312,7 @@ data class FirestoreIncludes(
 /**
  * Firestore document model for textAnnotations collection
  */
+@IgnoreExtraProperties
 data class FirestoreTextAnnotation(
     @DocumentId val documentId: String = "",
     @get:PropertyName("tweetId") @set:PropertyName("tweetId")

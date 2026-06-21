@@ -20,6 +20,7 @@ import com.github.jayteealao.crumbs.db.MIGRATION_15_16
 import com.github.jayteealao.crumbs.db.MIGRATION_16_17
 import com.github.jayteealao.crumbs.db.MIGRATION_17_18
 import com.github.jayteealao.crumbs.db.MIGRATION_18_19
+import com.github.jayteealao.crumbs.db.MIGRATION_19_20
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -1093,6 +1094,77 @@ class MigrationTest {
             pkCollision = true
         }
         assertTrue("a duplicate (tweet_id, media_key) must violate the composite PK", pkCollision)
+
+        db.close()
+    }
+
+    @Test
+    fun migrate19To20_addsIncrementalWatermarkColumnToSyncProgress() {
+        // Seed a v19 sync_progress row so we can confirm the new watermark column defaults to NULL
+        // for rows that predate it ("seed the watermark from the corpus head on the next sync").
+        helper.createDatabase(TEST_DB, 19).apply {
+            execSQL(
+                "INSERT INTO sync_progress " +
+                    "(uid, last_high_cursor_created_at, last_high_cursor_tweet_id, " +
+                    "last_low_cursor_created_at, last_low_cursor_tweet_id, " +
+                    "total_batches_ingested, last_updated_at_ms) " +
+                    "VALUES ('uid-test', '2026-06-01T00:00:00Z', 'tw-high', " +
+                    "'2026-05-01T00:00:00Z', 'tw-low', 9, 1700000000)"
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB,
+            20,
+            true,
+            MIGRATION_19_20,
+        )
+
+        // sync_progress now has 8 columns; the new one is a nullable INTEGER, the rest unchanged.
+        val columns = mutableMapOf<String, Pair<String, Int>>() // name → (type, notNull)
+        db.query("PRAGMA table_info(`sync_progress`)").use { cursor ->
+            while (cursor.moveToNext()) {
+                val name = cursor.getString(cursor.getColumnIndexOrThrow("name"))
+                val type = cursor.getString(cursor.getColumnIndexOrThrow("type"))
+                val notNull = cursor.getInt(cursor.getColumnIndexOrThrow("notnull"))
+                columns[name] = type to notNull
+            }
+        }
+        assertEquals("Expected 8 columns on sync_progress after 19→20", 8, columns.size)
+        assertEquals(
+            "last_incremental_retrieved_at_ms should be a nullable INTEGER column",
+            "INTEGER" to 0,
+            columns["last_incremental_retrieved_at_ms"],
+        )
+        // Pre-existing columns are untouched.
+        assertEquals("TEXT" to 1, columns["uid"])
+        assertEquals("INTEGER" to 1, columns["total_batches_ingested"])
+        assertEquals("INTEGER" to 1, columns["last_updated_at_ms"])
+
+        // The seeded v19 row survives, with the new watermark column NULL.
+        db.query(
+            "SELECT last_low_cursor_created_at, total_batches_ingested, last_incremental_retrieved_at_ms " +
+                "FROM sync_progress WHERE uid = 'uid-test'"
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("2026-05-01T00:00:00Z", cursor.getString(0))
+            assertEquals(9, cursor.getInt(1))
+            assertTrue("legacy sync_progress row's watermark must be NULL", cursor.isNull(2))
+        }
+
+        // A fresh checkpoint round-trips a non-null watermark through the new column.
+        db.execSQL(
+            "INSERT INTO sync_progress " +
+                "(uid, last_high_cursor_created_at, last_high_cursor_tweet_id, " +
+                "last_low_cursor_created_at, last_low_cursor_tweet_id, " +
+                "total_batches_ingested, last_updated_at_ms, last_incremental_retrieved_at_ms) " +
+                "VALUES ('uid-2', NULL, NULL, NULL, NULL, 0, 1700000001, 1699999999000)"
+        )
+        db.query("SELECT last_incremental_retrieved_at_ms FROM sync_progress WHERE uid = 'uid-2'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(1699999999000L, cursor.getLong(0))
+        }
 
         db.close()
     }

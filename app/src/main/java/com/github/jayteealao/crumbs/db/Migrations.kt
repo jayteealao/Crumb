@@ -532,6 +532,25 @@ val MIGRATION_18_19: Migration = object : Migration(18, 19) {
     }
 }
 
+/**
+ * v19 → v20: add the `last_incremental_retrieved_at_ms` column to `sync_progress`. It
+ * stores the incremental-head resume watermark (server `retrievedAt` epoch-millis) so a
+ * cursor-narrowed sync resumes from where it left off instead of re-enumerating the whole
+ * Firestore corpus each run. Additive `ALTER TABLE ... ADD COLUMN` — pre-existing rows get
+ * NULL, which the sync reads as "no watermark yet, seed from the corpus head on next run."
+ * No data backfill, no other table touched. The column type must match Room's generated
+ * schema (`INTEGER`, nullable) or `runMigrationsAndValidate` fails.
+ *
+ * Pure additive migration; like [MIGRATION_12_13] / [MIGRATION_15_16] it carries no risk to
+ * existing rows. Once released, do NOT alter this migration — a new migration would be
+ * required for any further change to `sync_progress`.
+ */
+val MIGRATION_19_20: Migration = object : Migration(19, 20) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `sync_progress` ADD COLUMN `last_incremental_retrieved_at_ms` INTEGER")
+    }
+}
+
 /** Full list registered by the DI module's `addMigrations(*ALL_MIGRATIONS)`. */
 val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_2_3,
@@ -551,4 +570,5 @@ val ALL_MIGRATIONS: Array<Migration> = arrayOf(
     MIGRATION_16_17,
     MIGRATION_17_18,
     MIGRATION_18_19,
+    MIGRATION_19_20,
 )
