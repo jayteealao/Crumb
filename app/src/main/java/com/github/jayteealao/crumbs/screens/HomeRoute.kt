@@ -1,7 +1,14 @@
 package com.github.jayteealao.crumbs.screens
 
+import android.Manifest
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.ManagedActivityResultLauncher
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
@@ -14,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -80,6 +88,12 @@ fun HomeRoute(
     val snackbarHostState = remember { SnackbarHostState() }
     val snackbarScope = rememberCoroutineScope()
 
+    // POST_NOTIFICATIONS (API 33+) launcher. The outcome is best-effort: whether the
+    // user grants or denies, the sync still runs — only the shade entry depends on it.
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { /* no-op: degrade gracefully on deny */ }
+
     // collectAsStateWithLifecycle stops collecting when the route goes off-
     // screen (e.g. settings deep-link) so background flows don't keep waking
     // the route just to drop emissions on the floor.
@@ -140,6 +154,16 @@ fun HomeRoute(
             // Drop the replay slot so a warm-start subscription does not
             // resurrect the stale auth event the next time the route mounts.
             services.syncErrorBus.clear()
+        }
+    }
+
+    // Ask once for POST_NOTIFICATIONS the first time the user reaches the feed with an
+    // X session, so sync-progress and completion notifications are visible. One-shot
+    // and API-gated; the foreground-service notification runs without the grant, so a
+    // denial only suppresses the shade entry — the sync itself is unaffected.
+    LaunchedEffect(twitterAccess) {
+        if (twitterAccess && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            maybeRequestPostNotifications(context, notificationPermissionLauncher)
         }
     }
     LaunchedEffect(redditAccess) {
@@ -325,4 +349,28 @@ fun HomeRoute(
             BottomNavTab.MAP -> MapViewRoute(contentPadding = padding)
         }
     }
+}
+
+private const val SYNC_NOTIFICATION_PREFS = "sync_notification_prefs"
+private const val KEY_POST_NOTIFICATIONS_ASKED = "post_notifications_asked"
+
+/**
+ * Request POST_NOTIFICATIONS at most once. No-ops when the grant already exists or
+ * when we have asked before (a persisted flag), so the prompt never nags — the user
+ * can still enable notifications from system settings. Caller must gate on
+ * [Build.VERSION_CODES.TIRAMISU]; below that the permission does not exist.
+ */
+private fun maybeRequestPostNotifications(
+    context: Context,
+    launcher: ManagedActivityResultLauncher<String, Boolean>,
+) {
+    if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+        == PackageManager.PERMISSION_GRANTED
+    ) {
+        return
+    }
+    val prefs = context.getSharedPreferences(SYNC_NOTIFICATION_PREFS, Context.MODE_PRIVATE)
+    if (prefs.getBoolean(KEY_POST_NOTIFICATIONS_ASKED, false)) return
+    prefs.edit().putBoolean(KEY_POST_NOTIFICATIONS_ASKED, true).apply()
+    launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
 }

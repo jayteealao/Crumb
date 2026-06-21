@@ -1,13 +1,21 @@
 package com.github.jayteealao.crumbs.sync
 
+import android.Manifest
+import android.app.Application
+import android.app.NotificationManager
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
@@ -165,6 +173,85 @@ class MediaBackfillWorkerTest {
         assertTrue(
             "after completing the current generation the worker must short-circuit again",
             isBackfillDone("uid-legacy"),
+        )
+    }
+
+    // -------------------------------------------------------------------------
+    // 7. Extracted sweep seam: drains pages, counts recoveries, reports per-page
+    //    progress. doWork() can't run under Robolectric without a Hilt harness, so
+    //    the notification-driving behavior is tested through this top-level seam.
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun runBackfillSweep_drainsPages_countsRecovered_reportsEachPage() = runTest {
+        val pages = ArrayDeque(listOf(listOf("a", "b", "c"), listOf("d", "e")))
+        val pageSizes = mutableListOf<Int>()
+
+        val result = runBackfillSweep(
+            label = "test",
+            page = { if (pages.isEmpty()) emptyList() else pages.removeFirst() },
+            refetch = { id -> id != "b" }, // everything but "b" recovers data
+            onPageProcessed = { pageSizes += it },
+        )
+
+        assertEquals(5, result.processed)
+        assertEquals(4, result.recovered)
+        assertFalse("draining all pages must not flag capped", result.capped)
+        assertEquals("each page boundary must be reported once", listOf(3, 2), pageSizes)
+    }
+
+    @Test
+    fun runBackfillSweep_capsAtMax_andReportsCapped() = runTest {
+        var n = 0
+        val result = runBackfillSweep(
+            label = "cap",
+            page = { List(MediaBackfillWorker.BATCH_SIZE) { "id-${n++}" } }, // never empty
+            refetch = { true },
+        )
+
+        assertTrue("hitting the bound must flag capped", result.capped)
+        assertTrue(result.processed >= MediaBackfillWorker.MAX_BACKFILL_TWEETS)
+    }
+
+    @Test
+    fun runBackfillSweep_pageFetchThrows_propagatesToCaller() = runTest {
+        var threw = false
+        try {
+            runBackfillSweep(
+                label = "boom",
+                page = { throw RuntimeException("firestore down") },
+                refetch = { true },
+            )
+        } catch (e: RuntimeException) {
+            threw = true
+        }
+        assertTrue("a page-fetch failure must propagate (worker then returns retry)", threw)
+    }
+
+    @Test
+    fun runBackfillSweep_postsBackfillProgress_thenCancelClearsIt() = runTest {
+        val app = context as Application
+        shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        SyncNotifications.registerChannels(app)
+        val nm = app.getSystemService(NotificationManager::class.java)
+
+        val pages = ArrayDeque(listOf(listOf("a", "b")))
+        runBackfillSweep(
+            label = "notif",
+            page = { if (pages.isEmpty()) emptyList() else pages.removeFirst() },
+            refetch = { true },
+            onPageProcessed = { SyncNotifications.notifyBackfillProgress(app, it) },
+        )
+
+        assertNotNull(
+            "backfill progress must post on its own id while sweeping",
+            shadowOf(nm).getNotification(SyncNotifications.ID_BACKFILL),
+        )
+
+        SyncNotifications.cancelBackfill(app)
+        assertNull(
+            "cancelBackfill must clear the backfill notification on completion",
+            shadowOf(nm).getNotification(SyncNotifications.ID_BACKFILL),
         )
     }
 }

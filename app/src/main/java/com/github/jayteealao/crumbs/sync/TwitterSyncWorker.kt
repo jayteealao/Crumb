@@ -1,9 +1,7 @@
 package com.github.jayteealao.crumbs.sync
 
 import android.content.Context
-import android.content.pm.ServiceInfo
 import android.os.Build
-import androidx.core.app.NotificationCompat
 import androidx.room.withTransaction
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
@@ -13,9 +11,9 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
+import androidx.work.WorkInfo
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
-import com.github.jayteealao.crumbs.R
 import com.github.jayteealao.crumbs.auth.AuthGateway
 import com.github.jayteealao.crumbs.data.DeletedBookmarkRepository
 import com.github.jayteealao.crumbs.data.SyncProgress
@@ -29,6 +27,7 @@ import kotlinx.coroutines.TimeoutCancellationException
 import timber.log.Timber
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * Streaming Twitter bookmark sync. Replaces `Repository.syncFromFirestoreLocked`:
@@ -65,6 +64,16 @@ class TwitterSyncWorker(
             enqueuedUid = enqueuedUid,
             runAsForegroundService = runAsForegroundService,
             runAttemptCount = runAttemptCount,
+            // On API 31+ WorkManager surfaces why the worker was stopped; the
+            // Android-15 dataSync 6h cap reports STOP_REASON_TIMEOUT. Used to turn
+            // a timeout-driven stop into a retry (not a false "sync failed" alert).
+            stopReason = {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    stopReason
+                } else {
+                    WorkInfo.STOP_REASON_NOT_STOPPED
+                }
+            },
             setForegroundInfo = { setForeground(it) },
             commitBatch = { orderedBatch, progress ->
                 db.withTransaction {
@@ -76,15 +85,13 @@ class TwitterSyncWorker(
     }
 
     override suspend fun getForegroundInfo(): ForegroundInfo =
-        buildForegroundInfo(applicationContext, batchIdx = 0, batchTotal = 0)
+        SyncNotifications.foregroundInfo(applicationContext, batchIdx = 0, batchTotal = 0)
 
     companion object {
         const val KEY_RUN_AS_FOREGROUND = "run_as_foreground"
         const val KEY_UID = "uid"
         const val UNIQUE_NAME_PREFIX = "twitter-sync-"
         const val MAX_RETRY_ATTEMPTS = 5
-        const val NOTIFICATION_ID = 4242
-        const val NOTIFICATION_CHANNEL_ID = "twitter_sync_progress"
 
         // Cap the local-ID dedup set loaded at sync start. Tweets beyond this
         // threshold are re-inserted with IGNORE-on-conflict (no data loss).
@@ -109,48 +116,6 @@ class TwitterSyncWorker(
                     )
                 )
                 .build()
-    }
-}
-
-/**
- * Build the ongoing progress notification used when the worker is promoted to
- * a foreground service. `batchTotal == 0` (or batchIdx == 0) renders an
- * indeterminate progress bar; otherwise it's bounded. Channel registration
- * lives in `CrumbApplication.onCreate()`.
- */
-internal fun buildForegroundInfo(
-    ctx: Context,
-    batchIdx: Int,
-    batchTotal: Int,
-): ForegroundInfo {
-    val contentText = when {
-        batchTotal > 0 -> "Batch $batchIdx of $batchTotal"
-        batchIdx > 0 -> "Batch $batchIdx"
-        else -> "Loading…"
-    }
-    val notification = NotificationCompat.Builder(ctx, TwitterSyncWorker.NOTIFICATION_CHANNEL_ID)
-        .setContentTitle("Syncing your bookmarks")
-        .setContentText(contentText)
-        .setSmallIcon(R.mipmap.ic_launcher)
-        .setOngoing(true)
-        .setOnlyAlertOnce(true)
-        .setPriority(NotificationCompat.PRIORITY_LOW)
-        .apply {
-            if (batchTotal > 0) {
-                setProgress(batchTotal, batchIdx, false)
-            } else {
-                setProgress(0, 0, true)
-            }
-        }
-        .build()
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-        ForegroundInfo(
-            TwitterSyncWorker.NOTIFICATION_ID,
-            notification,
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
-        )
-    } else {
-        ForegroundInfo(TwitterSyncWorker.NOTIFICATION_ID, notification)
     }
 }
 
@@ -181,6 +146,7 @@ internal suspend fun runTwitterSync(
     enqueuedUid: String?,
     runAsForegroundService: Boolean,
     runAttemptCount: Int,
+    stopReason: () -> Int = { WorkInfo.STOP_REASON_NOT_STOPPED },
     setForegroundInfo: suspend (ForegroundInfo) -> Unit,
     commitBatch: suspend (orderedBatch: List<com.github.jayteealao.twitter.models.TweetEntities>, progress: SyncProgress) -> Unit,
 ): androidx.work.ListenableWorker.Result {
@@ -201,7 +167,7 @@ internal suspend fun runTwitterSync(
     }
 
     if (runAsForegroundService) {
-        runCatching { setForegroundInfo(buildForegroundInfo(ctx, 0, 0)) }
+        runCatching { setForegroundInfo(SyncNotifications.foregroundInfo(ctx, 0, 0)) }
             .onFailure { Timber.tag("IncrementalSync").w(it, "setForegroundInfo failed (continuing as background work)") }
     }
 
@@ -219,8 +185,12 @@ internal suspend fun runTwitterSync(
     var workingLowCreatedAt = priorProgress?.lastLowCursorCreatedAt
     var workingLowTweetId = priorProgress?.lastLowCursorTweetId
     var nextOrder = (syncFacade.getMaxOrder() ?: 1000) + 1
+    // Tally of items written this run. Drives the terminal "Synced N bookmarks"
+    // alert; the diff already filters to missing ids, so batch size ≈ new items
+    // (IGNORE-on-conflict makes this a close approximation, fine for copy).
+    var syncedCount = 0
 
-    return try {
+    val result: androidx.work.ListenableWorker.Result = try {
         // Bound the local-ID set to limit heap allocation. IDs are sorted by the
         // database's default order so taking the tail keeps the most recently added
         // tweets (the ones most likely to overlap with the incoming Firestore page),
@@ -272,12 +242,13 @@ internal suspend fun runTwitterSync(
                 commitBatch(orderedBatch, advancedProgress)
 
                 batchIdx++
+                syncedCount += orderedBatch.size
                 Timber.tag("IncrementalSync")
                     .i("batch_inserted batchIdx=$batchIdx size=${orderedBatch.size} cursorHi=$workingHighCreatedAt cursorLo=$workingLowCreatedAt")
 
                 if (runAsForegroundService) {
                     runCatching {
-                        setForegroundInfo(buildForegroundInfo(ctx, batchIdx, batchIdx + 1))
+                        setForegroundInfo(SyncNotifications.foregroundInfo(ctx, batchIdx, batchIdx + 1))
                     }.onFailure { Timber.tag("IncrementalSync").w(it, "setForegroundInfo update failed") }
                 }
             }
@@ -290,6 +261,18 @@ internal suspend fun runTwitterSync(
             androidx.work.ListenableWorker.Result.failure()
         } else {
             androidx.work.ListenableWorker.Result.retry()
+        }
+    } catch (e: CancellationException) {
+        // WorkManager stops the foreground dataSync worker when the Android-15 6h cap
+        // is hit, cancelling this coroutine. Per-batch commits already made progress
+        // durable, so a timeout stop is a retry — NOT a real failure — and must not
+        // raise the "sync failed" alert. Any other cancellation (e.g. a lost network
+        // constraint) is genuine: rethrow it so structured concurrency is preserved.
+        if (stopReason() == WorkInfo.STOP_REASON_TIMEOUT) {
+            Timber.tag("IncrementalSync").w("stopped_by_timeout attempt=$runAttemptCount; retrying, no error alert")
+            androidx.work.ListenableWorker.Result.retry()
+        } else {
+            throw e
         }
     } catch (e: FirebaseFirestoreException) {
         if (e.code == FirebaseFirestoreException.Code.UNAVAILABLE && runAttemptCount < TwitterSyncWorker.MAX_RETRY_ATTEMPTS) {
@@ -317,4 +300,21 @@ internal suspend fun runTwitterSync(
         Timber.tag("IncrementalSync").e(e, "unexpected_failure attempt=$runAttemptCount")
         androidx.work.ListenableWorker.Result.failure()
     }
+
+    // Terminal alerts fire only on the foreground cold-start drain — the path that
+    // raised an ongoing notification the user wasn't watching. Interactive
+    // pull-to-refresh runs as background work with snackbar feedback, so a heads-up
+    // "Synced N" over the live app would be noise. The timeout-driven stop returns
+    // retry() above and intentionally posts neither alert.
+    if (runAsForegroundService) {
+        // Compare against the public Result factories (Result.Success/.Failure are
+        // @RestrictTo and cannot be referenced directly). retry() matches neither.
+        when {
+            result == androidx.work.ListenableWorker.Result.success() && syncedCount > 0 ->
+                SyncNotifications.notifyTerminalSuccess(ctx, syncedCount)
+            result == androidx.work.ListenableWorker.Result.failure() ->
+                SyncNotifications.notifyTerminalError(ctx)
+        }
+    }
+    return result
 }

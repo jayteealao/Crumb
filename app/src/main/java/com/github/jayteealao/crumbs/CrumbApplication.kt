@@ -1,8 +1,6 @@
 package com.github.jayteealao.crumbs
 
 import android.app.Application
-import androidx.core.app.NotificationChannelCompat
-import androidx.core.app.NotificationManagerCompat
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
@@ -16,6 +14,7 @@ import coil.request.CachePolicy
 import com.github.jayteealao.crumbs.migration.XTokenMigrationWorker
 import com.github.jayteealao.crumbs.sync.MediaBackfillWorker
 import com.github.jayteealao.crumbs.sync.SyncEntryPoint
+import com.github.jayteealao.crumbs.sync.SyncNotifications
 import com.github.jayteealao.crumbs.sync.TwitterSyncWorker
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.HiltAndroidApp
@@ -27,7 +26,7 @@ class CrumbApplication : Application(), ImageLoaderFactory {
         super.onCreate()
         Timber.plant(Timber.DebugTree())
 
-        registerSyncNotificationChannel()
+        registerSyncNotificationChannels()
 
         // Register the Firebase Auth state listener. This is done explicitly
         // here rather than inside FirebaseAuthGateway's constructor so that the
@@ -82,15 +81,10 @@ class CrumbApplication : Application(), ImageLoaderFactory {
         MediaBackfillWorker.enqueueOnce(this)
     }
 
-    private fun registerSyncNotificationChannel() {
-        val channel = NotificationChannelCompat.Builder(
-            TwitterSyncWorker.NOTIFICATION_CHANNEL_ID,
-            NotificationManagerCompat.IMPORTANCE_LOW,
-        )
-            .setName("Bookmark sync")
-            .setDescription("Progress while syncing your X bookmarks")
-            .build()
-        NotificationManagerCompat.from(this).createNotificationChannel(channel)
+    // Register the progress + alerts channels. Channel ids/importance live in
+    // SyncNotifications so they never drift from the ids the worker builders target.
+    private fun registerSyncNotificationChannels() {
+        SyncNotifications.registerChannels(this)
     }
 
     // Project-wide Coil singleton. Crossfade smooths the placeholder→image

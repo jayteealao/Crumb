@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.cancellation.CancellationException
 
 /** Tally for one backfill sweep pass: how many tweets were processed, how many carried media back, and whether the bound was hit. */
-private data class SweepResult(val processed: Int, val recovered: Int, val capped: Boolean)
+internal data class SweepResult(val processed: Int, val recovered: Int, val capped: Boolean)
 
 /**
  * One-time media backfill for the legacy (pre-cutover) bookmark corpus. Tweets
@@ -56,82 +56,49 @@ class MediaBackfillWorker(
         val syncFacade = entry.twitterSyncFacade()
         val repository = entry.repository()
 
-        // One keyset-paginated sweep: re-fetch each tweet a page query returns, counting how
-        // many actually carried data back. Bounded by MAX_BACKFILL_TWEETS. [refetch] is the
-        // idempotent repair (media re-fetch, or the duplicate-safe link re-fetch).
-        //
-        // M8 fix: the page/cursor fetch is wrapped in try/catch so a transient Firestore
-        // error is surfaced as a thrown exception that propagates to the outer doWork()
-        // handler, which returns Result.retry() without stamping markBackfillDone.
-        suspend fun sweep(
-            label: String,
-            page: suspend (String) -> List<String>,
-            refetch: suspend (String) -> Boolean,
-        ): SweepResult {
-            var cursor = ""
-            var processed = 0
-            var recovered = 0
-            while (processed < MAX_BACKFILL_TWEETS) {
-                val ids = try {
-                    page(cursor)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Timber.tag(TAG).w(e, "page fetch failed for $label cursor=$cursor; will retry")
-                    throw e
-                }
-                if (ids.isEmpty()) break
-                for (id in ids) {
-                    if (runCatching { refetch(id) }.getOrDefault(false)) {
-                        recovered++
-                    }
-                    processed++
-                }
-                cursor = ids.last()
-            }
-            val capped = processed >= MAX_BACKFILL_TWEETS
-            if (capped) {
-                Timber.tag(TAG).w(
-                    "backfill cap ($MAX_BACKFILL_TWEETS) reached for $label; remaining tweets " +
-                        "will be re-swept on retry",
-                )
-            }
-            return SweepResult(processed, recovered, capped)
+        // Cumulative count across all four sweeps, surfaced as a NON-foreground
+        // progress notification so the otherwise-silent legacy backfill is visible
+        // in the shade. No setForeground → no claim on the shared Android-15 dataSync
+        // 6h budget. Cleared in `finally` once the worker returns (best-effort).
+        var totalProcessed = 0
+        val onPageProcessed: (Int) -> Unit = { pageSize ->
+            totalProcessed += pageSize
+            SyncNotifications.notifyBackfillProgress(ctx, totalProcessed)
         }
-
-        suspend fun sweepLinks(): SweepResult = sweep(
-            "external-link",
-            { after -> syncFacade.getExternalLinkTweetsWithoutPreview(after, BATCH_SIZE) },
-            { id -> repository.refetchTweetLinks(id) },
-        )
-
-        suspend fun sweepQuotes(): SweepResult = sweep(
-            "quoted-body",
-            { after -> syncFacade.getQuoteTweetsWithoutBody(after, BATCH_SIZE) },
-            { id -> repository.refetchTweetQuotes(id) },
-        )
 
         return try {
             // Pass 1: legacy media-less tweets (image-rendering). Pass 2: video / animated_gif
             // rows whose stream variants synced empty before the v15 column existed (inline video).
-            // Pass 3: external-link tweets with no url-entity row, repaired from the server-side
-            // link enrichment via refetchTweetLinks (link previews); the media sweep's
-            // refetchTweetMedia early-returns for media-less tweets, so links need their own pass.
-            val media = sweep(
+            val media = runBackfillSweep(
                 "media-less",
                 { after -> syncFacade.getTweetsWithoutMedia(after, BATCH_SIZE) },
                 { id -> repository.refetchTweetMedia(id) },
+                onPageProcessed,
             )
-            val variants = sweep(
+            val variants = runBackfillSweep(
                 "variants-empty",
                 { after -> syncFacade.getVideoTweetsWithoutVariants(after, BATCH_SIZE) },
                 { id -> repository.refetchTweetMedia(id) },
+                onPageProcessed,
             )
-            val links = sweepLinks()
+            // Pass 3: external-link tweets with no url-entity row, repaired from the server-side
+            // link enrichment via refetchTweetLinks (link previews); the media sweep's
+            // refetchTweetMedia early-returns for media-less tweets, so links need their own pass.
+            val links = runBackfillSweep(
+                "external-link",
+                { after -> syncFacade.getExternalLinkTweetsWithoutPreview(after, BATCH_SIZE) },
+                { id -> repository.refetchTweetLinks(id) },
+                onPageProcessed,
+            )
             // Pass 4: tweets that reference a quoted tweet whose body never landed
             // locally, repaired from the server-written quoted doc via refetchTweetQuotes
             // (quoted tweets); resolves the FK-free junction so the card renders the quote.
-            val quotes = sweepQuotes()
+            val quotes = runBackfillSweep(
+                "quoted-body",
+                { after -> syncFacade.getQuoteTweetsWithoutBody(after, BATCH_SIZE) },
+                { id -> repository.refetchTweetQuotes(id) },
+                onPageProcessed,
+            )
 
             // H1 fix: only stamp the generation as done when ALL sweeps drained fully
             // (none were capped). If any sweep hit the cap, more tweets remain — return
@@ -161,11 +128,14 @@ class MediaBackfillWorker(
             // Do NOT mark done on failure — retry with backoff, then give up (the
             // lazy on-view path still repairs cards as they are viewed).
             if (runAttemptCount < MAX_RETRY_ATTEMPTS) Result.retry() else Result.success()
+        } finally {
+            // Clear the progress notification whatever the outcome — best-effort.
+            SyncNotifications.cancelBackfill(ctx)
         }
     }
 
     companion object {
-        private const val TAG = "MediaBackfill"
+        internal const val TAG = "MediaBackfill"
         const val UNIQUE_NAME = "twitter-media-backfill"
         const val MAX_RETRY_ATTEMPTS = 3
         const val BATCH_SIZE = 25
@@ -247,4 +217,56 @@ class MediaBackfillWorker(
             }
         }
     }
+}
+
+/**
+ * One keyset-paginated sweep, extracted as a top-level suspend so Robolectric tests
+ * can drive it without a Hilt harness ([MediaBackfillWorker.doWork] resolves the
+ * entry point and cannot run under a plain unit test). Pages through [page] from an
+ * opaque keyset cursor, repairs each id via [refetch] (idempotent, IGNORE-on-conflict),
+ * counts how many actually carried data back, and reports each page's size to
+ * [onPageProcessed] so the caller can surface progress. Bounded by
+ * [MediaBackfillWorker.MAX_BACKFILL_TWEETS]; a cap hit is reported via [SweepResult.capped]
+ * (logged, not silently truncated).
+ *
+ * The page fetch is wrapped so a transient error propagates to the caller (which
+ * returns `Result.retry()` without stamping the generation done); a [CancellationException]
+ * is rethrown so worker cancellation is honored.
+ */
+internal suspend fun runBackfillSweep(
+    label: String,
+    page: suspend (cursor: String) -> List<String>,
+    refetch: suspend (id: String) -> Boolean,
+    onPageProcessed: (pageSize: Int) -> Unit = {},
+): SweepResult {
+    var cursor = ""
+    var processed = 0
+    var recovered = 0
+    while (processed < MediaBackfillWorker.MAX_BACKFILL_TWEETS) {
+        val ids = try {
+            page(cursor)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.tag(MediaBackfillWorker.TAG).w(e, "page fetch failed for $label cursor=$cursor; will retry")
+            throw e
+        }
+        if (ids.isEmpty()) break
+        for (id in ids) {
+            if (runCatching { refetch(id) }.getOrDefault(false)) {
+                recovered++
+            }
+            processed++
+        }
+        onPageProcessed(ids.size)
+        cursor = ids.last()
+    }
+    val capped = processed >= MediaBackfillWorker.MAX_BACKFILL_TWEETS
+    if (capped) {
+        Timber.tag(MediaBackfillWorker.TAG).w(
+            "backfill cap (${MediaBackfillWorker.MAX_BACKFILL_TWEETS}) reached for $label; " +
+                "remaining tweets will be re-swept on retry",
+        )
+    }
+    return SweepResult(processed, recovered, capped)
 }
