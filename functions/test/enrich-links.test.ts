@@ -14,12 +14,25 @@ jest.mock("firebase-admin/firestore", () => ({
 
 import { pickExternalUrl, isExternalUrl } from "../src/lib/links";
 import { runEnrichLinks } from "../src/lib/enrich-links";
-import type { OpenGraphData } from "../src/lib/og";
+import type { OpenGraphResult } from "../src/lib/og";
 
 const URL_DOC = "users/uid1/textAnnotations/TW1_urls_10_33";
 
 function entitiesWith(urls: Array<Record<string, unknown>>): unknown {
   return { urls };
+}
+
+/** Spy logger that captures info calls for observability assertions. */
+function makeSpyLogger() {
+  const calls: Array<{ message: string; data?: Record<string, unknown> }> = [];
+  return {
+    logger: {
+      info(message: string, data?: Record<string, unknown>) {
+        calls.push({ message, data });
+      },
+    },
+    calls,
+  };
 }
 
 describe("pickExternalUrl", () => {
@@ -63,12 +76,22 @@ describe("pickExternalUrl", () => {
 
 describe("runEnrichLinks", () => {
   let ctx: FakeContext;
-  const okFetch = async (): Promise<OpenGraphData> => ({
+  const okFetch = async (): Promise<OpenGraphResult> => ({
+    outcome: "rich",
     title: "Brutalist Web Design",
     description: "A guide to raw, honest interfaces.",
     image: "https://cdn.example.com/og.jpg",
   });
-  const failFetch = async (): Promise<OpenGraphData> => ({});
+  /** Simulates a page with <title> but no og:image (title_only outcome). */
+  const titleOnlyFetch = async (): Promise<OpenGraphResult> => ({
+    outcome: "title_only",
+    title: "A Page Without OG Image",
+    description: "Just a plain description from meta[name=description].",
+  });
+  /** Simulates a page whose fetch failed at the HTTP layer. */
+  const failFetch = async (): Promise<OpenGraphResult> => ({ outcome: "no_meta" });
+  /** Simulates a page that timed out. */
+  const timeoutFetch = async (): Promise<OpenGraphResult> => ({ outcome: "timeout" });
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -99,6 +122,21 @@ describe("runEnrichLinks", () => {
       description: "A guide to raw, honest interfaces.",
       imageUrl: "https://cdn.example.com/og.jpg",
     });
+  });
+
+  it("writes a title-only doc when the page has <title> but no og:image", async () => {
+    const outcome = await runEnrichLinks(
+      ctx.db,
+      "uid1",
+      "TW1",
+      entitiesWith([{ expanded_url: "https://example.com/article", url: "https://t.co/b", start: 10, end: 33 }]),
+      titleOnlyFetch,
+    );
+    expect(outcome).toBe("written");
+    const doc = ctx.store.get(URL_DOC)!;
+    expect(doc.title).toBe("A Page Without OG Image");
+    expect(doc.description).toBe("Just a plain description from meta[name=description].");
+    expect(doc.imageUrl).toBeNull();
   });
 
   it("always writes the URL row even when the OG fetch yields nothing (best-effort)", async () => {
@@ -135,6 +173,59 @@ describe("runEnrichLinks", () => {
     );
     expect(outcome).toBe("skipped");
     expect(ctx.store.get(URL_DOC)!.title).toBe("Brutalist Web Design");
+  });
+
+  it("force=true overwrites an existing chip doc with a fresh OG result", async () => {
+    // Seed a stale chip (no title, no image — written by old enrichment logic).
+    ctx.seed(URL_DOC, {
+      tweetId: "TW1", type: "urls", start: 10, end: 33,
+      expandedUrl: "https://example.com/article",
+      title: null, description: null, imageUrl: null,
+      updatedAt: "<server-ts>",
+    });
+    const outcome = await runEnrichLinks(
+      ctx.db,
+      "uid1",
+      "TW1",
+      entitiesWith([{ expanded_url: "https://example.com/article", url: "https://t.co/b", start: 10, end: 33 }]),
+      okFetch,
+      { force: true },
+    );
+    expect(outcome).toBe("written");
+    expect(ctx.store.get(URL_DOC)!.title).toBe("Brutalist Web Design");
+    expect(ctx.store.get(URL_DOC)!.imageUrl).toBe("https://cdn.example.com/og.jpg");
+  });
+
+  it("emits a structured outcome log with the correct outcome tag", async () => {
+    const spy = makeSpyLogger();
+    await runEnrichLinks(
+      ctx.db,
+      "uid1",
+      "TW1",
+      entitiesWith([{ expanded_url: "https://example.com/article", url: "https://t.co/b", start: 10, end: 33 }]),
+      okFetch,
+      { log: spy.logger },
+    );
+    const logEntry = spy.calls.find((c) => c.message === "enrich_link_outcome");
+    expect(logEntry).toBeDefined();
+    expect(logEntry?.data?.outcome).toBe("rich");
+    expect(logEntry?.data?.hasTitle).toBe(true);
+    expect(logEntry?.data?.hasImage).toBe(true);
+  });
+
+  it("emits outcome=timeout tag when the OG fetch times out", async () => {
+    const spy = makeSpyLogger();
+    await runEnrichLinks(
+      ctx.db,
+      "uid1",
+      "TW1",
+      entitiesWith([{ expanded_url: "https://example.com/article", url: "https://t.co/b", start: 10, end: 33 }]),
+      timeoutFetch,
+      { log: spy.logger },
+    );
+    const logEntry = spy.calls.find((c) => c.message === "enrich_link_outcome");
+    expect(logEntry?.data?.outcome).toBe("timeout");
+    expect(logEntry?.data?.hasTitle).toBe(false);
   });
 
   it("returns no_link (and writes nothing) when the tweet has no external link", async () => {

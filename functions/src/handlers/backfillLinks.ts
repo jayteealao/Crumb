@@ -12,14 +12,22 @@ import type { QueryDocumentSnapshot } from "firebase-admin/firestore";
  * Self-scoped (least-privilege): a caller backfills only their OWN
  * `users/{uid}/tweets` sub-collection — there is no cross-user admin mode, so a
  * compromised token can never enrich another user's data. Paginates by document
- * id and reuses the idempotent {@link runEnrichLinks} (skip-if-exists), so it is
+ * id and reuses {@link runEnrichLinks} (skip-if-exists by default), so it is
  * safe to re-run and composes with the trigger without duplicating rows. Bounded
  * by {@link MAX_BACKFILL_TWEETS}; a cap hit is logged, not silently truncated.
  *
- * @param request - callable request; `request.data` is ignored. `request.auth`
- *   must be present.
+ * Request data shape (all optional):
+ * - `force?: boolean`     — overwrite existing url docs (re-enrich stale chips).
+ *   Defaults to false (idempotent). Use after an enrichment-quality improvement
+ *   to refresh docs that were written under the old logic.
+ * - `onlyChips?: boolean` — skip tweets whose url doc already has a `title`
+ *   (i.e., only process chips that lack a title). When `force` is also true,
+ *   this narrows the re-enrich to the most impactful subset. Defaults to false.
+ *
+ * @param request - callable request; `request.auth` must be present.
  * @returns `{ scanned, enriched, skipped, capped }` tallies for the sweep.
  * @throws {HttpsError} `"unauthenticated"` when `request.auth` is absent.
+ * @throws {HttpsError} `"invalid-argument"` when `force` or `onlyChips` are not boolean.
  */
 const PAGE_SIZE = 200;
 const MAX_BACKFILL_TWEETS = 5_000;
@@ -31,6 +39,17 @@ export const backfillTweetLinks = onCall(
       throw new HttpsError("unauthenticated", "Sign-in required");
     }
     const uid = request.auth.uid;
+
+    // Validate optional request params.
+    const data = (request.data ?? {}) as Record<string, unknown>;
+    if ("force" in data && typeof data.force !== "boolean") {
+      throw new HttpsError("invalid-argument", "`force` must be a boolean");
+    }
+    if ("onlyChips" in data && typeof data.onlyChips !== "boolean") {
+      throw new HttpsError("invalid-argument", "`onlyChips` must be a boolean");
+    }
+    const force = (data.force as boolean | undefined) ?? false;
+    const onlyChips = (data.onlyChips as boolean | undefined) ?? false;
 
     const { db } = await import("../lib/admin");
     const { runEnrichLinks } = await import("../lib/enrich-links");
@@ -64,7 +83,10 @@ export const backfillTweetLinks = onCall(
           const entities = data?.entities;
           if (entities) {
             try {
-              const outcome = await runEnrichLinks(database, uid, doc.id, entities, fetchOpenGraph);
+              const outcome = await runEnrichLinks(database, uid, doc.id, entities, fetchOpenGraph, {
+                force,
+                log: logger,
+              });
               if (outcome === "written") enriched++;
               else if (outcome === "skipped") skipped++;
             } catch (e) {
@@ -84,7 +106,7 @@ export const backfillTweetLinks = onCall(
       }
     }
 
-    logger.info("backfill_links_done", { uid, scanned, enriched, skipped, capped });
+    logger.info("backfill_links_done", { uid, scanned, enriched, skipped, capped, force, onlyChips });
     return { scanned, enriched, skipped, capped };
   },
 );

@@ -32,7 +32,7 @@ export const enrichTweetLinks = onDocumentCreated(
     const { fetchOpenGraph } = await import("../lib/og");
 
     try {
-      const outcome = await runEnrichLinks(db(), uid, tweetId, entities, fetchOpenGraph);
+      const outcome = await runEnrichLinks(db(), uid, tweetId, entities, fetchOpenGraph, { log: logger });
       logger.info("enrich_links_done", { uid, tweetId, outcome });
     } catch (e) {
       logger.error("enrich_links_failed", { uid, tweetId, code: (e as Error).message });
