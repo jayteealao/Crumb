@@ -121,9 +121,11 @@ export async function fetchOpenGraph(url: string): Promise<OpenGraphResult> {
       const failOutcome = fetched.outcome === "ok" ? "error" : fetched.outcome;
       return { outcome: failOutcome };
     }
-    // Parse the already-fetched (size-bounded) HTML — `html` makes ogs skip its
-    // own unbounded request. `url` is passed only as the base for relative tags.
-    const { error, result } = await ogs({ html: fetched.html, url });
+    // Parse the already-fetched (size-bounded) HTML. open-graph-scraper v6.11
+    // REJECTS a call that passes both `html` and `url` ("Must specify either
+    // `url` or `html`, not both"), so pass `html` only — we have already fetched
+    // the body ourselves (SSRF guard + byte cap) and do not want ogs to re-fetch.
+    const { error, result } = await ogs({ html: fetched.html });
     if (error || !result) return { outcome: "error" };
     // ogs v6.11 result shape after extract → mediaSetup → fallback:
     //   ogTitle      — og:title meta, or <title>/<h1> fallback (populated when og:title is absent)

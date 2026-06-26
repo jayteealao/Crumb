@@ -4,7 +4,56 @@
 // Returns false → URL should be blocked (private range, loopback, link-local,
 //                 internal hostname, non-http scheme, or malformed input).
 
-import { isSafePublicUrl } from "../src/lib/og";
+import { fetchOpenGraph, isSafePublicUrl } from "../src/lib/og";
+
+// ---------------------------------------------------------------------------
+// fetchOpenGraph – exercises the REAL open-graph-scraper parse (no mock).
+//
+// Regression guard for the `ogs({ html, url })` both-params rejection: ogs v6.11
+// throws "Must specify either `url` or `html`, not both" when passed both, which
+// silently degraded EVERY enrichment to outcome:"error" (null title/image). The
+// existing suite mocked the fetcher, so the real ogs call was never tested. This
+// stubs only the network (a fake HTML response) and lets the real ogs run.
+// ---------------------------------------------------------------------------
+
+describe("fetchOpenGraph – real open-graph-scraper parse", () => {
+  const FIXTURE_HTML =
+    "<!doctype html><html><head>" +
+    '<meta property="og:title" content="Regression Title">' +
+    '<meta property="og:image" content="https://cdn.example.com/cover.png">' +
+    '<meta property="og:description" content="A description">' +
+    "</head><body>hello</body></html>";
+
+  // Minimal fetch Response surface used by fetchHtmlCapped (status/ok/headers/body.getReader),
+  // env-independent so it does not depend on a global Response polyfill.
+  function fakeHtmlResponse(html: string) {
+    const bytes = new TextEncoder().encode(html);
+    let sent = false;
+    return {
+      status: 200,
+      ok: true,
+      headers: { get: (k: string) => (k.toLowerCase() === "content-type" ? "text/html; charset=utf-8" : null) },
+      body: {
+        getReader: () => ({
+          read: async () => (sent ? { done: true, value: undefined } : ((sent = true), { done: false, value: bytes })),
+        }),
+      },
+    };
+  }
+
+  const realFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  it("resolves rich metadata from provided HTML (fails if both-params ogs bug returns)", async () => {
+    globalThis.fetch = jest.fn(async () => fakeHtmlResponse(FIXTURE_HTML)) as unknown as typeof globalThis.fetch;
+    const r = await fetchOpenGraph("https://example.com/article");
+    expect(r.outcome).toBe("rich");
+    expect(r.title).toBe("Regression Title");
+    expect(r.image).toBe("https://cdn.example.com/cover.png");
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Parameterised REJECT cases
