@@ -30,8 +30,8 @@ export interface OpenGraphData {
  * - `image_only`      — image resolved, no title
  * - `no_meta`         — fetch succeeded but no title or image found (inherent static ceiling)
  * - `redirect_blocked`— (legacy) fetch aborted because the URL issued a redirect (SSRF guard);
- *                       kept in the union for back-compat with logged history — essentially
- *                       stops firing now that redirects are followed with per-hop validation
+ *                       kept in the union for log back-compat — never emitted by current impl;
+ *                       retained because historical log entries reference this value
  * - `too_many_redirects` — redirect chain exceeded MAX_REDIRECT_HOPS
  * - `http_4xx`        — server returned 4xx (bot-block, gone, etc.)
  * - `non_html`        — content-type is not HTML
@@ -44,7 +44,7 @@ export type OgOutcomeTag =
   | "title_only"
   | "image_only"
   | "no_meta"
-  | "redirect_blocked"
+  | "redirect_blocked" // never emitted by current impl; retained for log back-compat
   | "too_many_redirects"
   | "http_4xx"
   | "non_html"
@@ -58,6 +58,9 @@ export interface OpenGraphResult extends OpenGraphData {
 }
 
 const FETCH_TIMEOUT_MS = 8_000; // bumped from 5s → 8s to accommodate slow sites (triage)
+// Total wall-clock budget for one fetchHtmlCapped call (including retries).
+// Kept under enrichTweetLinks's 30 s with headroom for caller overhead.
+const TOTAL_BUDGET_MS = 24_000;
 // A realistic browser UA reduces HTTP 403 bot-blocks from sites that filter on
 // the user-agent string (measured at ~13% of fetch failures in the RCA sample).
 // Pinned to a frozen Chrome/131 string so it stays predictable across deploys.
@@ -110,7 +113,7 @@ export function isPrivateIp(ip: string): boolean {
   // IPv4 dotted-decimal
   const ipv4 = s.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (ipv4) {
-    const [a, b, c, d] = [Number(ipv4[1]), Number(ipv4[2]), Number(ipv4[3]), Number(ipv4[4])];
+    const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
     if (a === 0) return true;                        // 0.0.0.0/8 (this network)
     if (a === 10) return true;                       // 10.0.0.0/8
     if (a === 100 && b >= 64 && b <= 127) return true; // 100.64.0.0/10 CGNAT
@@ -118,9 +121,6 @@ export function isPrivateIp(ip: string): boolean {
     if (a === 169 && b === 254) return true;         // 169.254.0.0/16 link-local + metadata
     if (a === 172 && b >= 16 && b <= 31) return true; // 172.16.0.0/12
     if (a === 192 && b === 168) return true;         // 192.168.0.0/16
-    // Suppress unused-variable warning: d is used implicitly via destructure
-    void d;
-    void c;
     return false;
   }
 
@@ -193,10 +193,12 @@ export async function resolveAndValidateHost(
   // Strip brackets from IPv6 literals (URL.hostname includes them)
   const bare = host.startsWith("[") && host.endsWith("]") ? host.slice(1, -1) : host;
 
-  // If it looks like an IPv4 or IPv6 literal, validate directly without DNS
+  // If it looks like an IPv4 or IPv6 literal, validate directly without DNS.
+  // IPv6 literals must contain a colon to avoid misclassifying short hex-only
+  // hostnames (e.g. "dead" or "beef") as IPv6 addresses.
   const isIpLiteral =
     /^(\d{1,3}\.){3}\d{1,3}$/.test(bare) || // IPv4
-    /^[0-9a-f:]+$/i.test(bare); // IPv6 (simplified — covers ::, ::1, full form)
+    (/^[0-9a-f:]+$/i.test(bare) && bare.includes(":")); // IPv6 (requires colon)
 
   if (isIpLiteral) {
     if (isPrivateIp(bare)) {
@@ -228,10 +230,19 @@ export async function resolveAndValidateHost(
  * Validate a single URL for safety before fetching it.
  * Rejects: non-http(s) scheme, userinfo (credentials in URL), unsafe host.
  * Throws a tagged Error({ message: "unsafe_url" | "unsafe_host" }) on failure.
+ *
+ * DNS TOCTOU residual: DNS validation precedes TCP connect, so a TTL=0 rebind
+ * is theoretically possible between the DNS check here and the actual TCP
+ * connection made by the fetch runtime. The deployment-level mitigation is VPC
+ * egress deny rules on the Cloud Function's VPC connector, which block outbound
+ * connections to RFC-1918 / link-local ranges at the network layer regardless
+ * of what the fetch runtime resolves. Do not remove or bypass this check —
+ * defense-in-depth requires both layers.
  */
 async function assertSafeHop(
   url: URL,
   lookup: DnsLookupAll,
+  deadline?: number,
 ): Promise<void> {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new Error("unsafe_url");
@@ -244,8 +255,24 @@ async function assertSafeHop(
   if (!isSafePublicUrl(url.href)) {
     throw new Error("unsafe_url");
   }
-  // DNS resolution check — catches public hostnames that resolve to private IPs
-  await resolveAndValidateHost(url.hostname, lookup);
+  // DNS resolution check — catches public hostnames that resolve to private IPs.
+  // Race against the remaining budget so a slow DNS call cannot blow the total wall-clock.
+  if (deadline !== undefined) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw new Error("deadline_exceeded");
+    const timeoutError = new Error("deadline_exceeded");
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => reject(timeoutError), remaining);
+    });
+    try {
+      await Promise.race([resolveAndValidateHost(url.hostname, lookup), timeoutPromise]);
+    } finally {
+      clearTimeout(timeoutId!);
+    }
+  } else {
+    await resolveAndValidateHost(url.hostname, lookup);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -280,6 +307,7 @@ export function isSafePublicUrl(rawUrl: string): boolean {
   if (ipv4) {
     const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
     if (a === 10) return false; // 10.0.0.0/8
+    if (a === 100 && b >= 64 && b <= 127) return false; // 100.64.0.0/10 CGNAT
     if (a === 127) return false; // loopback
     if (a === 0) return false; // 0.0.0.0/8
     if (a === 169 && b === 254) return false; // link-local + 169.254.169.254 metadata
@@ -390,15 +418,20 @@ export async function fetchOpenGraph(
  */
 function extractFavicon(html: string | null, pageUrl?: string): string | undefined {
   if (!html || !pageUrl) return undefined;
-  // Match <link rel="icon"> or <link rel="shortcut icon"> — attribute order varies
+  // Match <link> tags whose rel attribute contains the token "icon" (handles any
+  // token order: "icon", "shortcut icon", "icon shortcut", etc.) — case-insensitive.
+  // Two patterns cover both attribute orderings (rel-first and href-first).
   const iconLink = html.match(
-    /<link[^>]+rel=["'](?:shortcut )?icon["'][^>]*href=["']([^"']+)["'][^>]*>/i,
+    /<link[^>]+rel=["'][^"']*\bicon\b[^"']*["'][^>]*href=["']([^"']+)["'][^>]*>/i,
   ) ?? html.match(
-    /<link[^>]+href=["']([^"']+)["'][^>]*rel=["'](?:shortcut )?icon["'][^>]*>/i,
+    /<link[^>]+href=["']([^"']+)["'][^>]*rel=["'][^"']*\bicon\b[^"']*["'][^>]*>/i,
   );
   if (iconLink?.[1]) {
     try {
-      return new URL(iconLink[1], pageUrl).href;
+      const faviconUrl = new URL(iconLink[1], pageUrl).href;
+      // Validate the resolved favicon URL to prevent private URLs escaping to the app layer
+      if (!isSafePublicUrl(faviconUrl)) return undefined;
+      return faviconUrl;
     } catch {
       // malformed href — fall through to /favicon.ico
     }
@@ -406,7 +439,9 @@ function extractFavicon(html: string | null, pageUrl?: string): string | undefin
   // Synthesise /favicon.ico from the page origin
   try {
     const origin = new URL(pageUrl).origin;
-    return `${origin}/favicon.ico`;
+    const faviconUrl = `${origin}/favicon.ico`;
+    if (!isSafePublicUrl(faviconUrl)) return undefined;
+    return faviconUrl;
   } catch {
     return undefined;
   }
@@ -438,6 +473,24 @@ function browserHeaders(ua = USER_AGENT): Record<string, string> {
 }
 
 /**
+ * Drain a response body to completion so undici's HTTP/1 parser stays happy.
+ * We do NOT call reader.cancel() — a mid-stream cancel leaves the HTTP/1 parser
+ * paused and trips an internal assertion (assert(!this.paused) in Parser.finish).
+ * This helper is used for redirect bodies, non-HTML bodies, and error bodies.
+ */
+async function drain(body: { getReader(): { read(): Promise<{ done: boolean; value?: Uint8Array }> } }): Promise<void> {
+  try {
+    const reader = body.getReader();
+    for (;;) {
+      const { done } = await reader.read();
+      if (done) break;
+    }
+  } catch {
+    // ignore drain errors — best-effort
+  }
+}
+
+/**
  * Fetch a page's HTML with an SSRF-safe bounded redirect-follow loop.
  * Returns a tagged result — `html` is non-null only on success; `outcome` names
  * the failure reason on any non-HTML, non-2xx, redirect, or timeout.
@@ -446,22 +499,49 @@ function browserHeaders(ua = USER_AGENT): Record<string, string> {
  * before the fetch. A redirect to a private/metadata host is blocked as
  * `unsafe_url`. Chains exceeding MAX_REDIRECT_HOPS return `too_many_redirects`.
  * The byte cap keeps peak memory bounded.
+ *
+ * MAX_REDIRECT_HOPS = max redirect *responses* followed; N redirects ⇒ N+1 fetches.
+ * e.g. MAX_REDIRECT_HOPS=5 means 5 redirect responses are followed and the 6th
+ * 3xx response triggers `too_many_redirects` (not an off-by-one — matches browser
+ * behaviour).
+ *
+ * Budget: the `deadline` parameter bounds total wall-clock across ALL attempts
+ * (initial + retries). Each attempt's per-fetch AbortController timeout is capped
+ * at min(FETCH_TIMEOUT_MS, remaining_budget) so retries respect the overall limit.
  */
 async function fetchHtmlCapped(
   url: string,
   lookup: DnsLookupAll,
-  attempt = 0, // 0 = first attempt, 1 = retry
+  attempt = 0,   // 0 = first attempt, 1 = retry
+  deadline?: number, // epoch ms — set once on attempt 0, threaded through retries
 ): Promise<FetchResult> {
-  const ua = attempt === 0 ? USER_AGENT : ALT_USER_AGENT;
-  const accept = attempt === 0 ? browserHeaders(ua).accept : ALT_ACCEPT;
+  // Establish the overall deadline on the first attempt
+  if (deadline === undefined) {
+    deadline = Date.now() + TOTAL_BUDGET_MS;
+  }
+
+  // Check remaining budget before starting a new attempt
+  const remainingBudget = deadline - Date.now();
+  if (remainingBudget <= 0) {
+    return { html: null, outcome: "timeout" };
+  }
+
+  // Per-fetch timeout capped at remaining budget
+  const perFetchTimeout = Math.min(FETCH_TIMEOUT_MS, remainingBudget);
+
+  // Use browserHeaders() as single source of truth for request headers
+  const headers = attempt === 0
+    ? browserHeaders(USER_AGENT)
+    : { ...browserHeaders(ALT_USER_AGENT), accept: ALT_ACCEPT };
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), perFetchTimeout);
 
   let currentUrl: URL;
   try {
     currentUrl = new URL(url);
   } catch {
+    clearTimeout(timer);
     return { html: null, outcome: "unsafe_url" };
   }
 
@@ -469,58 +549,70 @@ async function fetchHtmlCapped(
     let hops = 0;
 
     for (;;) {
-      // Validate EVERY hop before fetching (initial URL + each redirect target)
+      // Validate EVERY hop before fetching (initial URL + each redirect target).
+      // Pass deadline so DNS resolution cannot run past the total budget.
       try {
-        await assertSafeHop(currentUrl, lookup);
-      } catch {
+        await assertSafeHop(currentUrl, lookup, deadline);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "";
+        if (msg === "deadline_exceeded") return { html: null, outcome: "timeout" };
         return { html: null, outcome: "unsafe_url" };
       }
 
       const resp = await fetch(currentUrl.href, {
-        headers: { "user-agent": ua, accept, "accept-language": "en-US,en;q=0.9" },
+        headers,
         redirect: "manual",
         signal: controller.signal,
       });
 
-      // Handle 3xx redirects manually
+      // Handle 3xx redirects manually.
+      // MAX_REDIRECT_HOPS = max redirect responses followed; N redirects ⇒ N+1 fetches.
       if (resp.status >= 300 && resp.status < 400) {
         if (hops >= MAX_REDIRECT_HOPS) {
+          if (resp.body) await drain(resp.body);
           return { html: null, outcome: "too_many_redirects" };
         }
         const location = resp.headers.get("location");
         if (!location) {
+          if (resp.body) await drain(resp.body);
           return { html: null, outcome: "error" };
         }
         // Resolve the Location relative to the current URL (handles relative + protocol-relative)
         try {
           currentUrl = new URL(location, currentUrl.href);
         } catch {
+          if (resp.body) await drain(resp.body);
           return { html: null, outcome: "error" };
         }
         hops++;
-        // Drain the redirect response body to keep undici's HTTP parser happy
-        if (resp.body) {
-          try {
-            await resp.body.getReader().read();
-          } catch {
-            // ignore drain errors
-          }
-        }
+        // Drain the redirect response body to keep undici's HTTP/1 parser happy.
+        // Read until done — a single read() under-drains non-empty 3xx bodies and
+        // can leave undici's HTTP/1 parser stalled.
+        if (resp.body) await drain(resp.body);
         continue;
       }
 
       // Terminal response — process it
       if (resp.status >= 400 && resp.status < 500) {
-        // Bot-block retry: on first attempt, retry once with alternate UA (triage bucket)
+        if (resp.body) await drain(resp.body);
+        // Bot-block retry: on first attempt, retry once with alternate UA.
+        // Pass `currentUrl.href` (the terminal blocking URL) so the alt-UA hits
+        // the actual blocking endpoint rather than restarting the whole chain.
         if (attempt === 0) {
           clearTimeout(timer);
-          return fetchHtmlCapped(url, lookup, 1);
+          return fetchHtmlCapped(currentUrl.href, lookup, 1, deadline);
         }
         return { html: null, outcome: "http_4xx" };
       }
-      if (!resp.ok || !resp.body) return { html: null, outcome: "error" };
+      if (!resp.ok || !resp.body) {
+        if (resp.body) await drain(resp.body);
+        return { html: null, outcome: "error" };
+      }
       const contentType = (resp.headers.get("content-type") ?? "").toLowerCase();
-      if (!contentType.includes("html")) return { html: null, outcome: "non_html" };
+      if (!contentType.includes("html")) {
+        await drain(resp.body);
+        return { html: null, outcome: "non_html" };
+      }
 
       const reader = resp.body.getReader();
       const chunks: Uint8Array[] = [];
@@ -549,7 +641,7 @@ async function fetchHtmlCapped(
       // Timeout retry: on first attempt, retry once (triage bucket: ~2.7% slow sites)
       if (attempt === 0) {
         clearTimeout(timer);
-        return fetchHtmlCapped(url, lookup, 1);
+        return fetchHtmlCapped(url, lookup, 1, deadline);
       }
       return { html: null, outcome: "timeout" };
     }
