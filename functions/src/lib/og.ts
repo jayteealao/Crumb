@@ -16,6 +16,7 @@
 
 import * as dns from "node:dns";
 import ogs from "open-graph-scraper";
+import { matchProvider, discoverOembedLink, fetchOembed } from "./oembed";
 
 export interface OpenGraphData {
   title?: string;
@@ -231,6 +232,10 @@ export async function resolveAndValidateHost(
  * Rejects: non-http(s) scheme, userinfo (credentials in URL), unsafe host.
  * Throws a tagged Error({ message: "unsafe_url" | "unsafe_host" }) on failure.
  *
+ * Exported so that oembed.ts (which must validate every oEmbed endpoint URL
+ * and discovered href) can reuse the same DNS-backed gate without duplicating
+ * the SSRF logic.
+ *
  * DNS TOCTOU residual: DNS validation precedes TCP connect, so a TTL=0 rebind
  * is theoretically possible between the DNS check here and the actual TCP
  * connection made by the fetch runtime. The deployment-level mitigation is VPC
@@ -239,7 +244,7 @@ export async function resolveAndValidateHost(
  * of what the fetch runtime resolves. Do not remove or bypass this check —
  * defense-in-depth requires both layers.
  */
-async function assertSafeHop(
+export async function assertSafeHop(
   url: URL,
   lookup: DnsLookupAll,
   deadline?: number,
@@ -338,7 +343,29 @@ export async function fetchOpenGraph(
 ): Promise<OpenGraphResult> {
   if (!isSafePublicUrl(url)) return { outcome: "unsafe_url" };
   try {
-    const fetched = await fetchHtmlCapped(url, lookup);
+    // Shared wall-clock deadline for the entire fetchOpenGraph call (registry,
+    // HTML fetch, and optional discovery fallback all share this budget).
+    const deadline = Date.now() + TOTAL_BUDGET_MS;
+
+    // Registry-first: for known oEmbed providers (YouTube, Vimeo, Spotify,
+    // SoundCloud, Flickr, TikTok), call the provider's own oEmbed endpoint
+    // instead of fetching HTML — budget-neutral (HTML fetch is skipped).
+    const oembedEndpoint = matchProvider(url);
+    if (oembedEndpoint !== null) {
+      const oembedResult = await fetchOembed(oembedEndpoint, lookup, deadline);
+      if (oembedResult !== null) {
+        const { title, image } = oembedResult;
+        const out: OpenGraphResult = {
+          outcome: title && image ? "rich" : title ? "title_only" : "image_only",
+        };
+        if (title) out.title = title;
+        if (image) out.image = image;
+        return out;
+      }
+      // oEmbed failed — fall through to HTML fetch as graceful fallback (AC3)
+    }
+
+    const fetched = await fetchHtmlCapped(url, lookup, 0, deadline);
     if (!fetched.html) {
       const failOutcome = fetched.outcome === "ok" ? "error" : fetched.outcome;
       return { outcome: failOutcome };
@@ -397,6 +424,42 @@ export async function fetchOpenGraph(
     // in the fetched HTML, then fall back to /favicon.ico at the origin.
     if (!image) {
       image = extractFavicon(fetched.html, fetched.finalUrl);
+    }
+
+    // Discovery fallback: when the HTML parse yielded image_only or no_meta,
+    // scan the buffered HTML for a <link rel="alternate" type="application/json+oembed">
+    // endpoint and call it if budget remains. Promotes image_only → rich/title_only
+    // and no_meta → rich/title_only/image_only when the site publishes oEmbed.
+    // Minimum 1 000 ms headroom required to avoid spending the very last budget slice.
+    if (!title && deadline - Date.now() > 1_000) {
+      const discoveredHref = discoverOembedLink(fetched.html);
+      if (discoveredHref) {
+        // Resolve relative hrefs against the final page URL (handles relative paths)
+        let resolvedHref: string;
+        try {
+          resolvedHref = new URL(discoveredHref, fetched.finalUrl ?? url).href;
+        } catch {
+          resolvedHref = discoveredHref;
+        }
+        const discovered = await fetchOembed(resolvedHref, lookup, deadline);
+        if (discovered) {
+          if (discovered.title) {
+            // Promote: oEmbed title fills the gap; image from oEmbed or prior HTML parse
+            const promotedImage = discovered.image ?? image;
+            const out: OpenGraphResult = {
+              outcome: discovered.title && promotedImage ? "rich" : "title_only",
+            };
+            out.title = discovered.title;
+            if (description) out.description = description;
+            if (promotedImage) out.image = promotedImage;
+            return out;
+          }
+          // oEmbed returned image only — merge if we had no image from HTML
+          if (discovered.image && !image) {
+            image = discovered.image;
+          }
+        }
+      }
     }
 
     const out: OpenGraphResult = {

@@ -861,3 +861,131 @@ describe("fetchOpenGraph – SSRF blocks never emit redirect_blocked", () => {
     expect(r.outcome).not.toBe("redirect_blocked");
   });
 });
+
+// ---------------------------------------------------------------------------
+// oEmbed registry-first path (integration: fetchOpenGraph with YouTube URL)
+// ---------------------------------------------------------------------------
+
+describe("fetchOpenGraph – oEmbed registry-first path", () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => { globalThis.fetch = realFetch; });
+
+  it("returns rich via oEmbed for a YouTube URL — 0 HTML fetches", async () => {
+    const calls: string[] = [];
+    globalThis.fetch = jest.fn(async (url: unknown) => {
+      const u = String(url);
+      calls.push(u);
+      // The oEmbed endpoint for YouTube — return a rich response
+      if (u.includes("youtube.com/oembed")) {
+        return {
+          status: 200, ok: true,
+          headers: { get: () => "application/json" },
+          json: async () => ({ title: "Rick Astley - Never Gonna Give You Up", thumbnail_url: "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg" }),
+        };
+      }
+      // Should not be called (HTML fetch would be skipped)
+      return fakeHtmlResponse(FIXTURE_HTML);
+    }) as unknown as typeof globalThis.fetch;
+
+    const r = await fetchOpenGraph("https://www.youtube.com/watch?v=dQw4w9WgXcQ", publicLookup);
+    expect(r.outcome).toBe("rich");
+    expect(r.title).toBe("Rick Astley - Never Gonna Give You Up");
+    expect(r.image).toContain("ytimg.com");
+    // Only one fetch (the oEmbed call), no HTML fetch
+    expect(calls.length).toBe(1);
+    expect(calls[0]).toContain("youtube.com/oembed");
+  });
+
+  it("falls through to HTML fetch when oEmbed fails for a matched provider", async () => {
+    let callCount = 0;
+    globalThis.fetch = jest.fn(async (url: unknown) => {
+      callCount++;
+      const u = String(url);
+      // oEmbed call fails with a 404
+      if (u.includes("youtube.com/oembed")) {
+        return { status: 404, ok: false, headers: { get: () => null }, json: async () => ({}) };
+      }
+      // HTML fetch returns rich metadata
+      return fakeHtmlResponse(FIXTURE_HTML);
+    }) as unknown as typeof globalThis.fetch;
+
+    const r = await fetchOpenGraph("https://www.youtube.com/watch?v=dQw4w9WgXcQ", publicLookup);
+    expect(r.outcome).toBe("rich");
+    // 2 fetches: 1 oEmbed (failed) + 1 HTML
+    expect(callCount).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// oEmbed discovery fallback (integration: fetchOpenGraph with image_only page)
+// ---------------------------------------------------------------------------
+
+describe("fetchOpenGraph – oEmbed discovery fallback", () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => { globalThis.fetch = realFetch; });
+
+  it("promotes image_only to rich when the page has a discoverable oEmbed link", async () => {
+    // A page with an image but no title, plus an <link rel="alternate"> oEmbed tag.
+    const imageOnlyWithOembed =
+      '<!doctype html><html><head>' +
+      '<meta property="og:image" content="https://cdn.example.com/img.png">' +
+      '<link rel="alternate" type="application/json+oembed" href="https://oembed.example.com/ep?url=x">' +
+      '</head><body></body></html>';
+
+    let callCount = 0;
+    globalThis.fetch = jest.fn(async (url: unknown) => {
+      callCount++;
+      const u = String(url);
+      if (u.includes("oembed.example.com")) {
+        // oEmbed discovery endpoint returns a title
+        return {
+          status: 200, ok: true,
+          headers: { get: () => "application/json" },
+          json: async () => ({ title: "Discovered Title", thumbnail_url: "https://thumb.example.com/t.jpg" }),
+        };
+      }
+      return fakeHtmlResponse(imageOnlyWithOembed);
+    }) as unknown as typeof globalThis.fetch;
+
+    const r = await fetchOpenGraph("https://example.com/media-page", publicLookup);
+    expect(r.outcome).toBe("rich");
+    expect(r.title).toBe("Discovered Title");
+    // image may come from oEmbed thumbnail or original og:image
+    expect(r.image).toBeDefined();
+    // 2 fetches: HTML + discovered oEmbed
+    expect(callCount).toBe(2);
+  });
+
+  it("stays image_only when the discovered oEmbed href fails SSRF validation", async () => {
+    const imageOnlyWithPrivateOembed =
+      '<!doctype html><html><head>' +
+      '<meta property="og:image" content="https://cdn.example.com/img.png">' +
+      '<link rel="alternate" type="application/json+oembed" href="http://192.168.1.1/oembed">' +
+      '</head><body></body></html>';
+
+    let callCount = 0;
+    globalThis.fetch = jest.fn(async () => {
+      callCount++;
+      return fakeHtmlResponse(imageOnlyWithPrivateOembed);
+    }) as unknown as typeof globalThis.fetch;
+
+    const r = await fetchOpenGraph("https://example.com/media-page", publicLookup);
+    expect(r.outcome).toBe("image_only");
+    // Only 1 fetch — the private oEmbed href is blocked before any fetch
+    expect(callCount).toBe(1);
+  });
+
+  it("stays image_only when no oEmbed link is discoverable in the HTML", async () => {
+    const imageOnlyHtml =
+      '<!doctype html><html><head>' +
+      '<meta property="og:image" content="https://cdn.example.com/img.png">' +
+      '</head><body></body></html>';
+
+    globalThis.fetch = jest.fn(async () =>
+      fakeHtmlResponse(imageOnlyHtml),
+    ) as unknown as typeof globalThis.fetch;
+
+    const r = await fetchOpenGraph("https://example.com/media-only", publicLookup);
+    expect(r.outcome).toBe("image_only");
+  });
+});
