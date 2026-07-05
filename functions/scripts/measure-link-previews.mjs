@@ -48,6 +48,10 @@ const resume = !!flag("resume");
 const statePath = flag("state") || null;
 const limit = flag("limit") ? Number(flag("limit")) : Infinity;
 const CONCURRENCY = flag("concurrency") ? Number(flag("concurrency")) : 8;
+// --vendor-cap N: allow up to N iframely vendor calls per run (default 0 =
+// vendor branch disabled, preserving prior behaviour). The cap is a shared
+// mutable object so it counts down globally across the entire uid pass.
+const VENDOR_CAP_INITIAL = flag("vendor-cap") ? Number(flag("vendor-cap")) : 0;
 const PAGE_SIZE = 200;
 
 initializeApp({ credential: applicationDefault(), projectId });
@@ -76,13 +80,17 @@ function onCrash(kind, err) { console.error(`\n[${kind}] ${err && err.message ? 
 process.on("uncaughtException", (e) => onCrash("uncaughtException", e));
 process.on("unhandledRejection", (e) => onCrash("unhandledRejection", e));
 
-async function processTweet(uid, doc) {
+async function processTweet(uid, doc, sharedVendorCap) {
   const data = doc.data() || {};
   const entities = data.entities;
   if (!entities) { state.noLink++; return; }
   const db = dryRun ? noopDb : realDb;
   try {
-    const outcome = await runEnrichLinks(db, uid, doc.id, entities, fetchOpenGraph, { force, log: countingLog });
+    // Pass the shared cap object so fetchOpenGraph can call the iframely vendor
+    // path. The cap object is shared across the whole uid pass so total vendor
+    // calls stay within the --vendor-cap bound.
+    const ogFetch = (url) => fetchOpenGraph(url, undefined, sharedVendorCap);
+    const outcome = await runEnrichLinks(db, uid, doc.id, entities, ogFetch, { force, log: countingLog });
     if (outcome === "no_link") state.noLink++;
     else { state.withLink++; if (outcome === "written") state.written++; else if (outcome === "skipped") state.skipped++; }
   } catch (e) {
@@ -92,6 +100,9 @@ async function processTweet(uid, doc) {
 
 async function processUid(uid) {
   console.log(`\n[uid ${uid}]`);
+  // One shared cap object per uid pass so the VENDOR_CAP_INITIAL budget is
+  // consumed globally across all tweets in the pass (not reset per tweet).
+  const sharedVendorCap = { remaining: VENDOR_CAP_INITIAL };
   const col = realDb.collection(`users/${uid}/tweets`);
   let lastDoc = state.cursor ? await col.doc(state.cursor).get() : undefined;
   while (state.scanned < limit) {
@@ -105,7 +116,7 @@ async function processUid(uid) {
     saveState();
     const docs = snap.docs.slice(0, Math.max(0, limit - state.scanned));
     let idx = 0, crashedPage = false;
-    async function worker() { while (idx < docs.length) { const d = docs[idx++]; await processTweet(uid, d); } }
+    async function worker() { while (idx < docs.length) { const d = docs[idx++]; await processTweet(uid, d, sharedVendorCap); } }
     try { await Promise.all(Array.from({ length: CONCURRENCY }, worker)); }
     catch { crashedPage = true; state.skippedPages.push(pageStart); }
     state.scanned += docs.length;
@@ -114,7 +125,7 @@ async function processUid(uid) {
     lastDoc = snap.docs[snap.docs.length - 1];
     if (snap.docs.length < PAGE_SIZE) { state.done = true; break; }
   }
-  console.log(`\n  uid done: scanned=${state.scanned} done=${state.done}`);
+  console.log(`\n  uid done: scanned=${state.scanned} done=${state.done} vendor_calls_used=${VENDOR_CAP_INITIAL - sharedVendorCap.remaining}`);
 }
 
 async function verifyPersisted(uid) {
@@ -152,7 +163,7 @@ function report() {
 }
 
 async function main() {
-  console.log(`measure-link-previews: project=${projectId} uid=${onlyUid || "(all)"} mode=${verifyOnly ? "verify-only" : dryRun ? "dry-run" : "force"} resume=${resume} concurrency=${CONCURRENCY} limit=${limit === Infinity ? "all" : limit}`);
+  console.log(`measure-link-previews: project=${projectId} uid=${onlyUid || "(all)"} mode=${verifyOnly ? "verify-only" : dryRun ? "dry-run" : "force"} resume=${resume} concurrency=${CONCURRENCY} limit=${limit === Infinity ? "all" : limit} vendor-cap=${VENDOR_CAP_INITIAL}`);
   const started = new Date().toISOString();
   const uids = onlyUid ? [onlyUid] : (await realDb.collection("users").listDocuments()).map((r) => r.id);
   if (verifyOnly) { for (const u of uids) await verifyPersisted(u); console.log(`\nstarted=${started} finished=${new Date().toISOString()}`); return; }

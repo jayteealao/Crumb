@@ -3,11 +3,9 @@
 // Tests are fully deterministic via fake fetch + injected lookup. No real
 // network calls; no jest.mock("node:dns") needed (lookup is injectable).
 
-// Mock secrets.ts and unfurl-vendor.ts for the vendor fallback integration tests
-// so the og.test.ts suite needs no real Secret Manager access.
-jest.mock("../src/lib/secrets", () => ({
-  getUnfurlVendorKey: jest.fn().mockResolvedValue("fake-vendor-key"),
-}));
+// Mock unfurl-vendor.ts for the vendor fallback integration tests.
+// secrets.ts is NOT mocked here — og.ts no longer imports it (the vendor path
+// uses OIDC ID tokens internally, so no Secret Manager call is made).
 jest.mock("../src/lib/unfurl-vendor", () => ({
   resolveViaUnfurl: jest.fn(),
 }));
@@ -1008,6 +1006,27 @@ describe("fetchOpenGraph – vendor fallback wiring (AC1/AC2/AC3)", () => {
     // Vendor must never be called when cap is 0
     expect(mockResolveViaUnfurl).not.toHaveBeenCalled();
     expect(cap.remaining).toBe(0);
+  });
+
+  it("AC3 — no Secret Manager call on the vendor path (IFRAMELY_BASE_URL used instead)", async () => {
+    // og.ts no longer imports getUnfurlVendorKey; this test verifies the module
+    // does not dynamically require secrets.ts on the vendor code path.
+    // If og.ts were still calling getUnfurlVendorKey, requiring secrets here would
+    // expose the missing mock and throw — the test passing confirms removal.
+    globalThis.fetch = jest.fn(async () => ({
+      status: 403, ok: false,
+      headers: { get: () => null },
+      body: { getReader: () => ({ read: async () => ({ done: true, value: undefined }) }) },
+    })) as unknown as typeof globalThis.fetch;
+
+    mockResolveViaUnfurl.mockResolvedValue({ title: "Vendor Title" });
+
+    const cap = { remaining: 1 };
+    const r = await fetchOpenGraph("https://botblocked.example.com/article", publicLookup, cap);
+
+    // resolveViaUnfurl was called — auth is handled inside the adapter, not by secrets.ts
+    expect(mockResolveViaUnfurl).toHaveBeenCalledTimes(1);
+    expect(r.title).toBe("Vendor Title");
   });
 });
 

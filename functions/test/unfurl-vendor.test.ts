@@ -1,9 +1,13 @@
-// Unit tests for unfurl-vendor.ts — vendor client + Microlink adapter.
+// Unit tests for unfurl-vendor.ts — IframelyAdapter (active vendor) and
+// MicrolinkAdapter (reference implementation).
 //
 // All tests use fake fetch responses and injectable DNS lookup (DnsLookupAll).
 // No real network calls; no jest.mock() needed.
+//
+// IframelyAdapter reads IFRAMELY_BASE_URL from process.env. Tests inject a fake
+// URL in beforeEach and mock fetch + google-auth-library.
 
-import { resolveViaUnfurl, MicrolinkAdapter } from "../src/lib/unfurl-vendor";
+import { resolveViaUnfurl, IframelyAdapter, MicrolinkAdapter } from "../src/lib/unfurl-vendor";
 import type { DnsLookupAll } from "../src/lib/og";
 
 // ---------------------------------------------------------------------------
@@ -19,6 +23,289 @@ const privateLookup: DnsLookupAll = async () => [{ address: "10.0.0.1", family: 
 /** A far-future deadline so budget checks do not interfere with normal tests. */
 const FAR_DEADLINE = Date.now() + 60_000;
 
+const FAKE_IFRAMELY_BASE = "https://iframely.fake-run.example.com";
+
+/** Build a minimal fake JSON response for the iframely API. */
+function fakeIframelyResponse(data: Record<string, unknown>, status = 200) {
+  return {
+    status,
+    ok: status >= 200 && status < 300,
+    headers: { get: () => "application/json" },
+    json: async () => data,
+  } as unknown as Response;
+}
+
+/** iframely success payload with title + thumbnail link. */
+const RICH_IFRAMELY_PAYLOAD = {
+  meta: {
+    title: "Example Article Title",
+    description: "A description of the article.",
+  },
+  links: {
+    thumbnail: [{ href: "https://cdn.example.com/cover.png", rel: ["thumbnail"] }],
+  },
+};
+
+/** Mock getAuthClient so tests don't hit the metadata service. */
+jest.mock("google-auth-library", () => ({
+  GoogleAuth: jest.fn().mockImplementation(() => ({
+    getIdTokenClient: jest.fn().mockResolvedValue({
+      getRequestHeaders: jest.fn().mockResolvedValue({
+        Authorization: "Bearer fake-oidc-token",
+      }),
+    }),
+  })),
+}));
+
+// ---------------------------------------------------------------------------
+// IframelyAdapter — success paths
+// ---------------------------------------------------------------------------
+
+describe("IframelyAdapter – success: returns title and image from iframely response", () => {
+  const realFetch = globalThis.fetch;
+  beforeEach(() => {
+    process.env["IFRAMELY_BASE_URL"] = FAKE_IFRAMELY_BASE;
+  });
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    delete process.env["IFRAMELY_BASE_URL"];
+  });
+
+  it("maps meta.title + links.thumbnail[0].href correctly", async () => {
+    globalThis.fetch = jest.fn(async () => fakeIframelyResponse(RICH_IFRAMELY_PAYLOAD)) as unknown as typeof globalThis.fetch;
+
+    const adapter = new IframelyAdapter();
+    const result = await adapter.resolve("https://example.com/article", publicLookup, FAR_DEADLINE);
+
+    expect(result).not.toBeNull();
+    expect(result!.title).toBe("Example Article Title");
+    expect(result!.image).toBe("https://cdn.example.com/cover.png");
+    expect(result!.description).toBe("A description of the article.");
+  });
+
+  it("handles links.thumbnail as plain object (not array) — single-item edge case", async () => {
+    const objectThumbnailPayload = {
+      meta: { title: "Single Thumbnail" },
+      links: {
+        thumbnail: { href: "https://cdn.example.com/thumb.png", rel: "thumbnail" },
+      },
+    };
+    globalThis.fetch = jest.fn(async () => fakeIframelyResponse(objectThumbnailPayload)) as unknown as typeof globalThis.fetch;
+
+    const adapter = new IframelyAdapter();
+    const result = await adapter.resolve("https://example.com/article", publicLookup, FAR_DEADLINE);
+
+    expect(result).not.toBeNull();
+    expect(result!.image).toBe("https://cdn.example.com/thumb.png");
+  });
+
+  it("falls back to links.icon[0].href when links.thumbnail is absent", async () => {
+    const iconPayload = {
+      meta: { title: "Icon Fallback" },
+      links: {
+        icon: [{ href: "https://example.com/icon.png", rel: ["icon"] }],
+      },
+    };
+    globalThis.fetch = jest.fn(async () => fakeIframelyResponse(iconPayload)) as unknown as typeof globalThis.fetch;
+
+    const adapter = new IframelyAdapter();
+    const result = await adapter.resolve("https://example.com/article", publicLookup, FAR_DEADLINE);
+
+    expect(result).not.toBeNull();
+    expect(result!.image).toBe("https://example.com/icon.png");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// IframelyAdapter — private image URL stripped (defence-in-depth)
+// ---------------------------------------------------------------------------
+
+describe("IframelyAdapter – private image URL stripped via isSafePublicUrl", () => {
+  const realFetch = globalThis.fetch;
+  beforeEach(() => {
+    process.env["IFRAMELY_BASE_URL"] = FAKE_IFRAMELY_BASE;
+  });
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    delete process.env["IFRAMELY_BASE_URL"];
+  });
+
+  it("strips private thumbnail URL (192.168.x) and returns title only", async () => {
+    const privateImagePayload = {
+      meta: { title: "Article With Private Image" },
+      links: {
+        thumbnail: [{ href: "http://192.168.1.1/img.png" }],
+      },
+    };
+    globalThis.fetch = jest.fn(async () => fakeIframelyResponse(privateImagePayload)) as unknown as typeof globalThis.fetch;
+
+    const adapter = new IframelyAdapter();
+    const result = await adapter.resolve("https://example.com/article", publicLookup, FAR_DEADLINE);
+
+    expect(result).not.toBeNull();
+    expect(result!.title).toBe("Article With Private Image");
+    expect(result!.image).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// IframelyAdapter — failure paths → null
+// ---------------------------------------------------------------------------
+
+describe("IframelyAdapter – failure paths return null", () => {
+  const realFetch = globalThis.fetch;
+  beforeEach(() => {
+    process.env["IFRAMELY_BASE_URL"] = FAKE_IFRAMELY_BASE;
+  });
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    delete process.env["IFRAMELY_BASE_URL"];
+  });
+
+  it("returns null on HTTP 500", async () => {
+    globalThis.fetch = jest.fn(async () => fakeIframelyResponse({}, 500)) as unknown as typeof globalThis.fetch;
+
+    const adapter = new IframelyAdapter();
+    const result = await adapter.resolve("https://example.com/article", publicLookup, FAR_DEADLINE);
+    expect(result).toBeNull();
+  });
+
+  it("returns null when IFRAMELY_BASE_URL env var is missing", async () => {
+    delete process.env["IFRAMELY_BASE_URL"];
+    const fetchSpy = jest.fn();
+    globalThis.fetch = fetchSpy as unknown as typeof globalThis.fetch;
+
+    const adapter = new IframelyAdapter();
+    const result = await adapter.resolve("https://example.com/article", publicLookup, FAR_DEADLINE);
+
+    expect(result).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("returns null immediately when deadline is already expired (no fetch)", async () => {
+    const fetchSpy = jest.fn();
+    globalThis.fetch = fetchSpy as unknown as typeof globalThis.fetch;
+
+    const expiredDeadline = Date.now() - 1;
+    const adapter = new IframelyAdapter();
+    const result = await adapter.resolve("https://example.com/article", publicLookup, expiredDeadline);
+
+    expect(result).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// IframelyAdapter — Authorization header passed (token hygiene)
+// ---------------------------------------------------------------------------
+
+describe("IframelyAdapter – ID token sent as Authorization header", () => {
+  const realFetch = globalThis.fetch;
+  beforeEach(() => {
+    process.env["IFRAMELY_BASE_URL"] = FAKE_IFRAMELY_BASE;
+  });
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    delete process.env["IFRAMELY_BASE_URL"];
+  });
+
+  it("sends Authorization: Bearer <token> header and not in the URL", async () => {
+    const capturedOptions: RequestInit[] = [];
+    globalThis.fetch = jest.fn(async (_url: unknown, opts?: RequestInit) => {
+      capturedOptions.push(opts ?? {});
+      return fakeIframelyResponse(RICH_IFRAMELY_PAYLOAD);
+    }) as unknown as typeof globalThis.fetch;
+
+    const adapter = new IframelyAdapter();
+    await adapter.resolve("https://example.com/article", publicLookup, FAR_DEADLINE);
+
+    expect(capturedOptions.length).toBeGreaterThan(0);
+    const headers = capturedOptions[0].headers as Record<string, string>;
+    expect(headers["Authorization"]).toMatch(/^Bearer /);
+
+    // Token must NOT appear in the URL query string
+    const calledUrl = String((globalThis.fetch as jest.Mock).mock.calls[0][0]);
+    expect(calledUrl).not.toContain("Bearer");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// IframelyAdapter — SSRF block on iframely service hostname
+// ---------------------------------------------------------------------------
+
+describe("IframelyAdapter – SSRF block on iframely service endpoint", () => {
+  const realFetch = globalThis.fetch;
+  beforeEach(() => {
+    // Use a public-looking hostname that privateLookup will resolve to a private IP
+    process.env["IFRAMELY_BASE_URL"] = "https://evil-iframely.fake-run.example.com";
+  });
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    delete process.env["IFRAMELY_BASE_URL"];
+  });
+
+  it("returns null without fetching when iframely hostname resolves to private IP", async () => {
+    const fetchSpy = jest.fn();
+    globalThis.fetch = fetchSpy as unknown as typeof globalThis.fetch;
+
+    const adapter = new IframelyAdapter();
+    // privateLookup returns 10.0.0.1 for any hostname (including evil-iframely.internal)
+    const result = await adapter.resolve("https://example.com/article", privateLookup, FAR_DEADLINE);
+
+    expect(result).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveViaUnfurl — delegates to IframelyAdapter
+// ---------------------------------------------------------------------------
+
+describe("resolveViaUnfurl – delegates to IframelyAdapter", () => {
+  const realFetch = globalThis.fetch;
+  beforeEach(() => {
+    process.env["IFRAMELY_BASE_URL"] = FAKE_IFRAMELY_BASE;
+  });
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    delete process.env["IFRAMELY_BASE_URL"];
+  });
+
+  it("returns {title, image, description} from a well-formed iframely response", async () => {
+    globalThis.fetch = jest.fn(async () => fakeIframelyResponse(RICH_IFRAMELY_PAYLOAD)) as unknown as typeof globalThis.fetch;
+
+    const result = await resolveViaUnfurl(
+      "https://example.com/article",
+      publicLookup,
+      FAR_DEADLINE,
+    );
+
+    expect(result).not.toBeNull();
+    expect(result!.title).toBe("Example Article Title");
+    expect(result!.image).toBe("https://cdn.example.com/cover.png");
+    expect(result!.description).toBe("A description of the article.");
+  });
+
+  it("returns null when IFRAMELY_BASE_URL is not set (no fetch)", async () => {
+    delete process.env["IFRAMELY_BASE_URL"];
+    const fetchSpy = jest.fn();
+    globalThis.fetch = fetchSpy as unknown as typeof globalThis.fetch;
+
+    const result = await resolveViaUnfurl(
+      "https://example.com/article",
+      publicLookup,
+      FAR_DEADLINE,
+    );
+
+    expect(result).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// MicrolinkAdapter — baseline (reference implementation still works)
+// ---------------------------------------------------------------------------
+
 /** Build a minimal fake JSON response for the Microlink API. */
 function fakeMicrolinkResponse(data: Record<string, unknown>, status = 200) {
   return {
@@ -29,8 +316,7 @@ function fakeMicrolinkResponse(data: Record<string, unknown>, status = 200) {
   } as unknown as Response;
 }
 
-/** Microlink success payload with both title and image. */
-const RICH_PAYLOAD = {
+const RICH_MICROLINK_PAYLOAD = {
   status: "success",
   data: {
     title: "Example Article Title",
@@ -39,292 +325,24 @@ const RICH_PAYLOAD = {
   },
 };
 
-// ---------------------------------------------------------------------------
-// resolveViaUnfurl — success path
-// ---------------------------------------------------------------------------
-
-describe("resolveViaUnfurl – success: returns title and image from Microlink response", () => {
+describe("MicrolinkAdapter – reference implementation (not wired)", () => {
   const realFetch = globalThis.fetch;
   afterEach(() => {
     globalThis.fetch = realFetch;
   });
 
-  it("returns {title, image, description} from a well-formed Microlink response", async () => {
-    globalThis.fetch = jest.fn(async () => fakeMicrolinkResponse(RICH_PAYLOAD)) as unknown as typeof globalThis.fetch;
-
-    const result = await resolveViaUnfurl(
-      "https://example.com/article",
-      publicLookup,
-      FAR_DEADLINE,
-      "test-api-key",
-    );
-
-    expect(result).not.toBeNull();
-    expect(result!.title).toBe("Example Article Title");
-    expect(result!.image).toBe("https://cdn.example.com/cover.png");
-    expect(result!.description).toBe("A description of the article.");
-  });
-
-  it("returns title only when data.image is absent from response", async () => {
-    const titleOnlyPayload = {
-      status: "success",
-      data: { title: "Title Without Image" },
-    };
-    globalThis.fetch = jest.fn(async () => fakeMicrolinkResponse(titleOnlyPayload)) as unknown as typeof globalThis.fetch;
-
-    const result = await resolveViaUnfurl(
-      "https://example.com/article",
-      publicLookup,
-      FAR_DEADLINE,
-      "test-api-key",
-    );
-
-    expect(result).not.toBeNull();
-    expect(result!.title).toBe("Title Without Image");
-    expect(result!.image).toBeUndefined();
-  });
-
-  it("falls back to data.screenshot.url when data.image is absent", async () => {
-    const screenshotPayload = {
-      status: "success",
-      data: {
-        title: "Screenshot Fallback",
-        screenshot: { url: "https://cdn.example.com/screenshot.png" },
-      },
-    };
-    globalThis.fetch = jest.fn(async () => fakeMicrolinkResponse(screenshotPayload)) as unknown as typeof globalThis.fetch;
-
-    const result = await resolveViaUnfurl(
-      "https://example.com/article",
-      publicLookup,
-      FAR_DEADLINE,
-      "test-api-key",
-    );
-
-    expect(result).not.toBeNull();
-    expect(result!.image).toBe("https://cdn.example.com/screenshot.png");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Private image URL stripped (AC2 — vendor-returned image re-validation)
-// ---------------------------------------------------------------------------
-
-describe("resolveViaUnfurl – private image URL stripped (AC2)", () => {
-  const realFetch = globalThis.fetch;
-  afterEach(() => {
-    globalThis.fetch = realFetch;
-  });
-
-  it("strips private data.image.url (192.168.x) and returns title only", async () => {
-    const privateImagePayload = {
-      status: "success",
-      data: {
-        title: "Article With Private Image",
-        image: { url: "http://192.168.1.1/img.png" },
-      },
-    };
-    globalThis.fetch = jest.fn(async () => fakeMicrolinkResponse(privateImagePayload)) as unknown as typeof globalThis.fetch;
-
-    const result = await resolveViaUnfurl(
-      "https://example.com/article",
-      publicLookup,
-      FAR_DEADLINE,
-      "test-api-key",
-    );
-
-    expect(result).not.toBeNull();
-    expect(result!.title).toBe("Article With Private Image");
-    // Private image URL must be stripped — only title returned
-    expect(result!.image).toBeUndefined();
-  });
-
-  it("strips metadata endpoint image (169.254.169.254) — returns title only", async () => {
-    const metaPayload = {
-      status: "success",
-      data: {
-        title: "Metadata Image",
-        image: { url: "http://169.254.169.254/latest/meta-data/" },
-      },
-    };
-    globalThis.fetch = jest.fn(async () => fakeMicrolinkResponse(metaPayload)) as unknown as typeof globalThis.fetch;
-
-    const result = await resolveViaUnfurl(
-      "https://example.com/article",
-      publicLookup,
-      FAR_DEADLINE,
-      "test-api-key",
-    );
-
-    expect(result).not.toBeNull();
-    expect(result!.image).toBeUndefined();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Non-200 / malformed response → null
-// ---------------------------------------------------------------------------
-
-describe("resolveViaUnfurl – failure paths return null", () => {
-  const realFetch = globalThis.fetch;
-  afterEach(() => {
-    globalThis.fetch = realFetch;
-  });
-
-  it("returns null on HTTP 429 (non-200 status)", async () => {
-    globalThis.fetch = jest.fn(async () => fakeMicrolinkResponse({}, 429)) as unknown as typeof globalThis.fetch;
-
-    const result = await resolveViaUnfurl(
-      "https://example.com/article",
-      publicLookup,
-      FAR_DEADLINE,
-      "test-api-key",
-    );
-    expect(result).toBeNull();
-  });
-
-  it("returns null on malformed JSON (JSON parse error)", async () => {
-    globalThis.fetch = jest.fn(async () => ({
-      status: 200,
-      ok: true,
-      headers: { get: () => "application/json" },
-      json: async () => { throw new SyntaxError("bad json"); },
-    })) as unknown as typeof globalThis.fetch;
-
-    const result = await resolveViaUnfurl(
-      "https://example.com/article",
-      publicLookup,
-      FAR_DEADLINE,
-      "test-api-key",
-    );
-    expect(result).toBeNull();
-  });
-
-  it("returns null when Microlink status is not 'success'", async () => {
-    const failPayload = { status: "fail", data: null };
-    globalThis.fetch = jest.fn(async () => fakeMicrolinkResponse(failPayload)) as unknown as typeof globalThis.fetch;
-
-    const result = await resolveViaUnfurl(
-      "https://example.com/article",
-      publicLookup,
-      FAR_DEADLINE,
-      "test-api-key",
-    );
-    expect(result).toBeNull();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Budget expired → null, fetch never called
-// ---------------------------------------------------------------------------
-
-describe("resolveViaUnfurl – budget expired → null without fetch", () => {
-  it("returns null immediately when deadline is already expired", async () => {
-    const fetchSpy = jest.fn();
-    const realFetch = globalThis.fetch;
-    globalThis.fetch = fetchSpy as unknown as typeof globalThis.fetch;
-
-    try {
-      const expiredDeadline = Date.now() - 1; // already past
-      const result = await resolveViaUnfurl(
-        "https://example.com/article",
-        publicLookup,
-        expiredDeadline,
-        "test-api-key",
-      );
-      expect(result).toBeNull();
-      expect(fetchSpy).not.toHaveBeenCalled();
-    } finally {
-      globalThis.fetch = realFetch;
-    }
-  });
-});
-
-// ---------------------------------------------------------------------------
-// SSRF block on vendor endpoint (privateLookup) → null, fetch never called
-// ---------------------------------------------------------------------------
-
-describe("resolveViaUnfurl – SSRF block on vendor endpoint", () => {
-  it("returns null without fetching when vendor hostname resolves to a private IP", async () => {
-    const fetchSpy = jest.fn();
-    const realFetch = globalThis.fetch;
-    globalThis.fetch = fetchSpy as unknown as typeof globalThis.fetch;
-
-    try {
-      // privateLookup returns 10.0.0.1 for any hostname (including api.microlink.io)
-      const result = await resolveViaUnfurl(
-        "https://example.com/article",
-        privateLookup,
-        FAR_DEADLINE,
-        "test-api-key",
-      );
-      expect(result).toBeNull();
-      expect(fetchSpy).not.toHaveBeenCalled();
-    } finally {
-      globalThis.fetch = realFetch;
-    }
-  });
-});
-
-// ---------------------------------------------------------------------------
-// API key passed as x-api-key header and NOT present in any log output (AC2)
-// ---------------------------------------------------------------------------
-
-describe("resolveViaUnfurl – API key header hygiene (AC2)", () => {
-  const realFetch = globalThis.fetch;
-  afterEach(() => {
-    globalThis.fetch = realFetch;
-  });
-
-  it("passes the API key as x-api-key header and not in the URL or body", async () => {
-    const capturedOptions: RequestInit[] = [];
-    globalThis.fetch = jest.fn(async (_url: unknown, opts?: RequestInit) => {
-      capturedOptions.push(opts ?? {});
-      return fakeMicrolinkResponse(RICH_PAYLOAD);
-    }) as unknown as typeof globalThis.fetch;
-
-    const SECRET_KEY = "super-secret-microlink-key-xyzzy";
-    await resolveViaUnfurl(
-      "https://example.com/article",
-      publicLookup,
-      FAR_DEADLINE,
-      SECRET_KEY,
-    );
-
-    expect(capturedOptions.length).toBeGreaterThan(0);
-    const headers = capturedOptions[0].headers as Record<string, string>;
-    // Key must be set as x-api-key header
-    expect(headers["x-api-key"]).toBe(SECRET_KEY);
-
-    // Key must NOT appear in the URL (query string)
-    const calledUrl = String((globalThis.fetch as jest.Mock).mock.calls[0][0]);
-    expect(calledUrl).not.toContain(SECRET_KEY);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Cap: vendorCallsRemaining.remaining = 0 → vendor never called
-// (tested at the MicrolinkAdapter level — cap is enforced in og.ts)
-// ---------------------------------------------------------------------------
-
-describe("MicrolinkAdapter – fetch is called when budget remains", () => {
-  const realFetch = globalThis.fetch;
-  afterEach(() => {
-    globalThis.fetch = realFetch;
-  });
-
-  it("adapter calls fetch when budget is positive (baseline — cap checked in og.ts)", async () => {
-    globalThis.fetch = jest.fn(async () => fakeMicrolinkResponse(RICH_PAYLOAD)) as unknown as typeof globalThis.fetch;
+  it("adapter calls fetch when budget is positive (baseline — kept as reference)", async () => {
+    globalThis.fetch = jest.fn(async () => fakeMicrolinkResponse(RICH_MICROLINK_PAYLOAD)) as unknown as typeof globalThis.fetch;
 
     const adapter = new MicrolinkAdapter();
     const result = await adapter.resolve(
       "https://example.com/article",
       publicLookup,
       FAR_DEADLINE,
-      "test-api-key",
     );
 
     expect(result).not.toBeNull();
+    expect(result!.title).toBe("Example Article Title");
     expect(globalThis.fetch as jest.Mock).toHaveBeenCalled();
   });
 });

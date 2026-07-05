@@ -18,7 +18,6 @@ import * as dns from "node:dns";
 import ogs from "open-graph-scraper";
 import { matchProvider, discoverOembedLink, fetchOembed } from "./oembed";
 import { resolveViaUnfurl } from "./unfurl-vendor";
-import { getUnfurlVendorKey } from "./secrets";
 
 export interface OpenGraphData {
   title?: string;
@@ -382,11 +381,9 @@ export async function fetchOpenGraph(
       ) {
         vendorCallsRemaining.remaining--;
         try {
-          // getUnfurlVendorKey is lazy + cached: one Secret Manager call per
-          // function instance's lifetime (same pattern as OAuth credentials).
-          // IMPORTANT: the apiKey value must NEVER be included in any log payload.
-          const apiKey = await getUnfurlVendorKey();
-          const vendorResult = await resolveViaUnfurl(url, lookup, deadline, apiKey);
+          // IframelyAdapter reads IFRAMELY_BASE_URL from env and handles OIDC
+          // auth internally. The ID token MUST NOT be included in any log payload.
+          const vendorResult = await resolveViaUnfurl(url, lookup, deadline);
           if (vendorResult !== null) {
             const { title, image, description } = vendorResult;
             const out: OpenGraphResult = {
