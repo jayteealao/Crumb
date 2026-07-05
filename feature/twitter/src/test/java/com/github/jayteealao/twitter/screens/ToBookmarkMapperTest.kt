@@ -3,6 +3,7 @@ package com.github.jayteealao.twitter.screens
 import com.github.jayteealao.crumbs.models.Bookmark
 import com.github.jayteealao.crumbs.models.ContentType
 import com.github.jayteealao.crumbs.models.toRelativeTime
+import com.github.jayteealao.crumbs.models.BookmarkTextLink
 import com.github.jayteealao.twitter.models.QuotedTweetData
 import com.github.jayteealao.twitter.models.TweetData
 import com.github.jayteealao.twitter.models.TweetEntity
@@ -397,5 +398,83 @@ class ToBookmarkMapperTest {
         assertNull(bookmark.quotedAuthorName)
         assertNull(bookmark.quotedAuthorHandle)
         assertNull(bookmark.quotedTweetUrl)
+    }
+
+    // ── textLinks tests ──────────────────────────────────────────────────────
+
+    private fun urlAnnotation(
+        start: Int,
+        end: Int,
+        expandedUrl: String,
+        displayUrl: String,
+        title: String? = null,
+        description: String? = null,
+        imageUrl: String? = null,
+    ) = TweetTextEntityAnnotation(
+        id = null,
+        start = start,
+        end = end,
+        product = null,
+        status = null,
+        tag = null,
+        title = title,
+        description = description,
+        imageUrl = imageUrl,
+        url = "https://t.co/x",
+        expandedUrl = expandedUrl,
+        displayUrl = displayUrl,
+        unwoundUrl = null,
+        mediaKey = null,
+        normalizedText = null,
+        tweetId = "t1",
+        type = "urls",
+    )
+
+    @Test
+    fun multiUrlTweet_populatesTextLinksWithCorrectOffsetsAndUrls() {
+        // "Check out https://t.co/aaa and https://t.co/bbb for more info."
+        // first link @11..34, second link @39..62 (contrived offsets)
+        val bookmark = tweetData(
+            text = "Check out https://t.co/aaa and https://t.co/bbb for more info.",
+            textAnnotations = listOf(
+                urlAnnotation(10, 33, "https://example.com/article", "example.com/article"),
+                urlAnnotation(38, 61, "https://other.org/page", "other.org/page"),
+            ),
+        ).toBookmark()
+        assertEquals(2, bookmark.textLinks.size)
+        assertEquals(BookmarkTextLink(10, 33, "example.com/article", "https://example.com/article"), bookmark.textLinks[0])
+        assertEquals(BookmarkTextLink(38, 61, "other.org/page", "https://other.org/page"), bookmark.textLinks[1])
+    }
+
+    @Test
+    fun noUrlAnnotations_yieldsEmptyTextLinks() {
+        val bookmark = tweetData(text = "plain text with no links").toBookmark()
+        assertTrue(bookmark.textLinks.isEmpty())
+    }
+
+    @Test
+    fun singleExternalLinkAnnotation_populatesTextLinksAndLinkUrlBoth() {
+        // The same external URL entity populates BOTH linkUrl/linkDisplayUrl (preview card)
+        // AND textLinks (inline body span) — they are complementary, not exclusive.
+        val bookmark = tweetData(
+            text = "Read this: https://t.co/xyz",
+            textAnnotations = listOf(
+                urlAnnotation(
+                    start = 11, end = 26,
+                    expandedUrl = "https://example.com/article",
+                    displayUrl = "example.com/article",
+                    title = "Article Title",
+                    description = "Article description",
+                ),
+            ),
+        ).toBookmark()
+        // Preview card fields populated
+        assertEquals("https://example.com/article", bookmark.linkUrl)
+        assertEquals("example.com/article", bookmark.linkDisplayUrl)
+        assertEquals("Article Title", bookmark.linkTitle)
+        // textLinks also populated for the inline body span
+        assertEquals(1, bookmark.textLinks.size)
+        assertEquals("example.com/article", bookmark.textLinks[0].displayUrl)
+        assertEquals("https://example.com/article", bookmark.textLinks[0].expandedUrl)
     }
 }

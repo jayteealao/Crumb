@@ -1,6 +1,21 @@
 package com.github.jayteealao.crumbs.models
 
 /**
+ * A single inline URL entity from the tweet body — offsets into [Bookmark.previewText] that
+ * identify the t.co short-URL span, the human-readable [displayUrl] that replaces it in the
+ * card body, and the real [expandedUrl] the browser opens when the span is tapped.
+ *
+ * Offsets are as returned by the Twitter API v2 (Unicode code-point positions). Reddit and
+ * non-URL callers never set this; the default [Bookmark.textLinks] is `emptyList()`.
+ */
+data class BookmarkTextLink(
+    val start: Int,
+    val end: Int,
+    val displayUrl: String,
+    val expandedUrl: String,
+)
+
+/**
  * Unified bookmark model for Crumbs v2.0
  * Supports Twitter and Reddit content
  */
@@ -82,6 +97,14 @@ data class Bookmark(
     // do not surface it (Reddit), which renders as the legacy `000`. Not an
     // identifier — the rowid can change under VACUUM/migration.
     val dbNumber: Long = 0L,
+
+    // Inline URL spans in the tweet body — each entry carries the [start,end)
+    // offset into [previewText] (the t.co short URL), the [displayUrl] to show
+    // in its place (e.g. "example.com/article"), and the [expandedUrl] the
+    // browser opens when tapped. Empty for Reddit, pre-enrichment tweets, and
+    // any tweet with no URL entities — the card falls back to plain-text render.
+    // Sorted by [BookmarkTextLink.start] ascending at the mapper.
+    val textLinks: List<BookmarkTextLink> = emptyList(),
 ) {
     companion object {
         /**

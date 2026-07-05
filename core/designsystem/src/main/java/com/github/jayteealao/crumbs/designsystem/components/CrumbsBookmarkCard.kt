@@ -20,6 +20,7 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -238,7 +239,7 @@ private fun BookmarkCardContent(
             Column(
                 modifier = Modifier.padding(spacing.cardContentInset),
             ) {
-                BookmarkCardBody(bookmark = bookmark)
+                BookmarkCardBody(bookmark = bookmark, onLinkClick = onLinkClick)
                 Spacer(Modifier.height(spacing.sm))
                 BookmarkCardFooter(bookmark = bookmark)
             }
@@ -518,9 +519,17 @@ private fun BookmarkCardQuotedTweet(
 /**
  * Title and preview-text section of the card, including the optional thread
  * continuation indicator ("↳ + N MORE").
+ *
+ * When the bookmark has inline URL entities ([Bookmark.textLinks] non-empty), the preview text
+ * renders as a clickable [AnnotatedString] that replaces each t.co span with the human-readable
+ * [BookmarkTextLink.displayUrl] in the accent colour. Tapping a link span fires [onLinkClick]
+ * with the [BookmarkTextLink.expandedUrl] — the gesture is consumed by [LinkAnnotation] before
+ * it can bubble up to the card's own [pointerInput] tap target, so [onCardClick] is not fired.
+ * When [textLinks] is empty the body falls back to a plain [Text] identical to the previous
+ * behaviour (Reddit, pre-enrichment tweets).
  */
 @Composable
-private fun BookmarkCardBody(bookmark: Bookmark) {
+private fun BookmarkCardBody(bookmark: Bookmark, onLinkClick: (String) -> Unit) {
     val colors = LocalCrumbsColors.current
     val spacing = LocalCrumbsSpacing.current
     val typography = LocalCrumbsTypography.current
@@ -537,11 +546,17 @@ private fun BookmarkCardBody(bookmark: Bookmark) {
     )
     Spacer(Modifier.height(spacing.sm))
     Text(
-        text = bookmark.previewText,
+        text = buildBodyAnnotatedString(
+            text = bookmark.previewText,
+            textLinks = bookmark.textLinks,
+            accentColor = Color(0xFF_FF5A1F),
+            onLinkClick = onLinkClick,
+        ),
         style = typography.bodyMono,
         color = colors.ink,
         maxLines = 3,
         overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.testTag("card-body-text"),
     )
     if (bookmark.isThread) {
         Spacer(Modifier.height(spacing.xs))

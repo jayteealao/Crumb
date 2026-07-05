@@ -2,6 +2,7 @@ package com.github.jayteealao.twitter.data
 
 import com.github.jayteealao.crumbs.models.Bookmark
 import com.github.jayteealao.crumbs.models.BookmarkSource
+import com.github.jayteealao.crumbs.models.BookmarkTextLink
 import com.github.jayteealao.crumbs.models.ContentType
 import com.github.jayteealao.crumbs.models.VideoVariant
 import com.github.jayteealao.twitter.models.TweetData
@@ -60,6 +61,15 @@ fun TweetData.toBookmark(tags: List<String> = emptyList()): Bookmark {
         if (quotedUsername != null) "https://twitter.com/$quotedUsername/status/$qId"
         else "https://x.com/i/status/$qId"
     }
+    // Inline URL spans for the card body — all type='urls' entities that have usable
+    // offsets, a display URL, and an expanded URL. Sorted ascending by start so the
+    // card renders them in reading order. The t.co media-key entities (mediaKey != null)
+    // are already excluded by type='urls' (they live in the media table, not here),
+    // so no extra mediaKey filter is needed.
+    val textLinks = tweetTextAnnotation
+        .filter { it.type == "urls" && !it.expandedUrl.isNullOrBlank() && !it.displayUrl.isNullOrBlank() }
+        .sortedBy { it.start }
+        .map { BookmarkTextLink(it.start, it.end, it.displayUrl!!, it.expandedUrl!!) }
     val title = tweet.text.lines().firstOrNull()?.take(100) ?: tweet.text.take(100)
     return Bookmark(
         id = tweet.id,
@@ -98,6 +108,7 @@ fun TweetData.toBookmark(tags: List<String> = emptyList()): Bookmark {
         sourceUrl = "https://twitter.com/${user.username}/status/${tweet.id}",
         // The card's index strip shows this as the per-row "number in the DB".
         dbNumber = dbRowId,
+        textLinks = textLinks,
     )
 }
 
