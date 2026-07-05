@@ -6,6 +6,7 @@ const PROJECT_ID = "crumbs-a4fdb";
 const OAUTH_STATE_SECRET = "crumb-oauth-state-secret";
 const X_CLIENT_ID_SECRET = "crumb-x-client-id";
 const X_CLIENT_SECRET_SECRET = "crumb-x-client-secret";
+const UNFURL_VENDOR_KEY_SECRET = "crumb-unfurl-vendor-key";
 
 const REFRESH_TOKEN_PREFIX = "crumb-x-refresh-token-";
 
@@ -18,6 +19,7 @@ function client(): SecretManagerServiceClient {
 
 let _stateKey: Uint8Array | null = null;
 let _xClient: { clientId: string; clientSecret: string } | null = null;
+let _vendorKey: string | null = null;
 
 export class SecretNotFoundError extends Error {
   constructor(name: string) {
@@ -108,6 +110,15 @@ export async function getRefreshToken(uid: string): Promise<string | null> {
     if (isNotFound(err)) return null;
     throw err;
   }
+}
+
+export async function getUnfurlVendorKey(): Promise<string> {
+  if (_vendorKey) return _vendorKey;
+  const [response] = await client().accessSecretVersion({ name: fullSecretPath(UNFURL_VENDOR_KEY_SECRET) });
+  const payload = response.payload?.data;
+  if (!payload) throw new SecretNotFoundError(UNFURL_VENDOR_KEY_SECRET);
+  _vendorKey = payload.toString();
+  return _vendorKey;
 }
 
 // One call removes the secret + every version atomically. NOT_FOUND (code 5) is

@@ -17,6 +17,8 @@
 import * as dns from "node:dns";
 import ogs from "open-graph-scraper";
 import { matchProvider, discoverOembedLink, fetchOembed } from "./oembed";
+import { resolveViaUnfurl } from "./unfurl-vendor";
+import { getUnfurlVendorKey } from "./secrets";
 
 export interface OpenGraphData {
   title?: string;
@@ -340,6 +342,7 @@ export function isSafePublicUrl(rawUrl: string): boolean {
 export async function fetchOpenGraph(
   url: string,
   lookup: DnsLookupAll = dns.promises.lookup as DnsLookupAll,
+  vendorCallsRemaining: { remaining: number } = { remaining: 0 },
 ): Promise<OpenGraphResult> {
   if (!isSafePublicUrl(url)) return { outcome: "unsafe_url" };
   try {
@@ -367,6 +370,38 @@ export async function fetchOpenGraph(
 
     const fetched = await fetchHtmlCapped(url, lookup, 0, deadline);
     if (!fetched.html) {
+      // Vendor fallback: for residual http_4xx links (bot-blocked / JS-gated),
+      // call the hosted unfurl service as a last resort — only when the cap
+      // allows a call and budget remains. The vendor is NEVER called on happy
+      // paths (non-4xx outcomes) or when vendorCallsRemaining.remaining == 0
+      // (default), keeping paid call volume strictly minimized.
+      if (
+        fetched.outcome === "http_4xx" &&
+        vendorCallsRemaining.remaining > 0 &&
+        deadline - Date.now() > 1_000
+      ) {
+        vendorCallsRemaining.remaining--;
+        try {
+          // getUnfurlVendorKey is lazy + cached: one Secret Manager call per
+          // function instance's lifetime (same pattern as OAuth credentials).
+          // IMPORTANT: the apiKey value must NEVER be included in any log payload.
+          const apiKey = await getUnfurlVendorKey();
+          const vendorResult = await resolveViaUnfurl(url, lookup, deadline, apiKey);
+          if (vendorResult !== null) {
+            const { title, image, description } = vendorResult;
+            const out: OpenGraphResult = {
+              outcome: title && image ? "rich" : title ? "title_only" : image ? "image_only" : "no_meta",
+            };
+            if (title) out.title = title;
+            if (description) out.description = description;
+            if (image) out.image = image;
+            return out;
+          }
+        } catch {
+          // Secret Manager unavailable or vendor call failed — fall through to
+          // the existing http_4xx outcome (best-effort, never throws to caller).
+        }
+      }
       const failOutcome = fetched.outcome === "ok" ? "error" : fetched.outcome;
       return { outcome: failOutcome };
     }

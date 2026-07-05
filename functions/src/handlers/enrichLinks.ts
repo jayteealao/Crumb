@@ -31,8 +31,13 @@ export const enrichTweetLinks = onDocumentCreated(
     const { runEnrichLinks } = await import("../lib/enrich-links");
     const { fetchOpenGraph } = await import("../lib/og");
 
+    // Allow at most 1 vendor call per trigger invocation — one tweet doc, one
+    // external link, one fallback attempt. Keeps per-save cost bounded.
+    const vendorCap = { remaining: 1 };
+    const ogFetch = (url: string) => fetchOpenGraph(url, undefined, vendorCap);
+
     try {
-      const outcome = await runEnrichLinks(db(), uid, tweetId, entities, fetchOpenGraph, { log: logger });
+      const outcome = await runEnrichLinks(db(), uid, tweetId, entities, ogFetch, { log: logger });
       logger.info("enrich_links_done", { uid, tweetId, outcome });
     } catch (e) {
       logger.error("enrich_links_failed", { uid, tweetId, code: (e as Error).message });

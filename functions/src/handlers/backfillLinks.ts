@@ -59,6 +59,14 @@ export const backfillTweetLinks = onCall(
     const database = db();
     const tweetsCol = database.collection(`users/${uid}/tweets`);
 
+    // Per-run vendor cap: one object shared across ALL concurrent workers so the
+    // limit is global to this backfill invocation (not per-tweet). 20 calls covers
+    // one pass over the ~100 residual-4xx links within Microlink's free tier.
+    // sdlc-debt: cap is hardcoded; upgrade path = accept `vendorCap` in request data.
+    const VENDOR_CAP = 20;
+    const vendorCap = { remaining: VENDOR_CAP };
+    const ogFetch = (url: string) => fetchOpenGraph(url, undefined, vendorCap);
+
     let scanned = 0;
     let enriched = 0;
     let skipped = 0;
@@ -83,7 +91,7 @@ export const backfillTweetLinks = onCall(
           const entities = data?.entities;
           if (entities) {
             try {
-              const outcome = await runEnrichLinks(database, uid, doc.id, entities, fetchOpenGraph, {
+              const outcome = await runEnrichLinks(database, uid, doc.id, entities, ogFetch, {
                 force,
                 log: logger,
               });

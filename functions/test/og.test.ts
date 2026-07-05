@@ -3,7 +3,17 @@
 // Tests are fully deterministic via fake fetch + injected lookup. No real
 // network calls; no jest.mock("node:dns") needed (lookup is injectable).
 
+// Mock secrets.ts and unfurl-vendor.ts for the vendor fallback integration tests
+// so the og.test.ts suite needs no real Secret Manager access.
+jest.mock("../src/lib/secrets", () => ({
+  getUnfurlVendorKey: jest.fn().mockResolvedValue("fake-vendor-key"),
+}));
+jest.mock("../src/lib/unfurl-vendor", () => ({
+  resolveViaUnfurl: jest.fn(),
+}));
+
 import { fetchOpenGraph, isSafePublicUrl, isPrivateIp, resolveAndValidateHost } from "../src/lib/og";
+import { resolveViaUnfurl } from "../src/lib/unfurl-vendor";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -913,6 +923,91 @@ describe("fetchOpenGraph – oEmbed registry-first path", () => {
     expect(r.outcome).toBe("rich");
     // 2 fetches: 1 oEmbed (failed) + 1 HTML
     expect(callCount).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Vendor fallback integration (AC1 + AC2 + AC3 wiring in fetchOpenGraph)
+// ---------------------------------------------------------------------------
+
+describe("fetchOpenGraph – vendor fallback wiring (AC1/AC2/AC3)", () => {
+  const realFetch = globalThis.fetch;
+  const mockResolveViaUnfurl = resolveViaUnfurl as jest.MockedFunction<typeof resolveViaUnfurl>;
+
+  beforeEach(() => {
+    mockResolveViaUnfurl.mockReset();
+  });
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  it("AC1 — vendor called once on http_4xx URL when vendorCallsRemaining.remaining=1, returns rich", async () => {
+    // Simulate both fetch attempts returning 4xx (bot-block)
+    globalThis.fetch = jest.fn(async () => ({
+      status: 403, ok: false,
+      headers: { get: () => null },
+      body: { getReader: () => ({ read: async () => ({ done: true, value: undefined }) }) },
+    })) as unknown as typeof globalThis.fetch;
+
+    mockResolveViaUnfurl.mockResolvedValue({ title: "Vendor Title", image: "https://cdn.example.com/vendor.png" });
+
+    const cap = { remaining: 1 };
+    const r = await fetchOpenGraph("https://botblocked.example.com/article", publicLookup, cap);
+
+    expect(r.outcome).toBe("rich");
+    expect(r.title).toBe("Vendor Title");
+    expect(r.image).toBe("https://cdn.example.com/vendor.png");
+    // Cap must have been decremented
+    expect(cap.remaining).toBe(0);
+    expect(mockResolveViaUnfurl).toHaveBeenCalledTimes(1);
+  });
+
+  it("AC1 — vendor not called on happy-path 200 URL (vendor call count = 0)", async () => {
+    globalThis.fetch = jest.fn(async () => fakeHtmlResponse(FIXTURE_HTML)) as unknown as typeof globalThis.fetch;
+
+    const cap = { remaining: 1 };
+    const r = await fetchOpenGraph("https://example.com/article", publicLookup, cap);
+
+    expect(r.outcome).toBe("rich");
+    // Vendor must NOT have been called for a happy-path response
+    expect(mockResolveViaUnfurl).not.toHaveBeenCalled();
+    // Cap must be unchanged
+    expect(cap.remaining).toBe(1);
+  });
+
+  it("AC3 — vendor returns null for http_4xx URL → outcome stays http_4xx (best-effort fallthrough)", async () => {
+    globalThis.fetch = jest.fn(async () => ({
+      status: 403, ok: false,
+      headers: { get: () => null },
+      body: { getReader: () => ({ read: async () => ({ done: true, value: undefined }) }) },
+    })) as unknown as typeof globalThis.fetch;
+
+    mockResolveViaUnfurl.mockResolvedValue(null);
+
+    const cap = { remaining: 1 };
+    const r = await fetchOpenGraph("https://botblocked.example.com/article", publicLookup, cap);
+
+    expect(r.outcome).toBe("http_4xx");
+    expect(mockResolveViaUnfurl).toHaveBeenCalledTimes(1);
+    // Cap decremented even on null result (call was attempted)
+    expect(cap.remaining).toBe(0);
+  });
+
+  it("AC3 — cap enforced: second http_4xx call with remaining=0 → vendor not called, outcome http_4xx", async () => {
+    globalThis.fetch = jest.fn(async () => ({
+      status: 403, ok: false,
+      headers: { get: () => null },
+      body: { getReader: () => ({ read: async () => ({ done: true, value: undefined }) }) },
+    })) as unknown as typeof globalThis.fetch;
+
+    // Cap already exhausted
+    const cap = { remaining: 0 };
+    const r = await fetchOpenGraph("https://botblocked.example.com/article", publicLookup, cap);
+
+    expect(r.outcome).toBe("http_4xx");
+    // Vendor must never be called when cap is 0
+    expect(mockResolveViaUnfurl).not.toHaveBeenCalled();
+    expect(cap.remaining).toBe(0);
   });
 });
 
