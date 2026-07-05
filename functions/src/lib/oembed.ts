@@ -143,9 +143,12 @@ export async function fetchOembed(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
   try {
+    // redirect:"error" rejects any 3xx response from the oEmbed endpoint — trusted
+    // providers (YouTube, Vimeo, etc.) MUST answer directly; a redirect from their
+    // endpoint to a different host bypasses the DNS-based SSRF gate we ran above.
     const resp = await fetch(endpointUrl, {
       headers: { accept: "application/json" },
-      redirect: "follow",
+      redirect: "error",
       signal: controller.signal,
     });
     if (!resp.ok) return null;

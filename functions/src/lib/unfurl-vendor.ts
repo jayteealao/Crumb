@@ -93,13 +93,16 @@ export class MicrolinkAdapter implements VendorClient {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
     try {
+      // redirect:"error" rejects any 3xx from the vendor API endpoint — the fixed
+      // Microlink endpoint (api.microlink.io) should answer directly; a redirect to a
+      // different host would bypass the DNS SSRF gate run on endpointUrl above.
       const resp = await fetch(endpointUrl.href, {
         headers: {
           // API key is passed as a header and MUST NOT appear in any log payload.
           "x-api-key": apiKey,
           accept: "application/json",
         },
-        redirect: "follow",
+        redirect: "error",
         signal: controller.signal,
       });
       if (!resp.ok) return null;
