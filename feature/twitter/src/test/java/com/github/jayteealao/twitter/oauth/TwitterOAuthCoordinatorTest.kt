@@ -113,7 +113,7 @@ class TwitterOAuthCoordinatorTest {
             yield()
 
             assertEquals(1, results.size)
-            assertEquals(OAuthResult.Failure("unauthenticated"), results.first())
+            assertEquals(OAuthResult.Failure(OAuthResult.Failure.REASON_UNAUTHENTICATED), results.first())
             collector.cancel()
         }
 }

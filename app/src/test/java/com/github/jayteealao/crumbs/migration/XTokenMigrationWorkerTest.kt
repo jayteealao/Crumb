@@ -31,12 +31,14 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Covers the five branches of [runXTokenMigration]:
+ * Covers the branches of [runXTokenMigration]:
  *  1. already migrated → no-op success
  *  2. no legacy token → marks migrated + success
  *  3. callable ok=true → clears Prefs + marks migrated + success
  *  4. callable ok=false reason=invalid → marks migrated + success (no retry)
  *  5. network exception → retry, no Prefs mutation
+ *  6. FirebaseFunctionsException UNAUTHENTICATED → failure (no retry)
+ *  7. FirebaseFunctionsException other code (INTERNAL etc.) → retry, no Prefs mutation
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -150,6 +152,28 @@ class XTokenMigrationWorkerTest {
         val result = runXTokenMigration(context, prefs, functions)
 
         assertEquals(ListenableWorker.Result.failure(), result)
+        assertEquals("", context.readString(MigrationKeys.X_TOKEN_MIGRATED).first())
+        coVerify(exactly = 0) { prefs.clearAllTokens() }
+    }
+
+    @Test
+    fun callableFirebaseError_nonUnauthenticated_returnsRetry() = runTest {
+        refreshFlow.value = "rt-fresh"
+        // A non-UNAUTHENTICATED FirebaseFunctionsException (e.g. INTERNAL, UNAVAILABLE)
+        // should be treated as transient and return retry(), not failure().
+        val internalException = FirebaseFunctionsException::class.java
+            .getDeclaredConstructor(
+                String::class.java,
+                FirebaseFunctionsException.Code::class.java,
+                Any::class.java,
+            )
+            .apply { isAccessible = true }
+            .newInstance("Internal error", FirebaseFunctionsException.Code.INTERNAL, null)
+        every { callable.call(any()) } returns Tasks.forException(internalException)
+
+        val result = runXTokenMigration(context, prefs, functions)
+
+        assertEquals(ListenableWorker.Result.retry(), result)
         assertEquals("", context.readString(MigrationKeys.X_TOKEN_MIGRATED).first())
         coVerify(exactly = 0) { prefs.clearAllTokens() }
     }

@@ -57,7 +57,7 @@ class TwitterOAuthCoordinator @Inject constructor(
             if (e.code == FirebaseFunctionsException.Code.UNAUTHENTICATED) {
                 // Surface as a distinct reason so the UI can show a sign-in-specific message
                 // rather than the generic "Couldn't connect to X" toast.
-                _results.tryEmit(OAuthResult.Failure("unauthenticated"))
+                _results.tryEmit(OAuthResult.Failure(OAuthResult.Failure.REASON_UNAUTHENTICATED))
             } else {
                 _results.tryEmit(OAuthResult.Failure("mint_state_failed"))
             }
@@ -123,5 +123,10 @@ class TwitterOAuthCoordinator @Inject constructor(
 
 sealed class OAuthResult {
     object Success : OAuthResult()
-    data class Failure(val reason: String) : OAuthResult()
+    data class Failure(val reason: String) : OAuthResult() {
+        companion object {
+            /** Reason code emitted when the Firebase Auth session is absent. */
+            const val REASON_UNAUTHENTICATED = "unauthenticated"
+        }
+    }
 }

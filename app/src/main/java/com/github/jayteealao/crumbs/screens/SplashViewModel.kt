@@ -1,15 +1,14 @@
 package com.github.jayteealao.crumbs.screens
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.github.jayteealao.crumbs.auth.AuthGateway
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 
 /**
  * Exposes Firebase Auth sign-in state as a [StateFlow] for [SplashRoute].
@@ -25,14 +24,16 @@ class SplashViewModel @Inject constructor(
 
     /**
      * `true` when a Firebase Auth session exists; `false` when signed out.
+     *
      * Initialised synchronously from [AuthGateway.currentUser] so the first
      * collected value is accurate before any listener fires.
+     * The [viewModelScope] ensures collection stops when the ViewModel is cleared.
      */
     val isSignedIn: StateFlow<Boolean> = authGateway.currentUser
         .map { it != null }
         .stateIn(
-            scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
-            started = kotlinx.coroutines.flow.SharingStarted.Eagerly,
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
             initialValue = authGateway.currentUser.value != null,
         )
 }
