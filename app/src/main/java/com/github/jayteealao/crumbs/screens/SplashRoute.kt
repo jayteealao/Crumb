@@ -7,30 +7,29 @@ import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.github.jayteealao.crumbs.Screens
-import com.github.jayteealao.twitter.screens.LoginViewModel
 import kotlinx.coroutines.delay
-import timber.log.Timber
 
 /**
  * Navigation entry point for the splash destination. Waits 1 second, then routes to Home if a
- * Twitter access token is available (and attempts a token refresh), or to Login otherwise.
+ * Firebase Auth session exists, or to Login otherwise.
+ *
+ * Routing is keyed on [SplashViewModel.isSignedIn] (the live Firebase Auth session), not the
+ * legacy local Twitter token, so a signed-out user is always sent to Login even when a stale
+ * X token remains in Prefs.
  *
  * @param navController Used to replace the splash back-stack entry with the appropriate destination.
- * @param loginViewModel Provides access-token availability and the token-refresh call.
+ * @param splashViewModel Provides Firebase Auth sign-in state for the routing decision.
  */
 @Composable
 fun SplashRoute(
     navController: NavController,
-    loginViewModel: LoginViewModel = hiltViewModel(),
+    splashViewModel: SplashViewModel = hiltViewModel(),
 ) {
-    val isAccessTokenAvailable by loginViewModel.isAccessTokenAvailable.collectAsState()
+    val isSignedIn by splashViewModel.isSignedIn.collectAsState()
 
-    LaunchedEffect(isAccessTokenAvailable) {
+    LaunchedEffect(isSignedIn) {
         delay(1000)
-        if (isAccessTokenAvailable) {
-            val refreshed = loginViewModel.refreshToken()
-            Timber.d("refreshed $refreshed")
-            navController.currentBackStackEntry?.savedStateHandle?.set("refreshed", refreshed)
+        if (isSignedIn) {
             navController.navigate(Screens.HOMESCREEN.screenRoute(true)) {
                 popUpTo(Screens.SPLASHSCREEN.name) { inclusive = true }
             }
@@ -41,5 +40,5 @@ fun SplashRoute(
         }
     }
 
-    SplashScreen(uiState = SplashUiState(isLoggedIn = isAccessTokenAvailable))
+    SplashScreen(uiState = SplashUiState(isLoggedIn = isSignedIn))
 }

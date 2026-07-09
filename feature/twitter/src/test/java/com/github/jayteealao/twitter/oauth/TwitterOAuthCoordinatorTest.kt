@@ -1,6 +1,13 @@
 package com.github.jayteealao.twitter.oauth
 
+import android.app.Activity
 import android.net.Uri
+import com.google.android.gms.tasks.Tasks
+import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.functions.FirebaseFunctionsException
+import com.google.firebase.functions.HttpsCallableReference
+import com.google.firebase.functions.HttpsCallableResult
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -64,4 +71,49 @@ class TwitterOAuthCoordinatorTest {
         assertTrue("expected no emissions, got $results", results.isEmpty())
         collector.cancel()
     }
+
+    @Test
+    fun mintOAuthState_unauthenticated_emitsUnauthenticatedFailure() =
+        runTest(UnconfinedTestDispatcher()) {
+            // FirebaseFunctionsException's primary constructor is internal in Kotlin but
+            // public in Java bytecode — use reflection to construct it cross-module in tests.
+            val unauthException = FirebaseFunctionsException::class.java
+                .getDeclaredConstructor(
+                    String::class.java,
+                    FirebaseFunctionsException.Code::class.java,
+                    Any::class.java,
+                )
+                .apply { isAccessible = true }
+                .newInstance(
+                    "Sign-in required",
+                    FirebaseFunctionsException.Code.UNAUTHENTICATED,
+                    null,
+                )
+
+            // warmUp succeeds (relaxed); mintOAuthState throws UNAUTHENTICATED.
+            val warmUpCallable = mockk<HttpsCallableReference>(relaxed = true)
+            val mintCallable = mockk<HttpsCallableReference>()
+            val functions = mockk<FirebaseFunctions>()
+            every { functions.getHttpsCallable("warmUp") } returns warmUpCallable
+            every { functions.getHttpsCallable("mintOAuthState") } returns mintCallable
+            every { warmUpCallable.call() } returns Tasks.forResult(
+                mockk<HttpsCallableResult>(relaxed = true),
+            )
+            every { mintCallable.call(any<Map<String, Any>>()) } returns
+                Tasks.forException(unauthException)
+
+            val coordinator = TwitterOAuthCoordinator(functions)
+            val results = mutableListOf<OAuthResult>()
+            val collector = backgroundScope.launch {
+                coordinator.results.collect { results += it }
+            }
+            yield()
+
+            coordinator.launchAuthorize(mockk<Activity>(relaxed = true))
+            yield()
+
+            assertEquals(1, results.size)
+            assertEquals(OAuthResult.Failure("unauthenticated"), results.first())
+            collector.cancel()
+        }
 }

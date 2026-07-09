@@ -10,6 +10,7 @@ import com.github.jayteealao.pref.writeString
 import com.github.jayteealao.twitter.data.Prefs
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.functions.FirebaseFunctionsException
 import com.google.firebase.functions.HttpsCallableReference
 import com.google.firebase.functions.HttpsCallableResult
 import io.mockk.Runs
@@ -127,6 +128,28 @@ class XTokenMigrationWorkerTest {
         val result = runXTokenMigration(context, prefs, functions)
 
         assertEquals(ListenableWorker.Result.retry(), result)
+        assertEquals("", context.readString(MigrationKeys.X_TOKEN_MIGRATED).first())
+        coVerify(exactly = 0) { prefs.clearAllTokens() }
+    }
+
+    @Test
+    fun callableUnauthenticated_returnsFailure_doesNotRetry() = runTest {
+        refreshFlow.value = "rt-fresh"
+        // FirebaseFunctionsException's primary constructor is internal in Kotlin but public
+        // in Java bytecode. Use reflection to construct it cross-module in tests.
+        val unauthException = FirebaseFunctionsException::class.java
+            .getDeclaredConstructor(
+                String::class.java,
+                FirebaseFunctionsException.Code::class.java,
+                Any::class.java,
+            )
+            .apply { isAccessible = true }
+            .newInstance("Sign-in required", FirebaseFunctionsException.Code.UNAUTHENTICATED, null)
+        every { callable.call(any()) } returns Tasks.forException(unauthException)
+
+        val result = runXTokenMigration(context, prefs, functions)
+
+        assertEquals(ListenableWorker.Result.failure(), result)
         assertEquals("", context.readString(MigrationKeys.X_TOKEN_MIGRATED).first())
         coVerify(exactly = 0) { prefs.clearAllTokens() }
     }

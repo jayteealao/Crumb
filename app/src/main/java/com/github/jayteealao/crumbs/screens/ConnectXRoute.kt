@@ -72,11 +72,11 @@ fun ConnectXRoute(
                 }
                 is OAuthResult.Failure -> {
                     Timber.w("OAuth failure: ${result.reason}")
-                    Toast.makeText(
-                        context,
-                        "Couldn't connect to X. Please try again.",
-                        Toast.LENGTH_LONG,
-                    ).show()
+                    val message = when (result.reason) {
+                        "unauthenticated" -> "Sign in to connect X. Please sign in first."
+                        else -> "Couldn't connect to X. Please try again."
+                    }
+                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                 }
             }
         }

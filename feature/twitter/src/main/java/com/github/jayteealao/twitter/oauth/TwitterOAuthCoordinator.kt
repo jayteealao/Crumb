@@ -54,7 +54,13 @@ class TwitterOAuthCoordinator @Inject constructor(
                 ?: throw IllegalStateException("mintOAuthState returned no state")
         } catch (e: FirebaseFunctionsException) {
             Timber.e(e, "mintOAuthState failed: ${e.code}")
-            _results.tryEmit(OAuthResult.Failure("mint_state_failed"))
+            if (e.code == FirebaseFunctionsException.Code.UNAUTHENTICATED) {
+                // Surface as a distinct reason so the UI can show a sign-in-specific message
+                // rather than the generic "Couldn't connect to X" toast.
+                _results.tryEmit(OAuthResult.Failure("unauthenticated"))
+            } else {
+                _results.tryEmit(OAuthResult.Failure("mint_state_failed"))
+            }
             return
         }
 

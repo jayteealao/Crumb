@@ -7,6 +7,7 @@ import com.github.jayteealao.pref.readString
 import com.github.jayteealao.pref.writeString
 import com.github.jayteealao.twitter.data.Prefs
 import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.functions.FirebaseFunctionsException
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.first
@@ -102,6 +103,18 @@ internal suspend fun runXTokenMigration(
         // The worker was stopped/cancelled cooperatively. Rethrow so WorkManager
         // records the cancellation instead of mistaking it for a transient retry.
         throw e
+    } catch (e: FirebaseFunctionsException) {
+        if (e.code == FirebaseFunctionsException.Code.UNAUTHENTICATED) {
+            // No Firebase session — cannot migrate until the user signs in.
+            // Returning failure() terminates the work request so WorkManager
+            // does not spin an infinite retry loop on a signed-out device.
+            Timber.w(e, "XTokenMigrationWorker: Sign-in required, skipping until authenticated")
+            androidx.work.ListenableWorker.Result.failure()
+        } else {
+            // Other Firebase Functions errors (UNAVAILABLE, INTERNAL, etc.) are transient.
+            Timber.w(e, "XTokenMigrationWorker: transient Firebase error (${e.code}), retrying")
+            androidx.work.ListenableWorker.Result.retry()
+        }
     } catch (e: Exception) {
         Timber.w(e, "XTokenMigrationWorker: transient failure, retrying")
         androidx.work.ListenableWorker.Result.retry()

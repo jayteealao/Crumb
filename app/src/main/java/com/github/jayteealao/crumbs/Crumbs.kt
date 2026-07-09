@@ -112,7 +112,6 @@ fun CrumbsNavHost(
         composable(Screens.SPLASHSCREEN.name) {
             SplashRoute(
                 navController = navController,
-                loginViewModel = loginViewModel,
             )
         }
 
