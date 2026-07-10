@@ -26,6 +26,7 @@ import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import com.github.jayteealao.crumbs.Screens
+import com.github.jayteealao.crumbs.auth.SessionViewModel
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsBookmarkCard
 import com.github.jayteealao.crumbs.designsystem.components.EmptyState
 import com.github.jayteealao.crumbs.designsystem.components.LoadingCard
@@ -42,7 +43,6 @@ import com.github.jayteealao.reddit.screens.RedditViewModel
 import com.github.jayteealao.reddit.screens.toBookmark
 import com.github.jayteealao.twitter.models.TweetData
 import com.github.jayteealao.twitter.screens.BookmarksViewModel
-import com.github.jayteealao.twitter.screens.LoginViewModel
 import com.github.jayteealao.twitter.screens.toBookmark
 import kotlinx.collections.immutable.toImmutableList
 import timber.log.Timber
@@ -235,7 +235,7 @@ private fun <T : Any> androidx.compose.foundation.lazy.LazyListScope.renderPagin
  * share, delete, and tag-edit actions.
  *
  * @param contentPadding Padding from the parent scaffold passed down to the lazy list.
- * @param loginViewModel Provides Twitter login state.
+ * @param sessionViewModel Provides the Firebase-auth-derived signed-in signal for feed gating.
  * @param redditViewModel Provides Reddit login state and paging data.
  * @param bookmarksViewModel Provides Twitter paging data and tag operations.
  * @param navController Used to navigate to the login screen from the empty-state CTA.
@@ -243,7 +243,7 @@ private fun <T : Any> androidx.compose.foundation.lazy.LazyListScope.renderPagin
 @Composable
 fun AllBookmarksRoute(
     contentPadding: PaddingValues,
-    loginViewModel: LoginViewModel = hiltViewModel(),
+    sessionViewModel: SessionViewModel = hiltViewModel(),
     redditViewModel: RedditViewModel = hiltViewModel(),
     bookmarksViewModel: BookmarksViewModel = hiltViewModel(),
     navController: NavController? = null,
@@ -251,7 +251,9 @@ fun AllBookmarksRoute(
     val context = LocalContext.current
 
     val twitterItems = bookmarksViewModel.pagingFlowData().collectAsLazyPagingItems()
-    val twitterLoggedIn by loginViewModel.isAccessTokenAvailable.collectAsStateWithLifecycle()
+    // Firebase auth is the authoritative gate for the Twitter feed section — replaces
+    // the legacy isAccessTokenAvailable signal from LoginViewModel.
+    val isSignedIn by sessionViewModel.isSignedIn.collectAsStateWithLifecycle()
     val redditItems = redditViewModel.pagingFlowData().collectAsLazyPagingItems()
     val redditLoggedIn by redditViewModel.isAccessTokenAvailable.collectAsStateWithLifecycle()
 
@@ -267,11 +269,11 @@ fun AllBookmarksRoute(
 
     AllBookmarksScreen(
         uiState = AllBookmarksUiState(
-            twitterConnected = twitterLoggedIn,
+            twitterConnected = isSignedIn,
             redditConnected = redditLoggedIn,
             tagsMap = tagsMap,
         ),
-        twitterItems = if (twitterLoggedIn) twitterItems else null,
+        twitterItems = if (isSignedIn) twitterItems else null,
         redditItems = if (redditLoggedIn) redditItems else null,
         onCardClick = { url ->
             val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))

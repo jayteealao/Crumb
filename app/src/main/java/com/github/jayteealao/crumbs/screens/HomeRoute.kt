@@ -30,6 +30,7 @@ import com.github.jayteealao.crumbs.data.BannerState
 import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.data.SnackbarBus
 import com.github.jayteealao.crumbs.data.SnackbarEvent
+import com.github.jayteealao.crumbs.auth.SessionViewModel
 import com.github.jayteealao.crumbs.data.SyncErrorBus
 import com.github.jayteealao.crumbs.data.SyncErrorEvent
 import com.github.jayteealao.crumbs.designsystem.components.BottomNavTab
@@ -76,6 +77,7 @@ fun HomeRoute(
     redditViewModel: RedditViewModel = hiltViewModel(),
     bookmarksViewModel: BookmarksViewModel = hiltViewModel(),
     services: HomeServicesViewModel = hiltViewModel(),
+    sessionViewModel: SessionViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
 
@@ -99,7 +101,9 @@ fun HomeRoute(
     // the route just to drop emissions on the floor.
     val twitterFilter by bookmarksViewModel.filter.collectAsStateWithLifecycle()
     val redditFilter by redditViewModel.filter.collectAsStateWithLifecycle()
-    val twitterAccess by loginViewModel.isAccessTokenAvailable.collectAsStateWithLifecycle()
+    // Firebase-derived signed-in signal — single source of truth for all HomeRoute
+    // effects that previously keyed on the legacy Twitter access-token flag.
+    val isSignedIn by sessionViewModel.isSignedIn.collectAsStateWithLifecycle()
     val redditAccess by redditViewModel.isAccessTokenAvailable.collectAsStateWithLifecycle()
     val syncStatus by bookmarksViewModel.syncStatus.collectAsStateWithLifecycle()
     // Live Twitter feed count for the SAVED header; tracks the active tag/type filter.
@@ -148,8 +152,10 @@ fun HomeRoute(
         }
     }
 
-    LaunchedEffect(twitterAccess) {
-        if (twitterAccess) {
+    // Re-keyed on Firebase auth rather than the legacy Twitter token: a signed-in
+    // Firebase session is the authoritative signal that the user has an active account.
+    LaunchedEffect(isSignedIn) {
+        if (isSignedIn) {
             twitterBanner = null
             // Drop the replay slot so a warm-start subscription does not
             // resurrect the stale auth event the next time the route mounts.
@@ -157,12 +163,12 @@ fun HomeRoute(
         }
     }
 
-    // Ask once for POST_NOTIFICATIONS the first time the user reaches the feed with an
-    // X session, so sync-progress and completion notifications are visible. One-shot
+    // Ask once for POST_NOTIFICATIONS the first time the user reaches the feed with a
+    // Firebase session, so sync-progress and completion notifications are visible. One-shot
     // and API-gated; the foreground-service notification runs without the grant, so a
     // denial only suppresses the shade entry — the sync itself is unaffected.
-    LaunchedEffect(twitterAccess) {
-        if (twitterAccess && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+    LaunchedEffect(isSignedIn) {
+        if (isSignedIn && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             maybeRequestPostNotifications(context, notificationPermissionLauncher)
         }
     }
@@ -197,14 +203,15 @@ fun HomeRoute(
     }
     // Tab-aware SAVED count: Twitter (and the Twitter-backed ALL/MAP tabs) report the
     // live Twitter feed count; Reddit has no count wired and keeps the legacy `000`.
+    // Gated on the same sync_status.linked truth as the feed body's loggedIn gate, so
+    // leftover cached rows can't keep the header non-zero while the body says "connect".
     val activeCount by remember {
         derivedStateOf {
-            when (selectedTab) {
-                BottomNavTab.TWITTER -> twitterCount
-                BottomNavTab.REDDIT -> 0
-                BottomNavTab.ALL -> twitterCount
-                BottomNavTab.MAP -> twitterCount
-            }
+            resolveSavedCount(
+                tab = selectedTab,
+                twitterCount = twitterCount,
+                twitterLinked = syncStatus?.linked == true,
+            )
         }
     }
     // Tags follow the same tab routing as the filter: Reddit reads its own tag
@@ -342,13 +349,30 @@ fun HomeRoute(
             )
             BottomNavTab.ALL -> AllBookmarksRoute(
                 contentPadding = padding,
-                loginViewModel = loginViewModel,
                 bookmarksViewModel = bookmarksViewModel,
                 redditViewModel = redditViewModel,
             )
             BottomNavTab.MAP -> MapViewRoute(contentPadding = padding)
         }
     }
+}
+
+/**
+ * SAVED-header count for the active [tab]. Reddit has no count wired and always reports 0; the
+ * Twitter-backed tabs (Twitter/All/Map) report [twitterCount] only while [twitterLinked] — the
+ * server's `sync_status.linked` flag — so an unlinked session reads 0 even when stale rows remain
+ * in the local cache. Pure so the gate is unit-testable without a Compose host.
+ */
+internal fun resolveSavedCount(
+    tab: BottomNavTab,
+    twitterCount: Int,
+    twitterLinked: Boolean,
+): Int = when (tab) {
+    BottomNavTab.REDDIT -> 0
+    BottomNavTab.TWITTER,
+    BottomNavTab.ALL,
+    BottomNavTab.MAP,
+    -> if (twitterLinked) twitterCount else 0
 }
 
 private const val SYNC_NOTIFICATION_PREFS = "sync_notification_prefs"

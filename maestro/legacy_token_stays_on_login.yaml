@@ -1,0 +1,24 @@
+# AC1 regression flow: verifies that a device with a stale legacy X access token
+# but no Firebase session stays on the login screen — no auto-navigation occurs.
+#
+# Seeds the legacy-token-only pre-state via the debug_action hook, waits well past
+# the old 500 ms + 1500 ms auto-nav window, then asserts the login screen is still
+# visible. No credential interaction is performed; this flow is Maestro-emulator-
+# safe and requires no authenticated Firebase session.
+appId: com.github.jayteealao.crumbs
+---
+- launchApp:
+    clearState: true
+    arguments:
+      debug_action: "seed_legacy_x_tokens"
+- extendedWaitUntil:
+    visible:
+      id: "login-screen"
+    timeout: 10000
+# Wait 5 s — well past the old 500 ms + 1500 ms auto-nav window — to confirm no
+# navigation fires on the legacy token alone.
+- wait:
+    timeout: 5000
+- assertVisible:
+    id: "login-screen"
+- takeScreenshot: legacy_token_stays_on_login_01_still_on_login

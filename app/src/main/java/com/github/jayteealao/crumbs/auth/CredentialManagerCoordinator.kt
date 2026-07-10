@@ -13,6 +13,7 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingExcept
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.cancellation.CancellationException
 import timber.log.Timber
 
 // Activity is required because Credential Manager renders an OS-level bottom
@@ -40,6 +41,13 @@ class RealCredentialManagerCoordinator @Inject constructor(
             val credential = response.credential
             val googleCred = GoogleIdTokenCredential.createFrom(credential.data)
             authGateway.signInWithGoogleIdToken(googleCred.idToken)
+        } catch (e: CancellationException) {
+            // The composable that launched this coroutine left composition
+            // (e.g. a navigation event popped it) — propagate so structured
+            // concurrency can clean up normally. A breadcrumb makes any
+            // regression of the cancelled-sheet bug class loud instead of silent.
+            Timber.w(e, "getCredential cancelled mid-flight — caller likely left composition")
+            throw e
         } catch (e: NoCredentialException) {
             // No matching credential on device (or offline-ish). Surface as
             // network-class so the UI can prompt to retry.

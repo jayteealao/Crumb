@@ -14,16 +14,37 @@ import com.github.jayteealao.crumbs.auth.AuthUiState
 import com.github.jayteealao.crumbs.auth.FirebaseAuthViewModel
 import com.github.jayteealao.reddit.screens.RedditViewModel
 import com.github.jayteealao.twitter.screens.LoginViewModel
-import kotlinx.coroutines.delay
-import timber.log.Timber
+
+/**
+ * Returns `true` only when [authState] indicates a successful Firebase session,
+ * making [AuthUiState.Authenticated] the sole trigger for auto-navigation past
+ * the login screen. Every other state — including [AuthUiState.SigningIn] — is an
+ * explicit no-op so that an in-flight Credential Manager coroutine can never be
+ * cancelled by a navigation side effect.
+ *
+ * Pure function: unit-testable without a Compose host (see [LoginAutoNavTest]).
+ */
+fun shouldAutoNavigate(authState: AuthUiState): Boolean = when (authState) {
+    is AuthUiState.Authenticated -> true
+    AuthUiState.SigningIn,
+    AuthUiState.SignedOut,
+    is AuthUiState.CollisionRequiresEmailLink,
+    AuthUiState.EmailPasswordEntry,
+    is AuthUiState.Error,
+    -> false
+}
 
 /**
  * Navigation entry point for the login destination. Wires ViewModels into [LoginScreen] and
- * handles auto-navigation to Home once any auth method succeeds (Twitter, Reddit, or Firebase).
+ * handles auto-navigation to Home once Firebase Auth reports a successful session.
+ *
+ * Auto-navigation is keyed solely on [AuthUiState.Authenticated] — legacy Twitter/Reddit
+ * token availability no longer triggers navigation. This prevents a stale on-device token
+ * from racing an in-flight Credential Manager Google sign-in and cancelling the sheet.
  *
  * @param navController Used to navigate forward to Home or ConnectX after authentication.
  * @param authorizationCode OAuth code forwarded from the deep-link intent; triggers Twitter token exchange.
- * @param loginViewModel Provides Twitter access-token availability and the token-exchange call.
+ * @param loginViewModel Provides Twitter user info, the token-exchange call, and logout.
  * @param redditViewModel Provides Reddit access-token availability and the auth intent.
  * @param authViewModel Manages Firebase sign-in state (Google, email/password, and sign-out).
  */
@@ -37,7 +58,6 @@ fun LoginRoute(
 ) {
     val context = LocalContext.current
 
-    val twitterAccess by loginViewModel.isAccessTokenAvailable.collectAsState()
     val redditAccess by redditViewModel.isAccessTokenAvailable.collectAsState()
     val twitterUser by loginViewModel.user.collectAsState()
     val redditUsername by redditViewModel.username.collectAsState()
@@ -49,22 +69,12 @@ fun LoginRoute(
         }
     }
 
-    LaunchedEffect(twitterAccess, redditAccess) {
-        delay(500)
-        if (twitterAccess || redditAccess) {
-            Timber.d("access approved (Twitter: $twitterAccess, Reddit: $redditAccess)")
-            delay(1500)
-            navController.navigate(Screens.HOMESCREEN.screenRoute(true)) {
-                popUpTo(Screens.LOGINSCREEN.name) { inclusive = true }
-            }
-        }
-    }
-
     // Auto-route past LoginScreen once Firebase reports an authenticated user.
-    // The wrong-account guard lives function-side (Firestore allowlist); the
-    // app never inspects the UID locally.
+    // shouldAutoNavigate is exhaustive over AuthUiState: SigningIn and every
+    // non-Authenticated state are explicit false branches, ensuring no navigation
+    // fires while the Credential Manager sheet is open.
     LaunchedEffect(authState) {
-        if (authState is AuthUiState.Authenticated) {
+        if (shouldAutoNavigate(authState)) {
             navController.navigate(Screens.HOMESCREEN.screenRoute(true)) {
                 popUpTo(Screens.LOGINSCREEN.name) { inclusive = true }
             }
@@ -79,13 +89,17 @@ fun LoginRoute(
 
     LoginScreen(
         uiState = LoginUiState(
-            twitterConnected = twitterAccess,
+            // Legacy Twitter token chip is retired post-cutover; hardwired false so
+            // a stale on-device Prefs token is never reflected in the UI.
+            twitterConnected = false,
             redditConnected = redditAccess,
             twitterUsername = twitterUser?.username.orEmpty(),
             twitterDisplayName = twitterUser?.name.orEmpty(),
             twitterAvatarUrl = twitterUser?.profileImageUrl.orEmpty(),
             redditUsername = redditUsername,
-            isProcessingCallback = authorizationCode != null && !twitterAccess && !redditAccess,
+            // isProcessingCallback guards the Twitter OAuth callback path; no
+            // longer conditioned on twitterAccess since the token signal is retired.
+            isProcessingCallback = authorizationCode != null && !redditAccess,
             isDebug = BuildConfig.DEBUG,
             firebaseSignedIn = signedIn,
             firebaseSigningIn = signingIn,
