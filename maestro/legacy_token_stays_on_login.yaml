@@ -16,8 +16,9 @@ appId: com.github.jayteealao.crumbs
       id: "login-screen"
     timeout: 10000
 # Wait 5 s — well past the old 500 ms + 1500 ms auto-nav window — to confirm no
-# navigation fires on the legacy token alone.
-- wait:
+# navigation fires on the legacy token alone. Uses waitForAnimationToEnd (Maestro 2.x)
+# as a 5 s idle pause; `wait` was removed from the command set in 2.x.
+- waitForAnimationToEnd:
     timeout: 5000
 - assertVisible:
     id: "login-screen"
