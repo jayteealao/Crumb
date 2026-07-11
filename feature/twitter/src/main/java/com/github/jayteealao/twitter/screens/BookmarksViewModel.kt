@@ -81,6 +81,23 @@ class BookmarksViewModel @Inject constructor(
         .flatMapLatest { state -> repository.countFlow(state) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
+    /**
+     * Delegates the reconciler's completeness signal from [Repository]. True while local Room
+     * count is below the Firestore server total (beyond tolerance) and the fill sync is in
+     * flight; auto-clears reactively once Room catches up. Observed by [HomeRoute] to drive
+     * the "CATCHING UP" count-header affordance.
+     */
+    val isSyncIncomplete: StateFlow<Boolean> = repository.isSyncIncomplete
+
+    /**
+     * Cold-start completeness check: compare local Room count against the Firestore server
+     * total and re-kick the sync if short. Runs at most once per process lifetime (AtomicBoolean
+     * gate in [Repository]). Called from [HomeRoute] via a [LaunchedEffect] keyed on sign-in.
+     */
+    fun checkAndReconcile() {
+        viewModelScope.launch { repository.reconcileIfIncomplete() }
+    }
+
     fun pagingFlowData(): Flow<PagingData<TweetData>> = pagingFlow
 
     fun refresh() {

@@ -108,6 +108,10 @@ fun HomeRoute(
     val syncStatus by bookmarksViewModel.syncStatus.collectAsStateWithLifecycle()
     // Live Twitter feed count for the SAVED header; tracks the active tag/type filter.
     val twitterCount by bookmarksViewModel.itemCount.collectAsStateWithLifecycle()
+    // Completeness-reconcile signal: true while a fill sync is in flight after detecting
+    // local < server. Guarded on twitterLinked at the HomeUiState construction site so a
+    // brief sign-in race cannot flash "CATCHING UP" before syncStatus resolves.
+    val isSyncIncomplete by bookmarksViewModel.isSyncIncomplete.collectAsStateWithLifecycle()
     // User tags per source, surfaced as the Tags section in the filter overlay.
     // Loads asynchronously at VM init; the section appears on the next emission.
     val twitterAllTags by bookmarksViewModel.allTags.collectAsStateWithLifecycle()
@@ -172,6 +176,15 @@ fun HomeRoute(
             maybeRequestPostNotifications(context, notificationPermissionLauncher)
         }
     }
+    // Cold-start completeness check: once per authenticated session, compare local Room count
+    // against the Firestore server total and re-kick the sync if short. Keyed on isSignedIn
+    // so it fires on sign-in and is a no-op (AtomicBoolean gate) on tab switches or
+    // recompositions within the same session. Independent of the other LaunchedEffect(isSignedIn)
+    // blocks; each key is evaluated independently by the Compose runtime.
+    LaunchedEffect(isSignedIn) {
+        if (isSignedIn) bookmarksViewModel.checkAndReconcile()
+    }
+
     LaunchedEffect(redditAccess) {
         if (redditAccess) {
             redditBanner = null
@@ -277,6 +290,9 @@ fun HomeRoute(
             selectedFilterChipIds = filterChipIdsFor(activeFilter),
             bannerState = activeBanner,
             itemCount = activeCount,
+            // Guard on twitterLinked: the reconciler requires auth; showing "CATCHING UP"
+            // before syncStatus resolves would be misleading.
+            isSyncIncomplete = isSyncIncomplete && syncStatus?.linked == true,
         ),
         onTabSelected = { selectedTab = it },
         onSearchQueryChange = { searchQuery = it },

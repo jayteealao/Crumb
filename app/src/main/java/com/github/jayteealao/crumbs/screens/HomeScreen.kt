@@ -38,6 +38,8 @@ data class HomeUiState(
     val selectedFilterChipIds: Set<String> = emptySet(),
     val bannerState: BannerState? = null,
     val itemCount: Int = 0,
+    /** True while a completeness-reconcile-triggered sync is filling a gap against the server total. */
+    val isSyncIncomplete: Boolean = false,
 ) {
     /** Label shown on the filter pill in the filter bar. Computed from state, not in the UI. */
     val filterLabel: String get() {
@@ -49,8 +51,11 @@ data class HomeUiState(
         }
     }
 
-    /** Formatted bookmark count shown in the filter bar. Computed from state, not in the UI. */
-    val countLabel: String get() = "%03d SAVED".format(itemCount)
+    /** Formatted bookmark count shown in the filter bar. Signals incompleteness when the local corpus
+     * is below the Firestore server total and the fill sync is in flight. */
+    val countLabel: String get() =
+        if (isSyncIncomplete) "%03d CATCHING UP".format(itemCount)
+        else "%03d SAVED".format(itemCount)
 
     /** Sort pill label. Currently static; extracted here so it is testable and overridable. */
     val sortLabel: String get() = "SORT ↓ NEW"

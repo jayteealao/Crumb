@@ -4,6 +4,7 @@ import com.github.jayteealao.twitter.models.TweetEntities
 import com.github.jayteealao.twitter.models.TweetEntity
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.CollectionReference
+import com.google.firebase.firestore.AggregateSource
 import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -126,6 +127,34 @@ class FirestoreRepository @Inject constructor(
         } catch (e: Exception) {
             Timber.e(e, "Error fetching tweet IDs from Firestore")
             emptySet()
+        }
+    }
+
+    /**
+     * Returns the net bookmark count from Firestore using two cheap aggregate `count()` queries
+     * (one read operation each, no document data transferred):
+     *  1. Total documents in the user's tweets sub-collection.
+     *  2. Documents where `referenced == true` (quoted-tweet body docs, not bookmarks).
+     * Net = total - referenced — the authoritative bookmark count for reconciliation.
+     * Wraps both calls in a single try/catch; on failure resets the reconciliation gate so
+     * the next cold-start can retry.
+     */
+    suspend fun getServerBookmarkCount(): Result<Long> = withContext(Dispatchers.IO) {
+        try {
+            val uid = requireUid()
+            val total = tweetsCol(uid).count().get(AggregateSource.SERVER).await().count
+            val referenced = tweetsCol(uid)
+                .whereEqualTo("referenced", true)
+                .count()
+                .get(AggregateSource.SERVER)
+                .await()
+                .count
+            val net = total - referenced
+            Timber.tag("Reconcile").d("server_count total=$total referenced=$referenced net=$net")
+            Result.success(net)
+        } catch (e: Exception) {
+            Timber.tag("Reconcile").w(e, "getServerBookmarkCount failed")
+            Result.failure(e)
         }
     }
 

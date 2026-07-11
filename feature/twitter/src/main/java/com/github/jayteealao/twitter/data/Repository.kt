@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,6 +32,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -71,7 +73,27 @@ class Repository @Inject constructor(
         // exceed SQLite's default 999 host-parameter limit. 900 leaves headroom
         // for any other bound parameters in the same statement.
         const val MAX_IN_CLAUSE_PARAMS = 900
+        // Absorbs concurrent in-flight deletes (tombstone written to Room before Firestore;
+        // 1–2 events typical) plus the Firestore→Room write-race window during the count
+        // queries. Chosen well below any real shortfall (690+ on a partial corpus) while
+        // generous enough to never false-positive on a healthy corpus.
+        // sdlc-debt: fixed constant; could be a DataStore-backed tunable if the tolerance
+        // needs per-user calibration. Upgrade: replace with a persisted preference.
+        private const val RECONCILIATION_TOLERANCE = 5L
     }
+
+    // Per-process one-shot gate: compareAndSet(false, true) is the first (real) call;
+    // subsequent calls see true and return immediately without issuing a Firestore read.
+    // Reset to false on a transient count-query failure so the next cold-start can retry.
+    private val reconciliationChecked = AtomicBoolean(false)
+
+    private val _isSyncIncomplete = MutableStateFlow(false)
+    /**
+     * True while reconciliation detected local < server (beyond tolerance) and the
+     * fill sync is in flight. Auto-clears reactively when the live Room count crosses
+     * the server threshold. Drives the "CATCHING UP" count-header affordance in the UI.
+     */
+    val isSyncIncomplete: StateFlow<Boolean> = _isSyncIncomplete.asStateFlow()
 
     init {
         scope.launch(Dispatchers.IO) {
@@ -177,6 +199,60 @@ class Repository @Inject constructor(
         if (entities.tweetReferencedTweets.none { it.tweet != null }) return@withContext false
         saveTweetEntities(entities, uploadToFirestore = false)
         true
+    }
+
+    /**
+     * Cold-start completeness check. Runs at most once per process lifetime (the
+     * [reconciliationChecked] AtomicBoolean gate) to avoid repeated Firestore reads.
+     *
+     * Compares the Firestore aggregate bookmark count against the local Room count.
+     * When the gap exceeds [RECONCILIATION_TOLERANCE], re-kicks a cold-start sync to fill
+     * the missing bookmarks and activates [isSyncIncomplete] to surface the "CATCHING UP"
+     * header signal. The signal auto-clears reactively once the Room count reaches the
+     * server threshold — no explicit "sync complete" callback required.
+     *
+     * On a count-query failure the gate is reset so the next cold-start can retry.
+     * Returns true if a reconcile-triggered sync was kicked; false in all other cases.
+     */
+    suspend fun reconcileIfIncomplete(): Boolean = withContext(Dispatchers.IO) {
+        if (!reconciliationChecked.compareAndSet(false, true)) {
+            Timber.tag("Reconcile").d("reconcile_skipped reason=already_checked_this_session")
+            return@withContext false
+        }
+        val serverTotal = firestoreRepository.getServerBookmarkCount().getOrElse { e ->
+            Timber.tag("Reconcile").w(e, "reconcile_aborted reason=count_query_failed")
+            reconciliationChecked.set(false) // allow retry on next cold-start
+            return@withContext false
+        }
+        val localCount = tweetDao.countAllActive().toLong()
+        val gap = serverTotal - localCount
+        Timber.tag("Reconcile").d(
+            "reconcile_check server=$serverTotal local=$localCount gap=$gap tolerance=$RECONCILIATION_TOLERANCE"
+        )
+        if (gap > RECONCILIATION_TOLERANCE) {
+            _isSyncIncomplete.value = true
+            syncEnqueuer.enqueueColdStart()
+            Timber.tag("Reconcile").d("reconcile_kick_sync gap=$gap exceeds_tolerance")
+            // Auto-clear: suspend until Room's live count crosses the server threshold,
+            // then flip the signal off. Flow.first { } cancels itself after the predicate
+            // fires. Runs on the application scope (not the caller's) so the watcher
+            // outlives the LaunchedEffect that triggered checkAndReconcile.
+            // sdlc-debt: this coroutine has no external cancel handle. If the server
+            // deletes docs between the count query and the sync, the local count may never
+            // reach `target` and the watcher lives until the app process dies (acceptable
+            // for a one-shot cold-start operation; upgrade: add a timeout or external cancel).
+            val target = serverTotal - RECONCILIATION_TOLERANCE
+            scope.launch(Dispatchers.IO) {
+                tweetDao.countTombstoneAware("ALL").first { it.toLong() >= target }
+                _isSyncIncomplete.value = false
+                Timber.tag("Reconcile").d("reconcile_cleared local_count_reached=$target")
+            }
+            true
+        } else {
+            _isSyncIncomplete.value = false
+            Timber.tag("Reconcile").d("reconcile_noop gap=$gap within_tolerance")
+            false
+        }
     }
 
     /**

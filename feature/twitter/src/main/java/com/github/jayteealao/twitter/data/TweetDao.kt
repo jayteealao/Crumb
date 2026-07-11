@@ -235,6 +235,19 @@ interface TweetDao {
     fun countTombstoneAware(type: String): Flow<Int>
 
     /**
+     * One-shot snapshot of the total active (non-referenced, non-tombstoned) bookmark count.
+     * Used exclusively by the completeness reconciler to compare against the Firestore server
+     * total — it cares only about the ALL-type total, not any active type filter, so it omits
+     * the type-predicate block that [countTombstoneAware] carries.
+     */
+    @Query("""
+        SELECT COUNT(*) FROM tweetEntity t
+        LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
+        WHERE t.referenced = 0 AND d.bookmarkId IS NULL
+    """)
+    suspend fun countAllActive(): Int
+
+    /**
      * Reactive count for the tag-filtered feed. Mirrors [getTweetsByTagsTombstoneAware]'s
      * WHERE exactly; uses `COUNT(DISTINCT t.id)` because the `tweet_tags` INNER JOIN can
      * fan a single tweet across multiple matching tags (the list query collapses those
