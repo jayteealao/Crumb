@@ -36,7 +36,10 @@ class TwitterSyncEnqueuerImpl @Inject constructor(
     }
 
     override fun enqueueRefresh() {
-        enqueue(runAsForegroundService = false, tag = "refresh")
+        // REPLACE so a pull-to-refresh can supersede a wedged/frozen worker that
+        // ExistingWorkPolicy.KEEP would silently drop.  The auto-sync cold-start
+        // path retains KEEP so back-to-back background triggers coalesce.
+        enqueue(runAsForegroundService = false, tag = "refresh", policy = ExistingWorkPolicy.REPLACE)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -62,7 +65,11 @@ class TwitterSyncEnqueuerImpl @Inject constructor(
         }
     }
 
-    private fun enqueue(runAsForegroundService: Boolean, tag: String) {
+    private fun enqueue(
+        runAsForegroundService: Boolean,
+        tag: String,
+        policy: ExistingWorkPolicy = ExistingWorkPolicy.KEEP,
+    ) {
         val uid = authGateway.currentUser.value?.uid
         if (uid.isNullOrEmpty()) {
             Timber.tag("IncrementalSync").d("enqueue_skipped tag=$tag reason=no_uid")
@@ -71,10 +78,10 @@ class TwitterSyncEnqueuerImpl @Inject constructor(
         try {
             WorkManager.getInstance(context).enqueueUniqueWork(
                 TwitterSyncWorker.uniqueName(uid),
-                ExistingWorkPolicy.KEEP,
+                policy,
                 TwitterSyncWorker.buildRequest(uid, runAsForegroundService),
             )
-            Timber.tag("IncrementalSync").d("enqueue_ok tag=$tag uid=$uid fg=$runAsForegroundService")
+            Timber.tag("IncrementalSync").d("enqueue_ok tag=$tag uid=$uid fg=$runAsForegroundService policy=$policy")
         } catch (e: Exception) {
             Timber.tag("IncrementalSync").w(e, "enqueue_failed tag=$tag uid=$uid (likely test env)")
         }

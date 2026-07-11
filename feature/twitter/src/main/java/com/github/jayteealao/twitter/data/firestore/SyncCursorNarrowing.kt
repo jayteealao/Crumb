@@ -65,10 +65,19 @@ data class SyncCursor(
     val incrementalWatermarkMillis: Long? = null,
 )
 
-/** One streamed batch: the fetched aggregates + the cursor to commit atomically with them. */
+/**
+ * One streamed batch: the fetched aggregates + the cursor to commit atomically with them.
+ *
+ * [fetchFailed] is set to `true` when the batch fetch timed out — the collector must
+ * NOT advance the persisted cursor for a failed batch so the skipped IDs are
+ * re-enumerated on the next run.  A `false` value (the default) represents either a
+ * successful batch or the TERMINAL checkpoint (distinguished by [entities].isEmpty() +
+ * [fetchFailed]==false at the collector).
+ */
 data class SyncEmission(
     val entities: List<TweetEntities>,
     val cursor: SyncCursor,
+    val fetchFailed: Boolean = false,
 )
 
 /**

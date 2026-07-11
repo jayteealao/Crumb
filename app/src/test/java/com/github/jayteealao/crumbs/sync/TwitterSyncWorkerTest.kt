@@ -694,4 +694,127 @@ class TwitterSyncWorkerTest {
             shadowOf(notificationManager).getNotification(SyncNotifications.ID_TERMINAL),
         )
     }
+
+    // ── Timeout-safe cursor tests (AC1 / AC2 correctness invariant) ──────────────
+
+    /**
+     * AC1: A timed-out batch (fetchFailed=true) must NOT advance the persisted cursor
+     * and must return retry().  This is the invariant the original tests missed — they
+     * never simulated a timed-out non-empty plan returning empty.
+     */
+    @Test
+    fun timedOutBatch_doesNotAdvanceCursorAndRetries() = runTest {
+        val cursorA = SyncCursor(
+            lowCreatedAt = "2026-05-24T14:00:00Z", lowTweetId = "tw-10",
+            incrementalWatermarkMillis = 1000L,
+        )
+        every {
+            syncFacade.fetchMissingTweetsStream(any(), any(), any())
+        } returns flow {
+            // Simulate a batch that timed out: empty entities, fetchFailed=true.
+            emit(SyncEmission(emptyList(), cursorA, fetchFailed = true))
+        }
+
+        var commits = 0
+        val result = runTwitterSync(
+            ctx = context,
+            syncFacade = syncFacade,
+            syncProgressDao = syncProgressDao,
+            deletedBookmarkRepository = deletedBookmarkRepository,
+            authGateway = authGateway,
+            enqueuedUid = null,
+            runAsForegroundService = false,
+            runAttemptCount = 0,
+            setForegroundInfo = {},
+            commitBatch = { _, _ -> commits++ },
+        )
+
+        // The cursor must NOT have been advanced — commitBatch is never called.
+        assertEquals("timed-out batch must not commit a cursor advance", 0, commits)
+        // The worker must schedule a retry so the failed IDs are re-enumerated next run.
+        assertEquals(ListenableWorker.Result.retry(), result)
+    }
+
+    /**
+     * AC2 regression guard: a genuine terminal checkpoint (fetchFailed=false,
+     * emptyList()) MUST still advance the cursor.  The fix must not conflate the
+     * two empty-entity cases.
+     */
+    @Test
+    fun terminalEmission_stillAdvancesCursor() = runTest {
+        val cursorA = SyncCursor(
+            lowCreatedAt = "2026-01-01T00:00:00Z", lowTweetId = "floor",
+            incrementalWatermarkMillis = 9999L,
+        )
+        every {
+            syncFacade.fetchMissingTweetsStream(any(), any(), any())
+        } returns flow {
+            // Genuine terminal checkpoint (fetchFailed defaults to false).
+            emit(SyncEmission(emptyList(), cursorA))
+        }
+
+        val capturedProgress = mutableListOf<SyncProgress>()
+        val result = runTwitterSync(
+            ctx = context,
+            syncFacade = syncFacade,
+            syncProgressDao = syncProgressDao,
+            deletedBookmarkRepository = deletedBookmarkRepository,
+            authGateway = authGateway,
+            enqueuedUid = null,
+            runAsForegroundService = false,
+            runAttemptCount = 0,
+            setForegroundInfo = {},
+            commitBatch = { _, progress -> capturedProgress += progress },
+        )
+
+        // The terminal checkpoint must commit the advanced cursor.
+        assertEquals("terminal checkpoint must persist the cursor", 1, capturedProgress.size)
+        assertEquals("2026-01-01T00:00:00Z", capturedProgress[0].lastLowCursorCreatedAt)
+        assertEquals(9999L, capturedProgress[0].lastIncrementalRetrievedAtMs)
+        assertEquals(ListenableWorker.Result.success(), result)
+    }
+
+    /**
+     * AC1 + AC2 combined: after a real batch commits, a timed-out batch must stop
+     * the run and return retry() without touching the already-committed cursor.
+     */
+    @Test
+    fun terminalAfterFailedBatch_noDoubleAdvance() = runTest {
+        val cursorA = SyncCursor(
+            lowCreatedAt = "2026-05-24T15:00:00Z", lowTweetId = "tw-1",
+            incrementalWatermarkMillis = 2000L,
+        )
+        val cursorB = SyncCursor(
+            lowCreatedAt = "2026-05-24T14:00:00Z", lowTweetId = "tw-2",
+            incrementalWatermarkMillis = 2000L,
+        )
+        every {
+            syncFacade.fetchMissingTweetsStream(any(), any(), any())
+        } returns flow {
+            // First batch succeeds.
+            emit(SyncEmission(listOf(tweetEntities("tw-1", "2026-05-24T15:00:00Z")), cursorA))
+            // Second batch times out.
+            emit(SyncEmission(emptyList(), cursorB, fetchFailed = true))
+        }
+
+        val capturedProgress = mutableListOf<SyncProgress>()
+        val result = runTwitterSync(
+            ctx = context,
+            syncFacade = syncFacade,
+            syncProgressDao = syncProgressDao,
+            deletedBookmarkRepository = deletedBookmarkRepository,
+            authGateway = authGateway,
+            enqueuedUid = null,
+            runAsForegroundService = false,
+            runAttemptCount = 0,
+            setForegroundInfo = {},
+            commitBatch = { _, progress -> capturedProgress += progress },
+        )
+
+        // Only the first (successful) batch should have been committed.
+        assertEquals("only the successful batch must be committed", 1, capturedProgress.size)
+        assertEquals("tw-1", capturedProgress[0].lastLowCursorTweetId)
+        // The worker must retry so the timed-out batch's IDs are re-enumerated.
+        assertEquals(ListenableWorker.Result.retry(), result)
+    }
 }

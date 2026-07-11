@@ -53,6 +53,13 @@ class FirestoreRepository @Inject constructor(
         private const val BATCH_TIMEOUT_MS = 60_000L
         // Per-sub-collection timeout: one slow collection cannot starve the others.
         private const val SUB_FETCH_TIMEOUT_MS = 30_000L
+        // Enumeration page-read timeout: a stalled Firestore socket during the
+        // head/tail page walks cannot freeze the run indefinitely.  Chosen to be
+        // at most a sub-collection fetch (SUB_FETCH_TIMEOUT_MS) — a bare page
+        // read should be faster than a full entity assembly.  On timeout the
+        // TimeoutCancellationException propagates to the worker's outer catch,
+        // which returns Result.retry() without advancing the cursor.
+        private const val ENUM_PAGE_TIMEOUT_MS = 30_000L
     }
 
     private fun requireUid(): String =
@@ -153,7 +160,9 @@ class FirestoreRepository @Inject constructor(
                         .let { q -> if (lastDoc != null) q.startAfter(lastDoc) else q }
                         .limit(READ_PAGE_SIZE.toLong())
 
-                    val snapshot = pageQuery.get(Source.SERVER).await()
+                    val snapshot = withTimeout(ENUM_PAGE_TIMEOUT_MS) {
+                        pageQuery.get(Source.SERVER).await()
+                    }
                     if (snapshot.isEmpty) break
                     docsRead += snapshot.documents.size
                     for (doc in snapshot.documents) {
@@ -219,7 +228,9 @@ class FirestoreRepository @Inject constructor(
                     else -> base
                 }.limit(READ_PAGE_SIZE.toLong())
 
-                val snapshot = pageQuery.get(Source.SERVER).await()
+                val snapshot = withTimeout(ENUM_PAGE_TIMEOUT_MS) {
+                    pageQuery.get(Source.SERVER).await()
+                }
                 if (snapshot.isEmpty) {
                     reachedFloor = true
                     break
@@ -294,12 +305,24 @@ class FirestoreRepository @Inject constructor(
             // `batch_deser_ms` is the per-batch fetch + Firestore deserialization wall time — the
             // headline AC5 evidence (it falls once @IgnoreExtraProperties kills the warning storm).
             val startedNs = System.nanoTime()
-            val entities = fetchTweetEntitiesByIds(plan.ids)
-            val batchDeserMs = (System.nanoTime() - startedNs) / 1_000_000
-            Timber.tag("IncrementalSync").d(
-                "batch_fetched phase=${plan.phase} requested=${plan.ids.size} returned=${entities.size} batch_deser_ms=$batchDeserMs",
-            )
-            emit(SyncEmission(entities, plan.cursor))
+            try {
+                val entities = fetchTweetEntitiesByIds(plan.ids)
+                val batchDeserMs = (System.nanoTime() - startedNs) / 1_000_000
+                Timber.tag("IncrementalSync").d(
+                    "batch_fetched phase=${plan.phase} requested=${plan.ids.size} returned=${entities.size} batch_deser_ms=$batchDeserMs",
+                )
+                emit(SyncEmission(entities, plan.cursor))
+            } catch (e: TimeoutCancellationException) {
+                // Outer BATCH_TIMEOUT_MS fired.  Log the dropped IDs so the gap is
+                // visible in logcat, then emit fetchFailed=true so the collector
+                // returns Result.retry() WITHOUT advancing the cursor — these IDs
+                // will be re-enumerated on the next run.
+                Timber.tag("IncrementalSync").w(
+                    "fetch_failed_batch ids=${plan.ids.take(5)} total=${plan.ids.size}; will retry",
+                )
+                emit(SyncEmission(emptyList(), plan.cursor, fetchFailed = true))
+                return@forEach
+            }
         }
     }.flowOn(Dispatchers.IO)
 
@@ -518,13 +541,12 @@ class FirestoreRepository @Inject constructor(
                     )
                 }
             }
-        } catch (e: TimeoutCancellationException) {
-            // Outer batch-level timeout fired — log the full ID list so dropped
-            // tweets are visible in logcat. The caller does NOT advance the cursor
-            // on empty, so these IDs will be retried on the next sync run.
-            Timber.w("Batch timed out after ${BATCH_TIMEOUT_MS}ms; ${tweetIds.size} tweet(s) dropped: $tweetIds")
-            emptyList()
         } catch (e: CancellationException) {
+            // Let TimeoutCancellationException and other structured-concurrency
+            // cancellations propagate to fetchTweetsNotInLocalStream, which emits
+            // fetchFailed=true so the worker returns Result.retry() without advancing
+            // the cursor.  Any other CancellationException (network-lost constraint,
+            // STOP_REASON_TIMEOUT) is also rethrown so structured concurrency is preserved.
             throw e
         } catch (e: Exception) {
             Timber.e(e, "Error fetching tweet entities by IDs")

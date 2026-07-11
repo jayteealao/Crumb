@@ -200,6 +200,11 @@ internal suspend fun runTwitterSync(
         incrementalWatermarkMillis = priorProgress?.lastIncrementalRetrievedAtMs,
     )
 
+    // Set to true when the repository emits fetchFailed=true (a timed-out batch).
+    // Checked in the CancellationException catch to return Result.retry() without
+    // advancing the cursor for that batch.
+    var fetchFailedRetry = false
+
     val result: androidx.work.ListenableWorker.Result = try {
         // Bound the local-ID set to limit heap allocation. IDs are sorted by the
         // database's default order so taking the tail keeps the most recently added
@@ -217,6 +222,16 @@ internal suspend fun runTwitterSync(
         syncFacade
             .fetchMissingTweetsStream(localIds, deletedIds, resumeFrom)
             .collect { emission ->
+                // A fetchFailed=true emission means the batch timed out — do NOT commit
+                // an advanced cursor for it.  Signal the outer catch to return retry().
+                if (emission.fetchFailed) {
+                    Timber.tag("IncrementalSync").w(
+                        "fetch_failed_batch; stopping collection to retry without advancing cursor",
+                    )
+                    fetchFailedRetry = true
+                    throw CancellationException("fetch_failed_batch")
+                }
+
                 val orderedBatch = emission.entities.map { entities ->
                     tweetEntitiesToOrderLens.modify(entities) { nextOrder++ }
                 }
@@ -262,12 +277,19 @@ internal suspend fun runTwitterSync(
             androidx.work.ListenableWorker.Result.retry()
         }
     } catch (e: CancellationException) {
+        // A fetch-failed cancellation (timed-out batch) must retry WITHOUT
+        // advancing the cursor — the failed batch's IDs will be re-enumerated.
+        // Neither a terminal success nor a terminal error alert should fire.
+        if (fetchFailedRetry) {
+            Timber.tag("IncrementalSync").w("fetch_failed_retry attempt=$runAttemptCount; scheduling retry")
+            androidx.work.ListenableWorker.Result.retry()
+        }
         // WorkManager stops the foreground dataSync worker when the Android-15 6h cap
         // is hit, cancelling this coroutine. Per-batch commits already made progress
         // durable, so a timeout stop is a retry — NOT a real failure — and must not
         // raise the "sync failed" alert. Any other cancellation (e.g. a lost network
         // constraint) is genuine: rethrow it so structured concurrency is preserved.
-        if (stopReason() == WorkInfo.STOP_REASON_TIMEOUT) {
+        else if (stopReason() == WorkInfo.STOP_REASON_TIMEOUT) {
             Timber.tag("IncrementalSync").w("stopped_by_timeout attempt=$runAttemptCount; retrying, no error alert")
             androidx.work.ListenableWorker.Result.retry()
         } else {
