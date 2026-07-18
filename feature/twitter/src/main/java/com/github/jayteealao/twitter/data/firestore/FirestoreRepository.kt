@@ -61,6 +61,11 @@ class FirestoreRepository @Inject constructor(
         // TimeoutCancellationException propagates to the worker's outer catch,
         // which returns Result.retry() without advancing the cursor.
         private const val ENUM_PAGE_TIMEOUT_MS = 30_000L
+        // Aggregate count() RPCs are single-value server round-trips (no document
+        // data transferred) — much cheaper than a page/sub-collection fetch, so a
+        // short, independent budget bounds a hung count query without stealing the
+        // longer budgets meant for real document reads.
+        private const val AGGREGATE_COUNT_TIMEOUT_MS = 15_000L
     }
 
     private fun requireUid(): String =
@@ -131,26 +136,50 @@ class FirestoreRepository @Inject constructor(
     }
 
     /**
-     * Returns the net bookmark count from Firestore using two cheap aggregate `count()` queries
-     * (one read operation each, no document data transferred):
+     * Returns the net bookmark count from Firestore using three cheap aggregate `count()`
+     * queries (one read operation each, no document data transferred):
      *  1. Total documents in the user's tweets sub-collection.
      *  2. Documents where `referenced == true` (quoted-tweet body docs, not bookmarks).
-     * Net = total - referenced — the authoritative bookmark count for reconciliation.
-     * Wraps both calls in a single try/catch; on failure resets the reconciliation gate so
-     * the next cold-start can retry.
+     *  3. Documents where `deleted == true` (soft-deleted via [markDeleted]'s swipe-right
+     *     confirm-delete — the doc remains in Firestore as a tombstone).
+     * Net = total - referenced - deleted — kept apples-to-apples with the local
+     * `TweetDao.countAllActive()` semantics, which excludes referenced docs AND local
+     * tombstones (the Room-side mirror of the same confirm-delete flow). Without the
+     * `deleted` subtraction, any user who has ever confirmed a delete would see `total`
+     * permanently inflated vs. the local active count, producing a false "incomplete
+     * corpus" signal. NOTE: `referenced` and `deleted` are queried independently, so a doc
+     * matching both would be double-subtracted; in practice this cannot happen — confirm-
+     * delete only ever targets a surfaced bookmark id, never a quoted-tweet body doc — but
+     * the residual risk is documented here rather than silently assumed away.
+     * Each RPC is wrapped in its own [AGGREGATE_COUNT_TIMEOUT_MS] budget so a hung count
+     * query can't block reconciliation indefinitely; the outer try/catch converts both a
+     * timeout and any other failure to `Result.failure`, resetting the reconciliation gate
+     * so the next cold-start can retry.
      */
     suspend fun getServerBookmarkCount(): Result<Long> = withContext(Dispatchers.IO) {
         try {
             val uid = requireUid()
-            val total = tweetsCol(uid).count().get(AggregateSource.SERVER).await().count
-            val referenced = tweetsCol(uid)
-                .whereEqualTo("referenced", true)
-                .count()
-                .get(AggregateSource.SERVER)
-                .await()
-                .count
-            val net = total - referenced
-            Timber.tag("Reconcile").d("server_count total=$total referenced=$referenced net=$net")
+            val total = withTimeout(AGGREGATE_COUNT_TIMEOUT_MS) {
+                tweetsCol(uid).count().get(AggregateSource.SERVER).await().count
+            }
+            val referenced = withTimeout(AGGREGATE_COUNT_TIMEOUT_MS) {
+                tweetsCol(uid)
+                    .whereEqualTo("referenced", true)
+                    .count()
+                    .get(AggregateSource.SERVER)
+                    .await()
+                    .count
+            }
+            val deleted = withTimeout(AGGREGATE_COUNT_TIMEOUT_MS) {
+                tweetsCol(uid)
+                    .whereEqualTo("deleted", true)
+                    .count()
+                    .get(AggregateSource.SERVER)
+                    .await()
+                    .count
+            }
+            val net = total - referenced - deleted
+            Timber.tag("Reconcile").d("server_count total=$total referenced=$referenced deleted=$deleted net=$net")
             Result.success(net)
         } catch (e: Exception) {
             Timber.tag("Reconcile").w(e, "getServerBookmarkCount failed")
@@ -189,8 +218,22 @@ class FirestoreRepository @Inject constructor(
                         .let { q -> if (lastDoc != null) q.startAfter(lastDoc) else q }
                         .limit(READ_PAGE_SIZE.toLong())
 
-                    val snapshot = withTimeout(ENUM_PAGE_TIMEOUT_MS) {
-                        pageQuery.get(Source.SERVER).await()
+                    val snapshot = try {
+                        withTimeout(ENUM_PAGE_TIMEOUT_MS) {
+                            pageQuery.get(Source.SERVER).await()
+                        }
+                    } catch (e: TimeoutCancellationException) {
+                        // A single stalled page must not unwind the whole phase and discard
+                        // pages already read. Only propagate — preserving the existing
+                        // fetchFailed signal — when NO page has succeeded yet this call
+                        // (nothing to lose); otherwise break out with the partial results
+                        // accumulated so far. The narrowed cursor still reflects what WAS
+                        // read; the remainder is re-enumerated on the next run.
+                        if (docsRead == 0) throw e
+                        Timber.tag("IncrementalSync").w(
+                            "head_page_timeout_partial docs_read=$docsRead kept=${result.size} hops=$safetyHops",
+                        )
+                        break
                     }
                     if (snapshot.isEmpty) break
                     docsRead += snapshot.documents.size
@@ -257,8 +300,21 @@ class FirestoreRepository @Inject constructor(
                     else -> base
                 }.limit(READ_PAGE_SIZE.toLong())
 
-                val snapshot = withTimeout(ENUM_PAGE_TIMEOUT_MS) {
-                    pageQuery.get(Source.SERVER).await()
+                val snapshot = try {
+                    withTimeout(ENUM_PAGE_TIMEOUT_MS) {
+                        pageQuery.get(Source.SERVER).await()
+                    }
+                } catch (e: TimeoutCancellationException) {
+                    // Same partial-results rationale as the head phase: a single stalled
+                    // page must not discard pages already read this call. Propagate only
+                    // when nothing has been read yet; otherwise break out with what WAS
+                    // read. reachedFloor stays false — more remains for the next run, the
+                    // same as hitting the MAX_PAGE_HOPS/MAX_BOOKMARK_READ safety caps below.
+                    if (docsRead == 0) throw e
+                    Timber.tag("IncrementalSync").w(
+                        "tail_page_timeout_partial docs_read=$docsRead kept=${result.size} hops=$safetyHops",
+                    )
+                    break
                 }
                 if (snapshot.isEmpty) {
                     reachedFloor = true
@@ -328,7 +384,7 @@ class FirestoreRepository @Inject constructor(
         plans.forEach { plan ->
             if (plan.ids.isEmpty()) {
                 // TERMINAL checkpoint — no fetch; carry the cursor (advanced watermark / floor).
-                emit(SyncEmission(emptyList(), plan.cursor))
+                emit(SyncEmission.Checkpoint(plan.cursor))
                 return@forEach
             }
             // `batch_deser_ms` is the per-batch fetch + Firestore deserialization wall time — the
@@ -340,16 +396,16 @@ class FirestoreRepository @Inject constructor(
                 Timber.tag("IncrementalSync").d(
                     "batch_fetched phase=${plan.phase} requested=${plan.ids.size} returned=${entities.size} batch_deser_ms=$batchDeserMs",
                 )
-                emit(SyncEmission(entities, plan.cursor))
+                emit(SyncEmission.Batch(entities, plan.cursor))
             } catch (e: TimeoutCancellationException) {
                 // Outer BATCH_TIMEOUT_MS fired.  Log the dropped IDs so the gap is
-                // visible in logcat, then emit fetchFailed=true so the collector
-                // returns Result.retry() WITHOUT advancing the cursor — these IDs
-                // will be re-enumerated on the next run.
+                // visible in logcat, then emit Failed so the collector returns
+                // Result.retry() WITHOUT advancing the cursor — these IDs will be
+                // re-enumerated on the next run.
                 Timber.tag("IncrementalSync").w(
                     "fetch_failed_batch ids=${plan.ids.take(5)} total=${plan.ids.size}; will retry",
                 )
-                emit(SyncEmission(emptyList(), plan.cursor, fetchFailed = true))
+                emit(SyncEmission.Failed)
                 return@forEach
             }
         }

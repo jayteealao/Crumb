@@ -21,6 +21,7 @@ import com.github.jayteealao.crumbs.data.SyncProgressDao
 import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.twitter.data.TwitterSyncFacade
 import com.github.jayteealao.twitter.data.firestore.SyncCursor
+import com.github.jayteealao.twitter.data.firestore.SyncEmission
 import com.github.jayteealao.twitter.models.tweetEntitiesToOrderLens
 import com.google.firebase.firestore.FirebaseFirestoreException
 import dagger.hilt.android.EntryPointAccessors
@@ -75,6 +76,10 @@ class TwitterSyncWorker(
                     WorkInfo.STOP_REASON_NOT_STOPPED
                 }
             },
+            // Cooperative-cancellation guard for CONC-8: a REPLACE-superseded worker's
+            // in-flight commit could otherwise land after the superseding worker's and
+            // clobber newer cursor progress. Checked immediately before each commit.
+            isStopped = { isStopped },
             setForegroundInfo = { setForeground(it) },
             commitBatch = { orderedBatch, progress ->
                 db.withTransaction {
@@ -150,6 +155,16 @@ internal suspend fun runTwitterSync(
     runAsForegroundService: Boolean,
     runAttemptCount: Int,
     stopReason: () -> Int = { WorkInfo.STOP_REASON_NOT_STOPPED },
+    // CONC-8 (minimal guard): reflects CoroutineWorker.isStopped, which WorkManager
+    // flips as soon as it begins cancelling a superseded worker (e.g. a REPLACE from
+    // enqueueRefresh()). Checked immediately before each commitBatch() call so a
+    // worker already being torn down does not persist a stale/stomping cursor over
+    // the superseding worker's newer progress. Residual: isStopped could still flip
+    // to true in the instant after the check and before the commit completes — this
+    // narrows the race to that near-zero window rather than eliminating it. A full
+    // fix would need a versioned/generation cursor column plus a Room migration,
+    // which is out of scope here.
+    isStopped: () -> Boolean = { false },
     setForegroundInfo: suspend (ForegroundInfo) -> Unit,
     commitBatch: suspend (orderedBatch: List<com.github.jayteealao.twitter.models.TweetEntities>, progress: SyncProgress) -> Unit,
 ): androidx.work.ListenableWorker.Result {
@@ -222,48 +237,90 @@ internal suspend fun runTwitterSync(
         syncFacade
             .fetchMissingTweetsStream(localIds, deletedIds, resumeFrom)
             .collect { emission ->
-                // A fetchFailed=true emission means the batch timed out — do NOT commit
-                // an advanced cursor for it.  Signal the outer catch to return retry().
-                if (emission.fetchFailed) {
-                    Timber.tag("IncrementalSync").w(
-                        "fetch_failed_batch; stopping collection to retry without advancing cursor",
-                    )
-                    fetchFailedRetry = true
-                    throw CancellationException("fetch_failed_batch")
-                }
+                // The sealed SyncEmission hierarchy makes the three outcomes exhaustive:
+                // a Failed fetch carries no cursor at all (must not advance the cursor);
+                // a Checkpoint is the TERMINAL no-fetch marker; a Batch is a normal
+                // (usually non-empty) data page. See SyncCursorNarrowing.kt.
+                when (emission) {
+                    is SyncEmission.Failed -> {
+                        // A timed-out batch — do NOT commit an advanced cursor for it.
+                        // Signal the outer catch to return retry().
+                        Timber.tag("IncrementalSync").w(
+                            "fetch_failed_batch; stopping collection to retry without advancing cursor",
+                        )
+                        fetchFailedRetry = true
+                        throw CancellationException("fetch_failed_batch")
+                    }
 
-                val orderedBatch = emission.entities.map { entities ->
-                    tweetEntitiesToOrderLens.modify(entities) { nextOrder++ }
-                }
-                // The repository computed the phase-correct cursor (the `retrievedAt`
-                // watermark + the low backfill cursor); the worker only stamps the
-                // run-scoped fields and commits it ATOMICALLY with the batch insert. An
-                // empty-entity emission is a TERMINAL checkpoint — persist the advanced
-                // cursor, ingest nothing (it records the watermark on a nothing-new run).
-                val checkpointOnly = orderedBatch.isEmpty()
-                val advancedProgress = SyncProgress(
-                    uid = uid,
-                    lastHighCursorCreatedAt = emission.cursor.highCreatedAt,
-                    lastHighCursorTweetId = emission.cursor.highTweetId,
-                    lastLowCursorCreatedAt = emission.cursor.lowCreatedAt,
-                    lastLowCursorTweetId = emission.cursor.lowTweetId,
-                    totalBatchesIngested = if (checkpointOnly) batchIdx else batchIdx + 1,
-                    lastUpdatedAtMs = System.currentTimeMillis(),
-                    lastIncrementalRetrievedAtMs = emission.cursor.incrementalWatermarkMillis,
-                )
+                    is SyncEmission.Checkpoint -> {
+                        // The repository computed the phase-correct cursor (the
+                        // `retrievedAt` watermark + the low backfill cursor); the worker
+                        // only stamps the run-scoped fields and commits it ATOMICALLY.
+                        // No entities to ingest — this just records the watermark /
+                        // backfill floor on a nothing-new run, so the batch count is NOT
+                        // bumped.
+                        val advancedProgress = SyncProgress(
+                            uid = uid,
+                            lastHighCursorCreatedAt = emission.cursor.highCreatedAt,
+                            lastHighCursorTweetId = emission.cursor.highTweetId,
+                            lastLowCursorCreatedAt = emission.cursor.lowCreatedAt,
+                            lastLowCursorTweetId = emission.cursor.lowTweetId,
+                            totalBatchesIngested = batchIdx,
+                            lastUpdatedAtMs = System.currentTimeMillis(),
+                            lastIncrementalRetrievedAtMs = emission.cursor.incrementalWatermarkMillis,
+                        )
 
-                commitBatch(orderedBatch, advancedProgress)
-                if (checkpointOnly) return@collect
+                        // CONC-8 guard: if WorkManager has already begun stopping this
+                        // worker (e.g. superseded by a REPLACE enqueue), skip the commit
+                        // rather than risk persisting a cursor older than what the
+                        // superseding worker has already written. See the isStopped
+                        // param doc above for the residual.
+                        if (isStopped()) {
+                            Timber.tag("IncrementalSync").w("stopped_before_commit; skipping commit to avoid stale cursor")
+                            throw CancellationException("stopped_before_commit")
+                        }
+                        commitBatch(emptyList(), advancedProgress)
+                    }
 
-                batchIdx++
-                syncedCount += orderedBatch.size
-                Timber.tag("IncrementalSync")
-                    .i("batch_inserted batchIdx=$batchIdx size=${orderedBatch.size} cursorLo=${emission.cursor.lowCreatedAt} watermark=${emission.cursor.incrementalWatermarkMillis}")
+                    is SyncEmission.Batch -> {
+                        val orderedBatch = emission.entities.map { entities ->
+                            tweetEntitiesToOrderLens.modify(entities) { nextOrder++ }
+                        }
+                        // A plan's ids can legitimately vanish between enumeration and
+                        // fetch (e.g. a concurrent delete) leaving entities empty even
+                        // though this isn't the TERMINAL checkpoint — treat that the
+                        // same as a checkpoint: persist the cursor, don't bump the count.
+                        val checkpointOnly = orderedBatch.isEmpty()
+                        val advancedProgress = SyncProgress(
+                            uid = uid,
+                            lastHighCursorCreatedAt = emission.cursor.highCreatedAt,
+                            lastHighCursorTweetId = emission.cursor.highTweetId,
+                            lastLowCursorCreatedAt = emission.cursor.lowCreatedAt,
+                            lastLowCursorTweetId = emission.cursor.lowTweetId,
+                            totalBatchesIngested = if (checkpointOnly) batchIdx else batchIdx + 1,
+                            lastUpdatedAtMs = System.currentTimeMillis(),
+                            lastIncrementalRetrievedAtMs = emission.cursor.incrementalWatermarkMillis,
+                        )
 
-                if (runAsForegroundService) {
-                    runCatching {
-                        setForegroundInfo(SyncNotifications.foregroundInfo(ctx, batchIdx, batchIdx + 1))
-                    }.onFailure { Timber.tag("IncrementalSync").w(it, "setForegroundInfo update failed") }
+                        // CONC-8 guard: see the Checkpoint branch above.
+                        if (isStopped()) {
+                            Timber.tag("IncrementalSync").w("stopped_before_commit; skipping commit to avoid stale cursor")
+                            throw CancellationException("stopped_before_commit")
+                        }
+                        commitBatch(orderedBatch, advancedProgress)
+                        if (checkpointOnly) return@collect
+
+                        batchIdx++
+                        syncedCount += orderedBatch.size
+                        Timber.tag("IncrementalSync")
+                            .i("batch_inserted batchIdx=$batchIdx size=${orderedBatch.size} cursorLo=${emission.cursor.lowCreatedAt} watermark=${emission.cursor.incrementalWatermarkMillis}")
+
+                        if (runAsForegroundService) {
+                            runCatching {
+                                setForegroundInfo(SyncNotifications.foregroundInfo(ctx, batchIdx, batchIdx + 1))
+                            }.onFailure { Timber.tag("IncrementalSync").w(it, "setForegroundInfo update failed") }
+                        }
+                    }
                 }
             }
 
@@ -281,8 +338,17 @@ internal suspend fun runTwitterSync(
         // advancing the cursor — the failed batch's IDs will be re-enumerated.
         // Neither a terminal success nor a terminal error alert should fire.
         if (fetchFailedRetry) {
-            Timber.tag("IncrementalSync").w("fetch_failed_retry attempt=$runAttemptCount; scheduling retry")
-            androidx.work.ListenableWorker.Result.retry()
+            // Capped the same as the sibling TimeoutCancellationException/
+            // FirebaseFirestoreException branches below — without this, a batch that
+            // keeps timing out on fetch would retry forever instead of eventually
+            // surfacing as a terminal failure.
+            if (runAttemptCount >= TwitterSyncWorker.MAX_RETRY_ATTEMPTS) {
+                Timber.tag("IncrementalSync").w("fetch_failed_retry attempt=$runAttemptCount; exceeded cap, failing")
+                androidx.work.ListenableWorker.Result.failure()
+            } else {
+                Timber.tag("IncrementalSync").w("fetch_failed_retry attempt=$runAttemptCount; scheduling retry")
+                androidx.work.ListenableWorker.Result.retry()
+            }
         }
         // WorkManager stops the foreground dataSync worker when the Android-15 6h cap
         // is hit, cancelling this coroutine. Per-batch commits already made progress

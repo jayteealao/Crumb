@@ -1,8 +1,10 @@
 package com.github.jayteealao.twitter.data
 
 import com.github.jayteealao.crumbs.data.DeletedBookmarkRepository
+import com.github.jayteealao.crumbs.data.SyncProgressDao
 import com.github.jayteealao.twitter.data.firestore.FirestoreRepository
 import com.github.jayteealao.twitter.models.TweetTagCrossRef
+import com.google.firebase.auth.FirebaseAuth
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -45,6 +47,8 @@ class RepositoryTest {
     private lateinit var deletedBookmarkRepository: DeletedBookmarkRepository
     private lateinit var callableService: TwitterCallableService
     private lateinit var syncEnqueuer: TwitterSyncEnqueuer
+    private lateinit var syncProgressDao: SyncProgressDao
+    private lateinit var auth: FirebaseAuth
     private lateinit var scope: CoroutineScope
     private lateinit var repository: Repository
 
@@ -58,6 +62,8 @@ class RepositoryTest {
         deletedBookmarkRepository = mockk(relaxed = true)
         callableService = mockk(relaxed = true)
         syncEnqueuer = mockk(relaxed = true)
+        syncProgressDao = mockk(relaxed = true)
+        auth = mockk(relaxed = true)
         // isRefreshing combines this flow at construction time; a real flow keeps the
         // combine() operator from tripping over a relaxed-mock return value.
         every { syncEnqueuer.observeIsRunning() } returns flowOf(false)
@@ -71,6 +77,8 @@ class RepositoryTest {
             callableService,
             scope,
             syncEnqueuer,
+            syncProgressDao,
+            auth,
         )
     }
 

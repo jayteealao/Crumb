@@ -236,6 +236,8 @@ private fun <T : Any> androidx.compose.foundation.lazy.LazyListScope.renderPagin
  *
  * @param contentPadding Padding from the parent scaffold passed down to the lazy list.
  * @param sessionViewModel Provides the Firebase-auth-derived signed-in signal for feed gating.
+ *   Combined with [bookmarksViewModel]'s `syncStatus.linked` (matching HomeRoute) so the
+ *   Twitter section is only treated as connected once the account is actually linked.
  * @param redditViewModel Provides Reddit login state and paging data.
  * @param bookmarksViewModel Provides Twitter paging data and tag operations.
  * @param navController Used to navigate to the login screen from the empty-state CTA.
@@ -252,8 +254,12 @@ fun AllBookmarksRoute(
 
     val twitterItems = bookmarksViewModel.pagingFlowData().collectAsLazyPagingItems()
     // Firebase auth is the authoritative gate for the Twitter feed section — replaces
-    // the legacy isAccessTokenAvailable signal from LoginViewModel.
+    // the legacy isAccessTokenAvailable signal from LoginViewModel. Combined with
+    // sync_status.linked (mirrors HomeRoute's gating) so a Firebase-signed-in but
+    // X-unlinked user sees the connect CTA instead of an empty "connected" feed.
     val isSignedIn by sessionViewModel.isSignedIn.collectAsStateWithLifecycle()
+    val syncStatus by bookmarksViewModel.syncStatus.collectAsStateWithLifecycle()
+    val twitterLinked = isSignedIn && syncStatus?.linked == true
     val redditItems = redditViewModel.pagingFlowData().collectAsLazyPagingItems()
     val redditLoggedIn by redditViewModel.isAccessTokenAvailable.collectAsStateWithLifecycle()
 
@@ -269,11 +275,11 @@ fun AllBookmarksRoute(
 
     AllBookmarksScreen(
         uiState = AllBookmarksUiState(
-            twitterConnected = isSignedIn,
+            twitterConnected = twitterLinked,
             redditConnected = redditLoggedIn,
             tagsMap = tagsMap,
         ),
-        twitterItems = if (isSignedIn) twitterItems else null,
+        twitterItems = if (twitterLinked) twitterItems else null,
         redditItems = if (redditLoggedIn) redditItems else null,
         onCardClick = { url ->
             val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))

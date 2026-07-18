@@ -6,6 +6,8 @@ import androidx.paging.PagingData
 import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.data.DeletedBookmarkRepository
 import com.github.jayteealao.crumbs.data.FilterState
+import com.github.jayteealao.crumbs.data.SyncProgress
+import com.github.jayteealao.crumbs.data.SyncProgressDao
 import com.github.jayteealao.crumbs.data.TagRepository
 import com.github.jayteealao.twitter.data.firestore.FirestoreRepository
 import com.github.jayteealao.twitter.models.TagEntity
@@ -14,6 +16,7 @@ import com.github.jayteealao.twitter.models.TweetEntities
 import com.github.jayteealao.twitter.models.TweetEntity
 import com.github.jayteealao.twitter.models.TweetTagCrossRef
 import com.github.jayteealao.crumbs.data.di.ApplicationScope
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -31,8 +34,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -45,6 +49,8 @@ class Repository @Inject constructor(
     private val callableService: TwitterCallableService,
     @ApplicationScope private val scope: CoroutineScope,
     private val syncEnqueuer: TwitterSyncEnqueuer,
+    private val syncProgressDao: SyncProgressDao,
+    private val auth: FirebaseAuth,
 ) : TagRepository {
     private var latestBookmarkInDatabase: TweetEntity? = null
     private var orderOfLastBookmark: Int = 1000
@@ -80,12 +86,23 @@ class Repository @Inject constructor(
         // sdlc-debt: fixed constant; could be a DataStore-backed tunable if the tolerance
         // needs per-user calibration. Upgrade: replace with a persisted preference.
         private const val RECONCILIATION_TOLERANCE = 5L
+        // Backstop for the auto-clear watcher (see reconcileIfIncomplete): bounds how long
+        // the watcher will suspend waiting for the local count to catch up to the server
+        // threshold before giving up. Generous relative to a healthy refill (which should
+        // complete in seconds to low minutes) so it never races a real in-flight sync, but
+        // finite so a stalled/failed refill cannot leave "CATCHING UP" shown forever.
+        private const val RECONCILE_WATCH_TIMEOUT_MS = 5 * 60_000L
     }
 
-    // Per-process one-shot gate: compareAndSet(false, true) is the first (real) call;
-    // subsequent calls see true and return immediately without issuing a Firestore read.
-    // Reset to false on a transient count-query failure so the next cold-start can retry.
-    private val reconciliationChecked = AtomicBoolean(false)
+    // Per-uid one-shot gate: Set.add(uid) returns true on the first (real) call for that
+    // uid this process lifetime; subsequent calls for the SAME uid see false and return
+    // immediately without issuing a Firestore read. Keyed by uid (not a single process-wide
+    // flag) so an in-process account switch (sign-out/sign-in) re-triggers reconciliation
+    // for the newly-signed-in uid instead of being silently defeated by the previous
+    // account's check. Removed from the set on a transient count-query failure so the next
+    // cold-start for that uid can retry. ConcurrentHashMap.newKeySet is thread-safe for
+    // concurrent add/remove from multiple callers.
+    private val reconciledUids = ConcurrentHashMap.newKeySet<String>()
 
     private val _isSyncIncomplete = MutableStateFlow(false)
     /**
@@ -202,26 +219,33 @@ class Repository @Inject constructor(
     }
 
     /**
-     * Cold-start completeness check. Runs at most once per process lifetime (the
-     * [reconciliationChecked] AtomicBoolean gate) to avoid repeated Firestore reads.
+     * Cold-start completeness check. Runs at most once per signed-in uid per process
+     * lifetime (the [reconciledUids] gate, keyed by uid so an in-process account switch
+     * re-triggers the check for the new account) to avoid repeated Firestore reads.
      *
      * Compares the Firestore aggregate bookmark count against the local Room count.
-     * When the gap exceeds [RECONCILIATION_TOLERANCE], re-kicks a cold-start sync to fill
-     * the missing bookmarks and activates [isSyncIncomplete] to surface the "CATCHING UP"
-     * header signal. The signal auto-clears reactively once the Room count reaches the
-     * server threshold — no explicit "sync complete" callback required.
+     * When the gap exceeds [RECONCILIATION_TOLERANCE], REWINDS the persisted [SyncProgress]
+     * cursor for this uid before re-kicking a cold-start sync (see below for why), and
+     * activates [isSyncIncomplete] to surface the "CATCHING UP" header signal. The signal
+     * auto-clears reactively once the Room count reaches the server threshold — no explicit
+     * "sync complete" callback required — bounded by [RECONCILE_WATCH_TIMEOUT_MS] so a
+     * stalled refill cannot leave the signal stuck forever.
      *
      * On a count-query failure the gate is reset so the next cold-start can retry.
      * Returns true if a reconcile-triggered sync was kicked; false in all other cases.
      */
     suspend fun reconcileIfIncomplete(): Boolean = withContext(Dispatchers.IO) {
-        if (!reconciliationChecked.compareAndSet(false, true)) {
-            Timber.tag("Reconcile").d("reconcile_skipped reason=already_checked_this_session")
+        val uid = auth.currentUser?.uid ?: run {
+            Timber.tag("Reconcile").d("reconcile_skipped reason=not_authenticated")
+            return@withContext false
+        }
+        if (!reconciledUids.add(uid)) {
+            Timber.tag("Reconcile").d("reconcile_skipped reason=already_checked_this_session uid=$uid")
             return@withContext false
         }
         val serverTotal = firestoreRepository.getServerBookmarkCount().getOrElse { e ->
             Timber.tag("Reconcile").w(e, "reconcile_aborted reason=count_query_failed")
-            reconciliationChecked.set(false) // allow retry on next cold-start
+            reconciledUids.remove(uid) // allow retry on next cold-start
             return@withContext false
         }
         val localCount = tweetDao.countAllActive().toLong()
@@ -231,21 +255,54 @@ class Repository @Inject constructor(
         )
         if (gap > RECONCILIATION_TOLERANCE) {
             _isSyncIncomplete.value = true
+            // Rewind the persisted cursor BEFORE kicking the refill. A corpus that already
+            // finished backfilling (tail floor reached, head watermark advanced) but then
+            // lost local rows would otherwise re-run TwitterSyncWorker against a cursor that
+            // considers the whole range already covered — a structural no-op that re-fetches
+            // nothing. Nulling every cursor field (and the batch counter) puts the uid back
+            // in "fresh install" state so the worker fully re-enumerates from scratch. This is
+            // safe: every write in the aggregate insert path is IGNORE-on-conflict (see
+            // saveTweetEntities / insertTweetEntitiesAtomic), so rows the device already has
+            // are no-ops on re-fetch and only the genuinely missing rows land — no duplication.
+            // Scoped to this reconcile-kick path only; the normal (non-reconcile) cold-start /
+            // refresh cursor-resume path never calls this and is unaffected.
+            syncProgressDao.upsert(
+                SyncProgress(
+                    uid = uid,
+                    lastHighCursorCreatedAt = null,
+                    lastHighCursorTweetId = null,
+                    lastLowCursorCreatedAt = null,
+                    lastLowCursorTweetId = null,
+                    totalBatchesIngested = 0,
+                    lastUpdatedAtMs = System.currentTimeMillis(),
+                    lastIncrementalRetrievedAtMs = null,
+                )
+            )
             syncEnqueuer.enqueueColdStart()
-            Timber.tag("Reconcile").d("reconcile_kick_sync gap=$gap exceeds_tolerance")
+            Timber.tag("Reconcile").d("reconcile_kick_sync gap=$gap exceeds_tolerance cursor_rewound=true")
             // Auto-clear: suspend until Room's live count crosses the server threshold,
             // then flip the signal off. Flow.first { } cancels itself after the predicate
             // fires. Runs on the application scope (not the caller's) so the watcher
             // outlives the LaunchedEffect that triggered checkAndReconcile.
-            // sdlc-debt: this coroutine has no external cancel handle. If the server
-            // deletes docs between the count query and the sync, the local count may never
-            // reach `target` and the watcher lives until the app process dies (acceptable
-            // for a one-shot cold-start operation; upgrade: add a timeout or external cancel).
+            // Bounded by RECONCILE_WATCH_TIMEOUT_MS as a backstop: if the server deletes
+            // docs between the count query and the sync, or the refill stalls/fails, the
+            // local count may never reach `target`. Without a timeout the watcher — and the
+            // "CATCHING UP" header — would live until the app process dies. On timeout we
+            // still clear the signal (rather than leaking the coroutine indefinitely) and
+            // log a distinct reason so a stuck refill is diagnosable from logs.
             val target = serverTotal - RECONCILIATION_TOLERANCE
             scope.launch(Dispatchers.IO) {
-                tweetDao.countTombstoneAware("ALL").first { it.toLong() >= target }
+                val reachedTarget = withTimeoutOrNull(RECONCILE_WATCH_TIMEOUT_MS) {
+                    tweetDao.countTombstoneAware("ALL").first { it.toLong() >= target }
+                }
                 _isSyncIncomplete.value = false
-                Timber.tag("Reconcile").d("reconcile_cleared local_count_reached=$target")
+                if (reachedTarget == null) {
+                    Timber.tag("Reconcile").w(
+                        "reconcile_watch_timeout target=$target timeout_ms=$RECONCILE_WATCH_TIMEOUT_MS"
+                    )
+                } else {
+                    Timber.tag("Reconcile").d("reconcile_cleared local_count_reached=$target")
+                }
             }
             true
         } else {

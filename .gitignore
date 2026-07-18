@@ -29,3 +29,4 @@ functions/.ai/**/*
 functions/node_modules/
 .idea/
 *.iml
+.scratch/

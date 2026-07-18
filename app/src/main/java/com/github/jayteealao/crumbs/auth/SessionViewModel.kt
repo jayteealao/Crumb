@@ -11,8 +11,7 @@ import javax.inject.Inject
 
 /**
  * Exposes Firebase Auth sign-in state as a [StateFlow] for non-Login screens
- * ([HomeRoute], [AllBookmarksRoute]). [SplashViewModel] keeps its own equivalent
- * copy to avoid coupling feed-level screens to the sign-in machinery.
+ * ([HomeRoute], [AllBookmarksRoute], [SplashRoute]).
  *
  * The signal is seeded synchronously from [AuthGateway.currentUser] so warm-start
  * reads are immediately correct without a frame delay (Splash parity, per PO Q4).

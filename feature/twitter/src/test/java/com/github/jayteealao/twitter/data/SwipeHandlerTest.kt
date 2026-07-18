@@ -1,8 +1,10 @@
 package com.github.jayteealao.twitter.data
 
 import com.github.jayteealao.crumbs.data.DeletedBookmarkRepository
+import com.github.jayteealao.crumbs.data.SyncProgressDao
 import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.twitter.data.firestore.FirestoreRepository
+import com.google.firebase.auth.FirebaseAuth
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -60,6 +62,8 @@ class SwipeHandlerTest {
         callableService = callableService,
         scope = scope,
         syncEnqueuer = noOpSyncEnqueuer,
+        syncProgressDao = mockk<SyncProgressDao>(relaxed = true),
+        auth = mockk<FirebaseAuth>(relaxed = true),
     )
 
     @Test

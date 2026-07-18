@@ -66,19 +66,37 @@ data class SyncCursor(
 )
 
 /**
- * One streamed batch: the fetched aggregates + the cursor to commit atomically with them.
- *
- * [fetchFailed] is set to `true` when the batch fetch timed out — the collector must
- * NOT advance the persisted cursor for a failed batch so the skipped IDs are
- * re-enumerated on the next run.  A `false` value (the default) represents either a
- * successful batch or the TERMINAL checkpoint (distinguished by [entities].isEmpty() +
- * [fetchFailed]==false at the collector).
+ * One streamed outcome of [FirestoreRepository.fetchTweetsNotInLocalStream] — a sealed
+ * hierarchy so the three logical outcomes (data batch / terminal checkpoint / failed
+ * fetch) are exhaustively distinguishable at the collector instead of being encoded
+ * across independent `entities` + `fetchFailed` fields, which used to leave invalid
+ * combinations (e.g. `fetchFailed=true` WITH non-empty `entities`) representable.
  */
-data class SyncEmission(
-    val entities: List<TweetEntities>,
-    val cursor: SyncCursor,
-    val fetchFailed: Boolean = false,
-)
+sealed interface SyncEmission {
+
+    /**
+     * A normal streamed batch: the fetched aggregates (for a HEAD/TAIL plan) + the
+     * cursor to commit atomically with them. [entities] is USUALLY non-empty, but may
+     * legitimately come back empty when a plan's ids all vanished between enumeration
+     * and fetch (e.g. concurrent deletes) — the collector treats that the same as a
+     * [Checkpoint] (cursor persists, no batch-count bump) rather than this being a
+     * distinct state.
+     */
+    data class Batch(val entities: List<TweetEntities>, val cursor: SyncCursor) : SyncEmission
+
+    /**
+     * The TERMINAL checkpoint — no entities fetched — carrying the advanced cursor
+     * (watermark / backfill floor) so a nothing-new run still persists progress.
+     */
+    data class Checkpoint(val cursor: SyncCursor) : SyncEmission
+
+    /**
+     * A batch fetch that timed out. Carries NO cursor — the whole point is that the
+     * collector must NOT advance the persisted cursor for a failed batch, so the
+     * skipped IDs are re-enumerated on the next run.
+     */
+    data object Failed : SyncEmission
+}
 
 /**
  * Turn the enumerated head + tail docs into an ordered list of [SyncBatchPlan]s with

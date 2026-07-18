@@ -121,10 +121,10 @@ class TwitterSyncWorkerTest {
         )
     }
 
-    // Each batch is wrapped in a SyncEmission with a default (empty) cursor — the cursor-specific
-    // assertions live in their own tests + FirestoreCursorNarrowingTest.
+    // Each batch is wrapped in a SyncEmission.Batch with a default (empty) cursor — the
+    // cursor-specific assertions live in their own tests + FirestoreCursorNarrowingTest.
     private fun stubStream(vararg batches: List<TweetEntities>): Flow<SyncEmission> = flow {
-        batches.forEach { emit(SyncEmission(it, SyncCursor())) }
+        batches.forEach { emit(SyncEmission.Batch(it, SyncCursor())) }
     }
 
     @Test
@@ -194,7 +194,7 @@ class TwitterSyncWorkerTest {
             syncFacade.fetchMissingTweetsStream(any(), any(), any())
         } returns flow {
             emit(
-                SyncEmission(
+                SyncEmission.Batch(
                     listOf(
                         tweetEntities("tw-001", "2026-05-24T15:00:00Z"),
                         tweetEntities("tw-002", "2026-05-24T14:59:00Z"),
@@ -203,7 +203,7 @@ class TwitterSyncWorkerTest {
                 ),
             )
             emit(
-                SyncEmission(
+                SyncEmission.Batch(
                     listOf(
                         tweetEntities("tw-003", "2026-05-24T14:58:00Z"),
                         tweetEntities("tw-004", "2026-05-24T14:57:00Z"),
@@ -256,7 +256,7 @@ class TwitterSyncWorkerTest {
             syncFacade.fetchMissingTweetsStream(any(), any(), capture(resumeSlot))
         } returns flow {
             emit(
-                SyncEmission(
+                SyncEmission.Batch(
                     listOf(tweetEntities("tw-100", "2026-05-24T11:00:00Z")),
                     SyncCursor(
                         lowCreatedAt = "2026-05-24T11:00:00Z", lowTweetId = "tw-100",
@@ -299,7 +299,7 @@ class TwitterSyncWorkerTest {
             syncFacade.fetchMissingTweetsStream(any(), any(), any())
         } returns flow {
             emit(
-                SyncEmission(
+                SyncEmission.Batch(
                     listOf(tweetEntities("tw-1", "2026-05-24T15:00:00Z")),
                     SyncCursor(
                         lowCreatedAt = "2026-05-24T15:00:00Z", lowTweetId = "tw-1",
@@ -307,10 +307,9 @@ class TwitterSyncWorkerTest {
                     ),
                 ),
             )
-            // TERMINAL checkpoint: empty entities, carrying the advanced watermark + backfill floor.
+            // TERMINAL checkpoint: no entities, carrying the advanced watermark + backfill floor.
             emit(
-                SyncEmission(
-                    emptyList(),
+                SyncEmission.Checkpoint(
                     SyncCursor(
                         lowCreatedAt = "2026-01-01T00:00:00Z", lowTweetId = "floor",
                         incrementalWatermarkMillis = 4242L,
@@ -704,15 +703,11 @@ class TwitterSyncWorkerTest {
      */
     @Test
     fun timedOutBatch_doesNotAdvanceCursorAndRetries() = runTest {
-        val cursorA = SyncCursor(
-            lowCreatedAt = "2026-05-24T14:00:00Z", lowTweetId = "tw-10",
-            incrementalWatermarkMillis = 1000L,
-        )
         every {
             syncFacade.fetchMissingTweetsStream(any(), any(), any())
         } returns flow {
-            // Simulate a batch that timed out: empty entities, fetchFailed=true.
-            emit(SyncEmission(emptyList(), cursorA, fetchFailed = true))
+            // Simulate a batch that timed out — Failed carries no cursor.
+            emit(SyncEmission.Failed)
         }
 
         var commits = 0
@@ -749,8 +744,8 @@ class TwitterSyncWorkerTest {
         every {
             syncFacade.fetchMissingTweetsStream(any(), any(), any())
         } returns flow {
-            // Genuine terminal checkpoint (fetchFailed defaults to false).
-            emit(SyncEmission(emptyList(), cursorA))
+            // Genuine terminal checkpoint.
+            emit(SyncEmission.Checkpoint(cursorA))
         }
 
         val capturedProgress = mutableListOf<SyncProgress>()
@@ -784,17 +779,13 @@ class TwitterSyncWorkerTest {
             lowCreatedAt = "2026-05-24T15:00:00Z", lowTweetId = "tw-1",
             incrementalWatermarkMillis = 2000L,
         )
-        val cursorB = SyncCursor(
-            lowCreatedAt = "2026-05-24T14:00:00Z", lowTweetId = "tw-2",
-            incrementalWatermarkMillis = 2000L,
-        )
         every {
             syncFacade.fetchMissingTweetsStream(any(), any(), any())
         } returns flow {
             // First batch succeeds.
-            emit(SyncEmission(listOf(tweetEntities("tw-1", "2026-05-24T15:00:00Z")), cursorA))
-            // Second batch times out.
-            emit(SyncEmission(emptyList(), cursorB, fetchFailed = true))
+            emit(SyncEmission.Batch(listOf(tweetEntities("tw-1", "2026-05-24T15:00:00Z")), cursorA))
+            // Second batch times out — Failed carries no cursor.
+            emit(SyncEmission.Failed)
         }
 
         val capturedProgress = mutableListOf<SyncProgress>()
@@ -816,5 +807,86 @@ class TwitterSyncWorkerTest {
         assertEquals("tw-1", capturedProgress[0].lastLowCursorTweetId)
         // The worker must retry so the timed-out batch's IDs are re-enumerated.
         assertEquals(ListenableWorker.Result.retry(), result)
+    }
+
+    // ── CR-10 / REL-11: fetch-failed retry must be capped like its siblings ─────
+
+    @Test
+    fun fetchFailedRetry_atCap_returnsFailure() = runTest {
+        // A batch that keeps timing out on fetch (fetchFailed=true) must eventually
+        // surface as a terminal failure instead of retrying forever once
+        // runAttemptCount reaches MAX_RETRY_ATTEMPTS — matching the cap already
+        // applied to the TimeoutCancellationException/FirebaseFirestoreException
+        // sibling branches.
+        every {
+            syncFacade.fetchMissingTweetsStream(any(), any(), any())
+        } returns flow {
+            emit(SyncEmission.Failed)
+        }
+
+        var commits = 0
+        val result = runTwitterSync(
+            ctx = context,
+            syncFacade = syncFacade,
+            syncProgressDao = syncProgressDao,
+            deletedBookmarkRepository = deletedBookmarkRepository,
+            authGateway = authGateway,
+            enqueuedUid = null,
+            runAsForegroundService = false,
+            runAttemptCount = TwitterSyncWorker.MAX_RETRY_ATTEMPTS,
+            setForegroundInfo = {},
+            commitBatch = { _, _ -> commits++ },
+        )
+
+        assertEquals("no cursor advance should commit past the cap", 0, commits)
+        assertEquals(ListenableWorker.Result.failure(), result)
+    }
+
+    // ── CONC-8: skip a stale commit once WorkManager has begun stopping this worker ──
+
+    @Test
+    fun isStopped_beforeCommit_skipsCommitAndDoesNotSucceed() = runTest {
+        // Simulate a REPLACE-superseded worker: WorkManager has already begun
+        // cancelling it (isStopped=true) by the time a batch is ready to commit.
+        // The guard must skip commitBatch entirely rather than risk persisting a
+        // cursor older than the superseding worker's.
+        val cursorA = SyncCursor(
+            lowCreatedAt = "2026-05-24T15:00:00Z", lowTweetId = "tw-1",
+            incrementalWatermarkMillis = 2000L,
+        )
+        every {
+            syncFacade.fetchMissingTweetsStream(any(), any(), any())
+        } returns flow {
+            emit(SyncEmission.Batch(listOf(tweetEntities("tw-1", "2026-05-24T15:00:00Z")), cursorA))
+        }
+
+        var commits = 0
+        // The cancellation raised by the isStopped guard is genuine (not
+        // fetchFailed, not a timeout stop reason), so it propagates per the
+        // existing `else -> throw e` rethrow — this is the same real-cancellation
+        // path WorkManager itself drives when it actually tears down a superseded
+        // worker's coroutine, so a thrown CancellationException here (rather than a
+        // false terminal success) is the correct, expected outcome.
+        var threw = false
+        try {
+            runTwitterSync(
+                ctx = context,
+                syncFacade = syncFacade,
+                syncProgressDao = syncProgressDao,
+                deletedBookmarkRepository = deletedBookmarkRepository,
+                authGateway = authGateway,
+                enqueuedUid = null,
+                runAsForegroundService = false,
+                runAttemptCount = 0,
+                isStopped = { true },
+                setForegroundInfo = {},
+                commitBatch = { _, _ -> commits++ },
+            )
+        } catch (e: CancellationException) {
+            threw = true
+        }
+
+        assertEquals("a worker already being stopped must not commit a stale cursor", 0, commits)
+        assertTrue("the isStopped guard must raise cancellation rather than succeed", threw)
     }
 }
