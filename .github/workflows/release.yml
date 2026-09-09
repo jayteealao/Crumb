@@ -197,7 +197,10 @@ jobs:
   # Release verification gate: confirm the published GitHub Release has assets.
   verify-release:
     needs: build-and-release
-    if: ${{ env.ACT != 'true' && inputs.dry_run != true }}   # the real release is only created on GitHub runs, never on a dry run
+    # A job-level `if` cannot read the `env` context (GitHub rejects the whole
+    # workflow file), so the ACT guard lives on the steps only. On a tag push
+    # `inputs` is empty, so the gate runs; on a dry run it is skipped.
+    if: ${{ inputs.dry_run != true }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
