@@ -479,4 +479,192 @@ class CardComponentsTest {
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_imageLoadingPlaceholder_light.png")
     }
 
+    // Dark-theme siblings — one per light-only state above, so every card state
+    // carries a golden in both themes.
+
+    @Test
+    fun bookmarkCard_twitterThread_dark() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = true) {
+                CrumbsBookmarkCard(
+                    bookmark = twitterThreadBookmark,
+                    onCardClick = {}
+                )
+            }
+        }
+
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_twitterThread_dark.png")
+    }
+
+    @Test
+    fun bookmarkCard_redditPost_dark() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = true) {
+                CrumbsBookmarkCard(
+                    bookmark = redditPostBookmark,
+                    onCardClick = {}
+                )
+            }
+        }
+
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_redditPost_dark.png")
+    }
+
+    @Test
+    fun bookmarkCard_deleted_dark() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = true) {
+                CrumbsBookmarkCard(
+                    bookmark = deletedBookmark,
+                    onCardClick = {}
+                )
+            }
+        }
+
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_deleted_dark.png")
+    }
+
+    @Test
+    fun bookmarkCard_largeDbNumber_dark() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = true) {
+                CrumbsBookmarkCard(
+                    bookmark = twitterTextBookmark.copy(dbNumber = 1234L),
+                    onCardClick = {},
+                    indexOverride = "%03d".format(1234L),
+                )
+            }
+        }
+
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_largeDbNumber_dark.png")
+    }
+
+    @Test
+    fun bookmarkCard_singleImage_dark() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = true) {
+                CrumbsBookmarkCard(bookmark = singleImageBookmark, onCardClick = {})
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_singleImage_dark.png")
+    }
+
+    @Test
+    fun bookmarkCard_twoImageGrid_dark() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = true) {
+                CrumbsBookmarkCard(bookmark = twoImageBookmark, onCardClick = {})
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_twoImageGrid_dark.png")
+    }
+
+    @Test
+    fun bookmarkCard_fourImageGrid_dark() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = true) {
+                CrumbsBookmarkCard(bookmark = fourImageBookmark, onCardClick = {})
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_fourImageGrid_dark.png")
+    }
+
+    @Test
+    fun bookmarkCard_overflowImageGrid_dark() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = true) {
+                CrumbsBookmarkCard(bookmark = overflowImageBookmark, onCardClick = {})
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_overflowImageGrid_dark.png")
+    }
+
+    @Test
+    fun bookmarkCard_videoPoster_dark() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = true) {
+                CrumbsBookmarkCard(bookmark = videoBookmark, onCardClick = {})
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_videoPoster_dark.png")
+    }
+
+    @Test
+    fun bookmarkCard_linkPreview_dark() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = true) {
+                CrumbsBookmarkCard(bookmark = linkPreviewBookmark, onCardClick = {})
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_linkPreview_dark.png")
+    }
+
+    @Test
+    fun bookmarkCard_linkPreviewUrlOnly_dark() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = true) {
+                CrumbsBookmarkCard(bookmark = linkPreviewUrlOnlyBookmark, onCardClick = {})
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_linkPreviewUrlOnly_dark.png")
+    }
+
+    @Test
+    fun bookmarkCard_quotedTweet_dark() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = true) {
+                CrumbsBookmarkCard(bookmark = quotedTweetBookmark, onCardClick = {})
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_quotedTweet_dark.png")
+    }
+
+    @Test
+    fun bookmarkCard_quotedTweetUnavailable_dark() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = true) {
+                CrumbsBookmarkCard(bookmark = quotedTweetUnavailableBookmark, onCardClick = {})
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_quotedTweetUnavailable_dark.png")
+    }
+
+    @Test
+    fun bookmarkCard_imageLoadingPlaceholder_dark() {
+        val hangingLoader = ImageLoader.Builder(ApplicationProvider.getApplicationContext())
+            .components { add(Interceptor { awaitCancellation() }) }
+            .build()
+        Coil.setImageLoader(hangingLoader)
+
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = true) {
+                CrumbsBookmarkCard(bookmark = singleImageBookmark, onCardClick = {})
+            }
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_imageLoadingPlaceholder_dark.png")
+    }
 }

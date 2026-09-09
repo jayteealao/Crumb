@@ -94,4 +94,49 @@ class CrumbsBottomNavTest {
         composeTestRule.onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBottomNav_mapSelected_light.png")
     }
+
+    @Test
+    fun bottomNav_redditSelected_dark() {
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = true) {
+                CrumbsBottomNav(
+                    selected = BottomNavTab.REDDIT,
+                    onTabSelected = {}
+                )
+            }
+        }
+
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBottomNav_redditSelected_dark.png")
+    }
+
+    @Test
+    fun bottomNav_allSelected_dark() {
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = true) {
+                CrumbsBottomNav(
+                    selected = BottomNavTab.ALL,
+                    onTabSelected = {}
+                )
+            }
+        }
+
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBottomNav_allSelected_dark.png")
+    }
+
+    @Test
+    fun bottomNav_mapSelected_dark() {
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = true) {
+                CrumbsBottomNav(
+                    selected = BottomNavTab.MAP,
+                    onTabSelected = {}
+                )
+            }
+        }
+
+        composeTestRule.onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBottomNav_mapSelected_dark.png")
+    }
 }
