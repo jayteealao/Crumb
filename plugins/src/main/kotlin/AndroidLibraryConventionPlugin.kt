@@ -12,7 +12,7 @@ import org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension
  *
  * What this plugin does:
  *   - Applies com.android.library
- *   - Sets compileSdk = 35, minSdk = 24
+ *   - Sets compileSdk = 36, minSdk = 24
  *   - Sets compileOptions to Java 17
  *   - Configures Kotlin jvmTarget = JVM_17 (for any Kotlin plugin declared in the
  *     consuming module — kotlin.android OR kotlin.plugin.compose)
@@ -35,7 +35,7 @@ class AndroidLibraryConventionPlugin : Plugin<Project> {
             pluginManager.apply("com.android.library")
 
             extensions.configure<LibraryExtension> {
-                compileSdk = 35
+                compileSdk = 36
 
                 defaultConfig {
                     minSdk = 24
