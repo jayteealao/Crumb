@@ -2,6 +2,7 @@ plugins {
     id 'com.android.library'
     id 'org.jetbrains.kotlin.plugin.compose'
     id 'io.github.takahirom.roborazzi' version '1.60.0'
+    id 'org.jmailen.kotlinter'
 }
 
 android {

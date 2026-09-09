@@ -4,6 +4,7 @@ plugins {
     id 'com.google.devtools.ksp'
     id 'com.google.dagger.hilt.android'
     id 'io.github.takahirom.roborazzi' version '1.60.0'
+    id 'org.jmailen.kotlinter'
 }
 
 def twitterLocalProps = new Properties()
