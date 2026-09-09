@@ -604,8 +604,10 @@ class BookmarksViewModelTest {
             vm.refresh()
             advanceUntilIdle()
 
-            coVerify { repository.refreshBookmarks() }
-            coVerify { syncStatusRepository.refresh(force = true) }
+            // refresh() hops to Dispatchers.IO, a real thread pool the test
+            // scheduler does not control, so poll instead of asserting at once.
+            coVerify(timeout = 5_000) { repository.refreshBookmarks() }
+            coVerify(timeout = 5_000) { syncStatusRepository.refresh(force = true) }
         }
 
     // -------------------------------------------------------------------------

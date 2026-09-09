@@ -15,8 +15,8 @@ import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.launchIn
@@ -29,7 +29,6 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -49,8 +48,9 @@ import org.robolectric.annotation.Config
  * assertions deterministic.
  *
  * DataStore is backed by the real Robolectric application context. Tests that
- * verify DataStore writes use `withContext(Dispatchers.Default)` + `withTimeout`
- * so the assertion waits on real I/O rather than virtual time.  The DataStore
+ * verify DataStore writes poll through [awaitRecentSearches], which reads on
+ * `Dispatchers.Default` (real I/O, real time) while keeping the test scheduler
+ * drained so the edit's transform can run.  The DataStore
  * is cleared in [setUp] via a blocking call to prevent cross-test contamination
  * (Robolectric reuses the same application context across tests in a class).
  *
@@ -136,20 +136,29 @@ class SearchViewModelTest {
     }
 
     /**
-     * Wait for the first [context.recentSearches()] emission that satisfies
-     * [predicate] using real wall-clock time. DataStore writes run on a
-     * background I/O dispatcher, so we must leave the virtual-time scheduler
-     * via [withContext(Dispatchers.Default)] to let real suspension happen.
+     * Wait, in real wall-clock time, until [context.recentSearches()] satisfies
+     * [predicate], or return the latest value once [timeoutMs] has elapsed so
+     * the caller's assertion reports it.
+     *
+     * DataStore commits each edit on its own I/O scope but runs the edit's
+     * transform on the caller's context, which here is the test Main
+     * dispatcher. Waiting on real I/O alone therefore stalls whenever that
+     * transform is still queued on the test scheduler, so each poll first
+     * drains the scheduler, then reads the store off the virtual-time scheduler
+     * via [withContext(Dispatchers.Default)].
      */
     private suspend fun awaitRecentSearches(
         timeoutMs: Long = 10_000L,
         predicate: (List<String>) -> Boolean,
-    ): List<String> =
-        withContext(Dispatchers.Default) {
-            withTimeout(timeoutMs) {
-                context.recentSearches().filter(predicate).first()
-            }
+    ): List<String> {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (true) {
+            dispatcher.scheduler.advanceUntilIdle()
+            val latest = withContext(Dispatchers.Default) { context.recentSearches().first() }
+            if (predicate(latest) || System.currentTimeMillis() >= deadline) return latest
+            withContext(Dispatchers.Default) { delay(25) }
         }
+    }
 
     // -----------------------------------------------------------------------
     // 1. idle_whenQueryIsBlank
@@ -285,8 +294,8 @@ class SearchViewModelTest {
             vm.onSearchSubmitted()
             advanceUntilIdle()
 
-            // DataStore writes land on a real I/O thread. Use withContext(Default) +
-            // withTimeout to leave the virtual-time scheduler and wait on real I/O.
+            // DataStore writes land on a real I/O thread; poll in real time while
+            // keeping the test scheduler drained (see awaitRecentSearches).
             val recents = awaitRecentSearches { it.contains("kotlin flows") }
             assertTrue(
                 "Expected 'kotlin flows' in recents $recents",
