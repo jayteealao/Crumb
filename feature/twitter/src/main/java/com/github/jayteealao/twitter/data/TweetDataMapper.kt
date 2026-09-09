@@ -24,12 +24,13 @@ fun TweetData.toBookmark(tags: List<String> = emptyList()): Bookmark {
     // also makes count-and-number's ARTICLE count honest for synced data. Null
     // when the tweet has no outbound link (only internal/media links, or none).
     val externalLink = tweetTextAnnotation.firstOrNull { it.type == "urls" && it.expandedUrl.isExternalLink() }
-    val contentType = when {
-        media.any { it.type == "video" || it.type == "animated_gif" } -> ContentType.Video
-        media.any { it.type == "photo" } -> ContentType.Image
-        externalLink != null -> ContentType.Link
-        else -> ContentType.Text
-    }
+    val contentType =
+        when {
+            media.any { it.type == "video" || it.type == "animated_gif" } -> ContentType.Video
+            media.any { it.type == "photo" } -> ContentType.Image
+            externalLink != null -> ContentType.Link
+            else -> ContentType.Text
+        }
     // Keep every photo URL (the card grid + viewer page through all of them);
     // imageUrl stays the primary single URL for back-compat. Previously only the
     // first photo survived, so multi-image tweets silently lost their extra photos.
@@ -39,17 +40,19 @@ fun TweetData.toBookmark(tags: List<String> = emptyList()): Bookmark {
     // variants and the poster frame so the card can play inline. videoUrl is the single
     // best playable stream for back-compat, falling back to the row's flat url.
     val videoMedia = media.firstOrNull { it.type == "video" || it.type == "animated_gif" }
-    val videoVariants = videoMedia?.videoVariants.orEmpty().map {
-        VideoVariant(contentType = it.contentType, url = it.url, bitRate = it.bitRate)
-    }
+    val videoVariants =
+        videoMedia?.videoVariants.orEmpty().map {
+            VideoVariant(contentType = it.contentType, url = it.url, bitRate = it.bitRate)
+        }
     val videoThumbnailUrl = videoMedia?.previewImageUrl
     val videoUrl = VariantSelection.bestUrl(videoVariants) ?: videoMedia?.url
     // Prefer the server-stamped retrieval time; fall back to the tweet's own creation time;
     // when neither is available/parseable, use the unknown-time sentinel rather than
     // fabricating "now" (which produced the long-standing wrong "X months ago" label).
-    val timestamp = tweet.retrievedAt
-        ?: parseTweetTimestamp(tweet.createdAt)
-        ?: Bookmark.UNKNOWN_TIME
+    val timestamp =
+        tweet.retrievedAt
+            ?: parseTweetTimestamp(tweet.createdAt)
+            ?: Bookmark.UNKNOWN_TIME
     // Quoted tweet (orthogonal to contentType — a quote co-exists with the parent's own
     // media/link/text). The first type=="quoted" reference is the quote; a reference row
     // with no resolved body ⇒ unavailable (quotedTweetId set, quotedText null). The
@@ -57,20 +60,29 @@ fun TweetData.toBookmark(tags: List<String> = emptyList()): Bookmark {
     val quotedRef = referencedTweets.firstOrNull { it.type == "quoted" }
     val quotedBody = quotedTweets.firstOrNull { it.tweet.id == quotedRef?.id }
     val quotedUsername = quotedBody?.author?.username
-    val quotedTweetUrl = quotedRef?.id?.let { qId ->
-        if (quotedUsername != null) "https://twitter.com/$quotedUsername/status/$qId"
-        else "https://x.com/i/status/$qId"
-    }
+    val quotedTweetUrl =
+        quotedRef?.id?.let { qId ->
+            if (quotedUsername != null) {
+                "https://twitter.com/$quotedUsername/status/$qId"
+            } else {
+                "https://x.com/i/status/$qId"
+            }
+        }
     // Inline URL spans for the card body — all type='urls' entities that have usable
     // offsets, a display URL, and an expanded URL. Sorted ascending by start so the
     // card renders them in reading order. The t.co media-key entities (mediaKey != null)
     // are already excluded by type='urls' (they live in the media table, not here),
     // so no extra mediaKey filter is needed.
-    val textLinks = tweetTextAnnotation
-        .filter { it.type == "urls" && !it.expandedUrl.isNullOrBlank() && !it.displayUrl.isNullOrBlank() }
-        .sortedBy { it.start }
-        .map { BookmarkTextLink(it.start, it.end, it.displayUrl!!, it.expandedUrl!!) }
-    val title = tweet.text.lines().firstOrNull()?.take(100) ?: tweet.text.take(100)
+    val textLinks =
+        tweetTextAnnotation
+            .filter { it.type == "urls" && !it.expandedUrl.isNullOrBlank() && !it.displayUrl.isNullOrBlank() }
+            .sortedBy { it.start }
+            .map { BookmarkTextLink(it.start, it.end, it.displayUrl!!, it.expandedUrl!!) }
+    val title =
+        tweet.text
+            .lines()
+            .firstOrNull()
+            ?.take(100) ?: tweet.text.take(100)
     return Bookmark(
         id = tweet.id,
         source = BookmarkSource.Twitter,
@@ -118,9 +130,13 @@ fun TweetData.toBookmark(tags: List<String> = emptyList()): Bookmark {
  * SQL predicate (`NOT LIKE '%twitter.com%' AND NOT LIKE '%x.com%'`) and the
  * server-side picker so the writer and every reader agree on what is a "link".
  */
-internal fun String?.isExternalLink(): Boolean =
-    this != null && !contains("twitter.com") && !contains("x.com")
+internal fun String?.isExternalLink(): Boolean = this != null && !contains("twitter.com") && !contains("x.com")
 
 /** Host of a URL (stripped of `www.`) for the preview's domain label; the raw URL on parse failure. */
 internal fun String.linkHost(): String =
-    runCatching { java.net.URI(this).host?.removePrefix("www.") }.getOrNull() ?: this
+    runCatching {
+        java.net
+            .URI(this)
+            .host
+            ?.removePrefix("www.")
+    }.getOrNull() ?: this

@@ -44,7 +44,7 @@ interface RedditFtsDao {
           AND d.bookmarkId IS NULL
         ORDER BY r.`order` DESC
         LIMIT 50
-        """
+        """,
     )
     fun search(q: String): Flow<List<RedditPostData>>
 }

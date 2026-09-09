@@ -27,7 +27,6 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class LongPressPopupTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -47,7 +46,8 @@ class LongPressPopupTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsLongPressPopup_default_light.png")
     }
 
@@ -67,7 +67,8 @@ class LongPressPopupTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsLongPressPopup_default_dark.png")
     }
 
@@ -78,12 +79,13 @@ class LongPressPopupTest {
 
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = false) {
-                val bundle = bookmarkPopupActions(
-                    onTag = { firedActions += "tag" },
-                    onOpen = { firedActions += "open" },
-                    onShare = { firedActions += "share" },
-                    onDelete = { firedActions += "delete" },
-                )
+                val bundle =
+                    bookmarkPopupActions(
+                        onTag = { firedActions += "tag" },
+                        onOpen = { firedActions += "open" },
+                        onShare = { firedActions += "share" },
+                        onDelete = { firedActions += "delete" },
+                    )
                 CrumbsLongPressPopup(
                     visible = true,
                     onDismiss = { dismissCount++ },
@@ -119,12 +121,13 @@ class LongPressPopupTest {
         composeTestRule.setContent {
             var visible by remember { mutableStateOf(true) }
             CrumbsTheme(darkTheme = false) {
-                val bundle = bookmarkPopupActions(
-                    onTag = {},
-                    onOpen = {},
-                    onShare = {},
-                    onDelete = {},
-                )
+                val bundle =
+                    bookmarkPopupActions(
+                        onTag = {},
+                        onOpen = {},
+                        onShare = {},
+                        onDelete = {},
+                    )
                 CrumbsLongPressPopup(
                     visible = visible,
                     onDismiss = {
@@ -140,7 +143,8 @@ class LongPressPopupTest {
             }
         }
 
-        composeTestRule.onNodeWithTag("popup-scrim")
+        composeTestRule
+            .onNodeWithTag("popup-scrim")
             .performTouchInput { click(position = Offset(10f, 10f)) }
         composeTestRule.waitForIdle()
 

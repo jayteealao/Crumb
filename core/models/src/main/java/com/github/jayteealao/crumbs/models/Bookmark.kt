@@ -69,12 +69,10 @@ data class Bookmark(
     val contentType: ContentType,
     val savedAt: Long, // Timestamp when bookmark was saved
     val tags: List<String> = emptyList(),
-
     // Thread-specific fields
     val isThread: Boolean = false,
     val threadCount: Int = 1, // Number of tweets in thread
     val threadExpanded: Boolean = false,
-
     // Status fields
     val isDeleted: Boolean = false, // Original source deleted/unavailable
     val isRead: Boolean = false, // User has opened this
@@ -82,22 +80,18 @@ data class Bookmark(
     // user has not yet confirmed/cancelled. Drives strikethrough rendering
     // and swipe affordances on Twitter rows; always `false` for Reddit.
     val pendingDelete: Boolean = false,
-
     // Original source URL
     val sourceUrl: String,
-
     // Source engagement count (likes/score). `null` when not yet wired from
     // the data layer; rendered as part of the meta row (e.g. "IMAGE · ↑ 2.4k")
     // and degrades gracefully to type-only when absent.
     val engagementCount: Int? = null,
-
     // Display-only "number in the DB" shown in each card's index strip. For
     // Twitter this is the SQLite rowid surfaced by the feed query; rendered
     // zero-padded (`%03d`) via the card's indexOverride. `0L` for sources that
     // do not surface it (Reddit), which renders as the legacy `000`. Not an
     // identifier — the rowid can change under VACUUM/migration.
     val dbNumber: Long = 0L,
-
     // Inline URL spans in the tweet body — each entry carries the [start,end)
     // offset into [previewText] (the t.co short URL), the [displayUrl] to show
     // in its place (e.g. "example.com/article"), and the [expandedUrl] the
@@ -122,31 +116,35 @@ data class Bookmark(
  */
 enum class BookmarkSource {
     Twitter,
-    Reddit;
+    Reddit,
+    ;
 
-    fun displayName(): String = when (this) {
-        Twitter -> "Twitter"
-        Reddit -> "Reddit"
-    }
+    fun displayName(): String =
+        when (this) {
+            Twitter -> "Twitter"
+            Reddit -> "Reddit"
+        }
 }
 
 /**
  * Type of content in the bookmark
  */
 enum class ContentType {
-    Text,      // Text-only post
-    Image,     // Post with image(s)
-    Video,     // Post with video
-    Link,      // Post with external link
-    Thread;    // Twitter thread
+    Text, // Text-only post
+    Image, // Post with image(s)
+    Video, // Post with video
+    Link, // Post with external link
+    Thread, // Twitter thread
+    ;
 
-    fun iconDescription(): String = when (this) {
-        Text -> "Text post"
-        Image -> "Image post"
-        Video -> "Video post"
-        Link -> "Link post"
-        Thread -> "Thread"
-    }
+    fun iconDescription(): String =
+        when (this) {
+            Text -> "Text post"
+            Image -> "Image post"
+            Video -> "Video post"
+            Link -> "Link post"
+            Thread -> "Thread"
+        }
 }
 
 /**

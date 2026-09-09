@@ -15,7 +15,6 @@ import com.github.jayteealao.reddit.models.RedditTagCrossRef
  */
 @Dao
 interface RedditDao {
-
     /**
      * Insert posts into database
      */
@@ -41,16 +40,19 @@ interface RedditDao {
      * tombstone writes auto-invalidate the paging source.
      */
     @Transaction
-    @Query("""
+    @Query(
+        """
         SELECT p.* FROM reddit_posts p
         LEFT JOIN deleted_bookmarks d ON p.id = d.bookmarkId AND d.source = 'reddit'
         WHERE d.bookmarkId IS NULL
         ORDER BY p.`order` DESC
-    """)
+    """,
+    )
     fun getPostsTombstoneAware(): PagingSource<Int, RedditPostData>
 
     @Transaction
-    @Query("""
+    @Query(
+        """
         SELECT p.* FROM reddit_posts p
         LEFT JOIN deleted_bookmarks d ON p.id = d.bookmarkId AND d.source = 'reddit'
         INNER JOIN reddit_tag_crossref rtc ON rtc.postId = p.id
@@ -58,7 +60,8 @@ interface RedditDao {
           AND rtc.tagName IN (:tagNames)
         GROUP BY p.id
         ORDER BY p.`order` DESC
-    """)
+    """,
+    )
     fun getPostsByTagsTombstoneAware(tagNames: List<String>): PagingSource<Int, RedditPostData>
 
     /**
@@ -77,13 +80,15 @@ interface RedditDao {
      * Search posts by title or selftext
      */
     @Transaction
-    @Query("""
+    @Query(
+        """
         SELECT * FROM reddit_posts
         WHERE title LIKE '%' || :query || '%'
         OR selftext LIKE '%' || :query || '%'
         OR subreddit LIKE '%' || :query || '%'
         ORDER BY `order` DESC
-    """)
+    """,
+    )
     fun searchPosts(query: String): PagingSource<Int, RedditPostData>
 
     /**
@@ -117,7 +122,10 @@ interface RedditDao {
     suspend fun insertRedditTagCrossRef(crossRef: RedditTagCrossRef)
 
     @Query("DELETE FROM reddit_tag_crossref WHERE postId = :postId AND tagName = :tagName")
-    suspend fun deleteRedditTagCrossRef(postId: String, tagName: String)
+    suspend fun deleteRedditTagCrossRef(
+        postId: String,
+        tagName: String,
+    )
 
     @Query("SELECT tagName FROM reddit_tag_crossref WHERE postId = :postId")
     suspend fun getTagsForRedditPost(postId: String): List<String>

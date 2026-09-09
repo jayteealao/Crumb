@@ -28,17 +28,18 @@ fun EmptyState(
     message: String = "Start saving content to see it here",
     actionText: String? = null,
     onActionClick: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val colors = LocalCrumbsColors.current
     val spacing = LocalCrumbsSpacing.current
     val typography = LocalCrumbsTypography.current
 
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(spacing.xxl)
-            .testTag("empty-state"),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .padding(spacing.xxl)
+                .testTag("empty-state"),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {

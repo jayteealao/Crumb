@@ -93,10 +93,11 @@ fun BookmarkActionsOverlay(
         modifier = modifier,
         body = {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(spacing.md)
-                    .testTag("bookmark-actions-overlay"),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(spacing.md)
+                        .testTag("bookmark-actions-overlay"),
             ) {
                 // Bug 2 fix: render the action cells inline instead of mounting a
                 // nested CrumbsLongPressPopup, which opened a *second* Popup window
@@ -111,9 +112,10 @@ fun BookmarkActionsOverlay(
                     horizontalArrangement = Arrangement.spacedBy(spacing.sm),
                 ) {
                     Box(
-                        modifier = Modifier
-                            .size(20.dp)
-                            .background(colors.accent),
+                        modifier =
+                            Modifier
+                                .size(20.dp)
+                                .background(colors.accent),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
@@ -137,17 +139,21 @@ fun BookmarkActionsOverlay(
                 }
                 Spacer(Modifier.height(spacing.sm))
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(stroke.hairline)
-                        .background(colors.ink),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(stroke.hairline)
+                            .background(colors.ink),
                 )
                 Spacer(Modifier.height(spacing.sm))
                 BookmarkActionGrid(
                     actions = POPUP_ACTION_TEMPLATE,
                     onSelect = { action ->
                         when (action.id) {
-                            "tag" -> tagEditorVisible = true
+                            "tag" -> {
+                                tagEditorVisible = true
+                            }
+
                             else -> {
                                 onActionSelect(action)
                                 onDismiss()
@@ -157,9 +163,10 @@ fun BookmarkActionsOverlay(
                 )
                 Spacer(Modifier.height(spacing.md))
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("bookmark-actions-tag-row"),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .testTag("bookmark-actions-tag-row"),
                 ) {
                     Text(
                         text = "CURRENT TAGS:",
@@ -188,9 +195,10 @@ fun BookmarkActionsOverlay(
                         text = "+ add tag…",
                         style = typography.captionMono,
                         color = colors.accent,
-                        modifier = Modifier
-                            .clickable { tagEditorVisible = true }
-                            .testTag("bookmark-actions-add-tag"),
+                        modifier =
+                            Modifier
+                                .clickable { tagEditorVisible = true }
+                                .testTag("bookmark-actions-add-tag"),
                     )
                 }
             }
@@ -236,14 +244,14 @@ private fun BookmarkActionGrid(
                 rowActions.forEach { action ->
                     PopupActionCell(
                         action = action,
-                        modifier = Modifier
-                            .weight(1f)
-                            .semantics(mergeDescendants = true) {
-                                role = Role.Button
-                                contentDescription = action.label
-                            }
-                            .clickable { onSelect(action) }
-                            .testTag("popup-action-${action.id}"),
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .semantics(mergeDescendants = true) {
+                                    role = Role.Button
+                                    contentDescription = action.label
+                                }.clickable { onSelect(action) }
+                                .testTag("popup-action-${action.id}"),
                     )
                 }
                 // Pad a short final row with a weighted spacer so cell widths

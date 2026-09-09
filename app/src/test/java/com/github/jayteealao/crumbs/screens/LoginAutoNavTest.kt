@@ -17,7 +17,6 @@ import org.junit.Test
  * is the structural enforcement of the legacy retirement, not a test assertion here.
  */
 class LoginAutoNavTest {
-
     @Test
     fun authenticated_shouldAutoNavigate_returnsTrue() {
         assertTrue(shouldAutoNavigate(AuthUiState.Authenticated(uid = "uid", email = "e@g.com")))

@@ -22,7 +22,6 @@ class SanitizeFtsQueryTest(
     private val input: String,
     private val expected: String,
 ) {
-
     companion object {
         /**
          * Each row: (test description, raw user input, expected sanitized output).
@@ -33,68 +32,69 @@ class SanitizeFtsQueryTest(
          */
         @JvmStatic
         @Parameterized.Parameters(name = "{0}")
-        fun data(): Collection<Array<Any>> = listOf(
-            // 1. Normal single word — passes through wrapped in phrase quotes
-            arrayOf(
-                "normal word is wrapped in phrase quotes",
-                "compose",
-                "\"compose\"",
-            ),
-            // 2. Empty string — produces empty phrase quote ("")
-            arrayOf(
-                "empty string produces empty phrase quote",
-                "",
-                "\"\"",
-            ),
-            // 3. FTS wildcard * — literal, not interpreted as prefix operator
-            arrayOf(
-                "wildcard * is treated as a literal character",
-                "compose*",
-                "\"compose*\"",
-            ),
-            // 4. FTS negation - — literal, not interpreted as NOT operator
-            arrayOf(
-                "negation dash - is treated as a literal character",
-                "-android",
-                "\"-android\"",
-            ),
-            // 5. FTS AND keyword — entire string is one literal phrase
-            arrayOf(
-                "AND keyword is treated as a literal phrase token",
-                "compose AND kotlin",
-                "\"compose AND kotlin\"",
-            ),
-            // 6. FTS OR keyword — entire string is one literal phrase
-            arrayOf(
-                "OR keyword is treated as a literal phrase token",
-                "compose OR kotlin",
-                "\"compose OR kotlin\"",
-            ),
-            // 7. Inner double-quote — escaped by doubling ("" inside the phrase)
-            arrayOf(
-                "inner double-quote is escaped by doubling",
-                "foo\"bar",
-                "\"foo\"\"bar\"",
-            ),
-            // 8. Column selector syntax — colon is literal inside phrase quotes
-            arrayOf(
-                "column selector syntax colon is treated as literal",
-                "title:compose",
-                "\"title:compose\"",
-            ),
-            // 9. Unicode / emoji — multi-codepoint input passes through intact
-            arrayOf(
-                "unicode and emoji input passes through intact",
-                "bookmarks 📚 kotlin",
-                "\"bookmarks 📚 kotlin\"",
-            ),
-            // 10. Whitespace-only input — spaces survive inside phrase quotes
-            arrayOf(
-                "whitespace-only input is wrapped without trimming",
-                "   ",
-                "\"   \"",
-            ),
-        )
+        fun data(): Collection<Array<Any>> =
+            listOf(
+                // 1. Normal single word — passes through wrapped in phrase quotes
+                arrayOf(
+                    "normal word is wrapped in phrase quotes",
+                    "compose",
+                    "\"compose\"",
+                ),
+                // 2. Empty string — produces empty phrase quote ("")
+                arrayOf(
+                    "empty string produces empty phrase quote",
+                    "",
+                    "\"\"",
+                ),
+                // 3. FTS wildcard * — literal, not interpreted as prefix operator
+                arrayOf(
+                    "wildcard * is treated as a literal character",
+                    "compose*",
+                    "\"compose*\"",
+                ),
+                // 4. FTS negation - — literal, not interpreted as NOT operator
+                arrayOf(
+                    "negation dash - is treated as a literal character",
+                    "-android",
+                    "\"-android\"",
+                ),
+                // 5. FTS AND keyword — entire string is one literal phrase
+                arrayOf(
+                    "AND keyword is treated as a literal phrase token",
+                    "compose AND kotlin",
+                    "\"compose AND kotlin\"",
+                ),
+                // 6. FTS OR keyword — entire string is one literal phrase
+                arrayOf(
+                    "OR keyword is treated as a literal phrase token",
+                    "compose OR kotlin",
+                    "\"compose OR kotlin\"",
+                ),
+                // 7. Inner double-quote — escaped by doubling ("" inside the phrase)
+                arrayOf(
+                    "inner double-quote is escaped by doubling",
+                    "foo\"bar",
+                    "\"foo\"\"bar\"",
+                ),
+                // 8. Column selector syntax — colon is literal inside phrase quotes
+                arrayOf(
+                    "column selector syntax colon is treated as literal",
+                    "title:compose",
+                    "\"title:compose\"",
+                ),
+                // 9. Unicode / emoji — multi-codepoint input passes through intact
+                arrayOf(
+                    "unicode and emoji input passes through intact",
+                    "bookmarks 📚 kotlin",
+                    "\"bookmarks 📚 kotlin\"",
+                ),
+                // 10. Whitespace-only input — spaces survive inside phrase quotes
+                arrayOf(
+                    "whitespace-only input is wrapped without trimming",
+                    "   ",
+                    "\"   \"",
+                ),
+            )
     }
 
     // -----------------------------------------------------------------------
@@ -111,8 +111,9 @@ class SanitizeFtsQueryTest(
     }
 
     private fun invokeSanitize(query: String): String {
-        val method = SearchRepository::class.java
-            .getDeclaredMethod("sanitizeFtsQuery", String::class.java)
+        val method =
+            SearchRepository::class.java
+                .getDeclaredMethod("sanitizeFtsQuery", String::class.java)
         method.isAccessible = true
         return method.invoke(repository, query) as String
     }

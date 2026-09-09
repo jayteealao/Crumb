@@ -18,7 +18,6 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class LoadingCardTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -29,7 +28,8 @@ class LoadingCardTest {
                 LoadingCard(hasImage = true, scanLinePositionFraction = 0.5f)
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/LoadingCard_hasImage_light.png")
     }
 
@@ -40,7 +40,8 @@ class LoadingCardTest {
                 LoadingCard(hasImage = true, scanLinePositionFraction = 0.5f)
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/LoadingCard_hasImage_dark.png")
     }
 
@@ -51,7 +52,8 @@ class LoadingCardTest {
                 LoadingCard(hasImage = false, scanLinePositionFraction = 0.5f)
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/LoadingCard_noImage_light.png")
     }
 
@@ -62,7 +64,8 @@ class LoadingCardTest {
                 LoadingCard(hasImage = false, scanLinePositionFraction = 0.5f)
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/LoadingCard_noImage_dark.png")
     }
 }

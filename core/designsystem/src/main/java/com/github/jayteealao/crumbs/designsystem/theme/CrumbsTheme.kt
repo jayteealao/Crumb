@@ -25,7 +25,7 @@ val LocalCrumbsStroke = compositionLocalOf { CrumbsStroke }
 @Composable
 fun CrumbsTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    content: @Composable () -> Unit
+    content: @Composable () -> Unit,
 ) {
     val colors = if (darkTheme) DarkColors else LightColors
 
@@ -39,7 +39,7 @@ fun CrumbsTheme(
         Box(
             Modifier
                 .semantics { testTagsAsResourceId = true }
-                .testTag("app_root")
+                .testTag("app_root"),
         ) {
             content()
         }

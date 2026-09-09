@@ -1,16 +1,8 @@
 package com.github.jayteealao.crumbs.db
 
 import androidx.room.testing.MigrationTestHelper
-import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.github.jayteealao.crumbs.db.MIGRATION_2_3
-import com.github.jayteealao.crumbs.db.MIGRATION_3_4
-import com.github.jayteealao.crumbs.db.MIGRATION_4_5
-import com.github.jayteealao.crumbs.db.MIGRATION_5_6
-import com.github.jayteealao.crumbs.db.MIGRATION_6_7
-import com.github.jayteealao.crumbs.db.MIGRATION_7_8
-import com.github.jayteealao.crumbs.db.MIGRATION_8_9
-import com.github.jayteealao.crumbs.db.MIGRATION_9_10
+import androidx.test.platform.app.InstrumentationRegistry
 import com.github.jayteealao.crumbs.db.MIGRATION_10_11
 import com.github.jayteealao.crumbs.db.MIGRATION_11_12
 import com.github.jayteealao.crumbs.db.MIGRATION_12_13
@@ -21,6 +13,14 @@ import com.github.jayteealao.crumbs.db.MIGRATION_16_17
 import com.github.jayteealao.crumbs.db.MIGRATION_17_18
 import com.github.jayteealao.crumbs.db.MIGRATION_18_19
 import com.github.jayteealao.crumbs.db.MIGRATION_19_20
+import com.github.jayteealao.crumbs.db.MIGRATION_2_3
+import com.github.jayteealao.crumbs.db.MIGRATION_3_4
+import com.github.jayteealao.crumbs.db.MIGRATION_4_5
+import com.github.jayteealao.crumbs.db.MIGRATION_5_6
+import com.github.jayteealao.crumbs.db.MIGRATION_6_7
+import com.github.jayteealao.crumbs.db.MIGRATION_7_8
+import com.github.jayteealao.crumbs.db.MIGRATION_8_9
+import com.github.jayteealao.crumbs.db.MIGRATION_9_10
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -31,12 +31,12 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class MigrationTest {
-
     @get:Rule
-    val helper: MigrationTestHelper = MigrationTestHelper(
-        InstrumentationRegistry.getInstrumentation(),
-        AppDatabase::class.java,
-    )
+    val helper: MigrationTestHelper =
+        MigrationTestHelper(
+            InstrumentationRegistry.getInstrumentation(),
+            AppDatabase::class.java,
+        )
 
     @Test
     fun migrate2To3_createsTagsAndTweetTagsTablesWithIndexes() {
@@ -46,26 +46,28 @@ class MigrationTest {
             execSQL(
                 "INSERT INTO tweetEntity " +
                     "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`) " +
-                    "VALUES ('tweet-1', 'hello', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1)"
+                    "VALUES ('tweet-1', 'hello', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1)",
             )
             close()
         }
 
-        val db = helper.runMigrationsAndValidate(
-            TEST_DB,
-            3,
-            true,
-            MIGRATION_2_3,
-        )
+        val db =
+            helper.runMigrationsAndValidate(
+                TEST_DB,
+                3,
+                true,
+                MIGRATION_2_3,
+            )
 
         // Both tables were created.
         val expectedTables = setOf("tags", "tweet_tags")
         val foundTables = mutableSetOf<String>()
-        db.query(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('tags', 'tweet_tags')"
-        ).use { cursor ->
-            while (cursor.moveToNext()) foundTables += cursor.getString(0)
-        }
+        db
+            .query(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('tags', 'tweet_tags')",
+            ).use { cursor ->
+                while (cursor.moveToNext()) foundTables += cursor.getString(0)
+            }
         assertEquals(
             "Both tags and tweet_tags tables should exist after 2→3 migration",
             expectedTables,
@@ -89,14 +91,15 @@ class MigrationTest {
         // Both indexes are present.
         val expectedIndexes = setOf("index_tweet_tags_tweetId", "index_tweet_tags_tagName")
         val foundIndexes = mutableSetOf<String>()
-        db.query(
-            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='tweet_tags'"
-        ).use { cursor ->
-            while (cursor.moveToNext()) {
-                val name = cursor.getString(0)
-                if (!name.startsWith("sqlite_autoindex_")) foundIndexes += name
+        db
+            .query(
+                "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='tweet_tags'",
+            ).use { cursor ->
+                while (cursor.moveToNext()) {
+                    val name = cursor.getString(0)
+                    if (!name.startsWith("sqlite_autoindex_")) foundIndexes += name
+                }
             }
-        }
         assertEquals(
             "Both tweet_tags indexes should exist after 2→3 migration",
             expectedIndexes,
@@ -106,15 +109,16 @@ class MigrationTest {
         // End-to-end write: insert a tag and a tweet_tags cross-reference row.
         db.execSQL("INSERT INTO tags (name) VALUES ('android')")
         db.execSQL(
-            "INSERT INTO tweet_tags (tweetId, tagName) VALUES ('tweet-1', 'android')"
+            "INSERT INTO tweet_tags (tweetId, tagName) VALUES ('tweet-1', 'android')",
         )
-        db.query(
-            "SELECT tweetId, tagName FROM tweet_tags WHERE tweetId = 'tweet-1'"
-        ).use { cursor ->
-            assertTrue("tweet_tags row should be queryable after 2→3 migration", cursor.moveToFirst())
-            assertEquals("tweet-1", cursor.getString(0))
-            assertEquals("android", cursor.getString(1))
-        }
+        db
+            .query(
+                "SELECT tweetId, tagName FROM tweet_tags WHERE tweetId = 'tweet-1'",
+            ).use { cursor ->
+                assertTrue("tweet_tags row should be queryable after 2→3 migration", cursor.moveToFirst())
+                assertEquals("tweet-1", cursor.getString(0))
+                assertEquals("android", cursor.getString(1))
+            }
 
         db.close()
     }
@@ -127,58 +131,77 @@ class MigrationTest {
             execSQL(
                 "INSERT INTO tweetEntity " +
                     "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`) " +
-                    "VALUES ('tweet-1', 'test tweet', '2024-06-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1)"
+                    "VALUES ('tweet-1', 'test tweet', '2024-06-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1)",
             )
             execSQL("INSERT INTO tags (name) VALUES ('kotlin')")
             execSQL(
-                "INSERT INTO tweet_tags (tweetId, tagName) VALUES ('tweet-1', 'kotlin')"
+                "INSERT INTO tweet_tags (tweetId, tagName) VALUES ('tweet-1', 'kotlin')",
             )
             close()
         }
 
-        val db = helper.runMigrationsAndValidate(
-            TEST_DB,
-            4,
-            true,
-            MIGRATION_3_4,
-        )
+        val db =
+            helper.runMigrationsAndValidate(
+                TEST_DB,
+                4,
+                true,
+                MIGRATION_3_4,
+            )
 
         // Pre-existing tweet_tags row survives the table rebuild.
-        db.query(
-            "SELECT tweetId, tagName FROM tweet_tags WHERE tweetId = 'tweet-1'"
-        ).use { cursor ->
-            assertTrue(
-                "tweet_tags row must survive the 3→4 table-rebuild migration",
-                cursor.moveToFirst(),
-            )
-            assertEquals("tweet-1", cursor.getString(0))
-            assertEquals("kotlin", cursor.getString(1))
-        }
+        db
+            .query(
+                "SELECT tweetId, tagName FROM tweet_tags WHERE tweetId = 'tweet-1'",
+            ).use { cursor ->
+                assertTrue(
+                    "tweet_tags row must survive the 3→4 table-rebuild migration",
+                    cursor.moveToFirst(),
+                )
+                assertEquals("tweet-1", cursor.getString(0))
+                assertEquals("kotlin", cursor.getString(1))
+            }
 
         // tweet_tags now references 'tweetEntity' (mixed-case) — validate via
         // the sqlite_master DDL rather than just trusting MigrationTestHelper.
-        db.query(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name='tweet_tags'"
-        ).use { cursor ->
-            assertTrue("tweet_tags must be present in sqlite_master", cursor.moveToFirst())
-            val ddl = cursor.getString(0)
-            assertTrue(
-                "tweet_tags FK must reference 'tweetEntity' (mixed-case) after 3→4 migration; got: $ddl",
-                ddl.contains("REFERENCES `tweetEntity`"),
-            )
-        }
+        db
+            .query(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='tweet_tags'",
+            ).use { cursor ->
+                assertTrue("tweet_tags must be present in sqlite_master", cursor.moveToFirst())
+                val ddl = cursor.getString(0)
+                assertTrue(
+                    "tweet_tags FK must reference 'tweetEntity' (mixed-case) after 3→4 migration; got: $ddl",
+                    ddl.contains("REFERENCES `tweetEntity`"),
+                )
+            }
 
         // reddit_posts table was created with the expected 20 columns.
         db.query("PRAGMA table_info(reddit_posts)").use { cursor ->
             val columns = mutableSetOf<String>()
             while (cursor.moveToNext()) columns += cursor.getString(cursor.getColumnIndexOrThrow("name"))
-            val expectedColumns = setOf(
-                "id", "name", "title", "selftext", "author",
-                "subreddit", "subreddit_prefixed", "created_utc", "url",
-                "permalink", "thumbnail", "num_comments", "score",
-                "is_self", "is_video", "domain", "link_flair_text",
-                "gilded", "over_18", "order",
-            )
+            val expectedColumns =
+                setOf(
+                    "id",
+                    "name",
+                    "title",
+                    "selftext",
+                    "author",
+                    "subreddit",
+                    "subreddit_prefixed",
+                    "created_utc",
+                    "url",
+                    "permalink",
+                    "thumbnail",
+                    "num_comments",
+                    "score",
+                    "is_self",
+                    "is_video",
+                    "domain",
+                    "link_flair_text",
+                    "gilded",
+                    "over_18",
+                    "order",
+                )
             assertEquals(
                 "reddit_posts should have exactly the 20 schema columns after 3→4 migration",
                 expectedColumns,
@@ -187,16 +210,18 @@ class MigrationTest {
         }
 
         // reddit_posts author + subreddit indexes are present.
-        val expectedRedditIndexes = setOf(
-            "index_reddit_posts_author",
-            "index_reddit_posts_subreddit",
-        )
+        val expectedRedditIndexes =
+            setOf(
+                "index_reddit_posts_author",
+                "index_reddit_posts_subreddit",
+            )
         val foundRedditIndexes = mutableSetOf<String>()
-        db.query(
-            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='reddit_posts'"
-        ).use { cursor ->
-            while (cursor.moveToNext()) foundRedditIndexes += cursor.getString(0)
-        }
+        db
+            .query(
+                "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='reddit_posts'",
+            ).use { cursor ->
+                while (cursor.moveToNext()) foundRedditIndexes += cursor.getString(0)
+            }
         assertEquals(
             "Both reddit_posts indexes should exist after 3→4 migration",
             expectedRedditIndexes,
@@ -206,14 +231,15 @@ class MigrationTest {
         // tweet_tags indexes were recreated correctly.
         val expectedTagIndexes = setOf("index_tweet_tags_tweetId", "index_tweet_tags_tagName")
         val foundTagIndexes = mutableSetOf<String>()
-        db.query(
-            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='tweet_tags'"
-        ).use { cursor ->
-            while (cursor.moveToNext()) {
-                val name = cursor.getString(0)
-                if (!name.startsWith("sqlite_autoindex_")) foundTagIndexes += name
+        db
+            .query(
+                "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='tweet_tags'",
+            ).use { cursor ->
+                while (cursor.moveToNext()) {
+                    val name = cursor.getString(0)
+                    if (!name.startsWith("sqlite_autoindex_")) foundTagIndexes += name
+                }
             }
-        }
         assertEquals(
             "Both tweet_tags indexes should be recreated after 3→4 migration",
             expectedTagIndexes,
@@ -228,14 +254,15 @@ class MigrationTest {
                 "link_flair_text, gilded, over_18, `order`) " +
                 "VALUES ('post-1', 't3_post-1', 'Hello Reddit', 'body text', 'user1', " +
                 "'androiddev', 'r/androiddev', 1700000000, 'https://example.com', " +
-                "'/r/androiddev/post-1', NULL, 3, 7, 1, 0, 'self.androiddev', NULL, 0, 0, 1)"
+                "'/r/androiddev/post-1', NULL, 3, 7, 1, 0, 'self.androiddev', NULL, 0, 0, 1)",
         )
-        db.query(
-            "SELECT id, title FROM reddit_posts WHERE id = 'post-1'"
-        ).use { cursor ->
-            assertTrue("reddit_posts insert should succeed after 3→4 migration", cursor.moveToFirst())
-            assertEquals("Hello Reddit", cursor.getString(1))
-        }
+        db
+            .query(
+                "SELECT id, title FROM reddit_posts WHERE id = 'post-1'",
+            ).use { cursor ->
+                assertTrue("reddit_posts insert should succeed after 3→4 migration", cursor.moveToFirst())
+                assertEquals("Hello Reddit", cursor.getString(1))
+            }
 
         db.close()
     }
@@ -244,12 +271,13 @@ class MigrationTest {
     fun migrate4To5_createsDeletedBookmarksTable() {
         helper.createDatabase(TEST_DB, 4).apply { close() }
 
-        val db = helper.runMigrationsAndValidate(
-            TEST_DB,
-            5,
-            true,
-            MIGRATION_4_5,
-        )
+        val db =
+            helper.runMigrationsAndValidate(
+                TEST_DB,
+                5,
+                true,
+                MIGRATION_4_5,
+            )
 
         db.query("SELECT count(*) FROM deleted_bookmarks").use { cursor ->
             assertTrue("deleted_bookmarks table missing after migration", cursor.moveToFirst())
@@ -264,17 +292,18 @@ class MigrationTest {
         // Create a v5 database and insert a row with the old single-column PK schema.
         helper.createDatabase(TEST_DB, 5).apply {
             execSQL(
-                "INSERT INTO deleted_bookmarks (bookmarkId, source, deletedAt) VALUES ('abc123', 'twitter', 1000)"
+                "INSERT INTO deleted_bookmarks (bookmarkId, source, deletedAt) VALUES ('abc123', 'twitter', 1000)",
             )
             close()
         }
 
-        val db = helper.runMigrationsAndValidate(
-            TEST_DB,
-            6,
-            true,
-            MIGRATION_5_6,
-        )
+        val db =
+            helper.runMigrationsAndValidate(
+                TEST_DB,
+                6,
+                true,
+                MIGRATION_5_6,
+            )
 
         // Verify the row survived the migration.
         db.query("SELECT bookmarkId, source, deletedAt FROM deleted_bookmarks WHERE bookmarkId = 'abc123'").use { cursor ->
@@ -291,12 +320,13 @@ class MigrationTest {
     fun migrate6To7_indexesOrderColumns() {
         helper.createDatabase(TEST_DB, 6).apply { close() }
 
-        val db = helper.runMigrationsAndValidate(
-            TEST_DB,
-            7,
-            true,
-            MIGRATION_6_7,
-        )
+        val db =
+            helper.runMigrationsAndValidate(
+                TEST_DB,
+                7,
+                true,
+                MIGRATION_6_7,
+            )
 
         // Verify the two `order` indexes exist after migration. SQLite reports
         // indexes via the sqlite_master master table; index_tweetEntity_order
@@ -304,13 +334,14 @@ class MigrationTest {
         // sorts O(log n) instead of regressing to a full-table scan.
         val expectedIndexes = setOf("index_tweetEntity_order", "index_reddit_posts_order")
         val foundIndexes = mutableSetOf<String>()
-        db.query(
-            "SELECT name FROM sqlite_master WHERE type='index' AND name IN ('index_tweetEntity_order', 'index_reddit_posts_order')"
-        ).use { cursor ->
-            while (cursor.moveToNext()) {
-                foundIndexes += cursor.getString(0)
+        db
+            .query(
+                "SELECT name FROM sqlite_master WHERE type='index' AND name IN ('index_tweetEntity_order', 'index_reddit_posts_order')",
+            ).use { cursor ->
+                while (cursor.moveToNext()) {
+                    foundIndexes += cursor.getString(0)
+                }
             }
-        }
         assertEquals(
             "Both feed `order` indexes should exist after 6→7 migration",
             expectedIndexes,
@@ -336,23 +367,26 @@ class MigrationTest {
     fun migrate7To8_indexesPollIdsAndMediaKeysForeignKeys() {
         helper.createDatabase(TEST_DB, 7).apply { close() }
 
-        val db = helper.runMigrationsAndValidate(
-            TEST_DB,
-            8,
-            true,
-            MIGRATION_7_8,
-        )
+        val db =
+            helper.runMigrationsAndValidate(
+                TEST_DB,
+                8,
+                true,
+                MIGRATION_7_8,
+            )
 
-        val expected = setOf(
-            "index_pollIds_tweetId",
-            "index_mediaKeys_tweet_id",
-        )
+        val expected =
+            setOf(
+                "index_pollIds_tweetId",
+                "index_mediaKeys_tweet_id",
+            )
         val found = mutableSetOf<String>()
-        db.query(
-            "SELECT name FROM sqlite_master WHERE type='index' AND name IN ('index_pollIds_tweetId', 'index_mediaKeys_tweet_id')"
-        ).use { cursor ->
-            while (cursor.moveToNext()) found += cursor.getString(0)
-        }
+        db
+            .query(
+                "SELECT name FROM sqlite_master WHERE type='index' AND name IN ('index_pollIds_tweetId', 'index_mediaKeys_tweet_id')",
+            ).use { cursor ->
+                while (cursor.moveToNext()) found += cursor.getString(0)
+            }
         assertEquals(
             "Both FK-column indexes should exist after 7→8 migration",
             expected,
@@ -366,12 +400,13 @@ class MigrationTest {
     fun migrate8To9_addsRedditTagCrossRefTable() {
         helper.createDatabase(TEST_DB, 8).apply { close() }
 
-        val db = helper.runMigrationsAndValidate(
-            TEST_DB,
-            9,
-            true,
-            MIGRATION_8_9,
-        )
+        val db =
+            helper.runMigrationsAndValidate(
+                TEST_DB,
+                9,
+                true,
+                MIGRATION_8_9,
+            )
 
         // Table exists and has the expected shape.
         db.query("PRAGMA table_info(reddit_tag_crossref)").use { cursor ->
@@ -381,20 +416,22 @@ class MigrationTest {
         }
 
         // Both indexes were created.
-        val expected = setOf(
-            "index_reddit_tag_crossref_postId",
-            "index_reddit_tag_crossref_tagName",
-        )
+        val expected =
+            setOf(
+                "index_reddit_tag_crossref_postId",
+                "index_reddit_tag_crossref_tagName",
+            )
         val found = mutableSetOf<String>()
-        db.query(
-            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='reddit_tag_crossref'"
-        ).use { cursor ->
-            while (cursor.moveToNext()) {
-                val name = cursor.getString(0)
-                // Filter out the auto-generated PK index (`sqlite_autoindex_*`).
-                if (!name.startsWith("sqlite_autoindex_")) found += name
+        db
+            .query(
+                "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='reddit_tag_crossref'",
+            ).use { cursor ->
+                while (cursor.moveToNext()) {
+                    val name = cursor.getString(0)
+                    // Filter out the auto-generated PK index (`sqlite_autoindex_*`).
+                    if (!name.startsWith("sqlite_autoindex_")) found += name
+                }
             }
-        }
         assertEquals(
             "Both reddit_tag_crossref indexes should exist after 8→9",
             expected,
@@ -422,17 +459,18 @@ class MigrationTest {
                     (id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`)
                 VALUES
                     ('tweet-1', 'hi', '2026-05-21T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1)
-                """.trimIndent()
+                """.trimIndent(),
             )
             close()
         }
 
-        val db = helper.runMigrationsAndValidate(
-            TEST_DB,
-            10,
-            true,
-            MIGRATION_9_10,
-        )
+        val db =
+            helper.runMigrationsAndValidate(
+                TEST_DB,
+                10,
+                true,
+                MIGRATION_9_10,
+            )
 
         // Column exists with the correct affinity, NOT NULL constraint, and default 0.
         db.query("PRAGMA table_info(tweetEntity)").use { cursor ->
@@ -442,11 +480,12 @@ class MigrationTest {
             val notNullIdx = cursor.getColumnIndex("notnull")
             val defaultIdx = cursor.getColumnIndex("dflt_value")
             while (cursor.moveToNext()) {
-                schema[cursor.getString(nameIdx)] = Triple(
-                    cursor.getString(typeIdx),
-                    cursor.getInt(notNullIdx),
-                    cursor.getString(defaultIdx),
-                )
+                schema[cursor.getString(nameIdx)] =
+                    Triple(
+                        cursor.getString(typeIdx),
+                        cursor.getInt(notNullIdx),
+                        cursor.getString(defaultIdx),
+                    )
             }
             val pd = schema["pending_delete"]
             assertTrue("pending_delete column missing after 9→10 migration", pd != null)
@@ -478,7 +517,7 @@ class MigrationTest {
                     (id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete)
                 VALUES
                     ('tweet-1', 'jetpack compose brutalist redesign', '2026-05-23T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0)
-                """.trimIndent()
+                """.trimIndent(),
             )
             execSQL(
                 """
@@ -486,26 +525,28 @@ class MigrationTest {
                     (id, name, title, selftext, author, subreddit, subreddit_prefixed, created_utc, url, permalink, thumbnail, num_comments, score, is_self, is_video, domain, link_flair_text, gilded, over_18, `order`)
                 VALUES
                     ('post-1', 't3_post-1', 'jetpack compose tips', 'thoughts on a brutalist UI', 'redditor', 'androiddev', 'r/androiddev', 1730000000, 'https://example.com', '/r/androiddev/post-1', NULL, 5, 12, 1, 0, 'self.androiddev', NULL, 0, 0, 1)
-                """.trimIndent()
+                """.trimIndent(),
             )
             close()
         }
 
-        val db = helper.runMigrationsAndValidate(
-            TEST_DB,
-            11,
-            true,
-            MIGRATION_10_11,
-        )
+        val db =
+            helper.runMigrationsAndValidate(
+                TEST_DB,
+                11,
+                true,
+                MIGRATION_10_11,
+            )
 
         // Both FTS virtual tables exist.
         val expectedTables = setOf("tweet_fts", "reddit_fts")
         val foundTables = mutableSetOf<String>()
-        db.query(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('tweet_fts', 'reddit_fts')"
-        ).use { cursor ->
-            while (cursor.moveToNext()) foundTables += cursor.getString(0)
-        }
+        db
+            .query(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('tweet_fts', 'reddit_fts')",
+            ).use { cursor ->
+                while (cursor.moveToNext()) foundTables += cursor.getString(0)
+            }
         assertEquals(
             "Both FTS shadow tables should exist after 10→11 migration",
             expectedTables,
@@ -513,20 +554,22 @@ class MigrationTest {
         )
 
         // MATCH query against the seeded tweet row returns it.
-        db.query(
-            "SELECT t.id FROM tweetEntity t JOIN tweet_fts f ON t.rowid = f.rowid WHERE tweet_fts MATCH 'compose'"
-        ).use { cursor ->
-            assertTrue("Seeded tweet should match 'compose' after rebuild", cursor.moveToFirst())
-            assertEquals("tweet-1", cursor.getString(0))
-        }
+        db
+            .query(
+                "SELECT t.id FROM tweetEntity t JOIN tweet_fts f ON t.rowid = f.rowid WHERE tweet_fts MATCH 'compose'",
+            ).use { cursor ->
+                assertTrue("Seeded tweet should match 'compose' after rebuild", cursor.moveToFirst())
+                assertEquals("tweet-1", cursor.getString(0))
+            }
 
         // MATCH against reddit_fts spans both title + selftext columns.
-        db.query(
-            "SELECT r.id FROM reddit_posts r JOIN reddit_fts f ON r.rowid = f.rowid WHERE reddit_fts MATCH 'brutalist'"
-        ).use { cursor ->
-            assertTrue("Seeded reddit row should match 'brutalist' in selftext", cursor.moveToFirst())
-            assertEquals("post-1", cursor.getString(0))
-        }
+        db
+            .query(
+                "SELECT r.id FROM reddit_posts r JOIN reddit_fts f ON r.rowid = f.rowid WHERE reddit_fts MATCH 'brutalist'",
+            ).use { cursor ->
+                assertTrue("Seeded reddit row should match 'brutalist' in selftext", cursor.moveToFirst())
+                assertEquals("post-1", cursor.getString(0))
+            }
 
         // AFTER INSERT trigger keeps the FTS shadow live for new parent rows.
         db.execSQL(
@@ -535,14 +578,15 @@ class MigrationTest {
                 (id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete)
             VALUES
                 ('tweet-2', 'fresh searchable content', '2026-05-23T01:00:00Z', 'u1', 'tweet-2', NULL, 'en', 0, 2, 0)
-            """.trimIndent()
+            """.trimIndent(),
         )
-        db.query(
-            "SELECT t.id FROM tweetEntity t JOIN tweet_fts f ON t.rowid = f.rowid WHERE tweet_fts MATCH 'searchable'"
-        ).use { cursor ->
-            assertTrue("AFTER INSERT trigger should propagate to tweet_fts", cursor.moveToFirst())
-            assertEquals("tweet-2", cursor.getString(0))
-        }
+        db
+            .query(
+                "SELECT t.id FROM tweetEntity t JOIN tweet_fts f ON t.rowid = f.rowid WHERE tweet_fts MATCH 'searchable'",
+            ).use { cursor ->
+                assertTrue("AFTER INSERT trigger should propagate to tweet_fts", cursor.moveToFirst())
+                assertEquals("tweet-2", cursor.getString(0))
+            }
 
         db.close()
     }
@@ -551,12 +595,13 @@ class MigrationTest {
     fun migrate11To12_createsSyncProgressTable() {
         helper.createDatabase(TEST_DB, 11).apply { close() }
 
-        val db = helper.runMigrationsAndValidate(
-            TEST_DB,
-            12,
-            true,
-            MIGRATION_11_12,
-        )
+        val db =
+            helper.runMigrationsAndValidate(
+                TEST_DB,
+                12,
+                true,
+                MIGRATION_11_12,
+            )
 
         // Table exists with the seven expected columns and the uid primary key.
         val columns = mutableMapOf<String, Pair<String, Int>>() // name → (type, notNull)
@@ -590,19 +635,20 @@ class MigrationTest {
                 "last_low_cursor_created_at, last_low_cursor_tweet_id, " +
                 "total_batches_ingested, last_updated_at_ms) " +
                 "VALUES ('uid-test', '2026-05-24T15:00:00Z', 'tweet-123', " +
-                "NULL, NULL, 5, 1700000000)"
+                "NULL, NULL, 5, 1700000000)",
         )
-        db.query(
-            "SELECT last_high_cursor_created_at, last_high_cursor_tweet_id, " +
-                "last_low_cursor_created_at, total_batches_ingested " +
-                "FROM sync_progress WHERE uid = 'uid-test'"
-        ).use { cursor ->
-            assertTrue(cursor.moveToFirst())
-            assertEquals("2026-05-24T15:00:00Z", cursor.getString(0))
-            assertEquals("tweet-123", cursor.getString(1))
-            assertTrue("low cursor should be NULL on the inserted row", cursor.isNull(2))
-            assertEquals(5, cursor.getInt(3))
-        }
+        db
+            .query(
+                "SELECT last_high_cursor_created_at, last_high_cursor_tweet_id, " +
+                    "last_low_cursor_created_at, total_batches_ingested " +
+                    "FROM sync_progress WHERE uid = 'uid-test'",
+            ).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("2026-05-24T15:00:00Z", cursor.getString(0))
+                assertEquals("tweet-123", cursor.getString(1))
+                assertTrue("low cursor should be NULL on the inserted row", cursor.isNull(2))
+                assertEquals(5, cursor.getInt(3))
+            }
 
         // Primary-key constraint: a second insert at the same uid replaces via
         // OnConflictStrategy.REPLACE in the DAO, but at the raw migration
@@ -620,17 +666,18 @@ class MigrationTest {
             execSQL(
                 "INSERT INTO tweetEntity " +
                     "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete) " +
-                    "VALUES ('tweet-1', 'hello', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0)"
+                    "VALUES ('tweet-1', 'hello', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0)",
             )
             close()
         }
 
-        val db = helper.runMigrationsAndValidate(
-            TEST_DB,
-            13,
-            true,
-            MIGRATION_12_13,
-        )
+        val db =
+            helper.runMigrationsAndValidate(
+                TEST_DB,
+                13,
+                true,
+                MIGRATION_12_13,
+            )
 
         // The retrieved_at column exists, is INTEGER, and is nullable (notNull = 0).
         val columns = mutableMapOf<String, Pair<String, Int>>() // name → (type, notNull)
@@ -672,17 +719,18 @@ class MigrationTest {
             execSQL(
                 "INSERT INTO tweetEntity " +
                     "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete, retrieved_at) " +
-                    "VALUES ('tweet-1', 'hello', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0, NULL)"
+                    "VALUES ('tweet-1', 'hello', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0, NULL)",
             )
             close()
         }
 
-        val db = helper.runMigrationsAndValidate(
-            TEST_DB,
-            14,
-            true,
-            MIGRATION_13_14,
-        )
+        val db =
+            helper.runMigrationsAndValidate(
+                TEST_DB,
+                14,
+                true,
+                MIGRATION_13_14,
+            )
 
         // The conversation_id index exists under Room's generated name (`index_<table>_<col>`).
         val indexNames = mutableSetOf<String>()
@@ -713,22 +761,23 @@ class MigrationTest {
             execSQL(
                 "INSERT INTO tweetEntity " +
                     "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete, retrieved_at) " +
-                    "VALUES ('tweet-1', 'hi', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0, NULL)"
+                    "VALUES ('tweet-1', 'hi', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0, NULL)",
             )
             execSQL(
                 "INSERT INTO tweetMedia " +
                     "(media_key, type, url, duration_ms, height, width, preview_image_url, alt_text, tweet_id) " +
-                    "VALUES ('mk1', 'video', 'https://v/legacy.mp4', 12000, 720, 1280, 'https://img/p.jpg', NULL, 'tweet-1')"
+                    "VALUES ('mk1', 'video', 'https://v/legacy.mp4', 12000, 720, 1280, 'https://img/p.jpg', NULL, 'tweet-1')",
             )
             close()
         }
 
-        val db = helper.runMigrationsAndValidate(
-            TEST_DB,
-            15,
-            true,
-            MIGRATION_14_15,
-        )
+        val db =
+            helper.runMigrationsAndValidate(
+                TEST_DB,
+                15,
+                true,
+                MIGRATION_14_15,
+            )
 
         // The video_variants column exists, is TEXT, and is nullable (notNull = 0).
         val columns = mutableMapOf<String, Pair<String, Int>>() // name → (type, notNull)
@@ -753,7 +802,7 @@ class MigrationTest {
             "INSERT INTO tweetMedia " +
                 "(media_key, type, url, duration_ms, height, width, preview_image_url, alt_text, tweet_id, video_variants) " +
                 "VALUES ('mk2', 'video', 'https://v/master.m3u8', 0, 0, 0, NULL, NULL, 'tweet-1', " +
-                "'[{\"bit_rate\":0,\"content_type\":\"application/x-mpegURL\",\"url\":\"https://v/master.m3u8\"}]')"
+                "'[{\"bit_rate\":0,\"content_type\":\"application/x-mpegURL\",\"url\":\"https://v/master.m3u8\"}]')",
         )
         db.query("SELECT video_variants FROM tweetMedia WHERE media_key = 'mk2'").use { cursor ->
             assertTrue(cursor.moveToFirst())
@@ -774,24 +823,25 @@ class MigrationTest {
             execSQL(
                 "INSERT INTO tweetEntity " +
                     "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete, retrieved_at) " +
-                    "VALUES ('tweet-1', 'hi https://example.com', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0, NULL)"
+                    "VALUES ('tweet-1', 'hi https://example.com', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0, NULL)",
             )
             execSQL(
                 "INSERT INTO tweetTextEntityAnnotation " +
                     "(start, end, title, description, url, expanded_url, display_url, unwound_url, " +
                     "media_key, normalized_text, tweet_id, type) " +
                     "VALUES (0, 18, NULL, NULL, 'https://t.co/x', 'https://example.com/article', " +
-                    "'example.com/article', NULL, NULL, NULL, 'tweet-1', 'urls')"
+                    "'example.com/article', NULL, NULL, NULL, 'tweet-1', 'urls')",
             )
             close()
         }
 
-        val db = helper.runMigrationsAndValidate(
-            TEST_DB,
-            16,
-            true,
-            MIGRATION_15_16,
-        )
+        val db =
+            helper.runMigrationsAndValidate(
+                TEST_DB,
+                16,
+                true,
+                MIGRATION_15_16,
+            )
 
         // The image_url column exists, is TEXT, and is nullable (notNull = 0).
         val columns = mutableMapOf<String, Pair<String, Int>>() // name → (type, notNull)
@@ -817,7 +867,7 @@ class MigrationTest {
                 "(start, end, title, description, url, expanded_url, display_url, unwound_url, " +
                 "media_key, normalized_text, tweet_id, type, image_url) " +
                 "VALUES (0, 18, 'Brutalist Web', 'A guide', 'https://t.co/y', 'https://example.com/b', " +
-                "'example.com/b', NULL, NULL, NULL, 'tweet-1', 'urls', 'https://cdn.example.com/og.jpg')"
+                "'example.com/b', NULL, NULL, NULL, 'tweet-1', 'urls', 'https://cdn.example.com/og.jpg')",
         )
         db.query("SELECT title, image_url FROM tweetTextEntityAnnotation WHERE expanded_url = 'https://example.com/b'").use { cursor ->
             assertTrue(cursor.moveToFirst())
@@ -834,17 +884,18 @@ class MigrationTest {
         // new tweet_id column defaults to '' for rows that predate it.
         helper.createDatabase(TEST_DB, 16).apply {
             execSQL(
-                "INSERT INTO tweetReferencedTweets (type, id) VALUES ('quoted', 'quoted-1')"
+                "INSERT INTO tweetReferencedTweets (type, id) VALUES ('quoted', 'quoted-1')",
             )
             close()
         }
 
-        val db = helper.runMigrationsAndValidate(
-            TEST_DB,
-            17,
-            true,
-            MIGRATION_16_17,
-        )
+        val db =
+            helper.runMigrationsAndValidate(
+                TEST_DB,
+                17,
+                true,
+                MIGRATION_16_17,
+            )
 
         // The tweet_id column exists, is TEXT, and is NOT NULL.
         val columns = mutableMapOf<String, Pair<String, Int>>() // name → (type, notNull)
@@ -881,7 +932,7 @@ class MigrationTest {
 
         // A freshly-inserted reference row round-trips its parent tweet_id.
         db.execSQL(
-            "INSERT INTO tweetReferencedTweets (type, id, tweet_id) VALUES ('quoted', 'quoted-2', 'parent-1')"
+            "INSERT INTO tweetReferencedTweets (type, id, tweet_id) VALUES ('quoted', 'quoted-2', 'parent-1')",
         )
         db.query("SELECT tweet_id FROM tweetReferencedTweets WHERE id = 'quoted-2'").use { cursor ->
             assertTrue(cursor.moveToFirst())
@@ -899,36 +950,37 @@ class MigrationTest {
             execSQL(
                 "INSERT INTO tweetEntity " +
                     "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete, retrieved_at) " +
-                    "VALUES ('tweet-1', 'hi', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0, NULL)"
+                    "VALUES ('tweet-1', 'hi', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0, NULL)",
             )
             // Broken row: tweet_id NULL, but a junction entry maps its media_key → tweet-1.
             execSQL(
                 "INSERT INTO tweetMedia " +
                     "(media_key, type, url, duration_ms, height, width, preview_image_url, alt_text, tweet_id) " +
-                    "VALUES ('mk-null', 'photo', 'https://img/a.jpg', 0, 0, 0, NULL, NULL, NULL)"
+                    "VALUES ('mk-null', 'photo', 'https://img/a.jpg', 0, 0, 0, NULL, NULL, NULL)",
             )
             execSQL("INSERT INTO mediaKeys (tweet_id, media_key) VALUES ('tweet-1', 'mk-null')")
             // Orphan row: tweet_id NULL and NO junction entry — nothing on-device to repair from.
             execSQL(
                 "INSERT INTO tweetMedia " +
                     "(media_key, type, url, duration_ms, height, width, preview_image_url, alt_text, tweet_id) " +
-                    "VALUES ('mk-orphan', 'photo', 'https://img/b.jpg', 0, 0, 0, NULL, NULL, NULL)"
+                    "VALUES ('mk-orphan', 'photo', 'https://img/b.jpg', 0, 0, 0, NULL, NULL, NULL)",
             )
             // Control row: already correct — the `WHERE tweet_id IS NULL` guard must skip it.
             execSQL(
                 "INSERT INTO tweetMedia " +
                     "(media_key, type, url, duration_ms, height, width, preview_image_url, alt_text, tweet_id) " +
-                    "VALUES ('mk-ok', 'photo', 'https://img/c.jpg', 0, 0, 0, NULL, NULL, 'tweet-1')"
+                    "VALUES ('mk-ok', 'photo', 'https://img/c.jpg', 0, 0, 0, NULL, NULL, 'tweet-1')",
             )
             close()
         }
 
-        val db = helper.runMigrationsAndValidate(
-            TEST_DB,
-            18,
-            true,
-            MIGRATION_17_18,
-        )
+        val db =
+            helper.runMigrationsAndValidate(
+                TEST_DB,
+                18,
+                true,
+                MIGRATION_17_18,
+            )
 
         // Broken row is repaired from the junction.
         db.query("SELECT tweet_id FROM tweetMedia WHERE media_key = 'mk-null'").use { cursor ->
@@ -949,13 +1001,14 @@ class MigrationTest {
         }
 
         // No media row that HAS a junction mapping is left NULL after the migration.
-        db.query(
-            "SELECT COUNT(*) FROM tweetMedia m WHERE m.tweet_id IS NULL " +
-                "AND EXISTS (SELECT 1 FROM mediaKeys k WHERE k.media_key = m.media_key)"
-        ).use { cursor ->
-            assertTrue(cursor.moveToFirst())
-            assertEquals("no repairable media row should remain NULL", 0, cursor.getInt(0))
-        }
+        db
+            .query(
+                "SELECT COUNT(*) FROM tweetMedia m WHERE m.tweet_id IS NULL " +
+                    "AND EXISTS (SELECT 1 FROM mediaKeys k WHERE k.media_key = m.media_key)",
+            ).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("no repairable media row should remain NULL", 0, cursor.getInt(0))
+            }
 
         db.close()
     }
@@ -968,40 +1021,41 @@ class MigrationTest {
             execSQL(
                 "INSERT INTO tweetEntity " +
                     "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete, retrieved_at) " +
-                    "VALUES ('tweet-1', 'hi', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0, NULL)"
+                    "VALUES ('tweet-1', 'hi', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0, NULL)",
             )
             execSQL(
                 "INSERT INTO tweetEntity " +
                     "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete, retrieved_at) " +
-                    "VALUES ('tweet-2', 'yo', '2024-01-02T00:00:00Z', 'u1', 'tweet-2', NULL, 'en', 0, 2, 0, NULL)"
+                    "VALUES ('tweet-2', 'yo', '2024-01-02T00:00:00Z', 'u1', 'tweet-2', NULL, 'en', 0, 2, 0, NULL)",
             )
             // Media + junction rows that the wipe must discard.
             execSQL(
                 "INSERT INTO tweetMedia " +
                     "(media_key, type, url, duration_ms, height, width, preview_image_url, alt_text, tweet_id, video_variants) " +
-                    "VALUES ('mk1', 'photo', 'https://img/1.jpg', 0, 0, 0, NULL, NULL, 'tweet-1', NULL)"
+                    "VALUES ('mk1', 'photo', 'https://img/1.jpg', 0, 0, 0, NULL, NULL, 'tweet-1', NULL)",
             )
             execSQL(
                 "INSERT INTO tweetMedia " +
                     "(media_key, type, url, duration_ms, height, width, preview_image_url, alt_text, tweet_id, video_variants) " +
-                    "VALUES ('mk2', 'photo', 'https://img/2.jpg', 0, 0, 0, NULL, NULL, 'tweet-2', NULL)"
+                    "VALUES ('mk2', 'photo', 'https://img/2.jpg', 0, 0, 0, NULL, NULL, 'tweet-2', NULL)",
             )
             execSQL("INSERT INTO mediaKeys (tweet_id, media_key) VALUES ('tweet-1', 'mk1')")
             execSQL("INSERT INTO mediaKeys (tweet_id, media_key) VALUES ('tweet-2', 'mk2')")
             // tweetIncludes row to be preserved (its media_key references mk1 under the v18 FK).
             execSQL(
                 "INSERT INTO tweetIncludes (tweet_id, twitter_user, referenced_tweet_id, media_key) " +
-                    "VALUES ('tweet-1', NULL, NULL, 'mk1')"
+                    "VALUES ('tweet-1', NULL, NULL, 'mk1')",
             )
             close()
         }
 
-        val db = helper.runMigrationsAndValidate(
-            TEST_DB,
-            19,
-            true,
-            MIGRATION_18_19,
-        )
+        val db =
+            helper.runMigrationsAndValidate(
+                TEST_DB,
+                19,
+                true,
+                MIGRATION_18_19,
+            )
 
         // Media tables are WIPED (their corrupt single-attribution rows are unrecoverable).
         db.query("SELECT COUNT(*) FROM tweetMedia").use { cursor ->
@@ -1073,11 +1127,11 @@ class MigrationTest {
         // Composite-key round-trip: the SAME media_key attaches to two different tweets...
         db.execSQL(
             "INSERT INTO tweetMedia (media_key, type, url, duration_ms, height, width, preview_image_url, alt_text, tweet_id, video_variants) " +
-                "VALUES ('mk-shared', 'photo', NULL, 0, 0, 0, NULL, NULL, 'tweet-1', NULL)"
+                "VALUES ('mk-shared', 'photo', NULL, 0, 0, 0, NULL, NULL, 'tweet-1', NULL)",
         )
         db.execSQL(
             "INSERT INTO tweetMedia (media_key, type, url, duration_ms, height, width, preview_image_url, alt_text, tweet_id, video_variants) " +
-                "VALUES ('mk-shared', 'photo', NULL, 0, 0, 0, NULL, NULL, 'tweet-2', NULL)"
+                "VALUES ('mk-shared', 'photo', NULL, 0, 0, 0, NULL, NULL, 'tweet-2', NULL)",
         )
         db.query("SELECT COUNT(*) FROM tweetMedia WHERE media_key = 'mk-shared'").use { cursor ->
             assertTrue(cursor.moveToFirst())
@@ -1088,7 +1142,7 @@ class MigrationTest {
         try {
             db.execSQL(
                 "INSERT INTO tweetMedia (media_key, type, url, duration_ms, height, width, preview_image_url, alt_text, tweet_id, video_variants) " +
-                    "VALUES ('mk-shared', 'photo', NULL, 0, 0, 0, NULL, NULL, 'tweet-1', NULL)"
+                    "VALUES ('mk-shared', 'photo', NULL, 0, 0, 0, NULL, NULL, 'tweet-1', NULL)",
             )
         } catch (e: Exception) {
             pkCollision = true
@@ -1109,17 +1163,18 @@ class MigrationTest {
                     "last_low_cursor_created_at, last_low_cursor_tweet_id, " +
                     "total_batches_ingested, last_updated_at_ms) " +
                     "VALUES ('uid-test', '2026-06-01T00:00:00Z', 'tw-high', " +
-                    "'2026-05-01T00:00:00Z', 'tw-low', 9, 1700000000)"
+                    "'2026-05-01T00:00:00Z', 'tw-low', 9, 1700000000)",
             )
             close()
         }
 
-        val db = helper.runMigrationsAndValidate(
-            TEST_DB,
-            20,
-            true,
-            MIGRATION_19_20,
-        )
+        val db =
+            helper.runMigrationsAndValidate(
+                TEST_DB,
+                20,
+                true,
+                MIGRATION_19_20,
+            )
 
         // sync_progress now has 8 columns; the new one is a nullable INTEGER, the rest unchanged.
         val columns = mutableMapOf<String, Pair<String, Int>>() // name → (type, notNull)
@@ -1143,15 +1198,16 @@ class MigrationTest {
         assertEquals("INTEGER" to 1, columns["last_updated_at_ms"])
 
         // The seeded v19 row survives, with the new watermark column NULL.
-        db.query(
-            "SELECT last_low_cursor_created_at, total_batches_ingested, last_incremental_retrieved_at_ms " +
-                "FROM sync_progress WHERE uid = 'uid-test'"
-        ).use { cursor ->
-            assertTrue(cursor.moveToFirst())
-            assertEquals("2026-05-01T00:00:00Z", cursor.getString(0))
-            assertEquals(9, cursor.getInt(1))
-            assertTrue("legacy sync_progress row's watermark must be NULL", cursor.isNull(2))
-        }
+        db
+            .query(
+                "SELECT last_low_cursor_created_at, total_batches_ingested, last_incremental_retrieved_at_ms " +
+                    "FROM sync_progress WHERE uid = 'uid-test'",
+            ).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("2026-05-01T00:00:00Z", cursor.getString(0))
+                assertEquals(9, cursor.getInt(1))
+                assertTrue("legacy sync_progress row's watermark must be NULL", cursor.isNull(2))
+            }
 
         // A fresh checkpoint round-trips a non-null watermark through the new column.
         db.execSQL(
@@ -1159,7 +1215,7 @@ class MigrationTest {
                 "(uid, last_high_cursor_created_at, last_high_cursor_tweet_id, " +
                 "last_low_cursor_created_at, last_low_cursor_tweet_id, " +
                 "total_batches_ingested, last_updated_at_ms, last_incremental_retrieved_at_ms) " +
-                "VALUES ('uid-2', NULL, NULL, NULL, NULL, 0, 1700000001, 1699999999000)"
+                "VALUES ('uid-2', NULL, NULL, NULL, NULL, 0, 1700000001, 1699999999000)",
         )
         db.query("SELECT last_incremental_retrieved_at_ms FROM sync_progress WHERE uid = 'uid-2'").use { cursor ->
             assertTrue(cursor.moveToFirst())

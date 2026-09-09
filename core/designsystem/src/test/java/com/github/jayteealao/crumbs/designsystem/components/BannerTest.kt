@@ -16,7 +16,6 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class BannerTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -32,7 +31,8 @@ class BannerTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBanner_syncError_light.png")
     }
 
@@ -48,7 +48,8 @@ class BannerTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBanner_syncError_dark.png")
     }
 
@@ -62,7 +63,8 @@ class BannerTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBanner_success_light.png")
     }
 
@@ -76,7 +78,8 @@ class BannerTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBanner_success_dark.png")
     }
 }

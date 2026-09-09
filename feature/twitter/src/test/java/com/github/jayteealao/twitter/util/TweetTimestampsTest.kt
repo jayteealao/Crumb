@@ -9,7 +9,6 @@ import org.junit.Test
  * fabricated value) for anything it cannot parse. Epoch-0 anchors keep the expectations obvious.
  */
 class TweetTimestampsTest {
-
     @Test
     fun isoZuluWithMillis() {
         assertEquals(0L, parseTweetTimestamp("1970-01-01T00:00:00.000Z"))

@@ -6,8 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -51,11 +51,12 @@ internal fun CrumbsVideoControls(
     val progress = rememberProgressStateWithTickInterval(player, tickIntervalMs = 250L)
 
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(colors.surface)
-            .padding(horizontal = 10.dp, vertical = 6.dp)
-            .testTag("bookmark-card-video-controls"),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .background(colors.surface)
+                .padding(horizontal = 10.dp, vertical = 6.dp)
+                .testTag("bookmark-card-video-controls"),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -64,33 +65,37 @@ internal fun CrumbsVideoControls(
             text = if (playPause.showPlay) "PLAY" else "PAUSE",
             style = typography.captionMono,
             color = colors.ink,
-            modifier = Modifier
-                .clickable(enabled = playPause.isEnabled) { playPause.onClick() }
-                .padding(horizontal = 4.dp)
-                .testTag("video-play-pause"),
+            modifier =
+                Modifier
+                    .clickable(enabled = playPause.isEnabled) { playPause.onClick() }
+                    .padding(horizontal = 4.dp)
+                    .testTag("video-play-pause"),
         )
 
         // Hairline progress rule — fills with ink as playback advances. A thin
         // brutalist bar rather than a Material slider; tap-to-seek is intentionally
         // out of scope for v1 (tap-to-play + expand are the AC affordances).
         val duration = progress.durationMs.coerceAtLeast(0L)
-        val fraction = if (duration > 0L) {
-            (progress.currentPositionMs.toFloat() / duration).coerceIn(0f, 1f)
-        } else {
-            0f
-        }
+        val fraction =
+            if (duration > 0L) {
+                (progress.currentPositionMs.toFloat() / duration).coerceIn(0f, 1f)
+            } else {
+                0f
+            }
         Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(stroke.emphasis)
-                .background(colors.onSurfaceVariant)
-                .testTag("video-progress"),
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .height(stroke.emphasis)
+                    .background(colors.onSurfaceVariant)
+                    .testTag("video-progress"),
         ) {
             Box(
-                modifier = Modifier
-                    .fillMaxWidth(fraction)
-                    .fillMaxHeight()
-                    .background(colors.ink),
+                modifier =
+                    Modifier
+                        .fillMaxWidth(fraction)
+                        .fillMaxHeight()
+                        .background(colors.ink),
             )
         }
 
@@ -99,10 +104,11 @@ internal fun CrumbsVideoControls(
             text = if (mute.showMuted) "MUTE" else "VOL",
             style = typography.captionMono,
             color = colors.ink,
-            modifier = Modifier
-                .width(36.dp)
-                .clickable(enabled = mute.isEnabled) { mute.onClick() }
-                .testTag("video-mute"),
+            modifier =
+                Modifier
+                    .width(36.dp)
+                    .clickable(enabled = mute.isEnabled) { mute.onClick() }
+                    .testTag("video-mute"),
         )
     }
 }

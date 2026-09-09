@@ -72,9 +72,10 @@ fun FilterOverlay(
         modifier = modifier,
         header = {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(spacing.md),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(spacing.md),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
@@ -88,16 +89,16 @@ fun FilterOverlay(
         },
         footer = {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(colors.background)
-                    .border(stroke.hairline, colors.ink)
-                    .padding(spacing.md)
-                    .semantics(mergeDescendants = true) {
-                        contentDescription = "Apply filters"
-                    }
-                    .clickable(role = Role.Button) { onApply() }
-                    .testTag("filter-overlay-apply"),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .background(colors.background)
+                        .border(stroke.hairline, colors.ink)
+                        .padding(spacing.md)
+                        .semantics(mergeDescendants = true) {
+                            contentDescription = "Apply filters"
+                        }.clickable(role = Role.Button) { onApply() }
+                        .testTag("filter-overlay-apply"),
                 horizontalArrangement = Arrangement.Center,
             ) {
                 Text(
@@ -109,9 +110,10 @@ fun FilterOverlay(
         },
     ) {
         LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag("filter-overlay"),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .testTag("filter-overlay"),
             contentPadding = PaddingValues(spacing.md),
         ) {
             sections.forEach { section ->
@@ -127,18 +129,18 @@ fun FilterOverlay(
                     val selected = chip.id in selectedChipIds
                     val interaction = remember { MutableInteractionSource() }
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .semantics(mergeDescendants = true) {
-                                contentDescription = if (selected) "Remove ${chip.label} filter" else "Add ${chip.label} filter"
-                            }
-                            .clickable(
-                                interactionSource = interaction,
-                                indication = null,
-                                role = Role.Button,
-                            ) { onChipToggled(chip.id) }
-                            .testTag("filter-overlay-chip-${chip.id}"),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .semantics(mergeDescendants = true) {
+                                    contentDescription = if (selected) "Remove ${chip.label} filter" else "Add ${chip.label} filter"
+                                }.clickable(
+                                    interactionSource = interaction,
+                                    indication = null,
+                                    role = Role.Button,
+                                ) { onChipToggled(chip.id) }
+                                .testTag("filter-overlay-chip-${chip.id}"),
                     ) {
                         if (selected) {
                             CrumbsFilterChipActive(
@@ -167,16 +169,17 @@ private fun PreviewFilterOverlayLight() {
     CrumbsTheme(darkTheme = false) {
         FilterOverlay(
             visible = true,
-            sections = persistentListOf(
-                FilterOverlaySection(
-                    "Type",
-                    persistentListOf(
-                        FilterChipItem("all", "ALL"),
-                        FilterChipItem("article", "ARTICLES"),
-                        FilterChipItem("video", "VIDEOS"),
+            sections =
+                persistentListOf(
+                    FilterOverlaySection(
+                        "Type",
+                        persistentListOf(
+                            FilterChipItem("all", "ALL"),
+                            FilterChipItem("article", "ARTICLES"),
+                            FilterChipItem("video", "VIDEOS"),
+                        ),
                     ),
                 ),
-            ),
             selectedChipIds = setOf("article"),
             onChipToggled = {},
             onDismiss = {},

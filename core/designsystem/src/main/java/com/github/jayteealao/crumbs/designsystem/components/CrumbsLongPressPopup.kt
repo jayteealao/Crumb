@@ -31,8 +31,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.dropShadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -44,9 +44,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -112,12 +112,13 @@ fun CrumbsLongPressPopup(
     Popup(
         popupPositionProvider = ScreenOriginPopupPositionProvider,
         onDismissRequest = onDismiss,
-        properties = PopupProperties(
-            focusable = true,
-            dismissOnBackPress = true,
-            dismissOnClickOutside = true,
-            clippingEnabled = false,
-        ),
+        properties =
+            PopupProperties(
+                focusable = true,
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true,
+                clippingEnabled = false,
+            ),
     ) {
         // Bug 1 fix: the Popup window is anchored at the screen origin (the
         // position provider returns IntOffset.Zero) so the scrim always fills
@@ -132,55 +133,58 @@ fun CrumbsLongPressPopup(
         // screen-origin window, scrim taps fall *inside* the popup window where
         // dismissOnClickOutside can't observe them, so dismiss explicitly here.
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.32f))
-                .clickable(
-                    interactionSource = scrimInteraction,
-                    indication = null,
-                ) { onDismiss() }
-                .testTag("popup-scrim"),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.32f))
+                    .clickable(
+                        interactionSource = scrimInteraction,
+                        indication = null,
+                    ) { onDismiss() }
+                    .testTag("popup-scrim"),
         )
         // Brutalist hard offset shadow via Compose 1.11.x native Modifier.dropShadow —
         // radius=0, spread=0, +6dp/+6dp offset, ink color (handoff-tokens.jsx:273-274).
         // The card is positioned at the fingertip via Modifier.offset, clamped to
         // the window bounds (the clamp formerly lived in the position provider).
         Column(
-            modifier = modifier
-                .onSizeChanged { cardSize = it }
-                .offset {
-                    val maxX = (windowSize.width - cardSize.width).coerceAtLeast(0)
-                    val maxY = (windowSize.height - cardSize.height).coerceAtLeast(0)
-                    IntOffset(
-                        x = anchorOffsetPx.x.roundToInt().coerceIn(0, maxX),
-                        y = anchorOffsetPx.y.roundToInt().coerceIn(0, maxY),
-                    )
-                }
-                .dropShadow(
-                    shape = shapes.dialog,
-                    shadow = Shadow(
-                        radius = 0.dp,
-                        spread = 0.dp,
-                        color = colors.offsetShadow,
-                        offset = DpOffset(CrumbsStroke.offsetX, CrumbsStroke.offsetY),
-                    ),
-                )
-                .background(colors.surface)
-                .border(stroke.regular, colors.ink, shapes.dialog)
-                .testTag("popup"),
+            modifier =
+                modifier
+                    .onSizeChanged { cardSize = it }
+                    .offset {
+                        val maxX = (windowSize.width - cardSize.width).coerceAtLeast(0)
+                        val maxY = (windowSize.height - cardSize.height).coerceAtLeast(0)
+                        IntOffset(
+                            x = anchorOffsetPx.x.roundToInt().coerceIn(0, maxX),
+                            y = anchorOffsetPx.y.roundToInt().coerceIn(0, maxY),
+                        )
+                    }.dropShadow(
+                        shape = shapes.dialog,
+                        shadow =
+                            Shadow(
+                                radius = 0.dp,
+                                spread = 0.dp,
+                                color = colors.offsetShadow,
+                                offset = DpOffset(CrumbsStroke.offsetX, CrumbsStroke.offsetY),
+                            ),
+                    ).background(colors.surface)
+                    .border(stroke.regular, colors.ink, shapes.dialog)
+                    .testTag("popup"),
         ) {
             if (headerKicker != null || headerHandle != null || headerAge != null) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(spacing.sm),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(spacing.sm),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(spacing.sm),
                 ) {
                     Box(
-                        modifier = Modifier
-                            .size(20.dp)
-                            .background(colors.accent),
+                        modifier =
+                            Modifier
+                                .size(20.dp)
+                                .background(colors.accent),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
@@ -205,10 +209,11 @@ fun CrumbsLongPressPopup(
                     }
                     if (headerAge != null) {
                         Box(
-                            modifier = Modifier
-                                .width(stroke.hairline)
-                                .padding(vertical = 2.dp)
-                                .background(colors.ink),
+                            modifier =
+                                Modifier
+                                    .width(stroke.hairline)
+                                    .padding(vertical = 2.dp)
+                                    .background(colors.ink),
                         )
                         Text(
                             text = headerAge.uppercase(),
@@ -218,10 +223,11 @@ fun CrumbsLongPressPopup(
                     }
                 }
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(stroke.hairline)
-                        .background(colors.ink),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(stroke.hairline)
+                            .background(colors.ink),
                 )
             }
             // 2×2 grid with 8dp gaps between cells (handoff-components.jsx:614).
@@ -238,17 +244,16 @@ fun CrumbsLongPressPopup(
                         rowActions.forEach { action ->
                             PopupActionCell(
                                 action = action,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .semantics(mergeDescendants = true) {
-                                        role = Role.Button
-                                        contentDescription = action.label
-                                    }
-                                    .clickable {
-                                        onSelect(action)
-                                        onDismiss()
-                                    }
-                                    .testTag("popup-action-${action.id}"),
+                                modifier =
+                                    Modifier
+                                        .weight(1f)
+                                        .semantics(mergeDescendants = true) {
+                                            role = Role.Button
+                                            contentDescription = action.label
+                                        }.clickable {
+                                            onSelect(action)
+                                            onDismiss()
+                                        }.testTag("popup-action-${action.id}"),
                             )
                         }
                         // Pad short final row with an empty weighted spacer to
@@ -276,19 +281,21 @@ internal fun PopupActionCell(
 
     val bg = if (action.primary) colors.accent else colors.surface
     val borderColor = if (action.danger) colors.error else colors.ink
-    val labelColor = when {
-        action.danger -> colors.error
-        action.primary -> colors.onAccent
-        else -> colors.ink
-    }
+    val labelColor =
+        when {
+            action.danger -> colors.error
+            action.primary -> colors.onAccent
+            else -> colors.ink
+        }
     val hintColor = if (action.primary) colors.onAccent.copy(alpha = 0.65f) else colors.ink.copy(alpha = 0.65f)
     val icon = actionIcon(action.id)
 
     Column(
-        modifier = modifier
-            .background(bg)
-            .border(stroke.regular, borderColor, shapes.dialog)
-            .padding(horizontal = spacing.md, vertical = spacing.sm),
+        modifier =
+            modifier
+                .background(bg)
+                .border(stroke.regular, borderColor, shapes.dialog)
+                .padding(horizontal = spacing.md, vertical = spacing.sm),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -317,13 +324,14 @@ internal fun PopupActionCell(
 
 // Per-action icon — JS spec carries no icon field on CrumbsAction so the
 // mapping lives here as a Compose-only enhancement.
-private fun actionIcon(id: String): ImageVector? = when (id) {
-    "tag" -> Icons.Default.LocalOffer
-    "open" -> Icons.Default.Language
-    "share" -> Icons.Default.Share
-    "delete" -> Icons.Default.Delete
-    else -> null
-}
+private fun actionIcon(id: String): ImageVector? =
+    when (id) {
+        "tag" -> Icons.Default.LocalOffer
+        "open" -> Icons.Default.Language
+        "share" -> Icons.Default.Share
+        "delete" -> Icons.Default.Delete
+        else -> null
+    }
 
 // Anchors the Popup window at the host-window origin so its full-screen scrim
 // covers the entire screen. The action card is positioned at the fingertip
@@ -370,12 +378,13 @@ fun bookmarkPopupActions(
     onShare: () -> Unit,
     onDelete: () -> Unit,
 ): LongPressActions {
-    val actions = persistentListOf(
-        CrumbsAction(id = "tag", label = "Tag", hint = "Add", primary = true),
-        CrumbsAction(id = "open", label = "Open", hint = "Url"),
-        CrumbsAction(id = "share", label = "Share", hint = "Link"),
-        CrumbsAction(id = "delete", label = "Delete", hint = "Remove", danger = true),
-    )
+    val actions =
+        persistentListOf(
+            CrumbsAction(id = "tag", label = "Tag", hint = "Add", primary = true),
+            CrumbsAction(id = "open", label = "Open", hint = "Url"),
+            CrumbsAction(id = "share", label = "Share", hint = "Link"),
+            CrumbsAction(id = "delete", label = "Delete", hint = "Remove", danger = true),
+        )
     val onSelect: (CrumbsAction) -> Unit = { action ->
         when (action.id) {
             "tag" -> onTag()
@@ -395,12 +404,13 @@ fun defaultPopupActions(
     onArchive: () -> Unit = {},
     onDelete: () -> Unit = {},
 ): LongPressActions {
-    val actions = persistentListOf(
-        CrumbsAction(id = "tag", label = "Tag", hint = "Add", primary = true),
-        CrumbsAction(id = "share", label = "Share", hint = "Link"),
-        CrumbsAction(id = "archive", label = "Archive", hint = "Hide"),
-        CrumbsAction(id = "delete", label = "Delete", hint = "Remove", danger = true),
-    )
+    val actions =
+        persistentListOf(
+            CrumbsAction(id = "tag", label = "Tag", hint = "Add", primary = true),
+            CrumbsAction(id = "share", label = "Share", hint = "Link"),
+            CrumbsAction(id = "archive", label = "Archive", hint = "Hide"),
+            CrumbsAction(id = "delete", label = "Delete", hint = "Remove", danger = true),
+        )
     val onSelect: (CrumbsAction) -> Unit = { action ->
         when (action.id) {
             "tag" -> onTag()

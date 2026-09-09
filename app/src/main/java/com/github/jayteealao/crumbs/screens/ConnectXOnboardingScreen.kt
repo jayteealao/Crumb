@@ -39,11 +39,12 @@ fun ConnectXOnboardingScreen(
     val typography = LocalCrumbsTypography.current
     val spacing = LocalCrumbsSpacing.current
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(colors.background)
-            .padding(horizontal = spacing.xl, vertical = spacing.xxl)
-            .testTag("connect-x-screen"),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .background(colors.background)
+                .padding(horizontal = spacing.xl, vertical = spacing.xxl)
+                .testTag("connect-x-screen"),
         horizontalAlignment = Alignment.Start,
         verticalArrangement = Arrangement.Top,
     ) {

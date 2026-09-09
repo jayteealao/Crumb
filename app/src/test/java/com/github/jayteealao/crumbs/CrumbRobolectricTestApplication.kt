@@ -28,7 +28,8 @@ class CrumbRobolectricTestApplication : Application() {
         if (FirebaseApp.getApps(this).isEmpty()) {
             FirebaseApp.initializeApp(
                 this,
-                FirebaseOptions.Builder()
+                FirebaseOptions
+                    .Builder()
                     .setApplicationId("1:000000000000:android:0000000000000000")
                     .setApiKey("AIzaSyTestKeyForRobolectricUnitTests000000")
                     .setProjectId("crumb-robolectric-test")

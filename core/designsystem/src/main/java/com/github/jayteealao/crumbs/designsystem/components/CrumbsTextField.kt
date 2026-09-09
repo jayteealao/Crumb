@@ -28,15 +28,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -76,37 +76,41 @@ fun CrumbsSearchField(
     val caretAlpha by rememberInfiniteTransition(label = "caret").animateFloat(
         initialValue = 1f,
         targetValue = 0f,
-        animationSpec = infiniteRepeatable(
-            animation = keyframes {
-                durationMillis = 1000
-                1f at 0
-                0f at 500
-            },
-            repeatMode = RepeatMode.Restart,
-        ),
+        animationSpec =
+            infiniteRepeatable(
+                animation =
+                    keyframes {
+                        durationMillis = 1000
+                        1f at 0
+                        0f at 500
+                    },
+                repeatMode = RepeatMode.Restart,
+            ),
         label = "caret-alpha",
     )
 
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(36.dp)
-            .testTag("search-field"),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(36.dp)
+                .testTag("search-field"),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         // 36dp square back button.
         Box(
-            modifier = Modifier
-                .size(36.dp)
-                .background(colors.surface)
-                .border(stroke.regular, colors.ink)
-                .clickable(
-                    interactionSource = backInteraction,
-                    indication = null,
-                    role = Role.Button,
-                ) { onBack() }
-                .testTag("search-field-back"),
+            modifier =
+                Modifier
+                    .size(36.dp)
+                    .background(colors.surface)
+                    .border(stroke.regular, colors.ink)
+                    .clickable(
+                        interactionSource = backInteraction,
+                        indication = null,
+                        role = Role.Button,
+                    ) { onBack() }
+                    .testTag("search-field-back"),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -130,10 +134,11 @@ fun CrumbsSearchField(
                 singleLine = true,
                 cursorBrush = SolidColor(Color.Transparent),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .semantics { contentDescription = "Search bookmarks" }
-                    .testTag("search-field-input"),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .semantics { contentDescription = "Search bookmarks" }
+                        .testTag("search-field-input"),
                 decorationBox = { inner ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box {
@@ -151,11 +156,12 @@ fun CrumbsSearchField(
                         // alpha 1 and 0 every 500ms — visually equivalent to
                         // CSS `steps(2, end)` on the JS demo.
                         Box(
-                            modifier = Modifier
-                                .width(1.5.dp)
-                                .height(18.dp)
-                                .background(colors.ink.copy(alpha = caretAlpha))
-                                .testTag("search-field-caret"),
+                            modifier =
+                                Modifier
+                                    .width(1.5.dp)
+                                    .height(18.dp)
+                                    .background(colors.ink.copy(alpha = caretAlpha))
+                                    .testTag("search-field-caret"),
                         )
                     }
                 },
@@ -164,12 +170,13 @@ fun CrumbsSearchField(
         if (resultsCount != null) {
             val ms = resultsMillis ?: 0
             Text(
-                text = "${resultsCount} HITS · ${ms}MS",
+                text = "$resultsCount HITS · ${ms}MS",
                 style = typography.metaMono,
                 color = colors.onSurfaceVariant,
-                modifier = Modifier
-                    .padding(end = 8.dp)
-                    .fillMaxHeight(),
+                modifier =
+                    Modifier
+                        .padding(end = 8.dp)
+                        .fillMaxHeight(),
             )
         }
     }

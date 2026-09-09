@@ -45,7 +45,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class TwitterSyncEnqueuerImplTest {
-
     private lateinit var context: Context
     private lateinit var authGateway: AuthGateway
     private val currentUserFlow = MutableStateFlow<CurrentUser?>(CurrentUser(uid = "uid-test", email = null))

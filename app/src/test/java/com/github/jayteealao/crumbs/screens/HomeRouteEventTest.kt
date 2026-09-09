@@ -53,7 +53,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class HomeRouteEventTest {
-
     // -----------------------------------------------------------------------
     // 1. SyncErrorBus → LaunchedEffect(Unit) [syncErrorBus.events]
     //    HomeRoute maps TwitterAuth401 → twitterBanner, RedditAuth401 → redditBanner
@@ -64,88 +63,92 @@ class HomeRouteEventTest {
      * HomeRoute's LaunchedEffect sets twitterBanner when this event arrives.
      */
     @Test
-    fun syncErrorBus_twitterAuth401_deliveredToActiveCollector() = runBlocking {
-        val bus = SyncErrorBus()
-        val scope = CoroutineScope(Dispatchers.Default)
-        val deferred = scope.async { bus.events.first() }
-        // Yield so the collector subscribes before emission.
-        repeat(20) { yield() }
+    fun syncErrorBus_twitterAuth401_deliveredToActiveCollector() =
+        runBlocking {
+            val bus = SyncErrorBus()
+            val scope = CoroutineScope(Dispatchers.Default)
+            val deferred = scope.async { bus.events.first() }
+            // Yield so the collector subscribes before emission.
+            repeat(20) { yield() }
 
-        bus.emit(SyncErrorEvent.TwitterAuth401())
+            bus.emit(SyncErrorEvent.TwitterAuth401())
 
-        val received = deferred.await()
-        assertTrue(
-            "HomeRoute's LaunchedEffect must receive TwitterAuth401 to set twitterBanner; " +
-                "got ${received::class.simpleName}",
-            received is SyncErrorEvent.TwitterAuth401,
-        )
-        assertEquals(
-            "source on TwitterAuth401 must be Twitter (used to route the banner)",
-            BookmarkSource.Twitter,
-            received.source,
-        )
-    }
+            val received = deferred.await()
+            assertTrue(
+                "HomeRoute's LaunchedEffect must receive TwitterAuth401 to set twitterBanner; " +
+                    "got ${received::class.simpleName}",
+                received is SyncErrorEvent.TwitterAuth401,
+            )
+            assertEquals(
+                "source on TwitterAuth401 must be Twitter (used to route the banner)",
+                BookmarkSource.Twitter,
+                received.source,
+            )
+        }
 
     /**
      * RedditAuth401 must be deliverable to an active collector.
      * HomeRoute's LaunchedEffect sets redditBanner when this event arrives.
      */
     @Test
-    fun syncErrorBus_redditAuth401_deliveredToActiveCollector() = runBlocking {
-        val bus = SyncErrorBus()
-        val scope = CoroutineScope(Dispatchers.Default)
-        val deferred = scope.async { bus.events.first() }
-        repeat(20) { yield() }
+    fun syncErrorBus_redditAuth401_deliveredToActiveCollector() =
+        runBlocking {
+            val bus = SyncErrorBus()
+            val scope = CoroutineScope(Dispatchers.Default)
+            val deferred = scope.async { bus.events.first() }
+            repeat(20) { yield() }
 
-        bus.emit(SyncErrorEvent.RedditAuth401())
+            bus.emit(SyncErrorEvent.RedditAuth401())
 
-        val received = deferred.await()
-        assertTrue(
-            "HomeRoute must receive RedditAuth401 to set redditBanner; " +
-                "got ${received::class.simpleName}",
-            received is SyncErrorEvent.RedditAuth401,
-        )
-        assertEquals(BookmarkSource.Reddit, received.source)
-    }
+            val received = deferred.await()
+            assertTrue(
+                "HomeRoute must receive RedditAuth401 to set redditBanner; " +
+                    "got ${received::class.simpleName}",
+                received is SyncErrorEvent.RedditAuth401,
+            )
+            assertEquals(BookmarkSource.Reddit, received.source)
+        }
 
     /**
      * SyncErrorEvent.Other is explicitly a no-op in HomeRoute (the when-branch is `Unit`).
      * Verify the bus delivers it so the exhaustive when still compiles / runs safely.
      */
     @Test
-    fun syncErrorBus_otherEvent_deliveredWithCorrectSource() = runBlocking {
-        val bus = SyncErrorBus()
-        val scope = CoroutineScope(Dispatchers.Default)
-        val deferred = scope.async { bus.events.first() }
-        repeat(20) { yield() }
+    fun syncErrorBus_otherEvent_deliveredWithCorrectSource() =
+        runBlocking {
+            val bus = SyncErrorBus()
+            val scope = CoroutineScope(Dispatchers.Default)
+            val deferred = scope.async { bus.events.first() }
+            repeat(20) { yield() }
 
-        bus.emit(SyncErrorEvent.Other(source = BookmarkSource.Twitter, message = "unknown"))
+            bus.emit(SyncErrorEvent.Other(source = BookmarkSource.Twitter, message = "unknown"))
 
-        val received = deferred.await()
-        assertTrue(
-            "SyncErrorEvent.Other must be deliverable (HomeRoute handles it as Unit)",
-            received is SyncErrorEvent.Other,
-        )
-    }
+            val received = deferred.await()
+            assertTrue(
+                "SyncErrorEvent.Other must be deliverable (HomeRoute handles it as Unit)",
+                received is SyncErrorEvent.Other,
+            )
+        }
 
     /**
      * Replay = 1 means a late subscriber (e.g. HomeRoute mounting after a 401 fires)
      * still sees the most-recent auth error. This is the cold-start regression guard.
      */
     @Test
-    fun syncErrorBus_replayPreservesLatestEventForLateSubscriber() = runBlocking {
-        val bus = SyncErrorBus()
-        // Emit before any subscriber is attached.
-        bus.emit(SyncErrorEvent.TwitterAuth401())
-        bus.emit(SyncErrorEvent.RedditAuth401()) // latest wins with replay=1+DROP_OLDEST
+    fun syncErrorBus_replayPreservesLatestEventForLateSubscriber() =
+        runBlocking {
+            val bus = SyncErrorBus()
+            // Emit before any subscriber is attached.
+            bus.emit(SyncErrorEvent.TwitterAuth401())
+            bus.emit(SyncErrorEvent.RedditAuth401()) // latest wins with replay=1+DROP_OLDEST
 
-        val received = bus.events.first()
-        assertTrue(
-            "Late subscriber (like HomeRoute on warm start) must see the latest 401; " +
-                "got ${received::class.simpleName}",
-            received is SyncErrorEvent.RedditAuth401,
-        )
-    }
+            val received = bus.events.first()
+            assertTrue(
+                "Late subscriber (like HomeRoute on warm start) must see the latest 401; " +
+                    "got ${received::class.simpleName}",
+                received is SyncErrorEvent.RedditAuth401,
+            )
+        }
 
     /**
      * SyncErrorBus.clear() resets the replay cache so HomeRoute does not resurrect
@@ -154,25 +157,27 @@ class HomeRouteEventTest {
      * blocks that call services.syncErrorBus.clear() when access = true.
      */
     @Test
-    fun syncErrorBus_clearPreventsStaleReplay() = runBlocking {
-        val bus = SyncErrorBus()
-        bus.emit(SyncErrorEvent.TwitterAuth401())
-        // Simulates what LaunchedEffect(twitterAccess) does when access becomes true.
-        bus.clear()
+    fun syncErrorBus_clearPreventsStaleReplay() =
+        runBlocking {
+            val bus = SyncErrorBus()
+            bus.emit(SyncErrorEvent.TwitterAuth401())
+            // Simulates what LaunchedEffect(twitterAccess) does when access becomes true.
+            bus.clear()
 
-        // A late subscriber must not see the stale 401 after clear().
-        var received: SyncErrorEvent? = null
-        val job = CoroutineScope(Dispatchers.Default).launch {
-            received = bus.events.first()
+            // A late subscriber must not see the stale 401 after clear().
+            var received: SyncErrorEvent? = null
+            val job =
+                CoroutineScope(Dispatchers.Default).launch {
+                    received = bus.events.first()
+                }
+            repeat(20) { yield() }
+            job.cancel()
+
+            assertNull(
+                "After clear() the replay cache must be empty — HomeRoute must not flash a stale banner",
+                received,
+            )
         }
-        repeat(20) { yield() }
-        job.cancel()
-
-        assertNull(
-            "After clear() the replay cache must be empty — HomeRoute must not flash a stale banner",
-            received,
-        )
-    }
 
     // -----------------------------------------------------------------------
     // 2. SnackbarBus → LaunchedEffect(Unit) [snackbarBus.events]
@@ -184,46 +189,48 @@ class HomeRouteEventTest {
      * HomeRoute's LaunchedEffect shows the "BOOKMARK DELETED" snackbar on receipt.
      */
     @Test
-    fun snackbarBus_twitterUndoableDelete_deliveredToActiveCollector() = runTest {
-        val bus = SnackbarBus()
-        // UnconfinedTestDispatcher starts the collector eagerly so it is subscribed
-        // before we emit. SnackbarBus has replay=0, so a late subscriber would miss
-        // the event and await() would block forever; runTest also bounds the test.
-        val deferred = async(UnconfinedTestDispatcher(testScheduler)) { bus.events.first() }
+    fun snackbarBus_twitterUndoableDelete_deliveredToActiveCollector() =
+        runTest {
+            val bus = SnackbarBus()
+            // UnconfinedTestDispatcher starts the collector eagerly so it is subscribed
+            // before we emit. SnackbarBus has replay=0, so a late subscriber would miss
+            // the event and await() would block forever; runTest also bounds the test.
+            val deferred = async(UnconfinedTestDispatcher(testScheduler)) { bus.events.first() }
 
-        bus.emit(SnackbarEvent.UndoableDelete(id = "tweet-42", source = BookmarkSource.Twitter))
+            bus.emit(SnackbarEvent.UndoableDelete(id = "tweet-42", source = BookmarkSource.Twitter))
 
-        val received = deferred.await()
-        assertTrue(
-            "HomeRoute's snackbar LaunchedEffect must receive UndoableDelete; " +
-                "got ${received::class.simpleName}",
-            received is SnackbarEvent.UndoableDelete,
-        )
-        val event = received as SnackbarEvent.UndoableDelete
-        assertEquals("tweet-42", event.id)
-        assertEquals(BookmarkSource.Twitter, event.source)
-    }
+            val received = deferred.await()
+            assertTrue(
+                "HomeRoute's snackbar LaunchedEffect must receive UndoableDelete; " +
+                    "got ${received::class.simpleName}",
+                received is SnackbarEvent.UndoableDelete,
+            )
+            val event = received as SnackbarEvent.UndoableDelete
+            assertEquals("tweet-42", event.id)
+            assertEquals(BookmarkSource.Twitter, event.source)
+        }
 
     /**
      * UndoableDelete(Reddit) must also be delivered. HomeRoute routes undo to
      * redditViewModel.undoDelete(event.id) when source == Reddit.
      */
     @Test
-    fun snackbarBus_redditUndoableDelete_deliveredWithCorrectSource() = runTest {
-        val bus = SnackbarBus()
-        val deferred = async(UnconfinedTestDispatcher(testScheduler)) { bus.events.first() }
+    fun snackbarBus_redditUndoableDelete_deliveredWithCorrectSource() =
+        runTest {
+            val bus = SnackbarBus()
+            val deferred = async(UnconfinedTestDispatcher(testScheduler)) { bus.events.first() }
 
-        bus.emit(SnackbarEvent.UndoableDelete(id = "reddit-99", source = BookmarkSource.Reddit))
+            bus.emit(SnackbarEvent.UndoableDelete(id = "reddit-99", source = BookmarkSource.Reddit))
 
-        val received = deferred.await()
-        val event = received as SnackbarEvent.UndoableDelete
-        assertEquals(
-            "Undo routing depends on source==Reddit to call redditViewModel.undoDelete",
-            BookmarkSource.Reddit,
-            event.source,
-        )
-        assertEquals("reddit-99", event.id)
-    }
+            val received = deferred.await()
+            val event = received as SnackbarEvent.UndoableDelete
+            assertEquals(
+                "Undo routing depends on source==Reddit to call redditViewModel.undoDelete",
+                BookmarkSource.Reddit,
+                event.source,
+            )
+            assertEquals("reddit-99", event.id)
+        }
 
     /**
      * SnackbarBus has replay=0 so a late subscriber does NOT see missed events.
@@ -231,24 +238,26 @@ class HomeRouteEventTest {
      * is no longer actionable and must not reappear on recomposition.
      */
     @Test
-    fun snackbarBus_noReplay_lateSubscriberMissesEarlierEvents() = runBlocking {
-        val bus = SnackbarBus()
-        // Emit before any subscriber.
-        bus.emit(SnackbarEvent.UndoableDelete(id = "old-tweet", source = BookmarkSource.Twitter))
+    fun snackbarBus_noReplay_lateSubscriberMissesEarlierEvents() =
+        runBlocking {
+            val bus = SnackbarBus()
+            // Emit before any subscriber.
+            bus.emit(SnackbarEvent.UndoableDelete(id = "old-tweet", source = BookmarkSource.Twitter))
 
-        // Late subscriber — should NOT see the earlier event (replay=0).
-        var received: SnackbarEvent? = null
-        val job = CoroutineScope(Dispatchers.Default).launch {
-            received = bus.events.first()
+            // Late subscriber — should NOT see the earlier event (replay=0).
+            var received: SnackbarEvent? = null
+            val job =
+                CoroutineScope(Dispatchers.Default).launch {
+                    received = bus.events.first()
+                }
+            repeat(20) { yield() }
+            job.cancel()
+
+            assertNull(
+                "SnackbarBus has replay=0: late subscribers must not receive stale undo events",
+                received,
+            )
         }
-        repeat(20) { yield() }
-        job.cancel()
-
-        assertNull(
-            "SnackbarBus has replay=0: late subscribers must not receive stale undo events",
-            received,
-        )
-    }
 
     /**
      * Multiple rapid deletes (burst) must all be buffered (capacity=16) without
@@ -256,29 +265,31 @@ class HomeRouteEventTest {
      * activates if > 16 events queue simultaneously.
      */
     @Test
-    fun snackbarBus_burstOfDeletes_allDeliveredWithinCapacity() = runTest {
-        val bus = SnackbarBus()
-        val burstCount = 5
-        // UnconfinedTestDispatcher subscribes the collector eagerly before the burst.
-        val deferred = async(UnconfinedTestDispatcher(testScheduler)) {
-            bus.events.take(burstCount).toList()
-        }
+    fun snackbarBus_burstOfDeletes_allDeliveredWithinCapacity() =
+        runTest {
+            val bus = SnackbarBus()
+            val burstCount = 5
+            // UnconfinedTestDispatcher subscribes the collector eagerly before the burst.
+            val deferred =
+                async(UnconfinedTestDispatcher(testScheduler)) {
+                    bus.events.take(burstCount).toList()
+                }
 
-        repeat(burstCount) { i ->
-            bus.emit(SnackbarEvent.UndoableDelete(id = "tweet-$i", source = BookmarkSource.Twitter))
-        }
+            repeat(burstCount) { i ->
+                bus.emit(SnackbarEvent.UndoableDelete(id = "tweet-$i", source = BookmarkSource.Twitter))
+            }
 
-        val events = deferred.await()
-        assertEquals(
-            "All $burstCount delete events must be delivered; none should be dropped within buffer capacity",
-            burstCount,
-            events.size,
-        )
-        events.forEachIndexed { i, event ->
-            assertTrue(event is SnackbarEvent.UndoableDelete)
-            assertEquals("tweet-$i", (event as SnackbarEvent.UndoableDelete).id)
+            val events = deferred.await()
+            assertEquals(
+                "All $burstCount delete events must be delivered; none should be dropped within buffer capacity",
+                burstCount,
+                events.size,
+            )
+            events.forEachIndexed { i, event ->
+                assertTrue(event is SnackbarEvent.UndoableDelete)
+                assertEquals("tweet-$i", (event as SnackbarEvent.UndoableDelete).id)
+            }
         }
-    }
 
     // -----------------------------------------------------------------------
     // 3. Twitter SnackbarEvent routing — LaunchedEffect(Unit) [bookmarksViewModel.snackbarEvents]
@@ -350,30 +361,33 @@ class HomeRouteEventTest {
      * This mirrors what HomeRoute's LaunchedEffect collects.
      */
     @Test
-    fun twitterSnackbarFlow_allThreeEventTypes_deliveredInOrder() = runTest {
-        // Mirror Repository.snackbarEvents config (replay=0, extraBufferCapacity≥1).
-        val flow = MutableSharedFlow<TwitterSnackbarEvent>(
-            replay = 0,
-            extraBufferCapacity = 8,
-            onBufferOverflow = BufferOverflow.DROP_OLDEST,
-        )
-        val collected = mutableListOf<TwitterSnackbarEvent>()
-        // UnconfinedTestDispatcher subscribes the collector eagerly before the emits.
-        val job = launch(UnconfinedTestDispatcher(testScheduler)) {
-            flow.collect { collected.add(it) }
+    fun twitterSnackbarFlow_allThreeEventTypes_deliveredInOrder() =
+        runTest {
+            // Mirror Repository.snackbarEvents config (replay=0, extraBufferCapacity≥1).
+            val flow =
+                MutableSharedFlow<TwitterSnackbarEvent>(
+                    replay = 0,
+                    extraBufferCapacity = 8,
+                    onBufferOverflow = BufferOverflow.DROP_OLDEST,
+                )
+            val collected = mutableListOf<TwitterSnackbarEvent>()
+            // UnconfinedTestDispatcher subscribes the collector eagerly before the emits.
+            val job =
+                launch(UnconfinedTestDispatcher(testScheduler)) {
+                    flow.collect { collected.add(it) }
+                }
+
+            flow.emit(TwitterSnackbarEvent.Debounced(retryAfterSeconds = 30))
+            flow.emit(TwitterSnackbarEvent.InProgress)
+            flow.emit(TwitterSnackbarEvent.GenericFailure(reason = "timeout"))
+
+            job.cancel()
+
+            assertEquals("All three Twitter snackbar event types must be deliverable", 3, collected.size)
+            assertTrue(collected[0] is TwitterSnackbarEvent.Debounced)
+            assertTrue(collected[1] is TwitterSnackbarEvent.InProgress)
+            assertTrue(collected[2] is TwitterSnackbarEvent.GenericFailure)
         }
-
-        flow.emit(TwitterSnackbarEvent.Debounced(retryAfterSeconds = 30))
-        flow.emit(TwitterSnackbarEvent.InProgress)
-        flow.emit(TwitterSnackbarEvent.GenericFailure(reason = "timeout"))
-
-        job.cancel()
-
-        assertEquals("All three Twitter snackbar event types must be deliverable", 3, collected.size)
-        assertTrue(collected[0] is TwitterSnackbarEvent.Debounced)
-        assertTrue(collected[1] is TwitterSnackbarEvent.InProgress)
-        assertTrue(collected[2] is TwitterSnackbarEvent.GenericFailure)
-    }
 
     // -----------------------------------------------------------------------
     // 4. HomeRoute banner-state logic (pure Kotlin, no Compose required)
@@ -442,19 +456,20 @@ class HomeRouteEventTest {
      * relies on.
      */
     @Test
-    fun syncErrorBus_clearAfterAccessRestored_noStaleReplayForNewSubscriber() = runBlocking {
-        val bus = SyncErrorBus()
-        // Simulate auth error during sync.
-        bus.emit(SyncErrorEvent.TwitterAuth401())
-        // Simulate LaunchedEffect(twitterAccess = true) clearing the bus.
-        bus.clear()
-        // Emit new event after restoration.
-        bus.emit(SyncErrorEvent.Other(BookmarkSource.Twitter, "test"))
+    fun syncErrorBus_clearAfterAccessRestored_noStaleReplayForNewSubscriber() =
+        runBlocking {
+            val bus = SyncErrorBus()
+            // Simulate auth error during sync.
+            bus.emit(SyncErrorEvent.TwitterAuth401())
+            // Simulate LaunchedEffect(twitterAccess = true) clearing the bus.
+            bus.clear()
+            // Emit new event after restoration.
+            bus.emit(SyncErrorEvent.Other(BookmarkSource.Twitter, "test"))
 
-        val received = bus.events.first()
-        assertTrue(
-            "After clear() + new emission, subscriber should see only the new event",
-            received is SyncErrorEvent.Other,
-        )
-    }
+            val received = bus.events.first()
+            assertTrue(
+                "After clear() + new emission, subscriber should see only the new event",
+                received is SyncErrorEvent.Other,
+            )
+        }
 }

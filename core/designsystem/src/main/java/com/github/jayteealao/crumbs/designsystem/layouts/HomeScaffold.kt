@@ -53,7 +53,7 @@ fun HomeScaffold(
             Column(
                 Modifier
                     .statusBarsPadding()
-                    .testTag("home-scaffold-topbar")
+                    .testTag("home-scaffold-topbar"),
             ) {
                 topBar()
                 if (banner != null) {
@@ -72,7 +72,7 @@ fun HomeScaffold(
             Box(
                 Modifier
                     .navigationBarsPadding()
-                    .testTag("home-scaffold-bottombar")
+                    .testTag("home-scaffold-bottombar"),
             ) {
                 bottomBar()
             }
@@ -85,7 +85,10 @@ fun HomeScaffold(
 // in Android Studio without dragging in real component dependencies.
 
 @Composable
-private fun PreviewStubBlock(label: String, heightDp: Int) {
+private fun PreviewStubBlock(
+    label: String,
+    heightDp: Int,
+) {
     val colors = LocalCrumbsColors.current
     Box(
         Modifier
@@ -109,7 +112,7 @@ private fun PreviewHomeScaffoldLight() {
             Box(
                 Modifier
                     .fillMaxSize()
-                    .testTag("preview-content")
+                    .testTag("preview-content"),
             ) {
                 Text("content padding=$padding", modifier = Modifier.padding(padding))
             }
@@ -129,7 +132,7 @@ private fun PreviewHomeScaffoldDark() {
             Box(
                 Modifier
                     .fillMaxSize()
-                    .testTag("preview-content")
+                    .testTag("preview-content"),
             ) {
                 Text("content padding=$padding", modifier = Modifier.padding(padding))
             }

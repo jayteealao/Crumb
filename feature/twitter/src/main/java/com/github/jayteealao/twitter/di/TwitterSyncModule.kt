@@ -11,7 +11,6 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class TwitterSyncModule {
-
     @Binds
     @Singleton
     abstract fun bindTwitterSyncFacade(impl: TwitterSyncFacadeImpl): TwitterSyncFacade

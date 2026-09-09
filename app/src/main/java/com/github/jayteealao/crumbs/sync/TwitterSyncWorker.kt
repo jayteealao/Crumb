@@ -48,7 +48,6 @@ class TwitterSyncWorker(
     appContext: Context,
     params: WorkerParameters,
 ) : CoroutineWorker(appContext, params) {
-
     override suspend fun doWork(): Result {
         val ctx = applicationContext
         val entry = EntryPointAccessors.fromApplication(ctx, SyncEntryPoint::class.java)
@@ -106,22 +105,24 @@ class TwitterSyncWorker(
 
         fun uniqueName(uid: String): String = "$UNIQUE_NAME_PREFIX$uid"
 
-        fun buildRequest(uid: String, runAsForegroundService: Boolean): OneTimeWorkRequest =
+        fun buildRequest(
+            uid: String,
+            runAsForegroundService: Boolean,
+        ): OneTimeWorkRequest =
             OneTimeWorkRequestBuilder<TwitterSyncWorker>()
                 .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
                 .setConstraints(
-                    Constraints.Builder()
+                    Constraints
+                        .Builder()
                         .setRequiredNetworkType(NetworkType.CONNECTED)
-                        .build()
-                )
-                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+                        .build(),
+                ).setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
                 .setInputData(
                     workDataOf(
                         KEY_RUN_AS_FOREGROUND to runAsForegroundService,
                         KEY_UID to uid,
-                    )
-                )
-                .build()
+                    ),
+                ).build()
     }
 }
 
@@ -171,7 +172,8 @@ internal suspend fun runTwitterSync(
     val uid = authGateway.currentUser.value?.uid
     if (uid.isNullOrEmpty()) {
         Timber.tag("IncrementalSync").d("skip uid=null")
-        return androidx.work.ListenableWorker.Result.failure()
+        return androidx.work.ListenableWorker.Result
+            .failure()
     }
     // Reject a job whose enqueued account no longer matches the signed-in user
     // (sign-out then sign-in to a different account while this job was queued).
@@ -181,7 +183,8 @@ internal suspend fun runTwitterSync(
     // WorkManager does not retry it.
     if (!enqueuedUid.isNullOrEmpty() && enqueuedUid != uid) {
         Timber.tag("IncrementalSync").w("skip uid_mismatch enqueued=$enqueuedUid current=$uid")
-        return androidx.work.ListenableWorker.Result.success()
+        return androidx.work.ListenableWorker.Result
+            .success()
     }
 
     if (runAsForegroundService) {
@@ -191,8 +194,11 @@ internal suspend fun runTwitterSync(
 
     val priorProgress = syncProgressDao.get(uid)
     if (priorProgress != null) {
-        Timber.tag("IncrementalSync")
-            .i("resumed_from_cursor batchIdx=${priorProgress.totalBatchesIngested} cursorHi=${priorProgress.lastHighCursorCreatedAt} cursorLo=${priorProgress.lastLowCursorCreatedAt}")
+        Timber
+            .tag("IncrementalSync")
+            .i(
+                "resumed_from_cursor batchIdx=${priorProgress.totalBatchesIngested} cursorHi=${priorProgress.lastHighCursorCreatedAt} cursorLo=${priorProgress.lastLowCursorCreatedAt}",
+            )
     } else {
         Timber.tag("IncrementalSync").i("started cold uid=$uid")
     }
@@ -207,186 +213,208 @@ internal suspend fun runTwitterSync(
     // The persisted cursor becomes the resume point for the narrowed enumeration: the
     // `retrievedAt` watermark bounds the incremental head and the low createdAt cursor
     // resumes the backfill tail. A null/fresh cursor seeds a full sync.
-    val resumeFrom = SyncCursor(
-        highCreatedAt = priorProgress?.lastHighCursorCreatedAt,
-        highTweetId = priorProgress?.lastHighCursorTweetId,
-        lowCreatedAt = priorProgress?.lastLowCursorCreatedAt,
-        lowTweetId = priorProgress?.lastLowCursorTweetId,
-        incrementalWatermarkMillis = priorProgress?.lastIncrementalRetrievedAtMs,
-    )
+    val resumeFrom =
+        SyncCursor(
+            highCreatedAt = priorProgress?.lastHighCursorCreatedAt,
+            highTweetId = priorProgress?.lastHighCursorTweetId,
+            lowCreatedAt = priorProgress?.lastLowCursorCreatedAt,
+            lowTweetId = priorProgress?.lastLowCursorTweetId,
+            incrementalWatermarkMillis = priorProgress?.lastIncrementalRetrievedAtMs,
+        )
 
     // Set to true when the repository emits fetchFailed=true (a timed-out batch).
     // Checked in the CancellationException catch to return Result.retry() without
     // advancing the cursor for that batch.
     var fetchFailedRetry = false
 
-    val result: androidx.work.ListenableWorker.Result = try {
-        // Bound the local-ID set to limit heap allocation. IDs are sorted by the
-        // database's default order so taking the tail keeps the most recently added
-        // tweets (the ones most likely to overlap with the incoming Firestore page),
-        // while tweets further back are re-inserted with IGNORE-on-conflict if they
-        // reappear — correct behaviour at the cost of an extra no-op write.
-        val allLocalIds = syncFacade.getAllTweetIds()
-        val localIds: Set<String> = if (allLocalIds.size > TwitterSyncWorker.MAX_LOCAL_ID_SET_SIZE) {
-            allLocalIds.takeLast(TwitterSyncWorker.MAX_LOCAL_ID_SET_SIZE).toHashSet()
-        } else {
-            allLocalIds.toHashSet()
-        }
-        val deletedIds = deletedBookmarkRepository.deletedIdsSnapshot(BookmarkSource.Twitter)
+    val result: androidx.work.ListenableWorker.Result =
+        try {
+            // Bound the local-ID set to limit heap allocation. IDs are sorted by the
+            // database's default order so taking the tail keeps the most recently added
+            // tweets (the ones most likely to overlap with the incoming Firestore page),
+            // while tweets further back are re-inserted with IGNORE-on-conflict if they
+            // reappear — correct behaviour at the cost of an extra no-op write.
+            val allLocalIds = syncFacade.getAllTweetIds()
+            val localIds: Set<String> =
+                if (allLocalIds.size > TwitterSyncWorker.MAX_LOCAL_ID_SET_SIZE) {
+                    allLocalIds.takeLast(TwitterSyncWorker.MAX_LOCAL_ID_SET_SIZE).toHashSet()
+                } else {
+                    allLocalIds.toHashSet()
+                }
+            val deletedIds = deletedBookmarkRepository.deletedIdsSnapshot(BookmarkSource.Twitter)
 
-        syncFacade
-            .fetchMissingTweetsStream(localIds, deletedIds, resumeFrom)
-            .collect { emission ->
-                // The sealed SyncEmission hierarchy makes the three outcomes exhaustive:
-                // a Failed fetch carries no cursor at all (must not advance the cursor);
-                // a Checkpoint is the TERMINAL no-fetch marker; a Batch is a normal
-                // (usually non-empty) data page. See SyncCursorNarrowing.kt.
-                when (emission) {
-                    is SyncEmission.Failed -> {
-                        // A timed-out batch — do NOT commit an advanced cursor for it.
-                        // Signal the outer catch to return retry().
-                        Timber.tag("IncrementalSync").w(
-                            "fetch_failed_batch; stopping collection to retry without advancing cursor",
-                        )
-                        fetchFailedRetry = true
-                        throw CancellationException("fetch_failed_batch")
-                    }
-
-                    is SyncEmission.Checkpoint -> {
-                        // The repository computed the phase-correct cursor (the
-                        // `retrievedAt` watermark + the low backfill cursor); the worker
-                        // only stamps the run-scoped fields and commits it ATOMICALLY.
-                        // No entities to ingest — this just records the watermark /
-                        // backfill floor on a nothing-new run, so the batch count is NOT
-                        // bumped.
-                        val advancedProgress = SyncProgress(
-                            uid = uid,
-                            lastHighCursorCreatedAt = emission.cursor.highCreatedAt,
-                            lastHighCursorTweetId = emission.cursor.highTweetId,
-                            lastLowCursorCreatedAt = emission.cursor.lowCreatedAt,
-                            lastLowCursorTweetId = emission.cursor.lowTweetId,
-                            totalBatchesIngested = batchIdx,
-                            lastUpdatedAtMs = System.currentTimeMillis(),
-                            lastIncrementalRetrievedAtMs = emission.cursor.incrementalWatermarkMillis,
-                        )
-
-                        // CONC-8 guard: if WorkManager has already begun stopping this
-                        // worker (e.g. superseded by a REPLACE enqueue), skip the commit
-                        // rather than risk persisting a cursor older than what the
-                        // superseding worker has already written. See the isStopped
-                        // param doc above for the residual.
-                        if (isStopped()) {
-                            Timber.tag("IncrementalSync").w("stopped_before_commit; skipping commit to avoid stale cursor")
-                            throw CancellationException("stopped_before_commit")
+            syncFacade
+                .fetchMissingTweetsStream(localIds, deletedIds, resumeFrom)
+                .collect { emission ->
+                    // The sealed SyncEmission hierarchy makes the three outcomes exhaustive:
+                    // a Failed fetch carries no cursor at all (must not advance the cursor);
+                    // a Checkpoint is the TERMINAL no-fetch marker; a Batch is a normal
+                    // (usually non-empty) data page. See SyncCursorNarrowing.kt.
+                    when (emission) {
+                        is SyncEmission.Failed -> {
+                            // A timed-out batch — do NOT commit an advanced cursor for it.
+                            // Signal the outer catch to return retry().
+                            Timber.tag("IncrementalSync").w(
+                                "fetch_failed_batch; stopping collection to retry without advancing cursor",
+                            )
+                            fetchFailedRetry = true
+                            throw CancellationException("fetch_failed_batch")
                         }
-                        commitBatch(emptyList(), advancedProgress)
-                    }
 
-                    is SyncEmission.Batch -> {
-                        val orderedBatch = emission.entities.map { entities ->
-                            tweetEntitiesToOrderLens.modify(entities) { nextOrder++ }
+                        is SyncEmission.Checkpoint -> {
+                            // The repository computed the phase-correct cursor (the
+                            // `retrievedAt` watermark + the low backfill cursor); the worker
+                            // only stamps the run-scoped fields and commits it ATOMICALLY.
+                            // No entities to ingest — this just records the watermark /
+                            // backfill floor on a nothing-new run, so the batch count is NOT
+                            // bumped.
+                            val advancedProgress =
+                                SyncProgress(
+                                    uid = uid,
+                                    lastHighCursorCreatedAt = emission.cursor.highCreatedAt,
+                                    lastHighCursorTweetId = emission.cursor.highTweetId,
+                                    lastLowCursorCreatedAt = emission.cursor.lowCreatedAt,
+                                    lastLowCursorTweetId = emission.cursor.lowTweetId,
+                                    totalBatchesIngested = batchIdx,
+                                    lastUpdatedAtMs = System.currentTimeMillis(),
+                                    lastIncrementalRetrievedAtMs = emission.cursor.incrementalWatermarkMillis,
+                                )
+
+                            // CONC-8 guard: if WorkManager has already begun stopping this
+                            // worker (e.g. superseded by a REPLACE enqueue), skip the commit
+                            // rather than risk persisting a cursor older than what the
+                            // superseding worker has already written. See the isStopped
+                            // param doc above for the residual.
+                            if (isStopped()) {
+                                Timber.tag("IncrementalSync").w("stopped_before_commit; skipping commit to avoid stale cursor")
+                                throw CancellationException("stopped_before_commit")
+                            }
+                            commitBatch(emptyList(), advancedProgress)
                         }
-                        // A plan's ids can legitimately vanish between enumeration and
-                        // fetch (e.g. a concurrent delete) leaving entities empty even
-                        // though this isn't the TERMINAL checkpoint — treat that the
-                        // same as a checkpoint: persist the cursor, don't bump the count.
-                        val checkpointOnly = orderedBatch.isEmpty()
-                        val advancedProgress = SyncProgress(
-                            uid = uid,
-                            lastHighCursorCreatedAt = emission.cursor.highCreatedAt,
-                            lastHighCursorTweetId = emission.cursor.highTweetId,
-                            lastLowCursorCreatedAt = emission.cursor.lowCreatedAt,
-                            lastLowCursorTweetId = emission.cursor.lowTweetId,
-                            totalBatchesIngested = if (checkpointOnly) batchIdx else batchIdx + 1,
-                            lastUpdatedAtMs = System.currentTimeMillis(),
-                            lastIncrementalRetrievedAtMs = emission.cursor.incrementalWatermarkMillis,
-                        )
 
-                        // CONC-8 guard: see the Checkpoint branch above.
-                        if (isStopped()) {
-                            Timber.tag("IncrementalSync").w("stopped_before_commit; skipping commit to avoid stale cursor")
-                            throw CancellationException("stopped_before_commit")
-                        }
-                        commitBatch(orderedBatch, advancedProgress)
-                        if (checkpointOnly) return@collect
+                        is SyncEmission.Batch -> {
+                            val orderedBatch =
+                                emission.entities.map { entities ->
+                                    tweetEntitiesToOrderLens.modify(entities) { nextOrder++ }
+                                }
+                            // A plan's ids can legitimately vanish between enumeration and
+                            // fetch (e.g. a concurrent delete) leaving entities empty even
+                            // though this isn't the TERMINAL checkpoint — treat that the
+                            // same as a checkpoint: persist the cursor, don't bump the count.
+                            val checkpointOnly = orderedBatch.isEmpty()
+                            val advancedProgress =
+                                SyncProgress(
+                                    uid = uid,
+                                    lastHighCursorCreatedAt = emission.cursor.highCreatedAt,
+                                    lastHighCursorTweetId = emission.cursor.highTweetId,
+                                    lastLowCursorCreatedAt = emission.cursor.lowCreatedAt,
+                                    lastLowCursorTweetId = emission.cursor.lowTweetId,
+                                    totalBatchesIngested = if (checkpointOnly) batchIdx else batchIdx + 1,
+                                    lastUpdatedAtMs = System.currentTimeMillis(),
+                                    lastIncrementalRetrievedAtMs = emission.cursor.incrementalWatermarkMillis,
+                                )
 
-                        batchIdx++
-                        syncedCount += orderedBatch.size
-                        Timber.tag("IncrementalSync")
-                            .i("batch_inserted batchIdx=$batchIdx size=${orderedBatch.size} cursorLo=${emission.cursor.lowCreatedAt} watermark=${emission.cursor.incrementalWatermarkMillis}")
+                            // CONC-8 guard: see the Checkpoint branch above.
+                            if (isStopped()) {
+                                Timber.tag("IncrementalSync").w("stopped_before_commit; skipping commit to avoid stale cursor")
+                                throw CancellationException("stopped_before_commit")
+                            }
+                            commitBatch(orderedBatch, advancedProgress)
+                            if (checkpointOnly) return@collect
 
-                        if (runAsForegroundService) {
-                            runCatching {
-                                setForegroundInfo(SyncNotifications.foregroundInfo(ctx, batchIdx, batchIdx + 1))
-                            }.onFailure { Timber.tag("IncrementalSync").w(it, "setForegroundInfo update failed") }
+                            batchIdx++
+                            syncedCount += orderedBatch.size
+                            Timber
+                                .tag("IncrementalSync")
+                                .i(
+                                    "batch_inserted batchIdx=$batchIdx size=${orderedBatch.size} cursorLo=${emission.cursor.lowCreatedAt} watermark=${emission.cursor.incrementalWatermarkMillis}",
+                                )
+
+                            if (runAsForegroundService) {
+                                runCatching {
+                                    setForegroundInfo(SyncNotifications.foregroundInfo(ctx, batchIdx, batchIdx + 1))
+                                }.onFailure { Timber.tag("IncrementalSync").w(it, "setForegroundInfo update failed") }
+                            }
                         }
                     }
                 }
-            }
 
-        Timber.tag("IncrementalSync").i("completed totalBatches=$batchIdx uid=$uid")
-        androidx.work.ListenableWorker.Result.success()
-    } catch (e: TimeoutCancellationException) {
-        Timber.tag("IncrementalSync").w(e, "transient timeout attempt=$runAttemptCount")
-        if (runAttemptCount >= TwitterSyncWorker.MAX_RETRY_ATTEMPTS) {
-            androidx.work.ListenableWorker.Result.failure()
-        } else {
-            androidx.work.ListenableWorker.Result.retry()
-        }
-    } catch (e: CancellationException) {
-        // A fetch-failed cancellation (timed-out batch) must retry WITHOUT
-        // advancing the cursor — the failed batch's IDs will be re-enumerated.
-        // Neither a terminal success nor a terminal error alert should fire.
-        if (fetchFailedRetry) {
-            // Capped the same as the sibling TimeoutCancellationException/
-            // FirebaseFirestoreException branches below — without this, a batch that
-            // keeps timing out on fetch would retry forever instead of eventually
-            // surfacing as a terminal failure.
+            Timber.tag("IncrementalSync").i("completed totalBatches=$batchIdx uid=$uid")
+            androidx.work.ListenableWorker.Result
+                .success()
+        } catch (e: TimeoutCancellationException) {
+            Timber.tag("IncrementalSync").w(e, "transient timeout attempt=$runAttemptCount")
             if (runAttemptCount >= TwitterSyncWorker.MAX_RETRY_ATTEMPTS) {
-                Timber.tag("IncrementalSync").w("fetch_failed_retry attempt=$runAttemptCount; exceeded cap, failing")
-                androidx.work.ListenableWorker.Result.failure()
+                androidx.work.ListenableWorker.Result
+                    .failure()
             } else {
-                Timber.tag("IncrementalSync").w("fetch_failed_retry attempt=$runAttemptCount; scheduling retry")
-                androidx.work.ListenableWorker.Result.retry()
+                androidx.work.ListenableWorker.Result
+                    .retry()
             }
+        } catch (e: CancellationException) {
+            // A fetch-failed cancellation (timed-out batch) must retry WITHOUT
+            // advancing the cursor — the failed batch's IDs will be re-enumerated.
+            // Neither a terminal success nor a terminal error alert should fire.
+            if (fetchFailedRetry) {
+                // Capped the same as the sibling TimeoutCancellationException/
+                // FirebaseFirestoreException branches below — without this, a batch that
+                // keeps timing out on fetch would retry forever instead of eventually
+                // surfacing as a terminal failure.
+                if (runAttemptCount >= TwitterSyncWorker.MAX_RETRY_ATTEMPTS) {
+                    Timber.tag("IncrementalSync").w("fetch_failed_retry attempt=$runAttemptCount; exceeded cap, failing")
+                    androidx.work.ListenableWorker.Result
+                        .failure()
+                } else {
+                    Timber.tag("IncrementalSync").w("fetch_failed_retry attempt=$runAttemptCount; scheduling retry")
+                    androidx.work.ListenableWorker.Result
+                        .retry()
+                }
+            }
+            // WorkManager stops the foreground dataSync worker when the Android-15 6h cap
+            // is hit, cancelling this coroutine. Per-batch commits already made progress
+            // durable, so a timeout stop is a retry — NOT a real failure — and must not
+            // raise the "sync failed" alert. Any other cancellation (e.g. a lost network
+            // constraint) is genuine: rethrow it so structured concurrency is preserved.
+            else if (stopReason() == WorkInfo.STOP_REASON_TIMEOUT) {
+                Timber.tag("IncrementalSync").w("stopped_by_timeout attempt=$runAttemptCount; retrying, no error alert")
+                androidx.work.ListenableWorker.Result
+                    .retry()
+            } else {
+                throw e
+            }
+        } catch (e: FirebaseFirestoreException) {
+            if (e.code == FirebaseFirestoreException.Code.UNAVAILABLE && runAttemptCount < TwitterSyncWorker.MAX_RETRY_ATTEMPTS) {
+                Timber.tag("IncrementalSync").w(e, "firestore unavailable, retry attempt=$runAttemptCount")
+                androidx.work.ListenableWorker.Result
+                    .retry()
+            } else {
+                Timber.tag("IncrementalSync").e(e, "firestore_failed code=${e.code}")
+                androidx.work.ListenableWorker.Result
+                    .failure()
+            }
+        } catch (e: IOException) {
+            Timber.tag("IncrementalSync").w(e, "transient_io_failure attempt=$runAttemptCount")
+            if (runAttemptCount >= TwitterSyncWorker.MAX_RETRY_ATTEMPTS) {
+                androidx.work.ListenableWorker.Result
+                    .failure()
+            } else {
+                androidx.work.ListenableWorker.Result
+                    .retry()
+            }
+        } catch (e: android.database.SQLException) {
+            Timber.tag("IncrementalSync").w(e, "transient_db_failure attempt=$runAttemptCount")
+            if (runAttemptCount >= TwitterSyncWorker.MAX_RETRY_ATTEMPTS) {
+                androidx.work.ListenableWorker.Result
+                    .failure()
+            } else {
+                androidx.work.ListenableWorker.Result
+                    .retry()
+            }
+        } catch (e: Exception) {
+            Timber.tag("IncrementalSync").e(e, "unexpected_failure attempt=$runAttemptCount")
+            androidx.work.ListenableWorker.Result
+                .failure()
         }
-        // WorkManager stops the foreground dataSync worker when the Android-15 6h cap
-        // is hit, cancelling this coroutine. Per-batch commits already made progress
-        // durable, so a timeout stop is a retry — NOT a real failure — and must not
-        // raise the "sync failed" alert. Any other cancellation (e.g. a lost network
-        // constraint) is genuine: rethrow it so structured concurrency is preserved.
-        else if (stopReason() == WorkInfo.STOP_REASON_TIMEOUT) {
-            Timber.tag("IncrementalSync").w("stopped_by_timeout attempt=$runAttemptCount; retrying, no error alert")
-            androidx.work.ListenableWorker.Result.retry()
-        } else {
-            throw e
-        }
-    } catch (e: FirebaseFirestoreException) {
-        if (e.code == FirebaseFirestoreException.Code.UNAVAILABLE && runAttemptCount < TwitterSyncWorker.MAX_RETRY_ATTEMPTS) {
-            Timber.tag("IncrementalSync").w(e, "firestore unavailable, retry attempt=$runAttemptCount")
-            androidx.work.ListenableWorker.Result.retry()
-        } else {
-            Timber.tag("IncrementalSync").e(e, "firestore_failed code=${e.code}")
-            androidx.work.ListenableWorker.Result.failure()
-        }
-    } catch (e: IOException) {
-        Timber.tag("IncrementalSync").w(e, "transient_io_failure attempt=$runAttemptCount")
-        if (runAttemptCount >= TwitterSyncWorker.MAX_RETRY_ATTEMPTS) {
-            androidx.work.ListenableWorker.Result.failure()
-        } else {
-            androidx.work.ListenableWorker.Result.retry()
-        }
-    } catch (e: android.database.SQLException) {
-        Timber.tag("IncrementalSync").w(e, "transient_db_failure attempt=$runAttemptCount")
-        if (runAttemptCount >= TwitterSyncWorker.MAX_RETRY_ATTEMPTS) {
-            androidx.work.ListenableWorker.Result.failure()
-        } else {
-            androidx.work.ListenableWorker.Result.retry()
-        }
-    } catch (e: Exception) {
-        Timber.tag("IncrementalSync").e(e, "unexpected_failure attempt=$runAttemptCount")
-        androidx.work.ListenableWorker.Result.failure()
-    }
 
     // Terminal alerts fire only on the foreground cold-start drain — the path that
     // raised an ongoing notification the user wasn't watching. Interactive
@@ -397,10 +425,18 @@ internal suspend fun runTwitterSync(
         // Compare against the public Result factories (Result.Success/.Failure are
         // @RestrictTo and cannot be referenced directly). retry() matches neither.
         when {
-            result == androidx.work.ListenableWorker.Result.success() && syncedCount > 0 ->
+            result ==
+                androidx.work.ListenableWorker.Result
+                    .success() && syncedCount > 0 -> {
                 SyncNotifications.notifyTerminalSuccess(ctx, syncedCount)
-            result == androidx.work.ListenableWorker.Result.failure() ->
+            }
+
+            result ==
+                androidx.work.ListenableWorker.Result
+                    .failure()
+            -> {
                 SyncNotifications.notifyTerminalError(ctx)
+            }
         }
     }
     return result

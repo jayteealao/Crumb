@@ -21,7 +21,9 @@ import dagger.hilt.android.HiltAndroidApp
 import timber.log.Timber
 
 @HiltAndroidApp
-class CrumbApplication : Application(), ImageLoaderFactory {
+class CrumbApplication :
+    Application(),
+    ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         Timber.plant(Timber.DebugTree())
@@ -31,7 +33,8 @@ class CrumbApplication : Application(), ImageLoaderFactory {
         // Register the Firebase Auth state listener. This is done explicitly
         // here rather than inside FirebaseAuthGateway's constructor so that the
         // side effect is decoupled from construction (M-03).
-        EntryPointAccessors.fromApplication(this, SyncEntryPoint::class.java)
+        EntryPointAccessors
+            .fromApplication(this, SyncEntryPoint::class.java)
             .authGateway()
             .initialize()
 
@@ -43,14 +46,16 @@ class CrumbApplication : Application(), ImageLoaderFactory {
         // construction; production cold-starts always have the
         // androidx.startup-registered WorkManagerInitializer available.
         try {
-            val migrationRequest = OneTimeWorkRequestBuilder<XTokenMigrationWorker>()
-                .setConstraints(
-                    Constraints.Builder()
-                        .setRequiredNetworkType(NetworkType.CONNECTED)
-                        .build()
-                )
-                .build()
-            WorkManager.getInstance(this)
+            val migrationRequest =
+                OneTimeWorkRequestBuilder<XTokenMigrationWorker>()
+                    .setConstraints(
+                        Constraints
+                            .Builder()
+                            .setRequiredNetworkType(NetworkType.CONNECTED)
+                            .build(),
+                    ).build()
+            WorkManager
+                .getInstance(this)
                 .enqueueUniqueWork(MIGRATION_WORK_NAME, ExistingWorkPolicy.KEEP, migrationRequest)
         } catch (e: IllegalStateException) {
             Timber.w(e, "WorkManager not initialized; skipping migration enqueue")
@@ -90,28 +95,30 @@ class CrumbApplication : Application(), ImageLoaderFactory {
     // Project-wide Coil singleton. Crossfade smooths the placeholder→image
     // swap (PERF-07), and explicit memory/disk caches bound RAM/storage so
     // the brutalist feed does not balloon when scrolled aggressively.
-    override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)
-        // The duration-overload already enables crossfade — the boolean
-        // overload above was redundant.
-        .crossfade(CROSSFADE_DURATION_MS)
-        .memoryCache {
-            MemoryCache.Builder(this)
-                .maxSizePercent(MEMORY_CACHE_FRACTION)
-                .build()
-        }
-        .diskCache {
-            DiskCache.Builder()
-                .directory(cacheDir.resolve("image_cache"))
-                .maxSizePercent(DISK_CACHE_FRACTION)
-                .build()
-        }
-        .memoryCachePolicy(CachePolicy.ENABLED)
-        .diskCachePolicy(CachePolicy.ENABLED)
-        // Brutalist UI swaps backgrounds and accents per theme — honoring
-        // upstream cache-control headers would force redownloads on every
-        // theme flip. We trust our cache keys instead.
-        .respectCacheHeaders(false)
-        .build()
+    override fun newImageLoader(): ImageLoader =
+        ImageLoader
+            .Builder(this)
+            // The duration-overload already enables crossfade — the boolean
+            // overload above was redundant.
+            .crossfade(CROSSFADE_DURATION_MS)
+            .memoryCache {
+                MemoryCache
+                    .Builder(this)
+                    .maxSizePercent(MEMORY_CACHE_FRACTION)
+                    .build()
+            }.diskCache {
+                DiskCache
+                    .Builder()
+                    .directory(cacheDir.resolve("image_cache"))
+                    .maxSizePercent(DISK_CACHE_FRACTION)
+                    .build()
+            }.memoryCachePolicy(CachePolicy.ENABLED)
+            .diskCachePolicy(CachePolicy.ENABLED)
+            // Brutalist UI swaps backgrounds and accents per theme — honoring
+            // upstream cache-control headers would force redownloads on every
+            // theme flip. We trust our cache keys instead.
+            .respectCacheHeaders(false)
+            .build()
 
     private companion object {
         const val CROSSFADE_DURATION_MS = 180

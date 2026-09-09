@@ -51,11 +51,12 @@ fun SplashScreen(
     val typography = LocalCrumbsTypography.current
 
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(colors.background)
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .testTag("splash-screen"),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .background(colors.background)
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .testTag("splash-screen"),
         contentAlignment = Alignment.Center,
     ) {
         Text(

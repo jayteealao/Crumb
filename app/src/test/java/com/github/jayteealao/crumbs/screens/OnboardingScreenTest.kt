@@ -4,8 +4,8 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
-import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.dropbox.differ.SimpleImageComparator
+import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Rule
@@ -19,15 +19,16 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xxhdpi")
 class OnboardingScreenTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-    private val options = RoborazziOptions(
-        compareOptions = RoborazziOptions.CompareOptions(
-            imageComparator = SimpleImageComparator(maxDistance = 0.01f),
-        ),
-    )
+    private val options =
+        RoborazziOptions(
+            compareOptions =
+                RoborazziOptions.CompareOptions(
+                    imageComparator = SimpleImageComparator(maxDistance = 0.01f),
+                ),
+        )
 
     @Test
     fun onboardingScreen_page0_light() {
@@ -41,7 +42,8 @@ class OnboardingScreenTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/OnboardingScreen_page0_light.png", options)
     }
 
@@ -51,16 +53,18 @@ class OnboardingScreenTest {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = true) {
                 OnboardingScreen(
-                    pagerState = rememberPagerState(
-                        pageCount = { BrutalistOnboardingPages.size },
-                        initialPage = 3,
-                    ),
+                    pagerState =
+                        rememberPagerState(
+                            pageCount = { BrutalistOnboardingPages.size },
+                            initialPage = 3,
+                        ),
                     onCtaClick = {},
                 )
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/OnboardingScreen_page3_dark.png", options)
     }
 }

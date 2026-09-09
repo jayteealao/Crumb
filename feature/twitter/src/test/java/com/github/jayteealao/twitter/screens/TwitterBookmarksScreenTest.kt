@@ -3,8 +3,8 @@ package com.github.jayteealao.twitter.screens
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
-import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.dropbox.differ.SimpleImageComparator
+import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Rule
@@ -18,15 +18,16 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xxhdpi")
 class TwitterBookmarksScreenTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-    private val options = RoborazziOptions(
-        compareOptions = RoborazziOptions.CompareOptions(
-            imageComparator = SimpleImageComparator(maxDistance = 0.01f),
-        ),
-    )
+    private val options =
+        RoborazziOptions(
+            compareOptions =
+                RoborazziOptions.CompareOptions(
+                    imageComparator = SimpleImageComparator(maxDistance = 0.01f),
+                ),
+        )
 
     @Test
     fun twitterBookmarksScreen_loggedOut_light() {
@@ -44,7 +45,8 @@ class TwitterBookmarksScreenTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/TwitterBookmarksScreen_loggedOut_light.png", options)
     }
 
@@ -64,7 +66,8 @@ class TwitterBookmarksScreenTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/TwitterBookmarksScreen_loggedOut_dark.png", options)
     }
 }

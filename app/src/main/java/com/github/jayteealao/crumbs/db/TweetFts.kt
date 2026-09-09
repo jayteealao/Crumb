@@ -46,7 +46,7 @@ interface TweetFtsDao {
           AND d.bookmarkId IS NULL
         ORDER BY t.retrieved_at DESC, t.created_at DESC
         LIMIT 50
-        """
+        """,
     )
     fun search(q: String): Flow<List<TweetData>>
 }

@@ -64,7 +64,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class SearchViewModelTest {
-
     private val dispatcher = StandardTestDispatcher()
     private lateinit var context: Context
     private lateinit var searchRepository: SearchRepository
@@ -83,11 +82,12 @@ class SearchViewModelTest {
         // so without this an earlier onSearchSubmitted write would bleed through.
         runBlocking { context.clearRecentSearches() }
         searchRepository = mockk()
-        vm = SearchViewModel(
-            context = context,
-            searchRepository = searchRepository,
-            savedStateHandle = SavedStateHandle(),
-        )
+        vm =
+            SearchViewModel(
+                context = context,
+                searchRepository = searchRepository,
+                savedStateHandle = SavedStateHandle(),
+            )
     }
 
     @After
@@ -101,25 +101,27 @@ class SearchViewModelTest {
     // Helpers
     // -----------------------------------------------------------------------
 
-    private fun bookmark(id: String) = Bookmark(
-        id = id,
-        source = BookmarkSource.Twitter,
-        author = "@test",
-        title = "Title $id",
-        previewText = "Preview $id",
-        contentType = ContentType.Text,
-        savedAt = 1_700_000_000_000L,
-        sourceUrl = "https://example.com/$id",
-    )
+    private fun bookmark(id: String) =
+        Bookmark(
+            id = id,
+            source = BookmarkSource.Twitter,
+            author = "@test",
+            title = "Title $id",
+            previewText = "Preview $id",
+            contentType = ContentType.Text,
+            savedAt = 1_700_000_000_000L,
+            sourceUrl = "https://example.com/$id",
+        )
 
     /**
      * Subscribe to [SearchViewModel.uiState] so [SharingStarted.WhileSubscribed]
      * activates upstream collection.
      */
     private fun activateUiState() {
-        uiStateCollector = vm.uiState
-            .onEach {}
-            .launchIn(kotlinx.coroutines.CoroutineScope(dispatcher))
+        uiStateCollector =
+            vm.uiState
+                .onEach {}
+                .launchIn(kotlinx.coroutines.CoroutineScope(dispatcher))
     }
 
     /**
@@ -127,9 +129,10 @@ class SearchViewModelTest {
      * activates upstream DataStore collection.
      */
     private fun activateRecentSearches() {
-        recentSearchesCollector = vm.recentSearches
-            .onEach {}
-            .launchIn(kotlinx.coroutines.CoroutineScope(dispatcher))
+        recentSearchesCollector =
+            vm.recentSearches
+                .onEach {}
+                .launchIn(kotlinx.coroutines.CoroutineScope(dispatcher))
     }
 
     /**
@@ -141,225 +144,238 @@ class SearchViewModelTest {
     private suspend fun awaitRecentSearches(
         timeoutMs: Long = 10_000L,
         predicate: (List<String>) -> Boolean,
-    ): List<String> = withContext(Dispatchers.Default) {
-        withTimeout(timeoutMs) {
-            context.recentSearches().filter(predicate).first()
+    ): List<String> =
+        withContext(Dispatchers.Default) {
+            withTimeout(timeoutMs) {
+                context.recentSearches().filter(predicate).first()
+            }
         }
-    }
 
     // -----------------------------------------------------------------------
     // 1. idle_whenQueryIsBlank
     // -----------------------------------------------------------------------
 
     @Test
-    fun idle_whenQueryIsBlank() = runTest(dispatcher) {
-        activateUiState()
-        advanceUntilIdle()
+    fun idle_whenQueryIsBlank() =
+        runTest(dispatcher) {
+            activateUiState()
+            advanceUntilIdle()
 
-        assertEquals(SearchUiState.Idle, vm.uiState.value)
-    }
+            assertEquals(SearchUiState.Idle, vm.uiState.value)
+        }
 
     @Test
-    fun idle_afterQueryClearedToBlank() = runTest(dispatcher) {
-        val hits = MutableSharedFlow<List<Bookmark>>(replay = 1)
-        hits.emit(listOf(bookmark("b1")))
-        every { searchRepository.search(any()) } returns hits
+    fun idle_afterQueryClearedToBlank() =
+        runTest(dispatcher) {
+            val hits = MutableSharedFlow<List<Bookmark>>(replay = 1)
+            hits.emit(listOf(bookmark("b1")))
+            every { searchRepository.search(any()) } returns hits
 
-        activateUiState()
+            activateUiState()
 
-        vm.onQueryChanged("kotlin")
-        advanceTimeBy(SearchViewModel.DEBOUNCE_MS + 1)
-        advanceUntilIdle()
+            vm.onQueryChanged("kotlin")
+            advanceTimeBy(SearchViewModel.DEBOUNCE_MS + 1)
+            advanceUntilIdle()
 
-        vm.onQueryChanged("")
-        advanceTimeBy(SearchViewModel.DEBOUNCE_MS + 1)
-        advanceUntilIdle()
+            vm.onQueryChanged("")
+            advanceTimeBy(SearchViewModel.DEBOUNCE_MS + 1)
+            advanceUntilIdle()
 
-        assertEquals(SearchUiState.Idle, vm.uiState.value)
-    }
+            assertEquals(SearchUiState.Idle, vm.uiState.value)
+        }
 
     // -----------------------------------------------------------------------
     // 2. loading_then_results_whenFtsReturnsHits
     // -----------------------------------------------------------------------
 
     @Test
-    fun loading_then_results_whenFtsReturnsHits() = runTest(dispatcher) {
-        // replay=0: Loading stays visible until we explicitly emit into hitsFlow.
-        val hitsFlow = MutableSharedFlow<List<Bookmark>>(replay = 0)
-        every { searchRepository.search(any()) } returns hitsFlow
+    fun loading_then_results_whenFtsReturnsHits() =
+        runTest(dispatcher) {
+            // replay=0: Loading stays visible until we explicitly emit into hitsFlow.
+            val hitsFlow = MutableSharedFlow<List<Bookmark>>(replay = 0)
+            every { searchRepository.search(any()) } returns hitsFlow
 
-        activateUiState()
-        advanceUntilIdle()
-        assertEquals("initial state should be Idle", SearchUiState.Idle, vm.uiState.value)
+            activateUiState()
+            advanceUntilIdle()
+            assertEquals("initial state should be Idle", SearchUiState.Idle, vm.uiState.value)
 
-        vm.onQueryChanged("compose")
+            vm.onQueryChanged("compose")
 
-        // Cross the 300 ms debounce boundary — flatMapLatest subscribes to
-        // hitsFlow; onStart emits Loading before any item arrives.
-        advanceTimeBy(SearchViewModel.DEBOUNCE_MS + 1)
-        advanceUntilIdle()
-        assertEquals(SearchUiState.Loading("compose"), vm.uiState.value)
+            // Cross the 300 ms debounce boundary — flatMapLatest subscribes to
+            // hitsFlow; onStart emits Loading before any item arrives.
+            advanceTimeBy(SearchViewModel.DEBOUNCE_MS + 1)
+            advanceUntilIdle()
+            assertEquals(SearchUiState.Loading("compose"), vm.uiState.value)
 
-        // Emit hits from the repository → Results
-        hitsFlow.emit(listOf(bookmark("1"), bookmark("2")))
-        advanceUntilIdle()
+            // Emit hits from the repository → Results
+            hitsFlow.emit(listOf(bookmark("1"), bookmark("2")))
+            advanceUntilIdle()
 
-        val state = vm.uiState.value
-        assertTrue("expected Results, got $state", state is SearchUiState.Results)
-        val results = state as SearchUiState.Results
-        assertEquals("compose", results.query)
-        assertEquals(2, results.hits.size)
-    }
+            val state = vm.uiState.value
+            assertTrue("expected Results, got $state", state is SearchUiState.Results)
+            val results = state as SearchUiState.Results
+            assertEquals("compose", results.query)
+            assertEquals(2, results.hits.size)
+        }
 
     // -----------------------------------------------------------------------
     // 3. empty_whenFtsReturnsNoHits
     // -----------------------------------------------------------------------
 
     @Test
-    fun empty_whenFtsReturnsNoHits() = runTest(dispatcher) {
-        every { searchRepository.search(any()) } returns flowOf(emptyList())
+    fun empty_whenFtsReturnsNoHits() =
+        runTest(dispatcher) {
+            every { searchRepository.search(any()) } returns flowOf(emptyList())
 
-        activateUiState()
+            activateUiState()
 
-        vm.onQueryChanged("noresults")
-        advanceTimeBy(SearchViewModel.DEBOUNCE_MS + 1)
-        advanceUntilIdle()
+            vm.onQueryChanged("noresults")
+            advanceTimeBy(SearchViewModel.DEBOUNCE_MS + 1)
+            advanceUntilIdle()
 
-        assertEquals(SearchUiState.Empty("noresults"), vm.uiState.value)
-    }
+            assertEquals(SearchUiState.Empty("noresults"), vm.uiState.value)
+        }
 
     // -----------------------------------------------------------------------
     // 4. debounce_suppressesIntermediateValues
     // -----------------------------------------------------------------------
 
     @Test
-    fun debounce_suppressesIntermediateValues() = runTest(dispatcher) {
-        every { searchRepository.search(any()) } returns flowOf(listOf(bookmark("x")))
+    fun debounce_suppressesIntermediateValues() =
+        runTest(dispatcher) {
+            every { searchRepository.search(any()) } returns flowOf(listOf(bookmark("x")))
 
-        activateUiState()
-        advanceUntilIdle()
+            activateUiState()
+            advanceUntilIdle()
 
-        // Rapid-fire three queries within the debounce window (150 ms total < 300 ms)
-        vm.onQueryChanged("k")
-        advanceTimeBy(50)
-        vm.onQueryChanged("ko")
-        advanceTimeBy(50)
-        vm.onQueryChanged("kot")
-        advanceTimeBy(50)
+            // Rapid-fire three queries within the debounce window (150 ms total < 300 ms)
+            vm.onQueryChanged("k")
+            advanceTimeBy(50)
+            vm.onQueryChanged("ko")
+            advanceTimeBy(50)
+            vm.onQueryChanged("kot")
+            advanceTimeBy(50)
 
-        verify(exactly = 0) { searchRepository.search(any()) }
+            verify(exactly = 0) { searchRepository.search(any()) }
 
-        // Settle on the last value "kot"
-        advanceTimeBy(SearchViewModel.DEBOUNCE_MS + 1)
-        advanceUntilIdle()
+            // Settle on the last value "kot"
+            advanceTimeBy(SearchViewModel.DEBOUNCE_MS + 1)
+            advanceUntilIdle()
 
-        // Exactly ONE call to the repository — for the final debounced value only
-        verify(exactly = 1) { searchRepository.search(any()) }
-    }
+            // Exactly ONE call to the repository — for the final debounced value only
+            verify(exactly = 1) { searchRepository.search(any()) }
+        }
 
     // -----------------------------------------------------------------------
     // 5. onSearchSubmitted_recordsRecentSearch
     // -----------------------------------------------------------------------
 
     @Test
-    fun onSearchSubmitted_recordsRecentSearch() = runTest(dispatcher) {
-        every { searchRepository.search(any()) } returns flowOf(emptyList())
+    fun onSearchSubmitted_recordsRecentSearch() =
+        runTest(dispatcher) {
+            every { searchRepository.search(any()) } returns flowOf(emptyList())
 
-        activateUiState()
-        advanceUntilIdle()
+            activateUiState()
+            advanceUntilIdle()
 
-        vm.onQueryChanged("kotlin flows")
-        advanceTimeBy(SearchViewModel.DEBOUNCE_MS + 1)
-        advanceUntilIdle()
+            vm.onQueryChanged("kotlin flows")
+            advanceTimeBy(SearchViewModel.DEBOUNCE_MS + 1)
+            advanceUntilIdle()
 
-        vm.onSearchSubmitted()
-        advanceUntilIdle()
+            vm.onSearchSubmitted()
+            advanceUntilIdle()
 
-        // DataStore writes land on a real I/O thread. Use withContext(Default) +
-        // withTimeout to leave the virtual-time scheduler and wait on real I/O.
-        val recents = awaitRecentSearches { it.contains("kotlin flows") }
-        assertTrue(
-            "Expected 'kotlin flows' in recents $recents",
-            recents.contains("kotlin flows"),
-        )
-    }
+            // DataStore writes land on a real I/O thread. Use withContext(Default) +
+            // withTimeout to leave the virtual-time scheduler and wait on real I/O.
+            val recents = awaitRecentSearches { it.contains("kotlin flows") }
+            assertTrue(
+                "Expected 'kotlin flows' in recents $recents",
+                recents.contains("kotlin flows"),
+            )
+        }
 
     // -----------------------------------------------------------------------
     // 6. onSearchSubmitted_ignoresEmptyQuery
     // -----------------------------------------------------------------------
 
     @Test
-    fun onSearchSubmitted_ignoresEmptyQuery() = runTest(dispatcher) {
-        // Query is blank (default "") — onSearchSubmitted returns early
-        vm.onSearchSubmitted()
-        advanceUntilIdle()
+    fun onSearchSubmitted_ignoresEmptyQuery() =
+        runTest(dispatcher) {
+            // Query is blank (default "") — onSearchSubmitted returns early
+            vm.onSearchSubmitted()
+            advanceUntilIdle()
 
-        // Read current DataStore value in real time; list must stay empty.
-        val recents = withContext(Dispatchers.Default) {
-            context.recentSearches().first()
+            // Read current DataStore value in real time; list must stay empty.
+            val recents =
+                withContext(Dispatchers.Default) {
+                    context.recentSearches().first()
+                }
+            assertTrue("Expected empty recents when query is blank, got $recents", recents.isEmpty())
         }
-        assertTrue("Expected empty recents when query is blank, got $recents", recents.isEmpty())
-    }
 
     @Test
-    fun onSearchSubmitted_ignoresWhitespaceOnlyQuery() = runTest(dispatcher) {
-        activateUiState()
-        advanceUntilIdle()
+    fun onSearchSubmitted_ignoresWhitespaceOnlyQuery() =
+        runTest(dispatcher) {
+            activateUiState()
+            advanceUntilIdle()
 
-        // Whitespace-only queries satisfy isBlank() so onSearchSubmitted trims
-        // to "" and exits without writing to DataStore.
-        vm.onQueryChanged("   ")
-        advanceTimeBy(SearchViewModel.DEBOUNCE_MS + 1)
-        advanceUntilIdle()
+            // Whitespace-only queries satisfy isBlank() so onSearchSubmitted trims
+            // to "" and exits without writing to DataStore.
+            vm.onQueryChanged("   ")
+            advanceTimeBy(SearchViewModel.DEBOUNCE_MS + 1)
+            advanceUntilIdle()
 
-        vm.onSearchSubmitted()
-        advanceUntilIdle()
+            vm.onSearchSubmitted()
+            advanceUntilIdle()
 
-        val recents = withContext(Dispatchers.Default) {
-            context.recentSearches().first()
+            val recents =
+                withContext(Dispatchers.Default) {
+                    context.recentSearches().first()
+                }
+            assertTrue("Expected empty recents for whitespace-only query, got $recents", recents.isEmpty())
         }
-        assertTrue("Expected empty recents for whitespace-only query, got $recents", recents.isEmpty())
-    }
 
     // -----------------------------------------------------------------------
     // 7. onRecentSearchSelected_setsQueryAndTriggersSearch
     // -----------------------------------------------------------------------
 
     @Test
-    fun onRecentSearchSelected_setsQueryAndTriggersSearch() = runTest(dispatcher) {
-        every { searchRepository.search(any()) } returns flowOf(listOf(bookmark("r1")))
+    fun onRecentSearchSelected_setsQueryAndTriggersSearch() =
+        runTest(dispatcher) {
+            every { searchRepository.search(any()) } returns flowOf(listOf(bookmark("r1")))
 
-        activateUiState()
-        advanceUntilIdle()
+            activateUiState()
+            advanceUntilIdle()
 
-        vm.onRecentSearchSelected("compose")
+            vm.onRecentSearchSelected("compose")
 
-        // Query StateFlow updates immediately — no debounce on this path
-        assertEquals("compose", vm.query.value)
+            // Query StateFlow updates immediately — no debounce on this path
+            assertEquals("compose", vm.query.value)
 
-        // After the debounce window the repository is called and Results appear
-        advanceTimeBy(SearchViewModel.DEBOUNCE_MS + 1)
-        advanceUntilIdle()
+            // After the debounce window the repository is called and Results appear
+            advanceTimeBy(SearchViewModel.DEBOUNCE_MS + 1)
+            advanceUntilIdle()
 
-        val state = vm.uiState.value
-        assertTrue("expected Results after recent search selected, got $state", state is SearchUiState.Results)
-        assertEquals("compose", (state as SearchUiState.Results).query)
-        assertFalse("hits should be non-empty", state.hits.isEmpty())
-    }
+            val state = vm.uiState.value
+            assertTrue("expected Results after recent search selected, got $state", state is SearchUiState.Results)
+            assertEquals("compose", (state as SearchUiState.Results).query)
+            assertFalse("hits should be non-empty", state.hits.isEmpty())
+        }
 
     @Test
-    fun onRecentSearchSelected_replacesPreviousQuery() = runTest(dispatcher) {
-        every { searchRepository.search(any()) } returns flowOf(emptyList())
+    fun onRecentSearchSelected_replacesPreviousQuery() =
+        runTest(dispatcher) {
+            every { searchRepository.search(any()) } returns flowOf(emptyList())
 
-        activateUiState()
-        advanceUntilIdle()
+            activateUiState()
+            advanceUntilIdle()
 
-        vm.onQueryChanged("oldquery")
-        advanceTimeBy(SearchViewModel.DEBOUNCE_MS + 1)
-        advanceUntilIdle()
+            vm.onQueryChanged("oldquery")
+            advanceTimeBy(SearchViewModel.DEBOUNCE_MS + 1)
+            advanceUntilIdle()
 
-        vm.onRecentSearchSelected("newquery")
-        assertEquals("newquery", vm.query.value)
-        assertNotEquals("oldquery", vm.query.value)
-    }
+            vm.onRecentSearchSelected("newquery")
+            assertEquals("newquery", vm.query.value)
+            assertNotEquals("oldquery", vm.query.value)
+        }
 }

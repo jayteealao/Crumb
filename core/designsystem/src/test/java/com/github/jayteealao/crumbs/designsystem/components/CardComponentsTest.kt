@@ -11,12 +11,12 @@ import coil.ImageLoader
 import coil.annotation.ExperimentalCoilApi
 import coil.intercept.Interceptor
 import coil.test.FakeImageLoaderEngine
-import kotlinx.coroutines.awaitCancellation
 import com.github.jayteealao.crumbs.designsystem.TestCrumbsTheme
 import com.github.jayteealao.crumbs.models.Bookmark
 import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.models.ContentType
 import com.github.takahirom.roborazzi.captureRoboImage
+import kotlinx.coroutines.awaitCancellation
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -34,7 +34,6 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class CardComponentsTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -43,12 +42,16 @@ class CardComponentsTest {
     // a stable, network-free bitmap instead of the accent loading placeholder.
     @Before
     fun installFakeImageLoader() {
-        val engine = FakeImageLoaderEngine.Builder()
-            .default(ColorDrawable(Color.rgb(0x88, 0x88, 0x88)))
-            .build()
-        val imageLoader = ImageLoader.Builder(ApplicationProvider.getApplicationContext())
-            .components { add(engine) }
-            .build()
+        val engine =
+            FakeImageLoaderEngine
+                .Builder()
+                .default(ColorDrawable(Color.rgb(0x88, 0x88, 0x88)))
+                .build()
+        val imageLoader =
+            ImageLoader
+                .Builder(ApplicationProvider.getApplicationContext())
+                .components { add(engine) }
+                .build()
         Coil.setImageLoader(imageLoader)
     }
 
@@ -58,183 +61,204 @@ class CardComponentsTest {
     }
 
     // Sample bookmark data
-    private val twitterTextBookmark = Bookmark(
-        id = "1",
-        source = BookmarkSource.Twitter,
-        author = "@designpatterns",
-        title = "Understanding SOLID Principles",
-        previewText = "Let me explain the five SOLID principles that every developer should know. These fundamental concepts will help you write better, more maintainable code.",
-        contentType = ContentType.Text,
-        savedAt = System.currentTimeMillis() - 3600000,
-        tags = listOf("programming", "design"),
-        sourceUrl = "https://twitter.com/i/web/status/123"
-    )
+    private val twitterTextBookmark =
+        Bookmark(
+            id = "1",
+            source = BookmarkSource.Twitter,
+            author = "@designpatterns",
+            title = "Understanding SOLID Principles",
+            previewText = "Let me explain the five SOLID principles that every developer should know. These fundamental concepts will help you write better, more maintainable code.",
+            contentType = ContentType.Text,
+            savedAt = System.currentTimeMillis() - 3600000,
+            tags = listOf("programming", "design"),
+            sourceUrl = "https://twitter.com/i/web/status/123",
+        )
 
-    private val twitterThreadBookmark = Bookmark(
-        id = "2",
-        source = BookmarkSource.Twitter,
-        author = "@architectpatterns",
-        title = "Clean Architecture Thread",
-        previewText = "1/ Let's talk about Clean Architecture and why it matters for modern Android development. This is going to be a detailed thread...",
-        contentType = ContentType.Thread,
-        savedAt = System.currentTimeMillis() - 86400000,
-        tags = listOf("architecture", "android"),
-        isThread = true,
-        threadCount = 12,
-        sourceUrl = "https://twitter.com/i/web/status/124"
-    )
+    private val twitterThreadBookmark =
+        Bookmark(
+            id = "2",
+            source = BookmarkSource.Twitter,
+            author = "@architectpatterns",
+            title = "Clean Architecture Thread",
+            previewText = "1/ Let's talk about Clean Architecture and why it matters for modern Android development. This is going to be a detailed thread...",
+            contentType = ContentType.Thread,
+            savedAt = System.currentTimeMillis() - 86400000,
+            tags = listOf("architecture", "android"),
+            isThread = true,
+            threadCount = 12,
+            sourceUrl = "https://twitter.com/i/web/status/124",
+        )
 
-    private val redditPostBookmark = Bookmark(
-        id = "3",
-        source = BookmarkSource.Reddit,
-        author = "u/androiddev",
-        title = "Tips for optimizing RecyclerView performance",
-        previewText = "Here are some lesser-known tips for getting better performance out of RecyclerView. These helped me reduce jank significantly in my production app.",
-        contentType = ContentType.Text,
-        savedAt = System.currentTimeMillis() - 172800000,
-        tags = listOf("android", "performance"),
-        sourceUrl = "https://reddit.com/r/androiddev/comments/abc123"
-    )
+    private val redditPostBookmark =
+        Bookmark(
+            id = "3",
+            source = BookmarkSource.Reddit,
+            author = "u/androiddev",
+            title = "Tips for optimizing RecyclerView performance",
+            previewText = "Here are some lesser-known tips for getting better performance out of RecyclerView. These helped me reduce jank significantly in my production app.",
+            contentType = ContentType.Text,
+            savedAt = System.currentTimeMillis() - 172800000,
+            tags = listOf("android", "performance"),
+            sourceUrl = "https://reddit.com/r/androiddev/comments/abc123",
+        )
 
-    private val deletedBookmark = Bookmark(
-        id = "4",
-        source = BookmarkSource.Twitter,
-        author = "@deleteduser",
-        title = "This tweet has been deleted",
-        previewText = "This content is no longer available.",
-        contentType = ContentType.Text,
-        savedAt = System.currentTimeMillis() - 604800000,
-        isDeleted = true,
-        sourceUrl = "https://twitter.com/i/web/status/125"
-    )
+    private val deletedBookmark =
+        Bookmark(
+            id = "4",
+            source = BookmarkSource.Twitter,
+            author = "@deleteduser",
+            title = "This tweet has been deleted",
+            previewText = "This content is no longer available.",
+            contentType = ContentType.Text,
+            savedAt = System.currentTimeMillis() - 604800000,
+            isDeleted = true,
+            sourceUrl = "https://twitter.com/i/web/status/125",
+        )
 
-    private val singleImageBookmark = Bookmark(
-        id = "img-1",
-        source = BookmarkSource.Twitter,
-        author = "@photographer",
-        title = "Single photo bookmark",
-        previewText = "One image renders in the 16:7 media band.",
-        imageUrl = "https://img/single.jpg",
-        imageUrls = listOf("https://img/single.jpg"),
-        contentType = ContentType.Image,
-        savedAt = System.currentTimeMillis() - 3600000,
-        sourceUrl = "https://twitter.com/i/web/status/200",
-    )
+    private val singleImageBookmark =
+        Bookmark(
+            id = "img-1",
+            source = BookmarkSource.Twitter,
+            author = "@photographer",
+            title = "Single photo bookmark",
+            previewText = "One image renders in the 16:7 media band.",
+            imageUrl = "https://img/single.jpg",
+            imageUrls = listOf("https://img/single.jpg"),
+            contentType = ContentType.Image,
+            savedAt = System.currentTimeMillis() - 3600000,
+            sourceUrl = "https://twitter.com/i/web/status/200",
+        )
 
-    private val twoImageBookmark = Bookmark(
-        id = "img-2",
-        source = BookmarkSource.Twitter,
-        author = "@gallery",
-        title = "Two photo bookmark",
-        previewText = "Two images render as a single grid row.",
-        imageUrl = "https://img/1.jpg",
-        imageUrls = listOf("https://img/1.jpg", "https://img/2.jpg"),
-        contentType = ContentType.Image,
-        savedAt = System.currentTimeMillis() - 3600000,
-        sourceUrl = "https://twitter.com/i/web/status/201",
-    )
+    private val twoImageBookmark =
+        Bookmark(
+            id = "img-2",
+            source = BookmarkSource.Twitter,
+            author = "@gallery",
+            title = "Two photo bookmark",
+            previewText = "Two images render as a single grid row.",
+            imageUrl = "https://img/1.jpg",
+            imageUrls = listOf("https://img/1.jpg", "https://img/2.jpg"),
+            contentType = ContentType.Image,
+            savedAt = System.currentTimeMillis() - 3600000,
+            sourceUrl = "https://twitter.com/i/web/status/201",
+        )
 
-    private val fourImageBookmark = Bookmark(
-        id = "img-4",
-        source = BookmarkSource.Twitter,
-        author = "@gallery",
-        title = "Four photo bookmark",
-        previewText = "Four images render as a 2×2 grid.",
-        imageUrl = "https://img/1.jpg",
-        imageUrls = listOf(
-            "https://img/1.jpg", "https://img/2.jpg",
-            "https://img/3.jpg", "https://img/4.jpg",
-        ),
-        contentType = ContentType.Image,
-        savedAt = System.currentTimeMillis() - 3600000,
-        sourceUrl = "https://twitter.com/i/web/status/202",
-    )
+    private val fourImageBookmark =
+        Bookmark(
+            id = "img-4",
+            source = BookmarkSource.Twitter,
+            author = "@gallery",
+            title = "Four photo bookmark",
+            previewText = "Four images render as a 2×2 grid.",
+            imageUrl = "https://img/1.jpg",
+            imageUrls =
+                listOf(
+                    "https://img/1.jpg",
+                    "https://img/2.jpg",
+                    "https://img/3.jpg",
+                    "https://img/4.jpg",
+                ),
+            contentType = ContentType.Image,
+            savedAt = System.currentTimeMillis() - 3600000,
+            sourceUrl = "https://twitter.com/i/web/status/202",
+        )
 
-    private val overflowImageBookmark = Bookmark(
-        id = "img-6",
-        source = BookmarkSource.Twitter,
-        author = "@gallery",
-        title = "Six photo bookmark",
-        previewText = "More than four images collapse to a +N scrim on the 4th tile.",
-        imageUrl = "https://img/1.jpg",
-        imageUrls = listOf(
-            "https://img/1.jpg", "https://img/2.jpg", "https://img/3.jpg",
-            "https://img/4.jpg", "https://img/5.jpg", "https://img/6.jpg",
-        ),
-        contentType = ContentType.Image,
-        savedAt = System.currentTimeMillis() - 3600000,
-        sourceUrl = "https://twitter.com/i/web/status/203",
-    )
+    private val overflowImageBookmark =
+        Bookmark(
+            id = "img-6",
+            source = BookmarkSource.Twitter,
+            author = "@gallery",
+            title = "Six photo bookmark",
+            previewText = "More than four images collapse to a +N scrim on the 4th tile.",
+            imageUrl = "https://img/1.jpg",
+            imageUrls =
+                listOf(
+                    "https://img/1.jpg",
+                    "https://img/2.jpg",
+                    "https://img/3.jpg",
+                    "https://img/4.jpg",
+                    "https://img/5.jpg",
+                    "https://img/6.jpg",
+                ),
+            contentType = ContentType.Image,
+            savedAt = System.currentTimeMillis() - 3600000,
+            sourceUrl = "https://twitter.com/i/web/status/203",
+        )
 
-    private val videoBookmark = Bookmark(
-        id = "vid-1",
-        source = BookmarkSource.Twitter,
-        author = "@filmmaker",
-        title = "Video bookmark",
-        previewText = "A tweet with inline video plays on tap in the 16:7 band.",
-        contentType = ContentType.Video,
-        savedAt = System.currentTimeMillis() - 3600000,
-        sourceUrl = "https://twitter.com/i/web/status/204",
-        videoThumbnailUrl = "https://img/poster.jpg",
-    )
+    private val videoBookmark =
+        Bookmark(
+            id = "vid-1",
+            source = BookmarkSource.Twitter,
+            author = "@filmmaker",
+            title = "Video bookmark",
+            previewText = "A tweet with inline video plays on tap in the 16:7 band.",
+            contentType = ContentType.Video,
+            savedAt = System.currentTimeMillis() - 3600000,
+            sourceUrl = "https://twitter.com/i/web/status/204",
+            videoThumbnailUrl = "https://img/poster.jpg",
+        )
 
-    private val linkPreviewBookmark = Bookmark(
-        id = "link-1",
-        source = BookmarkSource.Twitter,
-        author = "@reader",
-        title = "Worth a read on brutalist design",
-        previewText = "Sharing this great piece on raw, honest web interfaces.",
-        contentType = ContentType.Link,
-        savedAt = System.currentTimeMillis() - 3600000,
-        sourceUrl = "https://twitter.com/i/web/status/205",
-        linkUrl = "https://brutalist-web.design/",
-        linkDisplayUrl = "brutalist-web.design",
-        linkTitle = "Guidelines for Brutalist Web Design",
-        linkDescription = "Raw content, honest materials, and a focus on the reader over decoration.",
-        linkImageUrl = "https://img/og.jpg",
-    )
+    private val linkPreviewBookmark =
+        Bookmark(
+            id = "link-1",
+            source = BookmarkSource.Twitter,
+            author = "@reader",
+            title = "Worth a read on brutalist design",
+            previewText = "Sharing this great piece on raw, honest web interfaces.",
+            contentType = ContentType.Link,
+            savedAt = System.currentTimeMillis() - 3600000,
+            sourceUrl = "https://twitter.com/i/web/status/205",
+            linkUrl = "https://brutalist-web.design/",
+            linkDisplayUrl = "brutalist-web.design",
+            linkTitle = "Guidelines for Brutalist Web Design",
+            linkDescription = "Raw content, honest materials, and a focus on the reader over decoration.",
+            linkImageUrl = "https://img/og.jpg",
+        )
 
-    private val linkPreviewUrlOnlyBookmark = Bookmark(
-        id = "link-2",
-        source = BookmarkSource.Twitter,
-        author = "@reader",
-        title = "A link with no preview metadata",
-        previewText = "When OG fetch yields nothing, the card degrades to a URL-only chip.",
-        contentType = ContentType.Link,
-        savedAt = System.currentTimeMillis() - 3600000,
-        sourceUrl = "https://twitter.com/i/web/status/206",
-        linkUrl = "https://example.com/article",
-        linkDisplayUrl = "example.com/article",
-    )
+    private val linkPreviewUrlOnlyBookmark =
+        Bookmark(
+            id = "link-2",
+            source = BookmarkSource.Twitter,
+            author = "@reader",
+            title = "A link with no preview metadata",
+            previewText = "When OG fetch yields nothing, the card degrades to a URL-only chip.",
+            contentType = ContentType.Link,
+            savedAt = System.currentTimeMillis() - 3600000,
+            sourceUrl = "https://twitter.com/i/web/status/206",
+            linkUrl = "https://example.com/article",
+            linkDisplayUrl = "example.com/article",
+        )
 
-    private val quotedTweetBookmark = Bookmark(
-        id = "quote-1",
-        source = BookmarkSource.Twitter,
-        author = "@commenter",
-        title = "Adding my take on this",
-        previewText = "This thread completely reframed how I think about it.",
-        contentType = ContentType.Text,
-        savedAt = System.currentTimeMillis() - 3600000,
-        sourceUrl = "https://twitter.com/i/web/status/207",
-        quotedTweetId = "999",
-        quotedText = "The original insight everyone keeps quoting: simplicity scales, cleverness doesn't.",
-        quotedAuthorName = "Original Author",
-        quotedAuthorHandle = "@original",
-        quotedTweetUrl = "https://twitter.com/original/status/999",
-    )
+    private val quotedTweetBookmark =
+        Bookmark(
+            id = "quote-1",
+            source = BookmarkSource.Twitter,
+            author = "@commenter",
+            title = "Adding my take on this",
+            previewText = "This thread completely reframed how I think about it.",
+            contentType = ContentType.Text,
+            savedAt = System.currentTimeMillis() - 3600000,
+            sourceUrl = "https://twitter.com/i/web/status/207",
+            quotedTweetId = "999",
+            quotedText = "The original insight everyone keeps quoting: simplicity scales, cleverness doesn't.",
+            quotedAuthorName = "Original Author",
+            quotedAuthorHandle = "@original",
+            quotedTweetUrl = "https://twitter.com/original/status/999",
+        )
 
-    private val quotedTweetUnavailableBookmark = Bookmark(
-        id = "quote-2",
-        source = BookmarkSource.Twitter,
-        author = "@commenter",
-        title = "Quoting a since-deleted tweet",
-        previewText = "The quoted tweet is gone, so the sub-card shows the placeholder.",
-        contentType = ContentType.Text,
-        savedAt = System.currentTimeMillis() - 3600000,
-        sourceUrl = "https://twitter.com/i/web/status/208",
-        quotedTweetId = "404",
-        quotedTweetUrl = "https://x.com/i/status/404",
-    )
+    private val quotedTweetUnavailableBookmark =
+        Bookmark(
+            id = "quote-2",
+            source = BookmarkSource.Twitter,
+            author = "@commenter",
+            title = "Quoting a since-deleted tweet",
+            previewText = "The quoted tweet is gone, so the sub-card shows the placeholder.",
+            contentType = ContentType.Text,
+            savedAt = System.currentTimeMillis() - 3600000,
+            sourceUrl = "https://twitter.com/i/web/status/208",
+            quotedTweetId = "404",
+            quotedTweetUrl = "https://x.com/i/status/404",
+        )
 
     // CrumbsBookmarkCard Tests
 
@@ -244,12 +268,13 @@ class CardComponentsTest {
             TestCrumbsTheme(darkTheme = false) {
                 CrumbsBookmarkCard(
                     bookmark = twitterTextBookmark,
-                    onCardClick = {}
+                    onCardClick = {},
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_twitterText_light.png")
     }
 
@@ -259,12 +284,13 @@ class CardComponentsTest {
             TestCrumbsTheme(darkTheme = true) {
                 CrumbsBookmarkCard(
                     bookmark = twitterTextBookmark,
-                    onCardClick = {}
+                    onCardClick = {},
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_twitterText_dark.png")
     }
 
@@ -274,12 +300,13 @@ class CardComponentsTest {
             TestCrumbsTheme(darkTheme = false) {
                 CrumbsBookmarkCard(
                     bookmark = twitterThreadBookmark,
-                    onCardClick = {}
+                    onCardClick = {},
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_twitterThread_light.png")
     }
 
@@ -289,12 +316,13 @@ class CardComponentsTest {
             TestCrumbsTheme(darkTheme = false) {
                 CrumbsBookmarkCard(
                     bookmark = redditPostBookmark,
-                    onCardClick = {}
+                    onCardClick = {},
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_redditPost_light.png")
     }
 
@@ -304,12 +332,13 @@ class CardComponentsTest {
             TestCrumbsTheme(darkTheme = false) {
                 CrumbsBookmarkCard(
                     bookmark = deletedBookmark,
-                    onCardClick = {}
+                    onCardClick = {},
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_deleted_light.png")
     }
 
@@ -328,7 +357,8 @@ class CardComponentsTest {
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_largeDbNumber_light.png")
     }
 
@@ -343,7 +373,8 @@ class CardComponentsTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_singleImage_light.png")
     }
 
@@ -355,7 +386,8 @@ class CardComponentsTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_twoImageGrid_light.png")
     }
 
@@ -367,7 +399,8 @@ class CardComponentsTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_fourImageGrid_light.png")
     }
 
@@ -379,7 +412,8 @@ class CardComponentsTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_overflowImageGrid_light.png")
     }
 
@@ -394,7 +428,8 @@ class CardComponentsTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_videoPoster_light.png")
     }
 
@@ -410,7 +445,8 @@ class CardComponentsTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_linkPreview_light.png")
     }
 
@@ -424,7 +460,8 @@ class CardComponentsTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_linkPreviewUrlOnly_light.png")
     }
 
@@ -440,7 +477,8 @@ class CardComponentsTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_quotedTweet_light.png")
     }
 
@@ -452,7 +490,8 @@ class CardComponentsTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_quotedTweetUnavailable_light.png")
     }
 
@@ -464,9 +503,11 @@ class CardComponentsTest {
     // `settled` never flips and waitForIdle still returns a laid-out frame.
     @Test
     fun bookmarkCard_imageLoadingPlaceholder_light() {
-        val hangingLoader = ImageLoader.Builder(ApplicationProvider.getApplicationContext())
-            .components { add(Interceptor { awaitCancellation() }) }
-            .build()
+        val hangingLoader =
+            ImageLoader
+                .Builder(ApplicationProvider.getApplicationContext())
+                .components { add(Interceptor { awaitCancellation() }) }
+                .build()
         Coil.setImageLoader(hangingLoader)
 
         composeTestRule.setContent {
@@ -475,7 +516,8 @@ class CardComponentsTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_imageLoadingPlaceholder_light.png")
     }
 
@@ -488,12 +530,13 @@ class CardComponentsTest {
             TestCrumbsTheme(darkTheme = true) {
                 CrumbsBookmarkCard(
                     bookmark = twitterThreadBookmark,
-                    onCardClick = {}
+                    onCardClick = {},
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_twitterThread_dark.png")
     }
 
@@ -503,12 +546,13 @@ class CardComponentsTest {
             TestCrumbsTheme(darkTheme = true) {
                 CrumbsBookmarkCard(
                     bookmark = redditPostBookmark,
-                    onCardClick = {}
+                    onCardClick = {},
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_redditPost_dark.png")
     }
 
@@ -518,12 +562,13 @@ class CardComponentsTest {
             TestCrumbsTheme(darkTheme = true) {
                 CrumbsBookmarkCard(
                     bookmark = deletedBookmark,
-                    onCardClick = {}
+                    onCardClick = {},
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_deleted_dark.png")
     }
 
@@ -539,7 +584,8 @@ class CardComponentsTest {
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_largeDbNumber_dark.png")
     }
 
@@ -551,7 +597,8 @@ class CardComponentsTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_singleImage_dark.png")
     }
 
@@ -563,7 +610,8 @@ class CardComponentsTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_twoImageGrid_dark.png")
     }
 
@@ -575,7 +623,8 @@ class CardComponentsTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_fourImageGrid_dark.png")
     }
 
@@ -587,7 +636,8 @@ class CardComponentsTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_overflowImageGrid_dark.png")
     }
 
@@ -599,7 +649,8 @@ class CardComponentsTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_videoPoster_dark.png")
     }
 
@@ -611,7 +662,8 @@ class CardComponentsTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_linkPreview_dark.png")
     }
 
@@ -623,7 +675,8 @@ class CardComponentsTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_linkPreviewUrlOnly_dark.png")
     }
 
@@ -635,7 +688,8 @@ class CardComponentsTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_quotedTweet_dark.png")
     }
 
@@ -647,15 +701,18 @@ class CardComponentsTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_quotedTweetUnavailable_dark.png")
     }
 
     @Test
     fun bookmarkCard_imageLoadingPlaceholder_dark() {
-        val hangingLoader = ImageLoader.Builder(ApplicationProvider.getApplicationContext())
-            .components { add(Interceptor { awaitCancellation() }) }
-            .build()
+        val hangingLoader =
+            ImageLoader
+                .Builder(ApplicationProvider.getApplicationContext())
+                .components { add(Interceptor { awaitCancellation() }) }
+                .build()
         Coil.setImageLoader(hangingLoader)
 
         composeTestRule.setContent {
@@ -664,7 +721,8 @@ class CardComponentsTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_imageLoadingPlaceholder_dark.png")
     }
 }

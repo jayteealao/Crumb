@@ -8,7 +8,6 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface SyncProgressDao {
-
     @Query("SELECT * FROM sync_progress WHERE uid = :uid LIMIT 1")
     suspend fun get(uid: String): SyncProgress?
 

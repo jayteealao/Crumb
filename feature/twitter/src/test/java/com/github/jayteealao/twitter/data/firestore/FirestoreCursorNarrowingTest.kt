@@ -15,12 +15,16 @@ import org.junit.Test
  * proven here.
  */
 class FirestoreCursorNarrowingTest {
-
-    private fun doc(id: String, retrievedAt: Long?, createdAt: String) =
-        CursorDoc(id = id, retrievedAtMillis = retrievedAt, createdAt = createdAt)
+    private fun doc(
+        id: String,
+        retrievedAt: Long?,
+        createdAt: String,
+    ) = CursorDoc(id = id, retrievedAtMillis = retrievedAt, createdAt = createdAt)
 
     private fun List<SyncBatchPlan>.fetchPlans() = filter { it.phase != SyncPhase.TERMINAL }
+
     private fun List<SyncBatchPlan>.terminal() = single { it.phase == SyncPhase.TERMINAL }
+
     private fun List<SyncBatchPlan>.allFetchedIds() = fetchPlans().flatMap { it.ids }
 
     @Test
@@ -64,8 +68,10 @@ class FirestoreCursorNarrowingTest {
     fun headFeedSorted_retrievedAtDesc() {
         // Provided out of order; the planner must feed-sort the head by retrievedAt DESC.
         val head = listOf(doc("h-mid", 400, "c2"), doc("h-top", 500, "c1"), doc("h-low", 300, "c3"))
-        val ids = planNarrowedSync(head, emptyList(), SyncCursor(), emptySet(), emptySet(), batchSize = 1)
-            .fetchPlans().flatMap { it.ids }
+        val ids =
+            planNarrowedSync(head, emptyList(), SyncCursor(), emptySet(), emptySet(), batchSize = 1)
+                .fetchPlans()
+                .flatMap { it.ids }
         assertEquals(listOf("h-top", "h-mid", "h-low"), ids)
     }
 
@@ -73,8 +79,10 @@ class FirestoreCursorNarrowingTest {
     fun tailPreservesCreatedAtDescEnumerationOrder() {
         // Tail is given in createdAt DESC; the planner must NOT re-sort it (safe low-cursor advance).
         val tail = listOf(doc("t1", 300, "2024-06-01"), doc("t2", null, "2019-05-05"), doc("t3", 200, "2018-03-03"))
-        val ids = planNarrowedSync(emptyList(), tail, SyncCursor(), emptySet(), emptySet(), batchSize = 1)
-            .fetchPlans().flatMap { it.ids }
+        val ids =
+            planNarrowedSync(emptyList(), tail, SyncCursor(), emptySet(), emptySet(), batchSize = 1)
+                .fetchPlans()
+                .flatMap { it.ids }
         assertEquals(listOf("t1", "t2", "t3"), ids)
     }
 
@@ -90,11 +98,12 @@ class FirestoreCursorNarrowingTest {
     @Test
     fun localAndDeleted_excludedFromFetch_butFloorStillCoversThem() {
         val head = listOf(doc("h1", 500, "2025-01-10"))
-        val tail = listOf(
-            doc("t1", 200, "2024-01-01"),
-            doc("local1", null, "2020-01-01"),
-            doc("del1", null, "2017-01-01"),
-        )
+        val tail =
+            listOf(
+                doc("t1", 200, "2024-01-01"),
+                doc("local1", null, "2020-01-01"),
+                doc("del1", null, "2017-01-01"),
+            )
         val plans = planNarrowedSync(head, tail, SyncCursor(), setOf("local1"), setOf("del1"))
         val ids = plans.allFetchedIds()
         assertTrue("local1" !in ids)
@@ -158,19 +167,21 @@ class FirestoreCursorNarrowingTest {
         //    surfaces in the tail enumeration → must dedup to the head, must not move the low cursor.
         //  - legacy NULL-retrievedAt doc (t2): only the tail includes it.
         //  - a local doc + a deleted doc interleaved in the tail: excluded from fetch, still covered.
-        val head = listOf(
-            doc("h1", 500, "2025-01-10"),
-            doc("old-new", 450, "2020-01-01"),
-            doc("h2", 400, "2025-01-09"),
-        )
-        val tail = listOf(
-            doc("t1", 300, "2024-06-01"),
-            doc("old-new", 450, "2020-01-01"), // DUP with the head
-            doc("t2", null, "2019-05-05"), // legacy null-retrievedAt
-            doc("local1", null, "2018-06-06"), // already local
-            doc("del1", null, "2017-06-06"), // tombstoned
-            doc("t3", 200, "2017-03-03"),
-        )
+        val head =
+            listOf(
+                doc("h1", 500, "2025-01-10"),
+                doc("old-new", 450, "2020-01-01"),
+                doc("h2", 400, "2025-01-09"),
+            )
+        val tail =
+            listOf(
+                doc("t1", 300, "2024-06-01"),
+                doc("old-new", 450, "2020-01-01"), // DUP with the head
+                doc("t2", null, "2019-05-05"), // legacy null-retrievedAt
+                doc("local1", null, "2018-06-06"), // already local
+                doc("del1", null, "2017-06-06"), // tombstoned
+                doc("t3", 200, "2017-03-03"),
+            )
         val prior = SyncCursor(lowCreatedAt = "2024-12-01", lowTweetId = "x", incrementalWatermarkMillis = 350)
         val plans = planNarrowedSync(head, tail, prior, setOf("local1"), setOf("del1"))
 

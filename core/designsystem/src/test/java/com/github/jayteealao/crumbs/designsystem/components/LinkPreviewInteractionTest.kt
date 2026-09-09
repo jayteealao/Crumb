@@ -49,47 +49,52 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class LinkPreviewInteractionTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-    private val richLinkBookmark = Bookmark(
-        id = "link-1",
-        source = BookmarkSource.Twitter,
-        author = "@reader",
-        title = "Worth a read on brutalist design",
-        previewText = "Sharing this great piece on raw, honest web interfaces.",
-        contentType = ContentType.Link,
-        savedAt = System.currentTimeMillis() - 3600000,
-        sourceUrl = "https://twitter.com/i/web/status/205",
-        linkUrl = "https://brutalist-web.design/",
-        linkDisplayUrl = "brutalist-web.design",
-        linkTitle = "Guidelines for Brutalist Web Design",
-        linkDescription = "Raw content, honest materials, and a focus on the reader over decoration.",
-        linkImageUrl = "https://img/og.jpg",
-    )
+    private val richLinkBookmark =
+        Bookmark(
+            id = "link-1",
+            source = BookmarkSource.Twitter,
+            author = "@reader",
+            title = "Worth a read on brutalist design",
+            previewText = "Sharing this great piece on raw, honest web interfaces.",
+            contentType = ContentType.Link,
+            savedAt = System.currentTimeMillis() - 3600000,
+            sourceUrl = "https://twitter.com/i/web/status/205",
+            linkUrl = "https://brutalist-web.design/",
+            linkDisplayUrl = "brutalist-web.design",
+            linkTitle = "Guidelines for Brutalist Web Design",
+            linkDescription = "Raw content, honest materials, and a focus on the reader over decoration.",
+            linkImageUrl = "https://img/og.jpg",
+        )
 
-    private val urlOnlyLinkBookmark = Bookmark(
-        id = "link-2",
-        source = BookmarkSource.Twitter,
-        author = "@reader",
-        title = "A link with no preview metadata",
-        previewText = "When OG fetch yields nothing, the card degrades to a URL-only chip.",
-        contentType = ContentType.Link,
-        savedAt = System.currentTimeMillis() - 3600000,
-        sourceUrl = "https://twitter.com/i/web/status/206",
-        linkUrl = "https://example.com/article",
-        linkDisplayUrl = "example.com/article",
-    )
+    private val urlOnlyLinkBookmark =
+        Bookmark(
+            id = "link-2",
+            source = BookmarkSource.Twitter,
+            author = "@reader",
+            title = "A link with no preview metadata",
+            previewText = "When OG fetch yields nothing, the card degrades to a URL-only chip.",
+            contentType = ContentType.Link,
+            savedAt = System.currentTimeMillis() - 3600000,
+            sourceUrl = "https://twitter.com/i/web/status/206",
+            linkUrl = "https://example.com/article",
+            linkDisplayUrl = "example.com/article",
+        )
 
     @Before
     fun installFakeImageLoader() {
-        val engine = FakeImageLoaderEngine.Builder()
-            .default(ColorDrawable(Color.rgb(0x88, 0x88, 0x88)))
-            .build()
-        val imageLoader = ImageLoader.Builder(ApplicationProvider.getApplicationContext())
-            .components { add(engine) }
-            .build()
+        val engine =
+            FakeImageLoaderEngine
+                .Builder()
+                .default(ColorDrawable(Color.rgb(0x88, 0x88, 0x88)))
+                .build()
+        val imageLoader =
+            ImageLoader
+                .Builder(ApplicationProvider.getApplicationContext())
+                .components { add(engine) }
+                .build()
         Coil.setImageLoader(imageLoader)
     }
 

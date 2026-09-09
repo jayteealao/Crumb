@@ -16,7 +16,6 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class ButtonDestructiveTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -32,7 +31,8 @@ class ButtonDestructiveTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsButton_destructive_medium_light.png")
     }
 
@@ -48,7 +48,8 @@ class ButtonDestructiveTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsButton_destructive_medium_dark.png")
     }
 
@@ -64,7 +65,8 @@ class ButtonDestructiveTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsButton_destructive_small_light.png")
     }
 }

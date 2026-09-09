@@ -39,7 +39,9 @@ enum class GradientDirection {
     DiagonalBLTR,
 }
 
-enum class GradientIntensity(val alpha: Float) {
+enum class GradientIntensity(
+    val alpha: Float,
+) {
     Light(0.3f),
     Medium(0.5f),
     Dark(0.7f),
@@ -54,58 +56,78 @@ fun GradientImage(
     gradientColor: Color = Color.Black,
     gradientDirection: GradientDirection = GradientDirection.BottomToTop,
     gradientIntensity: GradientIntensity = GradientIntensity.Medium,
-    overlayContent: @Composable (BoxScope.() -> Unit)? = null
+    overlayContent: @Composable (BoxScope.() -> Unit)? = null,
 ) {
     val colors = LocalCrumbsColors.current
     val stroke = LocalCrumbsStroke.current
     val shapes = LocalCrumbsShapes.current
 
     Box(
-        modifier = modifier
-            .border(stroke.hairline, colors.ink, shapes.rectangle)
-            .testTag("gradient-image"),
+        modifier =
+            modifier
+                .border(stroke.hairline, colors.ink, shapes.rectangle)
+                .testTag("gradient-image"),
     ) {
         AsyncImage(
             model = imageUrl,
             contentDescription = contentDescription,
-            modifier = Modifier
-                .fillMaxSize()
-                .drawWithContent {
-                    drawContent()
-                    val gradient = when (gradientDirection) {
-                        GradientDirection.TopToBottom -> Brush.verticalGradient(
-                            colors = listOf(gradientColor.copy(alpha = gradientIntensity.alpha), Color.Transparent),
-                            startY = 0f,
-                            endY = size.height * 0.5f,
-                        )
-                        GradientDirection.BottomToTop -> Brush.verticalGradient(
-                            colors = listOf(Color.Transparent, gradientColor.copy(alpha = gradientIntensity.alpha)),
-                            startY = size.height * 0.5f,
-                            endY = size.height,
-                        )
-                        GradientDirection.LeftToRight -> Brush.horizontalGradient(
-                            colors = listOf(gradientColor.copy(alpha = gradientIntensity.alpha), Color.Transparent),
-                            startX = 0f,
-                            endX = size.width * 0.5f,
-                        )
-                        GradientDirection.RightToLeft -> Brush.horizontalGradient(
-                            colors = listOf(Color.Transparent, gradientColor.copy(alpha = gradientIntensity.alpha)),
-                            startX = size.width * 0.5f,
-                            endX = size.width,
-                        )
-                        GradientDirection.DiagonalTLBR -> Brush.linearGradient(
-                            colors = listOf(gradientColor.copy(alpha = gradientIntensity.alpha), Color.Transparent),
-                            start = Offset(0f, 0f),
-                            end = Offset(size.width, size.height),
-                        )
-                        GradientDirection.DiagonalBLTR -> Brush.linearGradient(
-                            colors = listOf(Color.Transparent, gradientColor.copy(alpha = gradientIntensity.alpha)),
-                            start = Offset(0f, size.height),
-                            end = Offset(size.width, 0f),
-                        )
-                    }
-                    drawRect(brush = gradient)
-                },
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .drawWithContent {
+                        drawContent()
+                        val gradient =
+                            when (gradientDirection) {
+                                GradientDirection.TopToBottom -> {
+                                    Brush.verticalGradient(
+                                        colors = listOf(gradientColor.copy(alpha = gradientIntensity.alpha), Color.Transparent),
+                                        startY = 0f,
+                                        endY = size.height * 0.5f,
+                                    )
+                                }
+
+                                GradientDirection.BottomToTop -> {
+                                    Brush.verticalGradient(
+                                        colors = listOf(Color.Transparent, gradientColor.copy(alpha = gradientIntensity.alpha)),
+                                        startY = size.height * 0.5f,
+                                        endY = size.height,
+                                    )
+                                }
+
+                                GradientDirection.LeftToRight -> {
+                                    Brush.horizontalGradient(
+                                        colors = listOf(gradientColor.copy(alpha = gradientIntensity.alpha), Color.Transparent),
+                                        startX = 0f,
+                                        endX = size.width * 0.5f,
+                                    )
+                                }
+
+                                GradientDirection.RightToLeft -> {
+                                    Brush.horizontalGradient(
+                                        colors = listOf(Color.Transparent, gradientColor.copy(alpha = gradientIntensity.alpha)),
+                                        startX = size.width * 0.5f,
+                                        endX = size.width,
+                                    )
+                                }
+
+                                GradientDirection.DiagonalTLBR -> {
+                                    Brush.linearGradient(
+                                        colors = listOf(gradientColor.copy(alpha = gradientIntensity.alpha), Color.Transparent),
+                                        start = Offset(0f, 0f),
+                                        end = Offset(size.width, size.height),
+                                    )
+                                }
+
+                                GradientDirection.DiagonalBLTR -> {
+                                    Brush.linearGradient(
+                                        colors = listOf(Color.Transparent, gradientColor.copy(alpha = gradientIntensity.alpha)),
+                                        start = Offset(0f, size.height),
+                                        end = Offset(size.width, 0f),
+                                    )
+                                }
+                            }
+                        drawRect(brush = gradient)
+                    },
             contentScale = contentScale,
         )
         overlayContent?.invoke(this)

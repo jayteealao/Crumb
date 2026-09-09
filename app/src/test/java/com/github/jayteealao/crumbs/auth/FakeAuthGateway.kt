@@ -1,9 +1,9 @@
 package com.github.jayteealao.crumbs.auth
 
-import java.util.ArrayDeque
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.util.ArrayDeque
 
 // Scriptable fake driven by a Deque of AuthResults. Tests push the sequence of
 // expected results before calling the VM; each gateway call consumes one. The
@@ -46,15 +46,17 @@ class FakeAuthGateway(
         return result
     }
 
-    override suspend fun signInWithEmailPassword(email: String, password: String): AuthResult {
+    override suspend fun signInWithEmailPassword(
+        email: String,
+        password: String,
+    ): AuthResult {
         val result = emailResults.pollFirst() ?: AuthResult.Unknown(IllegalStateException("no email result queued"))
         if (result is AuthResult.Success) _currentUser.value = userOnSuccess
         return result
     }
 
-    override suspend fun linkGoogleToCurrentUser(idToken: String): AuthResult {
-        return linkResults.pollFirst() ?: AuthResult.Unknown(IllegalStateException("no link result queued"))
-    }
+    override suspend fun linkGoogleToCurrentUser(idToken: String): AuthResult =
+        linkResults.pollFirst() ?: AuthResult.Unknown(IllegalStateException("no link result queued"))
 
     override suspend fun signOut() {
         signOutCallCount++

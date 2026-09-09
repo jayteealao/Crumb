@@ -13,36 +13,41 @@ import javax.inject.Singleton
  * [TweetDao] and [FirestoreRepository] public methods without modifying either.
  */
 @Singleton
-class TwitterSyncFacadeImpl @Inject constructor(
-    private val tweetDao: TweetDao,
-    private val firestoreRepository: FirestoreRepository,
-) : TwitterSyncFacade {
+class TwitterSyncFacadeImpl
+    @Inject
+    constructor(
+        private val tweetDao: TweetDao,
+        private val firestoreRepository: FirestoreRepository,
+    ) : TwitterSyncFacade {
+        override suspend fun getAllTweetIds(): List<String> = tweetDao.getAllTweetIds()
 
-    override suspend fun getAllTweetIds(): List<String> =
-        tweetDao.getAllTweetIds()
+        override suspend fun getMaxOrder(): Int? = tweetDao.getMaxOrder()
 
-    override suspend fun getMaxOrder(): Int? =
-        tweetDao.getMaxOrder()
+        override fun insertTweetEntitiesBatch(batch: List<TweetEntities>) = tweetDao.insertTweetEntitiesBatch(batch)
 
-    override fun insertTweetEntitiesBatch(batch: List<TweetEntities>) =
-        tweetDao.insertTweetEntitiesBatch(batch)
+        override fun fetchMissingTweetsStream(
+            localIds: Set<String>,
+            deletedIds: Set<String>,
+            resumeFrom: SyncCursor,
+        ): Flow<SyncEmission> = firestoreRepository.fetchTweetsNotInLocalStream(localIds, deletedIds, resumeFrom)
 
-    override fun fetchMissingTweetsStream(
-        localIds: Set<String>,
-        deletedIds: Set<String>,
-        resumeFrom: SyncCursor,
-    ): Flow<SyncEmission> =
-        firestoreRepository.fetchTweetsNotInLocalStream(localIds, deletedIds, resumeFrom)
+        override suspend fun getTweetsWithoutMedia(
+            afterId: String,
+            limit: Int,
+        ): List<String> = tweetDao.getTweetsWithoutMedia(afterId, limit)
 
-    override suspend fun getTweetsWithoutMedia(afterId: String, limit: Int): List<String> =
-        tweetDao.getTweetsWithoutMedia(afterId, limit)
+        override suspend fun getVideoTweetsWithoutVariants(
+            afterId: String,
+            limit: Int,
+        ): List<String> = tweetDao.getVideoTweetsWithoutVariants(afterId, limit)
 
-    override suspend fun getVideoTweetsWithoutVariants(afterId: String, limit: Int): List<String> =
-        tweetDao.getVideoTweetsWithoutVariants(afterId, limit)
+        override suspend fun getExternalLinkTweetsWithoutPreview(
+            afterId: String,
+            limit: Int,
+        ): List<String> = tweetDao.getExternalLinkTweetsWithoutPreview(afterId, limit)
 
-    override suspend fun getExternalLinkTweetsWithoutPreview(afterId: String, limit: Int): List<String> =
-        tweetDao.getExternalLinkTweetsWithoutPreview(afterId, limit)
-
-    override suspend fun getQuoteTweetsWithoutBody(afterId: String, limit: Int): List<String> =
-        tweetDao.getQuoteTweetsWithoutBody(afterId, limit)
-}
+        override suspend fun getQuoteTweetsWithoutBody(
+            afterId: String,
+            limit: Int,
+        ): List<String> = tweetDao.getQuoteTweetsWithoutBody(afterId, limit)
+    }

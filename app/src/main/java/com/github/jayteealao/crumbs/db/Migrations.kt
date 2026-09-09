@@ -11,111 +11,114 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * `androidTest`.
  */
 
-val MIGRATION_2_3: Migration = object : Migration(2, 3) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL(
-            """
-            CREATE TABLE IF NOT EXISTS `tags` (
-                `name` TEXT NOT NULL,
-                PRIMARY KEY(`name`)
+val MIGRATION_2_3: Migration =
+    object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `tags` (
+                    `name` TEXT NOT NULL,
+                    PRIMARY KEY(`name`)
+                )
+                """.trimIndent(),
             )
-            """.trimIndent()
-        )
 
-        db.execSQL(
-            """
-            CREATE TABLE IF NOT EXISTS `tweet_tags` (
-                `tweetId` TEXT NOT NULL,
-                `tagName` TEXT NOT NULL,
-                PRIMARY KEY(`tweetId`, `tagName`),
-                FOREIGN KEY(`tweetId`) REFERENCES `tweetentity`(`id`) ON DELETE CASCADE,
-                FOREIGN KEY(`tagName`) REFERENCES `tags`(`name`) ON DELETE CASCADE
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `tweet_tags` (
+                    `tweetId` TEXT NOT NULL,
+                    `tagName` TEXT NOT NULL,
+                    PRIMARY KEY(`tweetId`, `tagName`),
+                    FOREIGN KEY(`tweetId`) REFERENCES `tweetentity`(`id`) ON DELETE CASCADE,
+                    FOREIGN KEY(`tagName`) REFERENCES `tags`(`name`) ON DELETE CASCADE
+                )
+                """.trimIndent(),
             )
-            """.trimIndent()
-        )
 
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweet_tags_tweetId` ON `tweet_tags` (`tweetId`)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweet_tags_tagName` ON `tweet_tags` (`tagName`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweet_tags_tweetId` ON `tweet_tags` (`tweetId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweet_tags_tagName` ON `tweet_tags` (`tagName`)")
+        }
     }
-}
 
-val MIGRATION_3_4: Migration = object : Migration(3, 4) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        // Fix tweet_tags table foreign key reference case issue.
-        db.execSQL(
-            """
-            CREATE TEMPORARY TABLE `tweet_tags_backup` (
-                `tweetId` TEXT NOT NULL,
-                `tagName` TEXT NOT NULL
+val MIGRATION_3_4: Migration =
+    object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Fix tweet_tags table foreign key reference case issue.
+            db.execSQL(
+                """
+                CREATE TEMPORARY TABLE `tweet_tags_backup` (
+                    `tweetId` TEXT NOT NULL,
+                    `tagName` TEXT NOT NULL
+                )
+                """.trimIndent(),
             )
-            """.trimIndent()
-        )
 
-        db.execSQL("INSERT INTO `tweet_tags_backup` SELECT `tweetId`, `tagName` FROM `tweet_tags`")
-        db.execSQL("DROP TABLE `tweet_tags`")
-        db.execSQL(
-            """
-            CREATE TABLE `tweet_tags` (
-                `tweetId` TEXT NOT NULL,
-                `tagName` TEXT NOT NULL,
-                PRIMARY KEY(`tweetId`, `tagName`),
-                FOREIGN KEY(`tweetId`) REFERENCES `tweetEntity`(`id`) ON DELETE CASCADE,
-                FOREIGN KEY(`tagName`) REFERENCES `tags`(`name`) ON DELETE CASCADE
+            db.execSQL("INSERT INTO `tweet_tags_backup` SELECT `tweetId`, `tagName` FROM `tweet_tags`")
+            db.execSQL("DROP TABLE `tweet_tags`")
+            db.execSQL(
+                """
+                CREATE TABLE `tweet_tags` (
+                    `tweetId` TEXT NOT NULL,
+                    `tagName` TEXT NOT NULL,
+                    PRIMARY KEY(`tweetId`, `tagName`),
+                    FOREIGN KEY(`tweetId`) REFERENCES `tweetEntity`(`id`) ON DELETE CASCADE,
+                    FOREIGN KEY(`tagName`) REFERENCES `tags`(`name`) ON DELETE CASCADE
+                )
+                """.trimIndent(),
             )
-            """.trimIndent()
-        )
-        db.execSQL("INSERT INTO `tweet_tags` SELECT `tweetId`, `tagName` FROM `tweet_tags_backup`")
-        db.execSQL("DROP TABLE `tweet_tags_backup`")
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweet_tags_tweetId` ON `tweet_tags` (`tweetId`)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweet_tags_tagName` ON `tweet_tags` (`tagName`)")
+            db.execSQL("INSERT INTO `tweet_tags` SELECT `tweetId`, `tagName` FROM `tweet_tags_backup`")
+            db.execSQL("DROP TABLE `tweet_tags_backup`")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweet_tags_tweetId` ON `tweet_tags` (`tweetId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweet_tags_tagName` ON `tweet_tags` (`tagName`)")
 
-        db.execSQL(
-            """
-            CREATE TABLE IF NOT EXISTS `reddit_posts` (
-                `id` TEXT NOT NULL,
-                `name` TEXT NOT NULL,
-                `title` TEXT NOT NULL,
-                `selftext` TEXT NOT NULL,
-                `author` TEXT NOT NULL,
-                `subreddit` TEXT NOT NULL,
-                `subreddit_prefixed` TEXT NOT NULL,
-                `created_utc` INTEGER NOT NULL,
-                `url` TEXT NOT NULL,
-                `permalink` TEXT NOT NULL,
-                `thumbnail` TEXT,
-                `num_comments` INTEGER NOT NULL,
-                `score` INTEGER NOT NULL,
-                `is_self` INTEGER NOT NULL,
-                `is_video` INTEGER NOT NULL,
-                `domain` TEXT NOT NULL,
-                `link_flair_text` TEXT,
-                `gilded` INTEGER NOT NULL,
-                `over_18` INTEGER NOT NULL,
-                `order` INTEGER NOT NULL,
-                PRIMARY KEY(`id`)
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `reddit_posts` (
+                    `id` TEXT NOT NULL,
+                    `name` TEXT NOT NULL,
+                    `title` TEXT NOT NULL,
+                    `selftext` TEXT NOT NULL,
+                    `author` TEXT NOT NULL,
+                    `subreddit` TEXT NOT NULL,
+                    `subreddit_prefixed` TEXT NOT NULL,
+                    `created_utc` INTEGER NOT NULL,
+                    `url` TEXT NOT NULL,
+                    `permalink` TEXT NOT NULL,
+                    `thumbnail` TEXT,
+                    `num_comments` INTEGER NOT NULL,
+                    `score` INTEGER NOT NULL,
+                    `is_self` INTEGER NOT NULL,
+                    `is_video` INTEGER NOT NULL,
+                    `domain` TEXT NOT NULL,
+                    `link_flair_text` TEXT,
+                    `gilded` INTEGER NOT NULL,
+                    `over_18` INTEGER NOT NULL,
+                    `order` INTEGER NOT NULL,
+                    PRIMARY KEY(`id`)
+                )
+                """.trimIndent(),
             )
-            """.trimIndent()
-        )
 
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_reddit_posts_author` ON `reddit_posts` (`author`)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_reddit_posts_subreddit` ON `reddit_posts` (`subreddit`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_reddit_posts_author` ON `reddit_posts` (`author`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_reddit_posts_subreddit` ON `reddit_posts` (`subreddit`)")
+        }
     }
-}
 
-val MIGRATION_4_5: Migration = object : Migration(4, 5) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL(
-            """
-            CREATE TABLE IF NOT EXISTS `deleted_bookmarks` (
-                `bookmarkId` TEXT NOT NULL,
-                `source` TEXT NOT NULL,
-                `deletedAt` INTEGER NOT NULL,
-                PRIMARY KEY(`bookmarkId`)
+val MIGRATION_4_5: Migration =
+    object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `deleted_bookmarks` (
+                    `bookmarkId` TEXT NOT NULL,
+                    `source` TEXT NOT NULL,
+                    `deletedAt` INTEGER NOT NULL,
+                    PRIMARY KEY(`bookmarkId`)
+                )
+                """.trimIndent(),
             )
-            """.trimIndent()
-        )
+        }
     }
-}
 
 /**
  * v5 → v6: widen `deleted_bookmarks` PK from `bookmarkId` alone to the
@@ -130,23 +133,24 @@ val MIGRATION_4_5: Migration = object : Migration(4, 5) {
  * the DB with `deleted_bookmarks_new` populated but the original table
  * still present.
  */
-val MIGRATION_5_6: Migration = object : Migration(5, 6) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL(
-            "CREATE TABLE IF NOT EXISTS `deleted_bookmarks_new` (" +
-                "`bookmarkId` TEXT NOT NULL, " +
-                "`source` TEXT NOT NULL, " +
-                "`deletedAt` INTEGER NOT NULL, " +
-                "PRIMARY KEY(`bookmarkId`, `source`))"
-        )
-        db.execSQL(
-            "INSERT OR IGNORE INTO `deleted_bookmarks_new` (`bookmarkId`, `source`, `deletedAt`) " +
-                "SELECT `bookmarkId`, `source`, `deletedAt` FROM `deleted_bookmarks`"
-        )
-        db.execSQL("DROP TABLE `deleted_bookmarks`")
-        db.execSQL("ALTER TABLE `deleted_bookmarks_new` RENAME TO `deleted_bookmarks`")
+val MIGRATION_5_6: Migration =
+    object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `deleted_bookmarks_new` (" +
+                    "`bookmarkId` TEXT NOT NULL, " +
+                    "`source` TEXT NOT NULL, " +
+                    "`deletedAt` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`bookmarkId`, `source`))",
+            )
+            db.execSQL(
+                "INSERT OR IGNORE INTO `deleted_bookmarks_new` (`bookmarkId`, `source`, `deletedAt`) " +
+                    "SELECT `bookmarkId`, `source`, `deletedAt` FROM `deleted_bookmarks`",
+            )
+            db.execSQL("DROP TABLE `deleted_bookmarks`")
+            db.execSQL("ALTER TABLE `deleted_bookmarks_new` RENAME TO `deleted_bookmarks`")
+        }
     }
-}
 
 /**
  * v6 → v7: index `order` on tweetEntity and reddit_posts.
@@ -155,41 +159,44 @@ val MIGRATION_5_6: Migration = object : Migration(5, 6) {
  * index on that column — Room degraded to a full-table scan on every page
  * boundary as the bookmark count grew.
  */
-val MIGRATION_6_7: Migration = object : Migration(6, 7) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweetEntity_order` ON `tweetEntity` (`order`)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_reddit_posts_order` ON `reddit_posts` (`order`)")
+val MIGRATION_6_7: Migration =
+    object : Migration(6, 7) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweetEntity_order` ON `tweetEntity` (`order`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_reddit_posts_order` ON `reddit_posts` (`order`)")
+        }
     }
-}
 
 /**
  * v7 → v8: index FK columns on pollIds and mediaKeys. Without these the
  * parent tweetEntity cascade scans the whole child table on every update.
  */
-val MIGRATION_7_8: Migration = object : Migration(7, 8) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_pollIds_tweetId` ON `pollIds` (`tweetId`)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_mediaKeys_tweet_id` ON `mediaKeys` (`tweet_id`)")
+val MIGRATION_7_8: Migration =
+    object : Migration(7, 8) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_pollIds_tweetId` ON `pollIds` (`tweetId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_mediaKeys_tweet_id` ON `mediaKeys` (`tweet_id`)")
+        }
     }
-}
 
 /**
  * v8 → v9: add Reddit-side tag cross-reference table. Routing Reddit tags
  * through `tweet_tags` (which carries an FK to `tweetEntity.id`) crashed
  * with SQLITE_CONSTRAINT_FOREIGNKEY; this table is source-scoped and FK-free.
  */
-val MIGRATION_8_9: Migration = object : Migration(8, 9) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL(
-            "CREATE TABLE IF NOT EXISTS `reddit_tag_crossref` (" +
-                "`postId` TEXT NOT NULL, " +
-                "`tagName` TEXT NOT NULL, " +
-                "PRIMARY KEY(`postId`, `tagName`))"
-        )
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_reddit_tag_crossref_postId` ON `reddit_tag_crossref` (`postId`)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_reddit_tag_crossref_tagName` ON `reddit_tag_crossref` (`tagName`)")
+val MIGRATION_8_9: Migration =
+    object : Migration(8, 9) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `reddit_tag_crossref` (" +
+                    "`postId` TEXT NOT NULL, " +
+                    "`tagName` TEXT NOT NULL, " +
+                    "PRIMARY KEY(`postId`, `tagName`))",
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_reddit_tag_crossref_postId` ON `reddit_tag_crossref` (`postId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_reddit_tag_crossref_tagName` ON `reddit_tag_crossref` (`tagName`)")
+        }
     }
-}
 
 /**
  * v9 → v10: surface the server-side `pending_delete` flag on `tweetEntity`.
@@ -198,11 +205,12 @@ val MIGRATION_8_9: Migration = object : Migration(8, 9) {
  * the column is true. INTEGER NOT NULL DEFAULT 0 maps Kotlin Boolean → SQLite
  * with the safe default for every existing row.
  */
-val MIGRATION_9_10: Migration = object : Migration(9, 10) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL("ALTER TABLE `tweetEntity` ADD COLUMN `pending_delete` INTEGER NOT NULL DEFAULT 0")
+val MIGRATION_9_10: Migration =
+    object : Migration(9, 10) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `tweetEntity` ADD COLUMN `pending_delete` INTEGER NOT NULL DEFAULT 0")
+        }
     }
-}
 
 /**
  * v10 → v11: add `tweet_fts` and `reddit_fts` virtual tables (FTS4, unicode61
@@ -219,70 +227,71 @@ val MIGRATION_9_10: Migration = object : Migration(9, 10) {
  * the entities' String PK — `@Fts4(contentEntity = ...)` relies on this
  * linkage. DAO joins use `JOIN <fts> ON parent.rowid = <fts>.rowid`.
  */
-val MIGRATION_10_11: Migration = object : Migration(10, 11) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        // tweet_fts — single `text` column from tweetEntity.text
-        db.execSQL(
-            "CREATE VIRTUAL TABLE IF NOT EXISTS `tweet_fts` USING FTS4(" +
-                "`text` TEXT NOT NULL, content=`tweetEntity`, tokenize=unicode61)"
-        )
-        db.execSQL(
-            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_tweet_fts_BEFORE_UPDATE` " +
-                "BEFORE UPDATE ON `tweetEntity` " +
-                "BEGIN DELETE FROM `tweet_fts` WHERE `docid`=OLD.`rowid`; END"
-        )
-        db.execSQL(
-            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_tweet_fts_BEFORE_DELETE` " +
-                "BEFORE DELETE ON `tweetEntity` " +
-                "BEGIN DELETE FROM `tweet_fts` WHERE `docid`=OLD.`rowid`; END"
-        )
-        db.execSQL(
-            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_tweet_fts_AFTER_UPDATE` " +
-                "AFTER UPDATE ON `tweetEntity` " +
-                "BEGIN INSERT INTO `tweet_fts`(`docid`, `text`) VALUES (NEW.`rowid`, NEW.`text`); END"
-        )
-        db.execSQL(
-            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_tweet_fts_AFTER_INSERT` " +
-                "AFTER INSERT ON `tweetEntity` " +
-                "BEGIN INSERT INTO `tweet_fts`(`docid`, `text`) VALUES (NEW.`rowid`, NEW.`text`); END"
-        )
-        // NOTE: FTS 'rebuild' intentionally omitted here. Re-tokenizing all rows inside
-        // the migration transaction would hold the SQLite write lock for O(N) on large
-        // corpora and risk a busy-timeout. The rebuild is deferred to
-        // DatabaseModule's RoomDatabase.Callback#onOpen, which runs it once after the
-        // database is first opened on this device version, guarded by an emptiness check.
+val MIGRATION_10_11: Migration =
+    object : Migration(10, 11) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // tweet_fts — single `text` column from tweetEntity.text
+            db.execSQL(
+                "CREATE VIRTUAL TABLE IF NOT EXISTS `tweet_fts` USING FTS4(" +
+                    "`text` TEXT NOT NULL, content=`tweetEntity`, tokenize=unicode61)",
+            )
+            db.execSQL(
+                "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_tweet_fts_BEFORE_UPDATE` " +
+                    "BEFORE UPDATE ON `tweetEntity` " +
+                    "BEGIN DELETE FROM `tweet_fts` WHERE `docid`=OLD.`rowid`; END",
+            )
+            db.execSQL(
+                "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_tweet_fts_BEFORE_DELETE` " +
+                    "BEFORE DELETE ON `tweetEntity` " +
+                    "BEGIN DELETE FROM `tweet_fts` WHERE `docid`=OLD.`rowid`; END",
+            )
+            db.execSQL(
+                "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_tweet_fts_AFTER_UPDATE` " +
+                    "AFTER UPDATE ON `tweetEntity` " +
+                    "BEGIN INSERT INTO `tweet_fts`(`docid`, `text`) VALUES (NEW.`rowid`, NEW.`text`); END",
+            )
+            db.execSQL(
+                "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_tweet_fts_AFTER_INSERT` " +
+                    "AFTER INSERT ON `tweetEntity` " +
+                    "BEGIN INSERT INTO `tweet_fts`(`docid`, `text`) VALUES (NEW.`rowid`, NEW.`text`); END",
+            )
+            // NOTE: FTS 'rebuild' intentionally omitted here. Re-tokenizing all rows inside
+            // the migration transaction would hold the SQLite write lock for O(N) on large
+            // corpora and risk a busy-timeout. The rebuild is deferred to
+            // DatabaseModule's RoomDatabase.Callback#onOpen, which runs it once after the
+            // database is first opened on this device version, guarded by an emptiness check.
 
-        // reddit_fts — `title` + `selftext` columns from reddit_posts
-        db.execSQL(
-            "CREATE VIRTUAL TABLE IF NOT EXISTS `reddit_fts` USING FTS4(" +
-                "`title` TEXT NOT NULL, `selftext` TEXT NOT NULL, " +
-                "content=`reddit_posts`, tokenize=unicode61)"
-        )
-        db.execSQL(
-            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_reddit_fts_BEFORE_UPDATE` " +
-                "BEFORE UPDATE ON `reddit_posts` " +
-                "BEGIN DELETE FROM `reddit_fts` WHERE `docid`=OLD.`rowid`; END"
-        )
-        db.execSQL(
-            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_reddit_fts_BEFORE_DELETE` " +
-                "BEFORE DELETE ON `reddit_posts` " +
-                "BEGIN DELETE FROM `reddit_fts` WHERE `docid`=OLD.`rowid`; END"
-        )
-        db.execSQL(
-            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_reddit_fts_AFTER_UPDATE` " +
-                "AFTER UPDATE ON `reddit_posts` " +
-                "BEGIN INSERT INTO `reddit_fts`(`docid`, `title`, `selftext`) " +
-                "VALUES (NEW.`rowid`, NEW.`title`, NEW.`selftext`); END"
-        )
-        db.execSQL(
-            "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_reddit_fts_AFTER_INSERT` " +
-                "AFTER INSERT ON `reddit_posts` " +
-                "BEGIN INSERT INTO `reddit_fts`(`docid`, `title`, `selftext`) " +
-                "VALUES (NEW.`rowid`, NEW.`title`, NEW.`selftext`); END"
-        )
-        // NOTE: FTS 'rebuild' intentionally omitted here — deferred to onOpen (see above).
+            // reddit_fts — `title` + `selftext` columns from reddit_posts
+            db.execSQL(
+                "CREATE VIRTUAL TABLE IF NOT EXISTS `reddit_fts` USING FTS4(" +
+                    "`title` TEXT NOT NULL, `selftext` TEXT NOT NULL, " +
+                    "content=`reddit_posts`, tokenize=unicode61)",
+            )
+            db.execSQL(
+                "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_reddit_fts_BEFORE_UPDATE` " +
+                    "BEFORE UPDATE ON `reddit_posts` " +
+                    "BEGIN DELETE FROM `reddit_fts` WHERE `docid`=OLD.`rowid`; END",
+            )
+            db.execSQL(
+                "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_reddit_fts_BEFORE_DELETE` " +
+                    "BEFORE DELETE ON `reddit_posts` " +
+                    "BEGIN DELETE FROM `reddit_fts` WHERE `docid`=OLD.`rowid`; END",
+            )
+            db.execSQL(
+                "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_reddit_fts_AFTER_UPDATE` " +
+                    "AFTER UPDATE ON `reddit_posts` " +
+                    "BEGIN INSERT INTO `reddit_fts`(`docid`, `title`, `selftext`) " +
+                    "VALUES (NEW.`rowid`, NEW.`title`, NEW.`selftext`); END",
+            )
+            db.execSQL(
+                "CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_reddit_fts_AFTER_INSERT` " +
+                    "AFTER INSERT ON `reddit_posts` " +
+                    "BEGIN INSERT INTO `reddit_fts`(`docid`, `title`, `selftext`) " +
+                    "VALUES (NEW.`rowid`, NEW.`title`, NEW.`selftext`); END",
+            )
+            // NOTE: FTS 'rebuild' intentionally omitted here — deferred to onOpen (see above).
+        }
     }
-}
 
 /**
  * v11 → v12: per-uid cursor checkpoint for the streaming Twitter sync.
@@ -290,21 +299,22 @@ val MIGRATION_10_11: Migration = object : Migration(10, 11) {
  * low-watermark (oldest createdAt successfully written) as `(createdAt,
  * tweetId)` tuples so the worker can resume mid-stream after process death.
  */
-val MIGRATION_11_12: Migration = object : Migration(11, 12) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL(
-            "CREATE TABLE IF NOT EXISTS `sync_progress` (" +
-                "`uid` TEXT NOT NULL, " +
-                "`last_high_cursor_created_at` TEXT, " +
-                "`last_high_cursor_tweet_id` TEXT, " +
-                "`last_low_cursor_created_at` TEXT, " +
-                "`last_low_cursor_tweet_id` TEXT, " +
-                "`total_batches_ingested` INTEGER NOT NULL, " +
-                "`last_updated_at_ms` INTEGER NOT NULL, " +
-                "PRIMARY KEY(`uid`))"
-        )
+val MIGRATION_11_12: Migration =
+    object : Migration(11, 12) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `sync_progress` (" +
+                    "`uid` TEXT NOT NULL, " +
+                    "`last_high_cursor_created_at` TEXT, " +
+                    "`last_high_cursor_tweet_id` TEXT, " +
+                    "`last_low_cursor_created_at` TEXT, " +
+                    "`last_low_cursor_tweet_id` TEXT, " +
+                    "`total_batches_ingested` INTEGER NOT NULL, " +
+                    "`last_updated_at_ms` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`uid`))",
+            )
+        }
     }
-}
 
 /**
  * v12 → v13: add the server-stamped `retrieved_at` column (nullable epoch-millis), the
@@ -313,15 +323,16 @@ val MIGRATION_11_12: Migration = object : Migration(11, 12) {
  * Pre-existing rows get NULL `retrieved_at`, which sorts last under a DESC order. The index
  * name must match Room's generated `index_<table>_<col1>_<col2>` or schema validation fails.
  */
-val MIGRATION_12_13: Migration = object : Migration(12, 13) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL("ALTER TABLE `tweetEntity` ADD COLUMN `retrieved_at` INTEGER")
-        db.execSQL(
-            "CREATE INDEX IF NOT EXISTS `index_tweetEntity_retrieved_at_created_at` " +
-                "ON `tweetEntity` (`retrieved_at`, `created_at`)"
-        )
+val MIGRATION_12_13: Migration =
+    object : Migration(12, 13) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `tweetEntity` ADD COLUMN `retrieved_at` INTEGER")
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_tweetEntity_retrieved_at_created_at` " +
+                    "ON `tweetEntity` (`retrieved_at`, `created_at`)",
+            )
+        }
     }
-}
 
 /**
  * v13 → v14: add an index on `tweetEntity.conversation_id`. It backs the THREAD type-filter's
@@ -330,14 +341,15 @@ val MIGRATION_12_13: Migration = object : Migration(12, 13) {
  * pre-existing rows are untouched. The index name must match Room's generated
  * `index_<table>_<col>` (`index_tweetEntity_conversation_id`) or schema validation fails.
  */
-val MIGRATION_13_14: Migration = object : Migration(13, 14) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL(
-            "CREATE INDEX IF NOT EXISTS `index_tweetEntity_conversation_id` " +
-                "ON `tweetEntity` (`conversation_id`)"
-        )
+val MIGRATION_13_14: Migration =
+    object : Migration(13, 14) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_tweetEntity_conversation_id` " +
+                    "ON `tweetEntity` (`conversation_id`)",
+            )
+        }
     }
-}
 
 /**
  * v14 → v15: add the JSON `video_variants` column to `tweetMedia`. It stores a media
@@ -348,11 +360,12 @@ val MIGRATION_13_14: Migration = object : Migration(13, 14) {
  * are untouched. The column type must match Room's generated schema (`TEXT`, nullable) or
  * schema validation fails.
  */
-val MIGRATION_14_15: Migration = object : Migration(14, 15) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL("ALTER TABLE `tweetMedia` ADD COLUMN `video_variants` TEXT")
+val MIGRATION_14_15: Migration =
+    object : Migration(14, 15) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `tweetMedia` ADD COLUMN `video_variants` TEXT")
+        }
     }
-}
 
 /**
  * v15 → v16: add the `image_url` column to `tweetTextEntityAnnotation`. It stores a
@@ -362,11 +375,12 @@ val MIGRATION_14_15: Migration = object : Migration(14, 15) {
  * so legacy annotation rows are untouched. The column type must match Room's
  * generated schema (`TEXT`, nullable) or schema validation fails.
  */
-val MIGRATION_15_16: Migration = object : Migration(15, 16) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL("ALTER TABLE `tweetTextEntityAnnotation` ADD COLUMN `image_url` TEXT")
+val MIGRATION_15_16: Migration =
+    object : Migration(15, 16) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `tweetTextEntityAnnotation` ADD COLUMN `image_url` TEXT")
+        }
     }
-}
 
 /**
  * v16 → v17: add the `tweet_id` parent-link column to `tweetReferencedTweets` (the
@@ -393,15 +407,16 @@ val MIGRATION_15_16: Migration = object : Migration(15, 16) {
  * (`index_<table>_<col>`) must match Room's generated schema or
  * `runMigrationsAndValidate` fails.
  */
-val MIGRATION_16_17: Migration = object : Migration(16, 17) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL("ALTER TABLE `tweetReferencedTweets` ADD COLUMN `tweet_id` TEXT NOT NULL DEFAULT ''")
-        db.execSQL(
-            "CREATE INDEX IF NOT EXISTS `index_tweetReferencedTweets_tweet_id` " +
-                "ON `tweetReferencedTweets` (`tweet_id`)"
-        )
+val MIGRATION_16_17: Migration =
+    object : Migration(16, 17) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `tweetReferencedTweets` ADD COLUMN `tweet_id` TEXT NOT NULL DEFAULT ''")
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_tweetReferencedTweets_tweet_id` " +
+                    "ON `tweetReferencedTweets` (`tweet_id`)",
+            )
+        }
     }
-}
 
 /**
  * v17 → v18: one-time data repair for media rows persisted with a NULL `tweet_id`.
@@ -424,20 +439,21 @@ val MIGRATION_16_17: Migration = object : Migration(16, 17) {
  * backfill sweep). Idempotent: the `WHERE tweet_id IS NULL` guard makes a re-run a no-op
  * once a row is backfilled.
  */
-val MIGRATION_17_18: Migration = object : Migration(17, 18) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL(
-            """
-            UPDATE tweetMedia
-               SET tweet_id = (
-                   SELECT tweet_id FROM mediaKeys
-                    WHERE mediaKeys.media_key = tweetMedia.media_key
-               )
-             WHERE tweet_id IS NULL
-            """.trimIndent()
-        )
+val MIGRATION_17_18: Migration =
+    object : Migration(17, 18) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                UPDATE tweetMedia
+                   SET tweet_id = (
+                       SELECT tweet_id FROM mediaKeys
+                        WHERE mediaKeys.media_key = tweetMedia.media_key
+                   )
+                 WHERE tweet_id IS NULL
+                """.trimIndent(),
+            )
+        }
     }
-}
 
 /**
  * v18 → v19: harden tweet↔media against the wrong-media-attached defect, then wipe the
@@ -473,64 +489,65 @@ val MIGRATION_17_18: Migration = object : Migration(17, 18) {
  * Once released, do NOT alter this migration — a new migration would be required for any
  * further structural change to these tables.
  */
-val MIGRATION_18_19: Migration = object : Migration(18, 19) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL("PRAGMA defer_foreign_keys = TRUE")
+val MIGRATION_18_19: Migration =
+    object : Migration(18, 19) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("PRAGMA defer_foreign_keys = TRUE")
 
-        // 1. tweetIncludes — drop the media_key FK, preserve rows.
-        db.execSQL(
-            "CREATE TABLE IF NOT EXISTS `tweetIncludes_new` (" +
-                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
-                "`tweet_id` TEXT NOT NULL, " +
-                "`twitter_user` TEXT, " +
-                "`referenced_tweet_id` TEXT, " +
-                "`media_key` TEXT, " +
-                "FOREIGN KEY(`twitter_user`) REFERENCES `twitterUser`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION, " +
-                "FOREIGN KEY(`referenced_tweet_id`) REFERENCES `tweetEntity`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION)"
-        )
-        db.execSQL(
-            "INSERT INTO `tweetIncludes_new` (`id`, `tweet_id`, `twitter_user`, `referenced_tweet_id`, `media_key`) " +
-                "SELECT `id`, `tweet_id`, `twitter_user`, `referenced_tweet_id`, `media_key` FROM `tweetIncludes`"
-        )
-        db.execSQL("DROP TABLE `tweetIncludes`")
-        db.execSQL("ALTER TABLE `tweetIncludes_new` RENAME TO `tweetIncludes`")
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweetIncludes_twitter_user` ON `tweetIncludes` (`twitter_user`)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweetIncludes_referenced_tweet_id` ON `tweetIncludes` (`referenced_tweet_id`)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweetIncludes_media_key` ON `tweetIncludes` (`media_key`)")
+            // 1. tweetIncludes — drop the media_key FK, preserve rows.
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `tweetIncludes_new` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`tweet_id` TEXT NOT NULL, " +
+                    "`twitter_user` TEXT, " +
+                    "`referenced_tweet_id` TEXT, " +
+                    "`media_key` TEXT, " +
+                    "FOREIGN KEY(`twitter_user`) REFERENCES `twitterUser`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION, " +
+                    "FOREIGN KEY(`referenced_tweet_id`) REFERENCES `tweetEntity`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION)",
+            )
+            db.execSQL(
+                "INSERT INTO `tweetIncludes_new` (`id`, `tweet_id`, `twitter_user`, `referenced_tweet_id`, `media_key`) " +
+                    "SELECT `id`, `tweet_id`, `twitter_user`, `referenced_tweet_id`, `media_key` FROM `tweetIncludes`",
+            )
+            db.execSQL("DROP TABLE `tweetIncludes`")
+            db.execSQL("ALTER TABLE `tweetIncludes_new` RENAME TO `tweetIncludes`")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweetIncludes_twitter_user` ON `tweetIncludes` (`twitter_user`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweetIncludes_referenced_tweet_id` ON `tweetIncludes` (`referenced_tweet_id`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweetIncludes_media_key` ON `tweetIncludes` (`media_key`)")
 
-        // 2. tweetMedia — composite PK (tweet_id, media_key), tweet_id NOT NULL, WIPED.
-        db.execSQL(
-            "CREATE TABLE IF NOT EXISTS `tweetMedia_new` (" +
-                "`media_key` TEXT NOT NULL, " +
-                "`type` TEXT NOT NULL, " +
-                "`url` TEXT, " +
-                "`duration_ms` INTEGER NOT NULL, " +
-                "`height` INTEGER NOT NULL, " +
-                "`width` INTEGER NOT NULL, " +
-                "`preview_image_url` TEXT, " +
-                "`alt_text` TEXT, " +
-                "`tweet_id` TEXT NOT NULL, " +
-                "`video_variants` TEXT, " +
-                "PRIMARY KEY(`tweet_id`, `media_key`), " +
-                "FOREIGN KEY(`tweet_id`) REFERENCES `tweetEntity`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION)"
-        )
-        db.execSQL("DROP TABLE `tweetMedia`")
-        db.execSQL("ALTER TABLE `tweetMedia_new` RENAME TO `tweetMedia`")
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweetMedia_tweet_id` ON `tweetMedia` (`tweet_id`)")
+            // 2. tweetMedia — composite PK (tweet_id, media_key), tweet_id NOT NULL, WIPED.
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `tweetMedia_new` (" +
+                    "`media_key` TEXT NOT NULL, " +
+                    "`type` TEXT NOT NULL, " +
+                    "`url` TEXT, " +
+                    "`duration_ms` INTEGER NOT NULL, " +
+                    "`height` INTEGER NOT NULL, " +
+                    "`width` INTEGER NOT NULL, " +
+                    "`preview_image_url` TEXT, " +
+                    "`alt_text` TEXT, " +
+                    "`tweet_id` TEXT NOT NULL, " +
+                    "`video_variants` TEXT, " +
+                    "PRIMARY KEY(`tweet_id`, `media_key`), " +
+                    "FOREIGN KEY(`tweet_id`) REFERENCES `tweetEntity`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION)",
+            )
+            db.execSQL("DROP TABLE `tweetMedia`")
+            db.execSQL("ALTER TABLE `tweetMedia_new` RENAME TO `tweetMedia`")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_tweetMedia_tweet_id` ON `tweetMedia` (`tweet_id`)")
 
-        // 3. mediaKeys — composite PK (tweet_id, media_key), WIPED.
-        db.execSQL(
-            "CREATE TABLE IF NOT EXISTS `mediaKeys_new` (" +
-                "`tweet_id` TEXT NOT NULL, " +
-                "`media_key` TEXT NOT NULL, " +
-                "PRIMARY KEY(`tweet_id`, `media_key`), " +
-                "FOREIGN KEY(`tweet_id`) REFERENCES `tweetEntity`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION)"
-        )
-        db.execSQL("DROP TABLE `mediaKeys`")
-        db.execSQL("ALTER TABLE `mediaKeys_new` RENAME TO `mediaKeys`")
-        db.execSQL("CREATE INDEX IF NOT EXISTS `index_mediaKeys_tweet_id` ON `mediaKeys` (`tweet_id`)")
+            // 3. mediaKeys — composite PK (tweet_id, media_key), WIPED.
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `mediaKeys_new` (" +
+                    "`tweet_id` TEXT NOT NULL, " +
+                    "`media_key` TEXT NOT NULL, " +
+                    "PRIMARY KEY(`tweet_id`, `media_key`), " +
+                    "FOREIGN KEY(`tweet_id`) REFERENCES `tweetEntity`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION)",
+            )
+            db.execSQL("DROP TABLE `mediaKeys`")
+            db.execSQL("ALTER TABLE `mediaKeys_new` RENAME TO `mediaKeys`")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_mediaKeys_tweet_id` ON `mediaKeys` (`tweet_id`)")
+        }
     }
-}
 
 /**
  * v19 → v20: add the `last_incremental_retrieved_at_ms` column to `sync_progress`. It
@@ -545,30 +562,32 @@ val MIGRATION_18_19: Migration = object : Migration(18, 19) {
  * existing rows. Once released, do NOT alter this migration — a new migration would be
  * required for any further change to `sync_progress`.
  */
-val MIGRATION_19_20: Migration = object : Migration(19, 20) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL("ALTER TABLE `sync_progress` ADD COLUMN `last_incremental_retrieved_at_ms` INTEGER")
+val MIGRATION_19_20: Migration =
+    object : Migration(19, 20) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `sync_progress` ADD COLUMN `last_incremental_retrieved_at_ms` INTEGER")
+        }
     }
-}
 
 /** Full list registered by the DI module's `addMigrations(*ALL_MIGRATIONS)`. */
-val ALL_MIGRATIONS: Array<Migration> = arrayOf(
-    MIGRATION_2_3,
-    MIGRATION_3_4,
-    MIGRATION_4_5,
-    MIGRATION_5_6,
-    MIGRATION_6_7,
-    MIGRATION_7_8,
-    MIGRATION_8_9,
-    MIGRATION_9_10,
-    MIGRATION_10_11,
-    MIGRATION_11_12,
-    MIGRATION_12_13,
-    MIGRATION_13_14,
-    MIGRATION_14_15,
-    MIGRATION_15_16,
-    MIGRATION_16_17,
-    MIGRATION_17_18,
-    MIGRATION_18_19,
-    MIGRATION_19_20,
-)
+val ALL_MIGRATIONS: Array<Migration> =
+    arrayOf(
+        MIGRATION_2_3,
+        MIGRATION_3_4,
+        MIGRATION_4_5,
+        MIGRATION_5_6,
+        MIGRATION_6_7,
+        MIGRATION_7_8,
+        MIGRATION_8_9,
+        MIGRATION_9_10,
+        MIGRATION_10_11,
+        MIGRATION_11_12,
+        MIGRATION_12_13,
+        MIGRATION_13_14,
+        MIGRATION_14_15,
+        MIGRATION_15_16,
+        MIGRATION_16_17,
+        MIGRATION_17_18,
+        MIGRATION_18_19,
+        MIGRATION_19_20,
+    )

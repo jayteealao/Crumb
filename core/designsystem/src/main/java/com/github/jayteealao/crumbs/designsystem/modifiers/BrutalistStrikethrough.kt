@@ -20,16 +20,17 @@ fun Modifier.brutalistStrikethrough(
     active: Boolean,
     color: Color = Color.Black,
     strokeWidthDp: Dp = 2.dp,
-): Modifier = this.drawWithContent {
-    drawContent()
-    if (active) {
-        val y = size.height / 2f
-        drawLine(
-            color = color,
-            start = Offset(0f, y),
-            end = Offset(size.width, y),
-            strokeWidth = strokeWidthDp.toPx(),
-            cap = StrokeCap.Square,
-        )
+): Modifier =
+    this.drawWithContent {
+        drawContent()
+        if (active) {
+            val y = size.height / 2f
+            drawLine(
+                color = color,
+                start = Offset(0f, y),
+                end = Offset(size.width, y),
+                strokeWidth = strokeWidthDp.toPx(),
+                cap = StrokeCap.Square,
+            )
+        }
     }
-}

@@ -42,12 +42,13 @@ fun MapViewScreen(
     val typography = LocalCrumbsTypography.current
 
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(colors.background)
-            .padding(contentPadding)
-            .padding(horizontal = spacing.xl)
-            .testTag("map-view-screen"),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .background(colors.background)
+                .padding(contentPadding)
+                .padding(horizontal = spacing.xl)
+                .testTag("map-view-screen"),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -65,10 +66,11 @@ fun MapViewScreen(
         )
         Spacer(modifier = Modifier.height(spacing.xl))
         Box(
-            modifier = Modifier
-                .size(width = 240.dp, height = 160.dp)
-                .border(stroke.regular, colors.ink, RectangleShape)
-                .background(colors.surface),
+            modifier =
+                Modifier
+                    .size(width = 240.dp, height = 160.dp)
+                    .border(stroke.regular, colors.ink, RectangleShape)
+                    .background(colors.surface),
         )
     }
 }

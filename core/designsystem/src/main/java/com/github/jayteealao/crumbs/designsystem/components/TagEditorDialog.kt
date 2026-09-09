@@ -28,12 +28,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -76,12 +76,17 @@ fun TagEditorDialog(
     var tagInput by remember { mutableStateOf("") }
     var showSuggestions by remember { mutableStateOf(false) }
 
-    val filteredSuggestions = remember(tagInput, availableTags, selectedTags) {
-        if (tagInput.isBlank()) persistentListOf()
-        else availableTags.filter { it.contains(tagInput, ignoreCase = true) && it !in selectedTags }
-            .take(5)
-            .toPersistentList()
-    }
+    val filteredSuggestions =
+        remember(tagInput, availableTags, selectedTags) {
+            if (tagInput.isBlank()) {
+                persistentListOf()
+            } else {
+                availableTags
+                    .filter { it.contains(tagInput, ignoreCase = true) && it !in selectedTags }
+                    .take(5)
+                    .toPersistentList()
+            }
+        }
     LaunchedEffect(tagInput) {
         showSuggestions = tagInput.isNotBlank() && filteredSuggestions.isNotEmpty()
     }
@@ -91,13 +96,14 @@ fun TagEditorDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = spacing.lg)
-                .background(colors.surface)
-                .border(stroke.regular, colors.ink, shapes.dialog)
-                .testTag("tag-editor-dialog")
-                .padding(spacing.md),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = spacing.lg)
+                    .background(colors.surface)
+                    .border(stroke.regular, colors.ink, shapes.dialog)
+                    .testTag("tag-editor-dialog")
+                    .padding(spacing.md),
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
@@ -113,20 +119,22 @@ fun TagEditorDialog(
                 )
                 Spacer(modifier = Modifier.height(spacing.md))
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(stroke.hairline, colors.ink, shapes.cardSmall)
-                        .padding(horizontal = spacing.sm, vertical = spacing.sm),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .border(stroke.hairline, colors.ink, shapes.cardSmall)
+                            .padding(horizontal = spacing.sm, vertical = spacing.sm),
                 ) {
                     BasicTextField(
                         value = tagInput,
                         onValueChange = { tagInput = it },
                         textStyle = typography.bodyMono.copy(color = colors.ink),
                         singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .semantics { contentDescription = "Add tag" }
-                            .testTag("tag-editor-input"),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .semantics { contentDescription = "Add tag" }
+                                .testTag("tag-editor-input"),
                     )
                     if (tagInput.isBlank()) {
                         Text(
@@ -138,29 +146,30 @@ fun TagEditorDialog(
                 }
                 if (showSuggestions && filteredSuggestions.isNotEmpty()) {
                     LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(SUGGESTION_LIST_MAX_HEIGHT)
-                            .padding(vertical = spacing.xs),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .height(SUGGESTION_LIST_MAX_HEIGHT)
+                                .padding(vertical = spacing.xs),
                     ) {
                         items(filteredSuggestions) { suggestion ->
                             Text(
                                 text = suggestion,
                                 style = typography.bodyMono,
                                 color = colors.ink,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable(
-                                        role = Role.Button,
-                                        onClickLabel = "Add tag: $suggestion",
-                                    ) {
-                                        if (suggestion !in selectedTags) {
-                                            selectedTags = (selectedTags + suggestion).toPersistentList()
-                                        }
-                                        tagInput = ""
-                                        showSuggestions = false
-                                    }
-                                    .padding(spacing.sm),
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clickable(
+                                            role = Role.Button,
+                                            onClickLabel = "Add tag: $suggestion",
+                                        ) {
+                                            if (suggestion !in selectedTags) {
+                                                selectedTags = (selectedTags + suggestion).toPersistentList()
+                                            }
+                                            tagInput = ""
+                                            showSuggestions = false
+                                        }.padding(spacing.sm),
                             )
                         }
                     }
@@ -199,15 +208,15 @@ fun TagEditorDialog(
                                     imageVector = Icons.Default.Close,
                                     contentDescription = "Remove tag: $tag",
                                     tint = colors.ink,
-                                    modifier = Modifier
-                                        .size(16.dp)
-                                        .clickable(
-                                            role = Role.Button,
-                                            onClickLabel = "Remove tag: $tag",
-                                        ) {
-                                            selectedTags = (selectedTags - tag).toPersistentList()
-                                        }
-                                        .padding(start = 2.dp),
+                                    modifier =
+                                        Modifier
+                                            .size(16.dp)
+                                            .clickable(
+                                                role = Role.Button,
+                                                onClickLabel = "Remove tag: $tag",
+                                            ) {
+                                                selectedTags = (selectedTags - tag).toPersistentList()
+                                            }.padding(start = 2.dp),
                                 )
                             }
                         }
@@ -222,9 +231,10 @@ fun TagEditorDialog(
                         onClick = onDismiss,
                         text = "Cancel",
                         style = CrumbsButtonVariant.Secondary,
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("tag-editor-cancel"),
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .testTag("tag-editor-cancel"),
                     )
                     CrumbsButton(
                         onClick = {
@@ -232,9 +242,10 @@ fun TagEditorDialog(
                             onDismiss()
                         },
                         text = "Save",
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("tag-editor-save"),
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .testTag("tag-editor-save"),
                     )
                 }
             }

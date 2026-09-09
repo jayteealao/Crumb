@@ -33,7 +33,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class RedditRepositoryTest {
-
     private val dispatcher = StandardTestDispatcher()
 
     private lateinit var redditDao: RedditDao
@@ -57,15 +56,16 @@ class RedditRepositoryTest {
         syncErrorBus = mockk(relaxed = true)
         scope = CoroutineScope(dispatcher)
 
-        repository = RedditRepository(
-            redditDao,
-            redditApiService,
-            redditAuthClient,
-            redditPrefs,
-            deletedBookmarkRepository,
-            syncErrorBus,
-            scope,
-        )
+        repository =
+            RedditRepository(
+                redditDao,
+                redditApiService,
+                redditAuthClient,
+                redditPrefs,
+                deletedBookmarkRepository,
+                syncErrorBus,
+                scope,
+            )
     }
 
     @After
@@ -74,38 +74,42 @@ class RedditRepositoryTest {
     }
 
     @Test
-    fun getTagsForItems_chunksIdsAtMost900PerDaoQuery() = runTest(dispatcher) {
-        val ids = (1..950).map { "p$it" }
-        val chunks = mutableListOf<List<String>>()
-        coEvery { redditDao.getTagsForRedditPosts(capture(chunks)) } returns emptyList()
+    fun getTagsForItems_chunksIdsAtMost900PerDaoQuery() =
+        runTest(dispatcher) {
+            val ids = (1..950).map { "p$it" }
+            val chunks = mutableListOf<List<String>>()
+            coEvery { redditDao.getTagsForRedditPosts(capture(chunks)) } returns emptyList()
 
-        val result = repository.getTagsForItems(ids)
+            val result = repository.getTagsForItems(ids)
 
-        assertEquals(2, chunks.size)
-        assertTrue("each chunk must stay within the 900-param guard", chunks.all { it.size <= 900 })
-        assertEquals(listOf(900, 50), chunks.map { it.size })
-        assertEquals(950, result.size)
-        assertTrue(result.values.all { it.isEmpty() })
-    }
-
-    @Test
-    fun getTagsForItems_groupsRowsAndInjectsEmptyEntryForZeroTagIds() = runTest(dispatcher) {
-        coEvery { redditDao.getTagsForRedditPosts(listOf("a", "b", "c")) } returns listOf(
-            RedditTagCrossRef("a", "kotlin"),
-            RedditTagCrossRef("a", "android"),
-            RedditTagCrossRef("b", "compose"),
-        )
-
-        val result = repository.getTagsForItems(listOf("a", "b", "c"))
-
-        assertEquals(listOf("kotlin", "android"), result["a"])
-        assertEquals(listOf("compose"), result["b"])
-        assertEquals(emptyList<String>(), result["c"])
-    }
+            assertEquals(2, chunks.size)
+            assertTrue("each chunk must stay within the 900-param guard", chunks.all { it.size <= 900 })
+            assertEquals(listOf(900, 50), chunks.map { it.size })
+            assertEquals(950, result.size)
+            assertTrue(result.values.all { it.isEmpty() })
+        }
 
     @Test
-    fun getTagsForItems_emptyInput_returnsEmptyMapWithoutQuerying() = runTest(dispatcher) {
-        val result = repository.getTagsForItems(emptyList())
-        assertTrue(result.isEmpty())
-    }
+    fun getTagsForItems_groupsRowsAndInjectsEmptyEntryForZeroTagIds() =
+        runTest(dispatcher) {
+            coEvery { redditDao.getTagsForRedditPosts(listOf("a", "b", "c")) } returns
+                listOf(
+                    RedditTagCrossRef("a", "kotlin"),
+                    RedditTagCrossRef("a", "android"),
+                    RedditTagCrossRef("b", "compose"),
+                )
+
+            val result = repository.getTagsForItems(listOf("a", "b", "c"))
+
+            assertEquals(listOf("kotlin", "android"), result["a"])
+            assertEquals(listOf("compose"), result["b"])
+            assertEquals(emptyList<String>(), result["c"])
+        }
+
+    @Test
+    fun getTagsForItems_emptyInput_returnsEmptyMapWithoutQuerying() =
+        runTest(dispatcher) {
+            val result = repository.getTagsForItems(emptyList())
+            assertTrue(result.isEmpty())
+        }
 }

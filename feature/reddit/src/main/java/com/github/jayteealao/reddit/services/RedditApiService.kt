@@ -13,13 +13,12 @@ import retrofit2.http.*
  * API Documentation: https://www.reddit.com/dev/api/
  */
 interface RedditApiService {
-
     /**
      * Get current authenticated user
      */
     @GET("api/v1/me")
     suspend fun getUser(
-        @Header("Authorization") authorization: String
+        @Header("Authorization") authorization: String,
     ): ApiResponse<RedditUserResponse>
 
     /**
@@ -39,7 +38,7 @@ interface RedditApiService {
         @Query("after") after: String? = null,
         @Query("before") before: String? = null,
         @Query("show") show: String = "all", // Show all saved items
-        @Query("raw_json") rawJson: Int = 1 // Return unescaped JSON
+        @Query("raw_json") rawJson: Int = 1, // Return unescaped JSON
     ): ApiResponse<RedditListingResponse>
 
     companion object {
@@ -52,7 +51,6 @@ interface RedditApiService {
  * Reddit OAuth Service (different base URL for auth endpoints)
  */
 interface RedditOAuthService {
-
     /**
      * Exchange authorization code for access token
      *
@@ -67,7 +65,7 @@ interface RedditOAuthService {
         @Header("Authorization") basicAuth: String, // Basic auth with client_id:client_secret
         @Field("grant_type") grantType: String = "authorization_code",
         @Field("code") code: String,
-        @Field("redirect_uri") redirectUri: String
+        @Field("redirect_uri") redirectUri: String,
     ): ApiResponse<RedditTokenResponse>
 
     /**
@@ -82,7 +80,7 @@ interface RedditOAuthService {
     suspend fun refreshAccessToken(
         @Header("Authorization") basicAuth: String,
         @Field("grant_type") grantType: String = "refresh_token",
-        @Field("refresh_token") refreshToken: String
+        @Field("refresh_token") refreshToken: String,
     ): ApiResponse<RedditTokenResponse>
 
     /**
@@ -97,6 +95,6 @@ interface RedditOAuthService {
     suspend fun revokeToken(
         @Header("Authorization") basicAuth: String,
         @Field("token") token: String,
-        @Field("token_type_hint") tokenTypeHint: String = "access_token"
+        @Field("token_type_hint") tokenTypeHint: String = "access_token",
     ): ApiResponse<Unit>
 }

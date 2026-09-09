@@ -42,6 +42,7 @@ import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsTypography
 // FilterChipItem; both move into FilterOverlay's domain.
 sealed interface FilterMode {
     data object Single : FilterMode
+
     data object Multi : FilterMode
 }
 
@@ -65,25 +66,28 @@ fun CrumbsFilterBar(
     val typography = LocalCrumbsTypography.current
 
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(colors.background)
-            .testTag("filter-bar"),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .background(colors.background)
+                .testTag("filter-bar"),
     ) {
         HorizontalInkLine(stroke.regular, colors.ink)
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(34.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(34.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // Count cell — ink bg, accent text.
             Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .background(colors.ink)
-                    .padding(horizontal = 10.dp)
-                    .testTag("filter-bar-count"),
+                modifier =
+                    Modifier
+                        .fillMaxHeight()
+                        .background(colors.ink)
+                        .padding(horizontal = 10.dp)
+                        .testTag("filter-bar-count"),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -95,17 +99,17 @@ fun CrumbsFilterBar(
             VerticalInkLine(stroke.hairline, colors.ink)
             // FILTER cell — clickable to open FilterOverlay.
             Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .semantics(mergeDescendants = true) {
-                        role = Role.Button
-                        contentDescription = filterLabel
-                    }
-                    .minimumInteractiveComponentSize()
-                    .clickable { onFilterClick() }
-                    .padding(horizontal = 10.dp)
-                    .testTag("filter-bar-cell"),
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .semantics(mergeDescendants = true) {
+                            role = Role.Button
+                            contentDescription = filterLabel
+                        }.minimumInteractiveComponentSize()
+                        .clickable { onFilterClick() }
+                        .padding(horizontal = 10.dp)
+                        .testTag("filter-bar-cell"),
                 contentAlignment = Alignment.CenterStart,
             ) {
                 Text(
@@ -117,16 +121,16 @@ fun CrumbsFilterBar(
             VerticalInkLine(stroke.hairline, colors.ink)
             // Sort cell.
             Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .semantics(mergeDescendants = true) {
-                        role = Role.Button
-                        contentDescription = "Sort: $sortLabel"
-                    }
-                    .minimumInteractiveComponentSize()
-                    .clickable { onSortClick() }
-                    .padding(horizontal = 10.dp)
-                    .testTag("filter-bar-sort"),
+                modifier =
+                    Modifier
+                        .fillMaxHeight()
+                        .semantics(mergeDescendants = true) {
+                            role = Role.Button
+                            contentDescription = "Sort: $sortLabel"
+                        }.minimumInteractiveComponentSize()
+                        .clickable { onSortClick() }
+                        .padding(horizontal = 10.dp)
+                        .testTag("filter-bar-sort"),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -141,22 +145,30 @@ fun CrumbsFilterBar(
 }
 
 @Composable
-private fun VerticalInkLine(width: Dp, color: Color) {
+private fun VerticalInkLine(
+    width: Dp,
+    color: Color,
+) {
     Box(
-        modifier = Modifier
-            .width(width)
-            .fillMaxHeight()
-            .background(color),
+        modifier =
+            Modifier
+                .width(width)
+                .fillMaxHeight()
+                .background(color),
     )
 }
 
 @Composable
-private fun HorizontalInkLine(height: Dp, color: Color) {
+private fun HorizontalInkLine(
+    height: Dp,
+    color: Color,
+) {
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(height)
-            .background(color),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(height)
+                .background(color),
     )
 }
 

@@ -73,7 +73,6 @@ data class SyncCursor(
  * combinations (e.g. `fetchFailed=true` WITH non-empty `entities`) representable.
  */
 sealed interface SyncEmission {
-
     /**
      * A normal streamed batch: the fetched aggregates (for a HEAD/TAIL plan) + the
      * cursor to commit atomically with them. [entities] is USUALLY non-empty, but may
@@ -82,13 +81,18 @@ sealed interface SyncEmission {
      * [Checkpoint] (cursor persists, no batch-count bump) rather than this being a
      * distinct state.
      */
-    data class Batch(val entities: List<TweetEntities>, val cursor: SyncCursor) : SyncEmission
+    data class Batch(
+        val entities: List<TweetEntities>,
+        val cursor: SyncCursor,
+    ) : SyncEmission
 
     /**
      * The TERMINAL checkpoint — no entities fetched — carrying the advanced cursor
      * (watermark / backfill floor) so a nothing-new run still persists progress.
      */
-    data class Checkpoint(val cursor: SyncCursor) : SyncEmission
+    data class Checkpoint(
+        val cursor: SyncCursor,
+    ) : SyncEmission
 
     /**
      * A batch fetch that timed out. Carries NO cursor — the whole point is that the
@@ -134,33 +138,36 @@ internal fun planNarrowedSync(
     val newWatermark = maxOfNullable(prior.incrementalWatermarkMillis, headMax)
 
     val headSeen = headDocs.mapTo(HashSet(headDocs.size)) { it.id }
+
     fun skip(id: String) = id in localIds || id in deletedIds
 
     // Head: drop synced/deleted, de-dup, then feed-sort (retrievedAt DESC, createdAt DESC, id).
-    val headMissing = headDocs
-        .asSequence()
-        .filterNot { skip(it.id) }
-        .distinctBy { it.id }
-        .sortedWith(
-            compareByDescending<CursorDoc> { it.retrievedAtMillis ?: Long.MIN_VALUE }
-                .thenByDescending { it.createdAt }
-                .thenBy { it.id },
-        )
-        .toList()
+    val headMissing =
+        headDocs
+            .asSequence()
+            .filterNot { skip(it.id) }
+            .distinctBy { it.id }
+            .sortedWith(
+                compareByDescending<CursorDoc> { it.retrievedAtMillis ?: Long.MIN_VALUE }
+                    .thenByDescending { it.createdAt }
+                    .thenBy { it.id },
+            ).toList()
 
     // Tail: drop anything already in the head, plus synced/deleted; de-dup. PRESERVE the
     // createdAt-DESC enumeration order (do NOT re-sort) so each batch's last item is the lowest
     // createdAt committed so far — a safe per-batch resume point.
-    val tailMissing = tailDocs
-        .asSequence()
-        .filterNot { it.id in headSeen || skip(it.id) }
-        .distinctBy { it.id }
-        .toList()
+    val tailMissing =
+        tailDocs
+            .asSequence()
+            .filterNot { it.id in headSeen || skip(it.id) }
+            .distinctBy { it.id }
+            .toList()
 
     // High cursor is logging-only now (superseded by the watermark). Track the newest createdAt
     // ENUMERATED so the resume log stays meaningful; fall back to the prior value.
-    val newestByCreated = (headDocs.asSequence() + tailDocs.asSequence())
-        .maxWithOrNull(compareBy({ it.createdAt }, { it.id }))
+    val newestByCreated =
+        (headDocs.asSequence() + tailDocs.asSequence())
+            .maxWithOrNull(compareBy({ it.createdAt }, { it.id }))
     val highCreatedAt = newestByCreated?.createdAt ?: prior.highCreatedAt
     val highTweetId = newestByCreated?.id ?: prior.highTweetId
 
@@ -172,34 +179,38 @@ internal fun planNarrowedSync(
         // LAST head batch (head batches 1..n-1 keep the prior watermark; a mid-head crash then
         // re-scans the head next run rather than skipping un-committed items).
         val watermark = if (idx == headBatches.lastIndex) newWatermark else prior.incrementalWatermarkMillis
-        plans += SyncBatchPlan(
-            ids = batch.map { it.id },
-            cursor = SyncCursor(
-                highCreatedAt = highCreatedAt,
-                highTweetId = highTweetId,
-                lowCreatedAt = prior.lowCreatedAt, // head never advances the backfill tail
-                lowTweetId = prior.lowTweetId,
-                incrementalWatermarkMillis = watermark,
-            ),
-            phase = SyncPhase.HEAD,
-        )
+        plans +=
+            SyncBatchPlan(
+                ids = batch.map { it.id },
+                cursor =
+                    SyncCursor(
+                        highCreatedAt = highCreatedAt,
+                        highTweetId = highTweetId,
+                        lowCreatedAt = prior.lowCreatedAt, // head never advances the backfill tail
+                        lowTweetId = prior.lowTweetId,
+                        incrementalWatermarkMillis = watermark,
+                    ),
+                phase = SyncPhase.HEAD,
+            )
     }
 
     tailMissing.chunked(batchSize).forEach { batch ->
         val low = batch.last() // lowest createdAt in this createdAt-DESC chunk → safe resume point
-        plans += SyncBatchPlan(
-            ids = batch.map { it.id },
-            cursor = SyncCursor(
-                highCreatedAt = highCreatedAt,
-                highTweetId = highTweetId,
-                lowCreatedAt = low.createdAt,
-                lowTweetId = low.id,
-                // The head is fully enumerated before any tail batch streams, so advancing the
-                // watermark here is safe even when the head produced no missing items.
-                incrementalWatermarkMillis = newWatermark,
-            ),
-            phase = SyncPhase.TAIL,
-        )
+        plans +=
+            SyncBatchPlan(
+                ids = batch.map { it.id },
+                cursor =
+                    SyncCursor(
+                        highCreatedAt = highCreatedAt,
+                        highTweetId = highTweetId,
+                        lowCreatedAt = low.createdAt,
+                        lowTweetId = low.id,
+                        // The head is fully enumerated before any tail batch streams, so advancing the
+                        // watermark here is safe even when the head produced no missing items.
+                        incrementalWatermarkMillis = newWatermark,
+                    ),
+                phase = SyncPhase.TAIL,
+            )
     }
 
     // Terminal checkpoint: always emitted so a nothing-new run still persists the advanced
@@ -207,23 +218,29 @@ internal fun planNarrowedSync(
     // createdAt READ — everything above it is synced this run, whether committed now or already
     // local), falling back to the prior low when the tail read nothing.
     val tailFloor = tailDocs.lastOrNull()
-    plans += SyncBatchPlan(
-        ids = emptyList(),
-        cursor = SyncCursor(
-            highCreatedAt = highCreatedAt,
-            highTweetId = highTweetId,
-            lowCreatedAt = tailFloor?.createdAt ?: prior.lowCreatedAt,
-            lowTweetId = tailFloor?.id ?: prior.lowTweetId,
-            incrementalWatermarkMillis = newWatermark,
-        ),
-        phase = SyncPhase.TERMINAL,
-    )
+    plans +=
+        SyncBatchPlan(
+            ids = emptyList(),
+            cursor =
+                SyncCursor(
+                    highCreatedAt = highCreatedAt,
+                    highTweetId = highTweetId,
+                    lowCreatedAt = tailFloor?.createdAt ?: prior.lowCreatedAt,
+                    lowTweetId = tailFloor?.id ?: prior.lowTweetId,
+                    incrementalWatermarkMillis = newWatermark,
+                ),
+            phase = SyncPhase.TERMINAL,
+        )
     return plans
 }
 
 /** max() that treats null as "absent" (not negative-infinity). */
-private fun maxOfNullable(a: Long?, b: Long?): Long? = when {
-    a == null -> b
-    b == null -> a
-    else -> maxOf(a, b)
-}
+private fun maxOfNullable(
+    a: Long?,
+    b: Long?,
+): Long? =
+    when {
+        a == null -> b
+        b == null -> a
+        else -> maxOf(a, b)
+    }

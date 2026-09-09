@@ -86,9 +86,10 @@ fun SearchScreen(
                 onSubmit()
             },
             onBookmarkClick = onBookmarkClick,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding),
         )
     }
 }
@@ -106,39 +107,52 @@ private fun SearchBody(
     val spacing = LocalCrumbsSpacing.current
     Column(modifier = modifier.background(colors.background)) {
         when (uiState) {
-            SearchUiState.Idle -> RecentSearchesPane(
-                recentSearches = recentSearches,
-                onSelected = onRecentSelected,
-            )
-            is SearchUiState.Loading -> Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(spacing.lg)
-                    .testTag("search-loading"),
-                contentAlignment = Alignment.TopStart,
-            ) {
-                Text(
-                    text = "Searching…",
-                    style = typography.bodyMono,
-                    color = colors.onSurfaceVariant,
+            SearchUiState.Idle -> {
+                RecentSearchesPane(
+                    recentSearches = recentSearches,
+                    onSelected = onRecentSelected,
                 )
             }
-            is SearchUiState.Empty -> Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(spacing.lg)
-                    .testTag("search-empty-state"),
-            ) {
-                Text(
-                    text = "No results for “${uiState.query}”",
-                    style = typography.bodyMono,
-                    color = colors.ink,
+
+            is SearchUiState.Loading -> {
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .padding(spacing.lg)
+                            .testTag("search-loading"),
+                    contentAlignment = Alignment.TopStart,
+                ) {
+                    Text(
+                        text = "Searching…",
+                        style = typography.bodyMono,
+                        color = colors.onSurfaceVariant,
+                    )
+                }
+            }
+
+            is SearchUiState.Empty -> {
+                Column(
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .padding(spacing.lg)
+                            .testTag("search-empty-state"),
+                ) {
+                    Text(
+                        text = "No results for “${uiState.query}”",
+                        style = typography.bodyMono,
+                        color = colors.ink,
+                    )
+                }
+            }
+
+            is SearchUiState.Results -> {
+                ResultsPane(
+                    hits = uiState.hits,
+                    onBookmarkClick = onBookmarkClick,
                 )
             }
-            is SearchUiState.Results -> ResultsPane(
-                hits = uiState.hits,
-                onBookmarkClick = onBookmarkClick,
-            )
         }
     }
 }
@@ -153,9 +167,10 @@ private fun RecentSearchesPane(
     val spacing = LocalCrumbsSpacing.current
     val stroke = LocalCrumbsStroke.current
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .testTag("search-recent-searches"),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .testTag("search-recent-searches"),
     ) {
         // Mixed-case header per option-d-screens.jsx DSearch line 393 — do NOT
         // auto-uppercase. captionMono preserves the brutalist mono register.
@@ -163,32 +178,35 @@ private fun RecentSearchesPane(
             text = "↳ Recent searches",
             style = typography.captionMono,
             color = colors.onSurfaceVariant,
-            modifier = Modifier.padding(
-                horizontal = spacing.lg,
-                vertical = spacing.md,
-            ),
+            modifier =
+                Modifier.padding(
+                    horizontal = spacing.lg,
+                    vertical = spacing.md,
+                ),
         )
         if (recentSearches.isEmpty()) {
             Text(
                 text = "Your search history is empty.",
                 style = typography.bodyMono,
                 color = colors.onSurfaceVariant,
-                modifier = Modifier
-                    .padding(horizontal = spacing.lg, vertical = spacing.sm)
-                    .testTag("search-recent-empty"),
+                modifier =
+                    Modifier
+                        .padding(horizontal = spacing.lg, vertical = spacing.sm)
+                        .testTag("search-recent-empty"),
             )
         } else {
             LazyColumn(modifier = Modifier.fillMaxWidth()) {
                 items(recentSearches, key = { it }) { entry ->
                     Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(
-                                role = Role.Button,
-                                onClickLabel = "Search for $entry",
-                            ) { onSelected(entry) }
-                            .padding(horizontal = spacing.lg, vertical = spacing.md)
-                            .testTag("search-recent-item"),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable(
+                                    role = Role.Button,
+                                    onClickLabel = "Search for $entry",
+                                ) { onSelected(entry) }
+                                .padding(horizontal = spacing.lg, vertical = spacing.md)
+                                .testTag("search-recent-item"),
                     ) {
                         Text(
                             text = entry,
@@ -197,16 +215,17 @@ private fun RecentSearchesPane(
                         )
                     }
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = spacing.lg)
-                            .height(2.dp)
-                            .dashedDivider(
-                                color = colors.ink,
-                                strokeWidth = stroke.hairline,
-                                dashLengthDp = 4.dp,
-                                gapDp = 3.dp,
-                            ),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = spacing.lg)
+                                .height(2.dp)
+                                .dashedDivider(
+                                    color = colors.ink,
+                                    strokeWidth = stroke.hairline,
+                                    dashLengthDp = 4.dp,
+                                    gapDp = 3.dp,
+                                ),
                     )
                 }
             }
@@ -228,21 +247,24 @@ private fun ResultsPane(
             text = "Showing results in title + body",
             style = typography.captionMono,
             color = colors.onSurfaceVariant,
-            modifier = Modifier.padding(
-                horizontal = spacing.lg,
-                vertical = spacing.md,
-            ),
+            modifier =
+                Modifier.padding(
+                    horizontal = spacing.lg,
+                    vertical = spacing.md,
+                ),
         )
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .testTag("search-results-feed"),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .testTag("search-results-feed"),
             verticalArrangement = Arrangement.spacedBy(spacing.md),
-            contentPadding = PaddingValues(
-                start = spacing.lg,
-                end = spacing.lg,
-                bottom = spacing.lg,
-            ),
+            contentPadding =
+                PaddingValues(
+                    start = spacing.lg,
+                    end = spacing.lg,
+                    bottom = spacing.lg,
+                ),
         ) {
             itemsIndexed(hits) { index, bookmark ->
                 CrumbsBookmarkCard(
@@ -294,16 +316,17 @@ private fun PreviewSearchEmptyDark() {
 @Preview(name = "SearchScreen Results Light", showBackground = true)
 @Composable
 private fun PreviewSearchResultsLight() {
-    val sample = Bookmark(
-        id = "1",
-        source = BookmarkSource.Twitter,
-        author = "@compose",
-        title = "Brutalist compose hits",
-        previewText = "Lorem ipsum search snippet.",
-        contentType = ContentType.Text,
-        savedAt = 1730000000000L,
-        sourceUrl = "https://example.com",
-    )
+    val sample =
+        Bookmark(
+            id = "1",
+            source = BookmarkSource.Twitter,
+            author = "@compose",
+            title = "Brutalist compose hits",
+            previewText = "Lorem ipsum search snippet.",
+            contentType = ContentType.Text,
+            savedAt = 1730000000000L,
+            sourceUrl = "https://example.com",
+        )
     CrumbsTheme(darkTheme = false) {
         SearchScreen(
             query = "compose",

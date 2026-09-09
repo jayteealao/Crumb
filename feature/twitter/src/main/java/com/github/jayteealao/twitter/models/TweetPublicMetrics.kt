@@ -13,12 +13,12 @@ import com.google.gson.annotations.SerializedName
         ForeignKey(
             entity = TweetEntity::class,
             parentColumns = ["id"],
-            childColumns = ["tweet_id"]
-        )
+            childColumns = ["tweet_id"],
+        ),
     ],
     indices = [
-        Index(value = ["tweet_id"])
-    ]
+        Index(value = ["tweet_id"]),
+    ],
 )
 data class TweetPublicMetrics(
     @ColumnInfo(name = "retweet_count")
@@ -38,7 +38,7 @@ data class TweetPublicMetrics(
     val viewCount: Int?,
     //    database only
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    @ColumnInfo(name = "tweet_id") val tweetId: String? = null
+    @ColumnInfo(name = "tweet_id") val tweetId: String? = null,
 )
 
 fun tweetPublicMetrics() = TweetPublicMetrics(0, 0, 0, 0, 0)

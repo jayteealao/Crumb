@@ -3,8 +3,8 @@ package com.github.jayteealao.crumbs.screens
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
-import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.dropbox.differ.SimpleImageComparator
+import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Rule
@@ -18,22 +18,24 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xxhdpi")
 class MapViewScreenTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-    private val options = RoborazziOptions(
-        compareOptions = RoborazziOptions.CompareOptions(
-            imageComparator = SimpleImageComparator(maxDistance = 0.01f),
-        ),
-    )
+    private val options =
+        RoborazziOptions(
+            compareOptions =
+                RoborazziOptions.CompareOptions(
+                    imageComparator = SimpleImageComparator(maxDistance = 0.01f),
+                ),
+        )
 
     @Test
     fun mapViewScreen_default_light() {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = false) { MapViewScreen() }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/MapViewScreen_default_light.png", options)
     }
 
@@ -42,7 +44,8 @@ class MapViewScreenTest {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = true) { MapViewScreen() }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/MapViewScreen_default_dark.png", options)
     }
 }

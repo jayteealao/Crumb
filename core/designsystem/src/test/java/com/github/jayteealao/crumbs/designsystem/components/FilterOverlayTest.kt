@@ -17,42 +17,43 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class FilterOverlayTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-    private val typeSections = persistentListOf(
-        FilterOverlaySection(
-            "Type",
-            persistentListOf(
-                FilterChipItem("all", "ALL"),
-                FilterChipItem("article", "ARTICLES"),
-                FilterChipItem("video", "VIDEOS"),
-                FilterChipItem("thread", "THREADS"),
+    private val typeSections =
+        persistentListOf(
+            FilterOverlaySection(
+                "Type",
+                persistentListOf(
+                    FilterChipItem("all", "ALL"),
+                    FilterChipItem("article", "ARTICLES"),
+                    FilterChipItem("video", "VIDEOS"),
+                    FilterChipItem("thread", "THREADS"),
+                ),
             ),
-        ),
-    )
+        )
 
-    private val multiSections = persistentListOf(
-        FilterOverlaySection(
-            "Type",
-            persistentListOf(
-                FilterChipItem("all", "ALL"),
-                FilterChipItem("article", "ARTICLES"),
-                FilterChipItem("video", "VIDEOS"),
-                FilterChipItem("thread", "THREADS"),
+    private val multiSections =
+        persistentListOf(
+            FilterOverlaySection(
+                "Type",
+                persistentListOf(
+                    FilterChipItem("all", "ALL"),
+                    FilterChipItem("article", "ARTICLES"),
+                    FilterChipItem("video", "VIDEOS"),
+                    FilterChipItem("thread", "THREADS"),
+                ),
             ),
-        ),
-        FilterOverlaySection(
-            "Tags",
-            persistentListOf(
-                FilterChipItem("android", "ANDROID"),
-                FilterChipItem("compose", "COMPOSE"),
-                FilterChipItem("kotlin", "KOTLIN"),
-                FilterChipItem("ux", "UX"),
+            FilterOverlaySection(
+                "Tags",
+                persistentListOf(
+                    FilterChipItem("android", "ANDROID"),
+                    FilterChipItem("compose", "COMPOSE"),
+                    FilterChipItem("kotlin", "KOTLIN"),
+                    FilterChipItem("ux", "UX"),
+                ),
             ),
-        ),
-    )
+        )
 
     /** M-06: default state — no chips selected, filter type = ALL (all unselected). */
     @Test
@@ -68,7 +69,8 @@ class FilterOverlayTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/FilterOverlay_default.png")
     }
 
@@ -86,7 +88,8 @@ class FilterOverlayTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/FilterOverlay_withTagsSelected.png")
     }
 
@@ -103,7 +106,8 @@ class FilterOverlayTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/FilterOverlay_visible_withSelection_light.png")
     }
 
@@ -120,7 +124,8 @@ class FilterOverlayTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/FilterOverlay_visible_noSelection_light.png")
     }
 
@@ -137,7 +142,8 @@ class FilterOverlayTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/FilterOverlay_visible_withSelection_dark.png")
     }
 
@@ -159,7 +165,8 @@ class FilterOverlayTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/FilterOverlay_typeAndTags_light.png")
     }
 
@@ -177,7 +184,8 @@ class FilterOverlayTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/FilterOverlay_typeAndTags_dark.png")
     }
 }

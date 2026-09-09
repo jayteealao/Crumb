@@ -25,7 +25,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class HomeRouteDispatchTest {
-
     @Test
     fun tagChipToggle_callsOnTagToggled() {
         val tagToggled = mutableListOf<String>()
@@ -66,10 +65,11 @@ class HomeRouteDispatchTest {
 
     @Test
     fun selectedChipIds_unionsTagsAndType() {
-        val state = FilterState(
-            type = TypeFilter.ARTICLE,
-            selectedTags = persistentSetOf("kotlin", "android"),
-        )
+        val state =
+            FilterState(
+                type = TypeFilter.ARTICLE,
+                selectedTags = persistentSetOf("kotlin", "android"),
+            )
 
         assertEquals(
             "selectedChipIds must contain the lowercased type id plus a namespaced id per selected tag",

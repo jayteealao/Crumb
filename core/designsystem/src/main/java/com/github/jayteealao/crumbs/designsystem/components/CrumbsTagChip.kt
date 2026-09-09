@@ -53,24 +53,25 @@ fun CrumbsTagChip(
     val interactionSource = remember { MutableInteractionSource() }
 
     Box(
-        modifier = modifier
-            .semantics(mergeDescendants = true) {
-                contentDescription = "Tag: $label"
-            }
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                role = Role.Button,
-            ) { onClick() }
-            .testTag("tag-chip-$label"),
+        modifier =
+            modifier
+                .semantics(mergeDescendants = true) {
+                    contentDescription = "Tag: $label"
+                }.clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    role = Role.Button,
+                ) { onClick() }
+                .testTag("tag-chip-$label"),
     ) {
         Text(
             text = "#$label",
             style = typography.bodyMono,
             color = colors.ink,
-            modifier = Modifier
-                .padding(end = 4.dp, bottom = 2.dp)
-                .bottomBorder(stroke.hairline, colors.ink),
+            modifier =
+                Modifier
+                    .padding(end = 4.dp, bottom = 2.dp)
+                    .bottomBorder(stroke.hairline, colors.ink),
         )
     }
 }
@@ -87,11 +88,12 @@ fun CrumbsFilterChipActive(
     val interactionSource = remember { MutableInteractionSource() }
 
     Row(
-        modifier = modifier
-            .background(colors.ink)
-            .border(stroke.regular, colors.ink)
-            .padding(horizontal = 6.dp, vertical = CrumbsSpacing.xxs)
-            .testTag("filter-chip-active-$label"),
+        modifier =
+            modifier
+                .background(colors.ink)
+                .border(stroke.regular, colors.ink)
+                .padding(horizontal = 6.dp, vertical = CrumbsSpacing.xxs)
+                .testTag("filter-chip-active-$label"),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -104,16 +106,16 @@ fun CrumbsFilterChipActive(
             text = "×",
             style = typography.captionMono,
             color = colors.accent.copy(alpha = 0.6f),
-            modifier = Modifier
-                .semantics(mergeDescendants = true) {
-                    contentDescription = "Remove $label filter"
-                }
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                    role = Role.Button,
-                ) { onDismiss() }
-                .testTag("filter-chip-dismiss-$label"),
+            modifier =
+                Modifier
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = "Remove $label filter"
+                    }.clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        role = Role.Button,
+                    ) { onDismiss() }
+                    .testTag("filter-chip-dismiss-$label"),
         )
     }
 }
@@ -128,36 +130,40 @@ fun CrumbsAddTagChip(
     val interactionSource = remember { MutableInteractionSource() }
 
     Box(
-        modifier = modifier
-            .semantics(mergeDescendants = true) {
-                contentDescription = "Add tag"
-            }
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                role = Role.Button,
-            ) { onClick() }
-            .testTag("add-tag-chip"),
+        modifier =
+            modifier
+                .semantics(mergeDescendants = true) {
+                    contentDescription = "Add tag"
+                }.clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    role = Role.Button,
+                ) { onClick() }
+                .testTag("add-tag-chip"),
     ) {
         Text(
             text = "+ ADD TAG",
             style = typography.captionMono,
             color = colors.ink.copy(alpha = 0.5f),
-            modifier = Modifier
-                .padding(bottom = 2.dp)
-                .dashedBorder(
-                    width = 1.dp,
-                    color = colors.ink.copy(alpha = 0.5f),
-                    dashLengthDp = CrumbsSpacing.dashGap,
-                    gapDp = 2.dp,
-                ),
+            modifier =
+                Modifier
+                    .padding(bottom = 2.dp)
+                    .dashedBorder(
+                        width = 1.dp,
+                        color = colors.ink.copy(alpha = 0.5f),
+                        dashLengthDp = CrumbsSpacing.dashGap,
+                        gapDp = 2.dp,
+                    ),
         )
     }
 }
 
 // 1px (or strokeWidth) bottom border drawn beneath the text without affecting
 // layout height. Distinct from Modifier.border() which draws on all four sides.
-private fun Modifier.bottomBorder(strokeWidth: Dp, color: Color): Modifier =
+private fun Modifier.bottomBorder(
+    strokeWidth: Dp,
+    color: Color,
+): Modifier =
     this.drawBehind {
         val px = strokeWidth.toPx()
         val y = size.height - px / 2f

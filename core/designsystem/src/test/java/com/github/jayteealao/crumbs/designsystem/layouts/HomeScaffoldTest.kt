@@ -28,7 +28,6 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class HomeScaffoldTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -50,7 +49,8 @@ class HomeScaffoldTest {
                 }
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/HomeScaffold_default_light.png")
     }
 
@@ -72,7 +72,8 @@ class HomeScaffoldTest {
                 }
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/HomeScaffold_default_dark.png")
     }
 
@@ -95,7 +96,8 @@ class HomeScaffoldTest {
                 }
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/HomeScaffold_withBanner_light.png")
     }
 
@@ -118,13 +120,17 @@ class HomeScaffoldTest {
                 }
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/HomeScaffold_withBanner_dark.png")
     }
 }
 
 @Composable
-private fun StubBlock(label: String, heightDp: Int) {
+private fun StubBlock(
+    label: String,
+    heightDp: Int,
+) {
     val colors = LocalCrumbsColors.current
     Box(
         Modifier

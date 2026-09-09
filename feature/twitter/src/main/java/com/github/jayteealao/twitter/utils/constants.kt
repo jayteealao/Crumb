@@ -6,4 +6,3 @@ const val APP_ACCESS_CODE = "appAccessCode"
 const val APP_REFRESH_CODE = "appRefreshCode"
 const val USERID = "userId"
 const val USERNAME = "userName"
-

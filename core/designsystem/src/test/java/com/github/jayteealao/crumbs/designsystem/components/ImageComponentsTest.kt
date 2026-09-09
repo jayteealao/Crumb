@@ -25,7 +25,6 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class ImageComponentsTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -37,12 +36,13 @@ class ImageComponentsTest {
                     imageUrl = "https://via.placeholder.com/800x450",
                     gradientDirection = GradientDirection.BottomToTop,
                     gradientIntensity = GradientIntensity.Medium,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/GradientImage_bottomToTop_medium_light.png")
     }
 
@@ -54,12 +54,13 @@ class ImageComponentsTest {
                     imageUrl = "https://via.placeholder.com/800x450",
                     gradientDirection = GradientDirection.BottomToTop,
                     gradientIntensity = GradientIntensity.Medium,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/GradientImage_bottomToTop_medium_dark.png")
     }
 
@@ -71,12 +72,13 @@ class ImageComponentsTest {
                     imageUrl = "https://via.placeholder.com/800x450",
                     gradientDirection = GradientDirection.TopToBottom,
                     gradientIntensity = GradientIntensity.Dark,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/GradientImage_topToBottom_dark_light.png")
     }
 
@@ -88,12 +90,13 @@ class ImageComponentsTest {
                     imageUrl = "https://via.placeholder.com/800x450",
                     gradientDirection = GradientDirection.TopToBottom,
                     gradientIntensity = GradientIntensity.Light,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/GradientImage_topToBottom_light_light.png")
     }
 
@@ -105,12 +108,13 @@ class ImageComponentsTest {
                     imageUrl = "https://via.placeholder.com/800x450",
                     gradientDirection = GradientDirection.LeftToRight,
                     gradientIntensity = GradientIntensity.Medium,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/GradientImage_leftToRight_medium_light.png")
     }
 
@@ -122,12 +126,13 @@ class ImageComponentsTest {
                     imageUrl = "https://via.placeholder.com/800x450",
                     gradientDirection = GradientDirection.RightToLeft,
                     gradientIntensity = GradientIntensity.Medium,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/GradientImage_rightToLeft_medium_light.png")
     }
 
@@ -139,12 +144,13 @@ class ImageComponentsTest {
                     imageUrl = "https://via.placeholder.com/800x450",
                     gradientDirection = GradientDirection.DiagonalTLBR,
                     gradientIntensity = GradientIntensity.Medium,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/GradientImage_diagonalTLBR_medium_light.png")
     }
 
@@ -156,12 +162,13 @@ class ImageComponentsTest {
                     imageUrl = "https://via.placeholder.com/800x450",
                     gradientDirection = GradientDirection.DiagonalBLTR,
                     gradientIntensity = GradientIntensity.Medium,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/GradientImage_diagonalBLTR_medium_light.png")
     }
 
@@ -177,23 +184,25 @@ class ImageComponentsTest {
                     modifier = Modifier.fillMaxSize(),
                     overlayContent = {
                         Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp),
-                            contentAlignment = Alignment.BottomStart
+                            modifier =
+                                Modifier
+                                    .fillMaxSize()
+                                    .padding(16.dp),
+                            contentAlignment = Alignment.BottomStart,
                         ) {
                             Text(
                                 text = "Overlay Text",
                                 style = typography.displaySmall,
-                                color = Color.White
+                                color = Color.White,
                             )
                         }
-                    }
+                    },
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/GradientImage_withOverlay_light.png")
     }
 
@@ -209,23 +218,25 @@ class ImageComponentsTest {
                     modifier = Modifier.fillMaxSize(),
                     overlayContent = {
                         Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp),
-                            contentAlignment = Alignment.BottomStart
+                            modifier =
+                                Modifier
+                                    .fillMaxSize()
+                                    .padding(16.dp),
+                            contentAlignment = Alignment.BottomStart,
                         ) {
                             Text(
                                 text = "Overlay Text",
                                 style = typography.displaySmall,
-                                color = Color.White
+                                color = Color.White,
                             )
                         }
-                    }
+                    },
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/GradientImage_withOverlay_dark.png")
     }
 }

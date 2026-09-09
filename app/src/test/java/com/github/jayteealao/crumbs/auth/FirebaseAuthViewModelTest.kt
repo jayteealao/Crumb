@@ -25,7 +25,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class FirebaseAuthViewModelTest {
-
     private val dispatcher = StandardTestDispatcher()
     private lateinit var gateway: FakeAuthGateway
     private lateinit var coordinator: FakeCoordinator
@@ -47,64 +46,68 @@ class FirebaseAuthViewModelTest {
     }
 
     @Test
-    fun emailSignIn_success_landsAuthenticated() = runTest(dispatcher) {
-        gateway.queueEmailResult(AuthResult.Success)
+    fun emailSignIn_success_landsAuthenticated() =
+        runTest(dispatcher) {
+            gateway.queueEmailResult(AuthResult.Success)
 
-        vm.onEmailPasswordSubmit("user@example.com", "hunter2")
-        advanceUntilIdle()
+            vm.onEmailPasswordSubmit("user@example.com", "hunter2")
+            advanceUntilIdle()
 
-        val state = vm.uiState.value
-        assertTrue("expected Authenticated, got $state", state is AuthUiState.Authenticated)
-    }
-
-    @Test
-    fun googleCollision_thenEmailSubmit_linksAndLandsAuthenticated() = runTest(dispatcher) {
-        coordinator.nextGoogleResult = AuthResult.CollisionRequiresEmail("tok-123")
-        vm.onGoogleSignInClicked(activity)
-        advanceUntilIdle()
-
-        val collisionState = vm.uiState.value
-        assertTrue(
-            "expected CollisionRequiresEmailLink, got $collisionState",
-            collisionState is AuthUiState.CollisionRequiresEmailLink,
-        )
-        assertEquals(
-            "tok-123",
-            (collisionState as AuthUiState.CollisionRequiresEmailLink).pendingGoogleIdToken,
-        )
-
-        gateway.queueEmailResult(AuthResult.Success)
-        gateway.queueLinkResult(AuthResult.Success)
-        vm.onEmailPasswordSubmit("user@example.com", "hunter2")
-        advanceUntilIdle()
-
-        val finalState = vm.uiState.value
-        assertTrue("expected Authenticated, got $finalState", finalState is AuthUiState.Authenticated)
-    }
+            val state = vm.uiState.value
+            assertTrue("expected Authenticated, got $state", state is AuthUiState.Authenticated)
+        }
 
     @Test
-    fun emailSignIn_networkError_landsError() = runTest(dispatcher) {
-        gateway.queueEmailResult(AuthResult.NetworkError)
+    fun googleCollision_thenEmailSubmit_linksAndLandsAuthenticated() =
+        runTest(dispatcher) {
+            coordinator.nextGoogleResult = AuthResult.CollisionRequiresEmail("tok-123")
+            vm.onGoogleSignInClicked(activity)
+            advanceUntilIdle()
 
-        vm.onEmailPasswordSubmit("user@example.com", "hunter2")
-        advanceUntilIdle()
+            val collisionState = vm.uiState.value
+            assertTrue(
+                "expected CollisionRequiresEmailLink, got $collisionState",
+                collisionState is AuthUiState.CollisionRequiresEmailLink,
+            )
+            assertEquals(
+                "tok-123",
+                (collisionState as AuthUiState.CollisionRequiresEmailLink).pendingGoogleIdToken,
+            )
 
-        val state = vm.uiState.value
-        assertTrue("expected Error, got $state", state is AuthUiState.Error)
-    }
+            gateway.queueEmailResult(AuthResult.Success)
+            gateway.queueLinkResult(AuthResult.Success)
+            vm.onEmailPasswordSubmit("user@example.com", "hunter2")
+            advanceUntilIdle()
+
+            val finalState = vm.uiState.value
+            assertTrue("expected Authenticated, got $finalState", finalState is AuthUiState.Authenticated)
+        }
+
+    @Test
+    fun emailSignIn_networkError_landsError() =
+        runTest(dispatcher) {
+            gateway.queueEmailResult(AuthResult.NetworkError)
+
+            vm.onEmailPasswordSubmit("user@example.com", "hunter2")
+            advanceUntilIdle()
+
+            val state = vm.uiState.value
+            assertTrue("expected Error, got $state", state is AuthUiState.Error)
+        }
 }
 
 // Test-only coordinator that bypasses Credential Manager entirely. If the
 // scripted result is Success, forwards to the gateway so the AuthStateListener
 // path drives the VM's StateFlow exactly like production does.
-private class FakeCoordinator(private val gateway: AuthGateway) : CredentialManagerCoordinator {
+private class FakeCoordinator(
+    private val gateway: AuthGateway,
+) : CredentialManagerCoordinator {
     var nextGoogleResult: AuthResult = AuthResult.Unknown(IllegalStateException("not scripted"))
 
-    override suspend fun signInWithGoogle(activity: Activity): AuthResult {
-        return if (nextGoogleResult is AuthResult.Success) {
+    override suspend fun signInWithGoogle(activity: Activity): AuthResult =
+        if (nextGoogleResult is AuthResult.Success) {
             gateway.signInWithGoogleIdToken("test-token")
         } else {
             nextGoogleResult
         }
-    }
 }

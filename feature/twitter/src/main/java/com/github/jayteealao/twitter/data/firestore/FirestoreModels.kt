@@ -4,9 +4,9 @@ import com.github.jayteealao.twitter.models.TweetEntity
 import com.github.jayteealao.twitter.models.TweetIncludesEntity
 import com.github.jayteealao.twitter.models.TweetMediaEntity
 import com.github.jayteealao.twitter.models.TweetPublicMetrics
-import com.github.jayteealao.twitter.models.Variant
 import com.github.jayteealao.twitter.models.TweetTextEntityAnnotation
 import com.github.jayteealao.twitter.models.TwitterUserEntity
+import com.github.jayteealao.twitter.models.Variant
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentId
 import com.google.firebase.firestore.IgnoreExtraProperties
@@ -56,33 +56,35 @@ data class FirestoreTweet(
     @get:PropertyName("retrievedAt") @set:PropertyName("retrievedAt")
     var retrievedAt: Timestamp? = null,
 ) {
-    fun toTweetEntity(referenced: Boolean = this.referenced ?: false): TweetEntity = TweetEntity(
-        id = tweetId,
-        text = text,
-        createdAt = createdAt,
-        authorId = authorId,
-        conversationId = conversationId,
-        inReplyToUserId = inReplyToUserId,
-        lang = lang,
-        referenced = referenced,
-        order = order,
-        pendingDelete = pendingDelete ?: false,
-        retrievedAt = retrievedAt?.toDate()?.time,
-    )
+    fun toTweetEntity(referenced: Boolean = this.referenced ?: false): TweetEntity =
+        TweetEntity(
+            id = tweetId,
+            text = text,
+            createdAt = createdAt,
+            authorId = authorId,
+            conversationId = conversationId,
+            inReplyToUserId = inReplyToUserId,
+            lang = lang,
+            referenced = referenced,
+            order = order,
+            pendingDelete = pendingDelete ?: false,
+            retrievedAt = retrievedAt?.toDate()?.time,
+        )
 
     companion object {
-        fun fromTweetEntity(entity: TweetEntity): FirestoreTweet = FirestoreTweet(
-            tweetId = entity.id,
-            text = entity.text,
-            authorId = entity.authorId,
-            createdAt = entity.createdAt,
-            conversationId = entity.conversationId,
-            inReplyToUserId = entity.inReplyToUserId,
-            lang = entity.lang,
-            order = entity.order,
-            // Round-trip the server value so the legacy merge-upload path never nulls it.
-            retrievedAt = entity.retrievedAt?.let { Timestamp(Date(it)) },
-        )
+        fun fromTweetEntity(entity: TweetEntity): FirestoreTweet =
+            FirestoreTweet(
+                tweetId = entity.id,
+                text = entity.text,
+                authorId = entity.authorId,
+                createdAt = entity.createdAt,
+                conversationId = entity.conversationId,
+                inReplyToUserId = entity.inReplyToUserId,
+                lang = entity.lang,
+                order = entity.order,
+                // Round-trip the server value so the legacy merge-upload path never nulls it.
+                retrievedAt = entity.retrievedAt?.let { Timestamp(Date(it)) },
+            )
     }
 }
 
@@ -115,29 +117,31 @@ data class FirestoreUser(
     var createdAt: String? = null,
     var url: String? = null,
     @get:PropertyName("pinnedTweetId") @set:PropertyName("pinnedTweetId")
-    var pinnedTweetId: String? = null
+    var pinnedTweetId: String? = null,
 ) {
-    fun toTwitterUserEntity(): TwitterUserEntity = TwitterUserEntity(
-        id = userId,
-        username = username,
-        name = name,
-        description = description,
-        profileImageUrl = profileImageUrl,
-        verified = verified,
-        verifiedType = verifiedType,
-        mentionedIn = null
-    )
+    fun toTwitterUserEntity(): TwitterUserEntity =
+        TwitterUserEntity(
+            id = userId,
+            username = username,
+            name = name,
+            description = description,
+            profileImageUrl = profileImageUrl,
+            verified = verified,
+            verifiedType = verifiedType,
+            mentionedIn = null,
+        )
 
     companion object {
-        fun fromTwitterUserEntity(entity: TwitterUserEntity): FirestoreUser = FirestoreUser(
-            userId = entity.id,
-            username = entity.username,
-            name = entity.name,
-            description = entity.description,
-            profileImageUrl = entity.profileImageUrl,
-            verified = entity.verified ?: false,
-            verifiedType = entity.verifiedType
-        )
+        fun fromTwitterUserEntity(entity: TwitterUserEntity): FirestoreUser =
+            FirestoreUser(
+                userId = entity.id,
+                username = entity.username,
+                name = entity.name,
+                description = entity.description,
+                profileImageUrl = entity.profileImageUrl,
+                verified = entity.verified ?: false,
+                verifiedType = entity.verifiedType,
+            )
     }
 }
 
@@ -174,36 +178,39 @@ data class FirestoreMedia(
     // tweet↔media link is a separate `includes` doc), so `this.tweetId` is null for
     // every synced media row. The parent tweet id is REQUIRED (tweetMedia's composite
     // PK leads with tweet_id); the assembler passes the in-scope map key explicitly.
-    fun toTweetMediaEntity(tweetId: String): TweetMediaEntity = TweetMediaEntity(
-        mediaKey = mediaKey,
-        type = type,
-        url = url ?: previewImageUrl,
-        previewImageUrl = previewImageUrl,
-        width = width,
-        height = height,
-        durationMs = durationMs ?: 0,
-        altText = altText,
-        tweetId = tweetId,
-        videoVariants = variants?.mapNotNull { it.toVariant() }?.takeIf { it.isNotEmpty() },
-    )
+    fun toTweetMediaEntity(tweetId: String): TweetMediaEntity =
+        TweetMediaEntity(
+            mediaKey = mediaKey,
+            type = type,
+            url = url ?: previewImageUrl,
+            previewImageUrl = previewImageUrl,
+            width = width,
+            height = height,
+            durationMs = durationMs ?: 0,
+            altText = altText,
+            tweetId = tweetId,
+            videoVariants = variants?.mapNotNull { it.toVariant() }?.takeIf { it.isNotEmpty() },
+        )
 
     companion object {
-        fun fromTweetMediaEntity(entity: TweetMediaEntity): FirestoreMedia = FirestoreMedia(
-            mediaKey = entity.mediaKey,
-            type = entity.type,
-            url = entity.url,
-            previewImageUrl = entity.previewImageUrl,
-            width = entity.width,
-            height = entity.height,
-            durationMs = entity.durationMs,
-            altText = entity.altText,
-            tweetId = entity.tweetId,
-            // Round-trip variants in the canonical camelCase shape so an Android-originated
-            // re-upload never drops them.
-            variants = entity.videoVariants?.map {
-                mapOf("bitRate" to it.bitRate, "contentType" to it.contentType, "url" to it.url)
-            },
-        )
+        fun fromTweetMediaEntity(entity: TweetMediaEntity): FirestoreMedia =
+            FirestoreMedia(
+                mediaKey = entity.mediaKey,
+                type = entity.type,
+                url = entity.url,
+                previewImageUrl = entity.previewImageUrl,
+                width = entity.width,
+                height = entity.height,
+                durationMs = entity.durationMs,
+                altText = entity.altText,
+                tweetId = entity.tweetId,
+                // Round-trip variants in the canonical camelCase shape so an Android-originated
+                // re-upload never drops them.
+                variants =
+                    entity.videoVariants?.map {
+                        mapOf("bitRate" to it.bitRate, "contentType" to it.contentType, "url" to it.url)
+                    },
+            )
 
         /**
          * Reconcile one Firestore variant map into a [Variant], accepting either the
@@ -248,26 +255,28 @@ data class FirestoreMetrics(
     @get:PropertyName("bookmarkCount") @set:PropertyName("bookmarkCount")
     var bookmarkCount: Int? = 0,
     @get:PropertyName("impressionCount") @set:PropertyName("impressionCount")
-    var impressionCount: Int? = null
+    var impressionCount: Int? = null,
 ) {
-    fun toTweetPublicMetrics(): TweetPublicMetrics = TweetPublicMetrics(
-        retweetCount = retweetCount,
-        replyCount = replyCount,
-        likeCount = likeCount,
-        quoteCount = quoteCount,
-        viewCount = impressionCount,
-        tweetId = tweetId
-    )
+    fun toTweetPublicMetrics(): TweetPublicMetrics =
+        TweetPublicMetrics(
+            retweetCount = retweetCount,
+            replyCount = replyCount,
+            likeCount = likeCount,
+            quoteCount = quoteCount,
+            viewCount = impressionCount,
+            tweetId = tweetId,
+        )
 
     companion object {
-        fun fromTweetPublicMetrics(entity: TweetPublicMetrics): FirestoreMetrics = FirestoreMetrics(
-            tweetId = entity.tweetId ?: "",
-            likeCount = entity.likeCount ?: 0,
-            retweetCount = entity.retweetCount ?: 0,
-            replyCount = entity.replyCount ?: 0,
-            quoteCount = entity.quoteCount ?: 0,
-            impressionCount = entity.viewCount
-        )
+        fun fromTweetPublicMetrics(entity: TweetPublicMetrics): FirestoreMetrics =
+            FirestoreMetrics(
+                tweetId = entity.tweetId ?: "",
+                likeCount = entity.likeCount ?: 0,
+                retweetCount = entity.retweetCount ?: 0,
+                replyCount = entity.replyCount ?: 0,
+                quoteCount = entity.quoteCount ?: 0,
+                impressionCount = entity.viewCount,
+            )
     }
 }
 
@@ -290,22 +299,24 @@ data class FirestoreIncludes(
     // filters to type == "quoted" so only quoted references hydrate a quote; the other
     // types are ignored (the dangerous tweetIncludes FK relation stays dropped).
     var type: String? = null,
-    var kind: String? = null
+    var kind: String? = null,
 ) {
-    fun toTweetIncludesEntity(): TweetIncludesEntity = TweetIncludesEntity(
-        tweetId = tweetId,
-        twitterUser = userId,
-        mediaKey = mediaKey,
-        referencedTweetId = referencedTweetId
-    )
+    fun toTweetIncludesEntity(): TweetIncludesEntity =
+        TweetIncludesEntity(
+            tweetId = tweetId,
+            twitterUser = userId,
+            mediaKey = mediaKey,
+            referencedTweetId = referencedTweetId,
+        )
 
     companion object {
-        fun fromTweetIncludesEntity(entity: TweetIncludesEntity): FirestoreIncludes = FirestoreIncludes(
-            tweetId = entity.tweetId,
-            userId = entity.twitterUser,
-            mediaKey = entity.mediaKey,
-            referencedTweetId = entity.referencedTweetId
-        )
+        fun fromTweetIncludesEntity(entity: TweetIncludesEntity): FirestoreIncludes =
+            FirestoreIncludes(
+                tweetId = entity.tweetId,
+                userId = entity.twitterUser,
+                mediaKey = entity.mediaKey,
+                referencedTweetId = entity.referencedTweetId,
+            )
     }
 }
 
@@ -340,47 +351,49 @@ data class FirestoreTextAnnotation(
     var username: String? = null,
     var tag: String? = null,
     @get:PropertyName("userId") @set:PropertyName("userId")
-    var userId: String? = null
+    var userId: String? = null,
 ) {
-    fun toTweetTextEntityAnnotation(): TweetTextEntityAnnotation = TweetTextEntityAnnotation(
-        id = userId,
-        start = start,
-        end = end,
-        product = null,
-        status = null,
-        tag = tag,
-        // Carry the server-enriched preview metadata through to Room (was hardcoded
-        // null). `image_url` is the v16 column; title/description already existed.
-        title = title,
-        description = description,
-        imageUrl = imageUrl,
-        url = url,
-        expandedUrl = expandedUrl,
-        displayUrl = displayUrl,
-        unwoundUrl = unwoundUrl,
-        mediaKey = null,
-        normalizedText = null,
-        tweetId = tweetId,
-        type = type
-    )
+    fun toTweetTextEntityAnnotation(): TweetTextEntityAnnotation =
+        TweetTextEntityAnnotation(
+            id = userId,
+            start = start,
+            end = end,
+            product = null,
+            status = null,
+            tag = tag,
+            // Carry the server-enriched preview metadata through to Room (was hardcoded
+            // null). `image_url` is the v16 column; title/description already existed.
+            title = title,
+            description = description,
+            imageUrl = imageUrl,
+            url = url,
+            expandedUrl = expandedUrl,
+            displayUrl = displayUrl,
+            unwoundUrl = unwoundUrl,
+            mediaKey = null,
+            normalizedText = null,
+            tweetId = tweetId,
+            type = type,
+        )
 
     companion object {
-        fun fromTweetTextEntityAnnotation(entity: TweetTextEntityAnnotation): FirestoreTextAnnotation = FirestoreTextAnnotation(
-            tweetId = entity.tweetId ?: "",
-            type = entity.type,
-            start = entity.start,
-            end = entity.end,
-            url = entity.url,
-            expandedUrl = entity.expandedUrl,
-            displayUrl = entity.displayUrl,
-            unwoundUrl = entity.unwoundUrl,
-            // Round-trip the preview metadata so an Android-originated re-upload
-            // never drops a server-enriched title/description/image.
-            title = entity.title,
-            description = entity.description,
-            imageUrl = entity.imageUrl,
-            userId = entity.id,
-            tag = entity.tag
-        )
+        fun fromTweetTextEntityAnnotation(entity: TweetTextEntityAnnotation): FirestoreTextAnnotation =
+            FirestoreTextAnnotation(
+                tweetId = entity.tweetId ?: "",
+                type = entity.type,
+                start = entity.start,
+                end = entity.end,
+                url = entity.url,
+                expandedUrl = entity.expandedUrl,
+                displayUrl = entity.displayUrl,
+                unwoundUrl = entity.unwoundUrl,
+                // Round-trip the preview metadata so an Android-originated re-upload
+                // never drops a server-enriched title/description/image.
+                title = entity.title,
+                description = entity.description,
+                imageUrl = entity.imageUrl,
+                userId = entity.id,
+                tag = entity.tag,
+            )
     }
 }

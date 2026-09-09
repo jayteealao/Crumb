@@ -22,7 +22,6 @@ import org.junit.Test
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionViewModelTest {
-
     private val dispatcher = StandardTestDispatcher()
 
     @Before
@@ -36,29 +35,32 @@ class SessionViewModelTest {
     }
 
     @Test
-    fun nullUserAtConstruction_isSignedIn_isFalse() = runTest(dispatcher) {
-        val gateway = FakeAuthGateway(initialUser = null)
-        val vm = SessionViewModel(gateway)
-        assertFalse("expected false when no user present", vm.isSignedIn.value)
-    }
+    fun nullUserAtConstruction_isSignedIn_isFalse() =
+        runTest(dispatcher) {
+            val gateway = FakeAuthGateway(initialUser = null)
+            val vm = SessionViewModel(gateway)
+            assertFalse("expected false when no user present", vm.isSignedIn.value)
+        }
 
     @Test
-    fun seededUserAtConstruction_isSignedIn_isTrue() = runTest(dispatcher) {
-        val gateway = FakeAuthGateway(initialUser = CurrentUser(uid = "uid-1", email = "a@b.com"))
-        val vm = SessionViewModel(gateway)
-        assertTrue("expected true when user is seeded at construction", vm.isSignedIn.value)
-    }
+    fun seededUserAtConstruction_isSignedIn_isTrue() =
+        runTest(dispatcher) {
+            val gateway = FakeAuthGateway(initialUser = CurrentUser(uid = "uid-1", email = "a@b.com"))
+            val vm = SessionViewModel(gateway)
+            assertTrue("expected true when user is seeded at construction", vm.isSignedIn.value)
+        }
 
     @Test
-    fun signIn_flipsIsSignedInFromFalseToTrue() = runTest(dispatcher) {
-        val gateway = FakeAuthGateway(initialUser = null)
-        val vm = SessionViewModel(gateway)
-        assertFalse("precondition: must start false", vm.isSignedIn.value)
+    fun signIn_flipsIsSignedInFromFalseToTrue() =
+        runTest(dispatcher) {
+            val gateway = FakeAuthGateway(initialUser = null)
+            val vm = SessionViewModel(gateway)
+            assertFalse("precondition: must start false", vm.isSignedIn.value)
 
-        gateway.queueGoogleResult(AuthResult.Success)
-        gateway.signInWithGoogleIdToken("test-id-token")
-        advanceUntilIdle()
+            gateway.queueGoogleResult(AuthResult.Success)
+            gateway.signInWithGoogleIdToken("test-id-token")
+            advanceUntilIdle()
 
-        assertTrue("expected true after successful sign-in emission", vm.isSignedIn.value)
-    }
+            assertTrue("expected true after successful sign-in emission", vm.isSignedIn.value)
+        }
 }

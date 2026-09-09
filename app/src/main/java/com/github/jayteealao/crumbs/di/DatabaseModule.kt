@@ -22,20 +22,20 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 @Module
 class DatabaseModule {
-
     @Singleton
     @Provides
     fun provideAppDatabase(
-        @ApplicationContext context: Context
-    ): AppDatabase = Room.databaseBuilder(
-        context,
-        AppDatabase::class.java,
-        "AppDatabase"
-    )
-        .addMigrations(*ALL_MIGRATIONS)
-        .fallbackToDestructiveMigration(false)
-        .addCallback(ftsBuildCallback)
-        .build()
+        @ApplicationContext context: Context,
+    ): AppDatabase =
+        Room
+            .databaseBuilder(
+                context,
+                AppDatabase::class.java,
+                "AppDatabase",
+            ).addMigrations(*ALL_MIGRATIONS)
+            .fallbackToDestructiveMigration(false)
+            .addCallback(ftsBuildCallback)
+            .build()
 
     @Singleton
     @Provides
@@ -81,28 +81,33 @@ class DatabaseModule {
  *   On subsequent opens both FTS tables are non-empty (or the parent is empty too), so the
  *   execSQL calls are skipped entirely.
  */
-private val ftsBuildCallback = object : RoomDatabase.Callback() {
-    override fun onOpen(db: SupportSQLiteDatabase) {
-        // Rebuild tweet_fts if the parent table has rows but FTS is empty.
-        val tweetParentCount = db.query("SELECT COUNT(*) FROM `tweetEntity`").use { c ->
-            if (c.moveToFirst()) c.getLong(0) else 0L
-        }
-        val tweetFtsCount = db.query("SELECT COUNT(*) FROM `tweet_fts`").use { c ->
-            if (c.moveToFirst()) c.getLong(0) else 0L
-        }
-        if (tweetParentCount > 0 && tweetFtsCount == 0L) {
-            db.execSQL("INSERT INTO `tweet_fts`(`tweet_fts`) VALUES('rebuild')")
-        }
+private val ftsBuildCallback =
+    object : RoomDatabase.Callback() {
+        override fun onOpen(db: SupportSQLiteDatabase) {
+            // Rebuild tweet_fts if the parent table has rows but FTS is empty.
+            val tweetParentCount =
+                db.query("SELECT COUNT(*) FROM `tweetEntity`").use { c ->
+                    if (c.moveToFirst()) c.getLong(0) else 0L
+                }
+            val tweetFtsCount =
+                db.query("SELECT COUNT(*) FROM `tweet_fts`").use { c ->
+                    if (c.moveToFirst()) c.getLong(0) else 0L
+                }
+            if (tweetParentCount > 0 && tweetFtsCount == 0L) {
+                db.execSQL("INSERT INTO `tweet_fts`(`tweet_fts`) VALUES('rebuild')")
+            }
 
-        // Rebuild reddit_fts if the parent table has rows but FTS is empty.
-        val redditParentCount = db.query("SELECT COUNT(*) FROM `reddit_posts`").use { c ->
-            if (c.moveToFirst()) c.getLong(0) else 0L
-        }
-        val redditFtsCount = db.query("SELECT COUNT(*) FROM `reddit_fts`").use { c ->
-            if (c.moveToFirst()) c.getLong(0) else 0L
-        }
-        if (redditParentCount > 0 && redditFtsCount == 0L) {
-            db.execSQL("INSERT INTO `reddit_fts`(`reddit_fts`) VALUES('rebuild')")
+            // Rebuild reddit_fts if the parent table has rows but FTS is empty.
+            val redditParentCount =
+                db.query("SELECT COUNT(*) FROM `reddit_posts`").use { c ->
+                    if (c.moveToFirst()) c.getLong(0) else 0L
+                }
+            val redditFtsCount =
+                db.query("SELECT COUNT(*) FROM `reddit_fts`").use { c ->
+                    if (c.moveToFirst()) c.getLong(0) else 0L
+                }
+            if (redditParentCount > 0 && redditFtsCount == 0L) {
+                db.execSQL("INSERT INTO `reddit_fts`(`reddit_fts`) VALUES('rebuild')")
+            }
         }
     }
-}

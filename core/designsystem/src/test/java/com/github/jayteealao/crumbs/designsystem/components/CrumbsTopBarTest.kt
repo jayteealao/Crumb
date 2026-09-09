@@ -36,7 +36,6 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class CrumbsTopBarTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -46,19 +45,21 @@ class CrumbsTopBarTest {
         composeTestRule.setContent {
             TestCrumbsTheme(darkTheme = false) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(400.dp) // Proper viewport height for visibility
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(400.dp), // Proper viewport height for visibility
                 ) {
                     CrumbsTopBar(
-                        isSearchActive = false
+                        isSearchActive = false,
                         // scrollBehavior omitted for test simplicity
                     )
                 }
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsTopBar_expanded_normal_light.png")
     }
 
@@ -68,19 +69,21 @@ class CrumbsTopBarTest {
         composeTestRule.setContent {
             TestCrumbsTheme(darkTheme = true) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(400.dp) // Proper viewport height for visibility
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(400.dp), // Proper viewport height for visibility
                 ) {
                     CrumbsTopBar(
-                        isSearchActive = false
+                        isSearchActive = false,
                         // scrollBehavior omitted for test simplicity
                     )
                 }
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsTopBar_expanded_normal_dark.png")
     }
 
@@ -90,19 +93,21 @@ class CrumbsTopBarTest {
         composeTestRule.setContent {
             TestCrumbsTheme(darkTheme = false) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(400.dp) // Proper viewport height for visibility
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(400.dp), // Proper viewport height for visibility
                 ) {
                     CrumbsTopBar(
                         isSearchActive = true,
-                        searchQuery = ""
+                        searchQuery = "",
                     )
                 }
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsTopBar_searchActive_emptyQuery_light.png")
     }
 
@@ -112,19 +117,21 @@ class CrumbsTopBarTest {
         composeTestRule.setContent {
             TestCrumbsTheme(darkTheme = false) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(400.dp) // Proper viewport height for visibility
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(400.dp), // Proper viewport height for visibility
                 ) {
                     CrumbsTopBar(
                         isSearchActive = true,
-                        searchQuery = "design patterns"
+                        searchQuery = "design patterns",
                     )
                 }
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsTopBar_searchActive_withQuery_light.png")
     }
 
@@ -134,19 +141,21 @@ class CrumbsTopBarTest {
         composeTestRule.setContent {
             TestCrumbsTheme(darkTheme = true) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(400.dp) // Proper viewport height for visibility
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(400.dp), // Proper viewport height for visibility
                 ) {
                     CrumbsTopBar(
                         isSearchActive = true,
-                        searchQuery = "kotlin coroutines"
+                        searchQuery = "kotlin coroutines",
                     )
                 }
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsTopBar_searchActive_withQuery_dark.png")
     }
 }

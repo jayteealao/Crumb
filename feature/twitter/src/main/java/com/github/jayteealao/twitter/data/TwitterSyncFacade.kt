@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.Flow
  * APIs without modifying those classes.
  */
 interface TwitterSyncFacade {
-
     /**
      * Returns all non-referenced (i.e. top-level bookmark) tweet IDs stored locally.
      * May return up to ~25 K IDs for a large corpus.
@@ -49,14 +48,26 @@ interface TwitterSyncFacade {
     // --- Backfill sweep queries (used by MediaBackfillWorker) ---
 
     /** Keyset-paginated IDs of non-referenced, non-tombstoned tweets with no media rows. */
-    suspend fun getTweetsWithoutMedia(afterId: String, limit: Int): List<String>
+    suspend fun getTweetsWithoutMedia(
+        afterId: String,
+        limit: Int,
+    ): List<String>
 
     /** Keyset-paginated IDs of video/gif tweets whose `video_variants` column is still NULL. */
-    suspend fun getVideoTweetsWithoutVariants(afterId: String, limit: Int): List<String>
+    suspend fun getVideoTweetsWithoutVariants(
+        afterId: String,
+        limit: Int,
+    ): List<String>
 
     /** Keyset-paginated IDs of tweets with no external URL-entity annotation yet. */
-    suspend fun getExternalLinkTweetsWithoutPreview(afterId: String, limit: Int): List<String>
+    suspend fun getExternalLinkTweetsWithoutPreview(
+        afterId: String,
+        limit: Int,
+    ): List<String>
 
     /** Keyset-paginated IDs of tweets whose quoted body has not yet been stored locally. */
-    suspend fun getQuoteTweetsWithoutBody(afterId: String, limit: Int): List<String>
+    suspend fun getQuoteTweetsWithoutBody(
+        afterId: String,
+        limit: Int,
+    ): List<String>
 }

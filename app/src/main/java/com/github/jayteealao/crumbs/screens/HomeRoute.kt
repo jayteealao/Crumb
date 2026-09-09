@@ -26,17 +26,17 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.github.jayteealao.crumbs.Screens
+import com.github.jayteealao.crumbs.auth.SessionViewModel
 import com.github.jayteealao.crumbs.data.BannerState
-import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.data.SnackbarBus
 import com.github.jayteealao.crumbs.data.SnackbarEvent
-import com.github.jayteealao.crumbs.auth.SessionViewModel
 import com.github.jayteealao.crumbs.data.SyncErrorBus
 import com.github.jayteealao.crumbs.data.SyncErrorEvent
 import com.github.jayteealao.crumbs.designsystem.components.BottomNavTab
+import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.reddit.screens.RedditBookmarksRoute
 import com.github.jayteealao.reddit.screens.RedditViewModel
-import com.github.jayteealao.crumbs.Screens
 import com.github.jayteealao.twitter.data.TwitterSnackbarEvent
 import com.github.jayteealao.twitter.screens.BookmarksViewModel
 import com.github.jayteealao.twitter.screens.LoginViewModel
@@ -52,10 +52,12 @@ import javax.inject.Inject
  * tab-switching does not tear down event collectors.
  */
 @HiltViewModel
-class HomeServicesViewModel @Inject constructor(
-    val syncErrorBus: SyncErrorBus,
-    val snackbarBus: SnackbarBus,
-) : ViewModel()
+class HomeServicesViewModel
+    @Inject
+    constructor(
+        val syncErrorBus: SyncErrorBus,
+        val snackbarBus: SnackbarBus,
+    ) : ViewModel()
 
 /**
  * Navigation entry point for the home destination. Wires Hilt ViewModels to [HomeScreen] and
@@ -92,9 +94,10 @@ fun HomeRoute(
 
     // POST_NOTIFICATIONS (API 33+) launcher. The outcome is best-effort: whether the
     // user grants or denies, the sync still runs — only the shade entry depends on it.
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { /* no-op: degrade gracefully on deny */ }
+    val notificationPermissionLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission(),
+        ) { /* no-op: degrade gracefully on deny */ }
 
     // collectAsStateWithLifecycle stops collecting when the route goes off-
     // screen (e.g. settings deep-link) so background flows don't keep waking
@@ -123,12 +126,13 @@ fun HomeRoute(
     LaunchedEffect(syncStatus?.linked) {
         val linked = syncStatus?.linked
         if (linked == false) {
-            twitterBanner = BannerState(
-                source = BookmarkSource.Twitter,
-                kicker = "RECONNECT X",
-                detail = "Your X connection needs renewing",
-                ctaLabel = "RECONNECT",
-            )
+            twitterBanner =
+                BannerState(
+                    source = BookmarkSource.Twitter,
+                    kicker = "RECONNECT X",
+                    detail = "Your X connection needs renewing",
+                    ctaLabel = "RECONNECT",
+                )
         } else if (linked == true) {
             twitterBanner = null
         }
@@ -141,14 +145,21 @@ fun HomeRoute(
     // long-lived snackbar (e.g. "BOOKMARK DELETED").
     LaunchedEffect(Unit) {
         bookmarksViewModel.snackbarEvents.collectLatest { event ->
-            val message = when (event) {
-                is TwitterSnackbarEvent.Debounced -> {
-                    val secs = event.retryAfterSeconds ?: 60
-                    "FETCH PAUSED. TRY AGAIN IN $secs SECONDS."
+            val message =
+                when (event) {
+                    is TwitterSnackbarEvent.Debounced -> {
+                        val secs = event.retryAfterSeconds ?: 60
+                        "FETCH PAUSED. TRY AGAIN IN $secs SECONDS."
+                    }
+
+                    is TwitterSnackbarEvent.InProgress -> {
+                        "Fetching your bookmarks..."
+                    }
+
+                    is TwitterSnackbarEvent.GenericFailure -> {
+                        "Couldn't fetch bookmarks. Please try again."
+                    }
                 }
-                is TwitterSnackbarEvent.InProgress -> "Fetching your bookmarks..."
-                is TwitterSnackbarEvent.GenericFailure -> "Couldn't fetch bookmarks. Please try again."
-            }
             snackbarHostState.showSnackbar(
                 message = message,
                 duration = SnackbarDuration.Short,
@@ -242,22 +253,28 @@ fun HomeRoute(
         services.syncErrorBus.events.collect { event ->
             when (event) {
                 is SyncErrorEvent.TwitterAuth401 -> {
-                    twitterBanner = BannerState(
-                        source = BookmarkSource.Twitter,
-                        kicker = "ERR · RECONNECT TWITTER",
-                        detail = "Twitter session expired. Tap to reconnect.",
-                        ctaLabel = "RECONNECT",
-                    )
+                    twitterBanner =
+                        BannerState(
+                            source = BookmarkSource.Twitter,
+                            kicker = "ERR · RECONNECT TWITTER",
+                            detail = "Twitter session expired. Tap to reconnect.",
+                            ctaLabel = "RECONNECT",
+                        )
                 }
+
                 is SyncErrorEvent.RedditAuth401 -> {
-                    redditBanner = BannerState(
-                        source = BookmarkSource.Reddit,
-                        kicker = "ERR · RECONNECT REDDIT",
-                        detail = "Reddit session expired. Tap to reconnect.",
-                        ctaLabel = "RECONNECT",
-                    )
+                    redditBanner =
+                        BannerState(
+                            source = BookmarkSource.Reddit,
+                            kicker = "ERR · RECONNECT REDDIT",
+                            detail = "Reddit session expired. Tap to reconnect.",
+                            ctaLabel = "RECONNECT",
+                        )
                 }
-                is SyncErrorEvent.Other -> Unit
+
+                is SyncErrorEvent.Other -> {
+                    Unit
+                }
             }
         }
     }
@@ -266,11 +283,12 @@ fun HomeRoute(
         services.snackbarBus.events.collect { event ->
             when (event) {
                 is SnackbarEvent.UndoableDelete -> {
-                    val result = snackbarHostState.showSnackbar(
-                        message = "BOOKMARK DELETED",
-                        actionLabel = "UNDO",
-                        duration = SnackbarDuration.Short,
-                    )
+                    val result =
+                        snackbarHostState.showSnackbar(
+                            message = "BOOKMARK DELETED",
+                            actionLabel = "UNDO",
+                            duration = SnackbarDuration.Short,
+                        )
                     if (result == SnackbarResult.ActionPerformed) {
                         when (event.source) {
                             BookmarkSource.Twitter -> bookmarksViewModel.undoDelete(event.id)
@@ -283,17 +301,18 @@ fun HomeRoute(
     }
 
     HomeScreen(
-        uiState = HomeUiState(
-            selectedTab = selectedTab,
-            isSearchActive = isSearchActive,
-            searchQuery = searchQuery,
-            selectedFilterChipIds = filterChipIdsFor(activeFilter),
-            bannerState = activeBanner,
-            itemCount = activeCount,
-            // Guard on twitterLinked: the reconciler requires auth; showing "CATCHING UP"
-            // before syncStatus resolves would be misleading.
-            isSyncIncomplete = isSyncIncomplete && syncStatus?.linked == true,
-        ),
+        uiState =
+            HomeUiState(
+                selectedTab = selectedTab,
+                isSearchActive = isSearchActive,
+                searchQuery = searchQuery,
+                selectedFilterChipIds = filterChipIdsFor(activeFilter),
+                bannerState = activeBanner,
+                itemCount = activeCount,
+                // Guard on twitterLinked: the reconciler requires auth; showing "CATCHING UP"
+                // before syncStatus resolves would be misleading.
+                isSyncIncomplete = isSyncIncomplete && syncStatus?.linked == true,
+            ),
         onTabSelected = { selectedTab = it },
         onSearchQueryChange = { searchQuery = it },
         onSearchActiveChange = { active ->
@@ -327,7 +346,10 @@ fun HomeRoute(
             when (activeBanner?.source) {
                 // X reconnect routes through the dedicated ConnectX destination
                 // so the Custom Tabs + deep-link round-trip lives in one place.
-                BookmarkSource.Twitter -> navController.navigate(Screens.CONNECTX.name)
+                BookmarkSource.Twitter -> {
+                    navController.navigate(Screens.CONNECTX.name)
+                }
+
                 BookmarkSource.Reddit -> {
                     val intent: Intent? = redditViewModel.authIntent()
                     intent?.let {
@@ -344,31 +366,45 @@ fun HomeRoute(
                         }
                     }
                 }
-                null -> Unit
+
+                null -> {
+                    Unit
+                }
             }
         },
         snackbarHostState = snackbarHostState,
         allTags = activeAllTags,
     ) { tab, padding ->
         when (tab) {
-            BottomNavTab.TWITTER -> TwitterBookmarksRoute(
-                navController = navController,
-                contentPadding = padding,
-                twitterAuthCode = twitterAuthCode,
-                bookmarksViewModel = bookmarksViewModel,
-                loginViewModel = loginViewModel,
-            )
-            BottomNavTab.REDDIT -> RedditBookmarksRoute(
-                navController = navController,
-                contentPadding = padding,
-                redditViewModel = redditViewModel,
-            )
-            BottomNavTab.ALL -> AllBookmarksRoute(
-                contentPadding = padding,
-                bookmarksViewModel = bookmarksViewModel,
-                redditViewModel = redditViewModel,
-            )
-            BottomNavTab.MAP -> MapViewRoute(contentPadding = padding)
+            BottomNavTab.TWITTER -> {
+                TwitterBookmarksRoute(
+                    navController = navController,
+                    contentPadding = padding,
+                    twitterAuthCode = twitterAuthCode,
+                    bookmarksViewModel = bookmarksViewModel,
+                    loginViewModel = loginViewModel,
+                )
+            }
+
+            BottomNavTab.REDDIT -> {
+                RedditBookmarksRoute(
+                    navController = navController,
+                    contentPadding = padding,
+                    redditViewModel = redditViewModel,
+                )
+            }
+
+            BottomNavTab.ALL -> {
+                AllBookmarksRoute(
+                    contentPadding = padding,
+                    bookmarksViewModel = bookmarksViewModel,
+                    redditViewModel = redditViewModel,
+                )
+            }
+
+            BottomNavTab.MAP -> {
+                MapViewRoute(contentPadding = padding)
+            }
         }
     }
 }
@@ -383,13 +419,15 @@ internal fun resolveSavedCount(
     tab: BottomNavTab,
     twitterCount: Int,
     twitterLinked: Boolean,
-): Int = when (tab) {
-    BottomNavTab.REDDIT -> 0
-    BottomNavTab.TWITTER,
-    BottomNavTab.ALL,
-    BottomNavTab.MAP,
-    -> if (twitterLinked) twitterCount else 0
-}
+): Int =
+    when (tab) {
+        BottomNavTab.REDDIT -> 0
+
+        BottomNavTab.TWITTER,
+        BottomNavTab.ALL,
+        BottomNavTab.MAP,
+        -> if (twitterLinked) twitterCount else 0
+    }
 
 private const val SYNC_NOTIFICATION_PREFS = "sync_notification_prefs"
 private const val KEY_POST_NOTIFICATIONS_ASKED = "post_notifications_asked"

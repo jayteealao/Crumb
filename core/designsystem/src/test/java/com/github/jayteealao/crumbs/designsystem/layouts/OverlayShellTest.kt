@@ -26,7 +26,6 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class OverlayShellTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -57,7 +56,8 @@ class OverlayShellTest {
                 }
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/OverlayShell_open_light.png")
     }
 
@@ -88,7 +88,8 @@ class OverlayShellTest {
                 }
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/OverlayShell_open_dark.png")
     }
 
@@ -106,7 +107,8 @@ class OverlayShellTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithTag("overlay-shell-backdrop")
+        composeTestRule
+            .onNodeWithTag("overlay-shell-backdrop")
             .performTouchInput { click(position = Offset(10f, 10f)) }
         assertTrue(dismissed)
     }

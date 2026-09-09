@@ -35,16 +35,17 @@ import org.robolectric.annotation.Config
 // Bare Application (not CrumbApplication) so this pure Room test skips Hilt / Firebase init.
 @Config(sdk = [34], application = Application::class)
 class TweetDaoCountTest {
-
     private lateinit var db: AppDatabase
     private lateinit var dao: TweetDao
 
     @Before
     fun setUp() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
-            .allowMainThreadQueries()
-            .build()
+        db =
+            Room
+                .inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+                .allowMainThreadQueries()
+                .build()
         dao = db.tweetDao()
         dao.insertTwitterUser(
             TwitterUserEntity(
@@ -83,51 +84,53 @@ class TweetDaoCountTest {
     )
 
     @Test
-    fun countAll_excludesTombstonedAndReferenced_andMatchesPagingRowCount() = runTest {
-        dao.insertTweet(tweet("t1"))
-        dao.insertTweet(tweet("t2"))
-        dao.insertTweet(tweet("t3"))
-        dao.insertTweet(tweet("t4")) // tagged below
-        dao.insertTweet(tweet("t5")) // tombstoned below
-        dao.insertTweet(tweet("t6", referenced = true)) // referenced → excluded from the feed
+    fun countAll_excludesTombstonedAndReferenced_andMatchesPagingRowCount() =
+        runTest {
+            dao.insertTweet(tweet("t1"))
+            dao.insertTweet(tweet("t2"))
+            dao.insertTweet(tweet("t3"))
+            dao.insertTweet(tweet("t4")) // tagged below
+            dao.insertTweet(tweet("t5")) // tombstoned below
+            dao.insertTweet(tweet("t6", referenced = true)) // referenced → excluded from the feed
 
-        dao.insertTag(TagEntity("design"))
-        dao.insertTweetTag(TweetTagCrossRef("t4", "design"))
-        db.deletedBookmarkDao().insert(DeletedBookmark("t5", "twitter", 123L))
+            dao.insertTag(TagEntity("design"))
+            dao.insertTweetTag(TweetTagCrossRef("t4", "design"))
+            db.deletedBookmarkDao().insert(DeletedBookmark("t5", "twitter", 123L))
 
-        // ALL count drops the tombstoned (t5) and referenced (t6) rows → t1..t4 = 4.
-        assertEquals(4, dao.countTombstoneAware("ALL").first())
-        // count == row count of the matching paging query (the lockstep invariant).
-        assertEquals(
-            loadAllIds(dao.getTweetsTombstoneAware("ALL")).size,
-            dao.countTombstoneAware("ALL").first(),
-        )
-
-        // Tag-filtered count is the tagged subset, and again equals the paging row count.
-        assertEquals(1, dao.countByTagsTombstoneAware(listOf("design"), "ALL").first())
-        assertEquals(
-            loadAllIds(dao.getTweetsByTagsTombstoneAware(listOf("design"), "ALL")).size,
-            dao.countByTagsTombstoneAware(listOf("design"), "ALL").first(),
-        )
-    }
-
-    @Test
-    fun feedSurfacesSqliteRowId() = runTest {
-        dao.insertTweet(tweet("a"))
-        dao.insertTweet(tweet("b"))
-        dao.insertTweet(tweet("c"))
-
-        val items = loadAll(dao.getTweetsTombstoneAware("ALL"))
-        assertTrue("expected rows from the feed", items.isNotEmpty())
-        items.forEach { td ->
-            assertTrue("dbRowId must be a real (positive) rowid for ${td.tweet.id}", td.dbRowId > 0L)
+            // ALL count drops the tombstoned (t5) and referenced (t6) rows → t1..t4 = 4.
+            assertEquals(4, dao.countTombstoneAware("ALL").first())
+            // count == row count of the matching paging query (the lockstep invariant).
             assertEquals(
-                "dbRowId must equal the SQLite rowid for ${td.tweet.id}",
-                actualRowId(td.tweet.id),
-                td.dbRowId,
+                loadAllIds(dao.getTweetsTombstoneAware("ALL")).size,
+                dao.countTombstoneAware("ALL").first(),
+            )
+
+            // Tag-filtered count is the tagged subset, and again equals the paging row count.
+            assertEquals(1, dao.countByTagsTombstoneAware(listOf("design"), "ALL").first())
+            assertEquals(
+                loadAllIds(dao.getTweetsByTagsTombstoneAware(listOf("design"), "ALL")).size,
+                dao.countByTagsTombstoneAware(listOf("design"), "ALL").first(),
             )
         }
-    }
+
+    @Test
+    fun feedSurfacesSqliteRowId() =
+        runTest {
+            dao.insertTweet(tweet("a"))
+            dao.insertTweet(tweet("b"))
+            dao.insertTweet(tweet("c"))
+
+            val items = loadAll(dao.getTweetsTombstoneAware("ALL"))
+            assertTrue("expected rows from the feed", items.isNotEmpty())
+            items.forEach { td ->
+                assertTrue("dbRowId must be a real (positive) rowid for ${td.tweet.id}", td.dbRowId > 0L)
+                assertEquals(
+                    "dbRowId must equal the SQLite rowid for ${td.tweet.id}",
+                    actualRowId(td.tweet.id),
+                    td.dbRowId,
+                )
+            }
+        }
 
     private fun actualRowId(id: String): Long =
         db.openHelper.writableDatabase
@@ -138,12 +141,12 @@ class TweetDaoCountTest {
             }
 
     private suspend fun loadAll(source: PagingSource<Int, TweetData>): List<TweetData> {
-        val page = source.load(
-            PagingSource.LoadParams.Refresh(key = null, loadSize = 50, placeholdersEnabled = false),
-        ) as PagingSource.LoadResult.Page
+        val page =
+            source.load(
+                PagingSource.LoadParams.Refresh(key = null, loadSize = 50, placeholdersEnabled = false),
+            ) as PagingSource.LoadResult.Page
         return page.data
     }
 
-    private suspend fun loadAllIds(source: PagingSource<Int, TweetData>): List<String> =
-        loadAll(source).map { it.tweet.id }
+    private suspend fun loadAllIds(source: PagingSource<Int, TweetData>): List<String> = loadAll(source).map { it.tweet.id }
 }

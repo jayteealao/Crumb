@@ -14,19 +14,19 @@ import com.google.gson.annotations.SerializedName
 
 data class RedditListingResponse(
     val kind: String,
-    val data: RedditListingData
+    val data: RedditListingData,
 )
 
 data class RedditListingData(
     val after: String?,
     val before: String?,
     val children: List<RedditThing>,
-    val dist: Int?
+    val dist: Int?,
 )
 
 data class RedditThing(
     val kind: String, // "t1" = comment, "t3" = link/post
-    val data: RedditPost
+    val data: RedditPost,
 )
 
 data class RedditPost(
@@ -53,7 +53,7 @@ data class RedditPost(
     val gilded: Int,
     val stickied: Boolean,
     val locked: Boolean,
-    val over_18: Boolean
+    val over_18: Boolean,
 )
 
 /**
@@ -63,7 +63,7 @@ data class RedditPost(
     tableName = "reddit_posts",
     // `order` indexed because the saved-posts feed sorts by `order DESC`;
     // without it Room scans the full table on every page boundary.
-    indices = [Index("author"), Index("subreddit"), Index("order")]
+    indices = [Index("author"), Index("subreddit"), Index("order")],
 )
 data class RedditPostEntity(
     @PrimaryKey val id: String,
@@ -85,7 +85,7 @@ data class RedditPostEntity(
     @ColumnInfo(name = "link_flair_text") val linkFlairText: String?,
     val gilded: Int,
     @ColumnInfo(name = "over_18") val over18: Boolean,
-    val order: Int = 0 // For sorting saved posts
+    val order: Int = 0, // For sorting saved posts
 )
 
 /**
@@ -100,7 +100,7 @@ data class RedditPostEntity(
 @Entity(
     tableName = "reddit_tag_crossref",
     primaryKeys = ["postId", "tagName"],
-    indices = [Index("postId"), Index("tagName")]
+    indices = [Index("postId"), Index("tagName")],
 )
 data class RedditTagCrossRef(
     val postId: String,
@@ -116,7 +116,7 @@ data class RedditUserResponse(
     @SerializedName("icon_img") val iconImg: String?,
     @SerializedName("created_utc") val createdUtc: Long,
     @SerializedName("link_karma") val linkKarma: Int,
-    @SerializedName("comment_karma") val commentKarma: Int
+    @SerializedName("comment_karma") val commentKarma: Int,
 )
 
 /**
@@ -127,38 +127,39 @@ data class RedditTokenResponse(
     @SerializedName("token_type") val tokenType: String,
     @SerializedName("expires_in") val expiresIn: Int,
     @SerializedName("refresh_token") val refreshToken: String?,
-    val scope: String
+    val scope: String,
 )
 
 /**
  * Full post data with all relations (for Room queries)
  */
 data class RedditPostData(
-    @Embedded val post: RedditPostEntity
+    @Embedded val post: RedditPostEntity,
 )
 
 /**
  * Conversion functions
  */
-fun RedditPost.toEntity(order: Int = 0) = RedditPostEntity(
-    id = id,
-    name = name,
-    title = title,
-    selftext = selftext,
-    author = author,
-    subreddit = subreddit,
-    subredditPrefixed = subredditPrefixed,
-    createdUtc = createdUtc,
-    url = url,
-    permalink = permalink,
-    thumbnail = thumbnail,
-    numComments = numComments,
-    score = score,
-    isSelf = isSelf,
-    isVideo = isVideo,
-    domain = domain,
-    linkFlairText = linkFlairText,
-    gilded = gilded,
-    over18 = over_18,
-    order = order
-)
+fun RedditPost.toEntity(order: Int = 0) =
+    RedditPostEntity(
+        id = id,
+        name = name,
+        title = title,
+        selftext = selftext,
+        author = author,
+        subreddit = subreddit,
+        subredditPrefixed = subredditPrefixed,
+        createdUtc = createdUtc,
+        url = url,
+        permalink = permalink,
+        thumbnail = thumbnail,
+        numComments = numComments,
+        score = score,
+        isSelf = isSelf,
+        isVideo = isVideo,
+        domain = domain,
+        linkFlairText = linkFlairText,
+        gilded = gilded,
+        over18 = over_18,
+        order = order,
+    )

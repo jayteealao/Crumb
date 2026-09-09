@@ -36,7 +36,9 @@ import com.github.jayteealao.crumbs.models.BookmarkSource
 // with 1.5dp ink border; mono kicker handle; Funnel Display name; optional
 // stats kicker. Click handler optional.
 
-enum class ProfileSize(val avatarSize: Dp) {
+enum class ProfileSize(
+    val avatarSize: Dp,
+) {
     Small(40.dp),
     Medium(56.dp),
     Large(80.dp),
@@ -58,7 +60,7 @@ fun UserProfileDisplay(
     modifier: Modifier = Modifier,
     size: ProfileSize = ProfileSize.Medium,
     showStats: Boolean = false,
-    onClick: (() -> Unit)? = null
+    onClick: (() -> Unit)? = null,
 ) {
     val colors = LocalCrumbsColors.current
     val spacing = LocalCrumbsSpacing.current
@@ -66,19 +68,21 @@ fun UserProfileDisplay(
     val shapes = LocalCrumbsShapes.current
     val typography = LocalCrumbsTypography.current
 
-    var rowMod: Modifier = modifier
-        .testTag("user-profile")
-        .semantics(mergeDescendants = true) {
-            if (onClick != null) role = Role.Button
-        }
+    var rowMod: Modifier =
+        modifier
+            .testTag("user-profile")
+            .semantics(mergeDescendants = true) {
+                if (onClick != null) role = Role.Button
+            }
     if (onClick != null) rowMod = rowMod.clickable { onClick() }
 
     Row(modifier = rowMod, verticalAlignment = Alignment.CenterVertically) {
         Box(
-            modifier = Modifier
-                .size(size.avatarSize)
-                .background(colors.surface)
-                .border(stroke.regular, colors.ink, shapes.rectangle),
+            modifier =
+                Modifier
+                    .size(size.avatarSize)
+                    .background(colors.surface)
+                    .border(stroke.regular, colors.ink, shapes.rectangle),
         ) {
             AsyncImage(
                 model = profile.avatarUrl,
@@ -91,10 +95,11 @@ fun UserProfileDisplay(
         Column(verticalArrangement = Arrangement.Center) {
             Text(
                 text = profile.displayName,
-                style = when (size) {
-                    ProfileSize.Small -> typography.bodyMono
-                    ProfileSize.Medium, ProfileSize.Large -> typography.displaySmall
-                },
+                style =
+                    when (size) {
+                        ProfileSize.Small -> typography.bodyMono
+                        ProfileSize.Medium, ProfileSize.Large -> typography.displaySmall
+                    },
                 color = colors.ink,
                 modifier = Modifier.testTag("user-profile-name"),
             )
@@ -127,23 +132,25 @@ fun UserProfileDisplay(
     }
 }
 
-private fun formatCount(count: Int): String = when {
-    count >= 1_000_000 -> "%.1fM".format(count / 1_000_000.0)
-    count >= 1_000 -> "%.1fK".format(count / 1_000.0)
-    else -> count.toString()
-}
+private fun formatCount(count: Int): String =
+    when {
+        count >= 1_000_000 -> "%.1fM".format(count / 1_000_000.0)
+        count >= 1_000 -> "%.1fK".format(count / 1_000.0)
+        else -> count.toString()
+    }
 
 @Preview(name = "Medium No Stats Light", showBackground = true)
 @Composable
 private fun PreviewUserProfileMediumLight() {
     CrumbsTheme(darkTheme = false) {
         UserProfileDisplay(
-            profile = UserProfile(
-                username = "johndoe",
-                displayName = "John Doe",
-                avatarUrl = "https://via.placeholder.com/150",
-                source = BookmarkSource.Twitter,
-            ),
+            profile =
+                UserProfile(
+                    username = "johndoe",
+                    displayName = "John Doe",
+                    avatarUrl = "https://via.placeholder.com/150",
+                    source = BookmarkSource.Twitter,
+                ),
         )
     }
 }
@@ -153,12 +160,13 @@ private fun PreviewUserProfileMediumLight() {
 private fun PreviewUserProfileMediumDark() {
     CrumbsTheme(darkTheme = true) {
         UserProfileDisplay(
-            profile = UserProfile(
-                username = "johndoe",
-                displayName = "John Doe",
-                avatarUrl = "https://via.placeholder.com/150",
-                source = BookmarkSource.Twitter,
-            ),
+            profile =
+                UserProfile(
+                    username = "johndoe",
+                    displayName = "John Doe",
+                    avatarUrl = "https://via.placeholder.com/150",
+                    source = BookmarkSource.Twitter,
+                ),
         )
     }
 }
@@ -168,14 +176,15 @@ private fun PreviewUserProfileMediumDark() {
 private fun PreviewUserProfileMediumWithStatsLight() {
     CrumbsTheme(darkTheme = false) {
         UserProfileDisplay(
-            profile = UserProfile(
-                username = "johndoe",
-                displayName = "John Doe",
-                avatarUrl = "https://via.placeholder.com/150",
-                source = BookmarkSource.Twitter,
-                followerCount = 1234,
-                postCount = 567,
-            ),
+            profile =
+                UserProfile(
+                    username = "johndoe",
+                    displayName = "John Doe",
+                    avatarUrl = "https://via.placeholder.com/150",
+                    source = BookmarkSource.Twitter,
+                    followerCount = 1234,
+                    postCount = 567,
+                ),
             showStats = true,
         )
     }

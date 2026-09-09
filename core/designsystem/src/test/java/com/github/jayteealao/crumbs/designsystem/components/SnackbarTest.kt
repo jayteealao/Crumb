@@ -16,7 +16,6 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class SnackbarTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -27,7 +26,8 @@ class SnackbarTest {
                 CrumbsSnackbar(message = "Bookmark deleted", actionLabel = "Undo", onAction = {})
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsSnackbar_withAction_light.png")
     }
 
@@ -38,7 +38,8 @@ class SnackbarTest {
                 CrumbsSnackbar(message = "Bookmark deleted", actionLabel = "Undo", onAction = {})
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsSnackbar_withAction_dark.png")
     }
 
@@ -49,7 +50,8 @@ class SnackbarTest {
                 CrumbsSnackbar(message = "Sync complete")
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsSnackbar_noAction_light.png")
     }
 
@@ -60,7 +62,8 @@ class SnackbarTest {
                 CrumbsSnackbar(message = "Sync complete")
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsSnackbar_noAction_dark.png")
     }
 }

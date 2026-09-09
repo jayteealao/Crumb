@@ -23,10 +23,15 @@ import dagger.hilt.components.SingletonComponent
 @InstallIn(SingletonComponent::class)
 interface SyncEntryPoint {
     fun authGateway(): AuthGateway
+
     fun appDatabase(): AppDatabase
+
     fun twitterSyncFacade(): TwitterSyncFacade
+
     fun syncProgressDao(): SyncProgressDao
+
     fun deletedBookmarkRepository(): DeletedBookmarkRepository
+
     // Read by MediaBackfillWorker — reuses Repository.refetchTweetMedia for the
     // idempotent fetch + IGNORE insert of each legacy tweet's missing media.
     fun repository(): Repository

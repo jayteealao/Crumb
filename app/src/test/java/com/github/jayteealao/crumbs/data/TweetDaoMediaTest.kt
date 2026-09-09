@@ -31,16 +31,17 @@ import org.robolectric.annotation.Config
 // Hilt / Firebase init — it only needs a Context to build an in-memory database.
 @Config(sdk = [34], application = Application::class)
 class TweetDaoMediaTest {
-
     private lateinit var db: AppDatabase
     private lateinit var dao: TweetDao
 
     @Before
     fun setUp() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
-            .allowMainThreadQueries()
-            .build()
+        db =
+            Room
+                .inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+                .allowMainThreadQueries()
+                .build()
         dao = db.tweetDao()
         dao.insertTwitterUser(
             TwitterUserEntity(
@@ -61,7 +62,10 @@ class TweetDaoMediaTest {
         db.close()
     }
 
-    private fun tweet(id: String, referenced: Boolean = false) = TweetEntity(
+    private fun tweet(
+        id: String,
+        referenced: Boolean = false,
+    ) = TweetEntity(
         id = id,
         text = "text-$id",
         createdAt = "2026-01-01T00:00:00.000Z",
@@ -72,7 +76,10 @@ class TweetDaoMediaTest {
         referenced = referenced,
     )
 
-    private fun photo(mediaKey: String, tweetId: String) = TweetMediaEntity(
+    private fun photo(
+        mediaKey: String,
+        tweetId: String,
+    ) = TweetMediaEntity(
         mediaKey = mediaKey,
         type = "photo",
         url = "https://img/$mediaKey.jpg",
@@ -85,28 +92,30 @@ class TweetDaoMediaTest {
     )
 
     @Test
-    fun returnsOnlyMediaLessNonReferencedTweets() = runTest {
-        dao.insertTweet(tweet("a-withmedia"))
-        dao.insertTweet(tweet("b-nomedia"))
-        dao.insertTweet(tweet("c-nomedia"))
-        dao.insertTweet(tweet("d-referenced", referenced = true))
-        dao.insertTweetMedia(photo("m1", "a-withmedia"))
+    fun returnsOnlyMediaLessNonReferencedTweets() =
+        runTest {
+            dao.insertTweet(tweet("a-withmedia"))
+            dao.insertTweet(tweet("b-nomedia"))
+            dao.insertTweet(tweet("c-nomedia"))
+            dao.insertTweet(tweet("d-referenced", referenced = true))
+            dao.insertTweetMedia(photo("m1", "a-withmedia"))
 
-        val ids = dao.getTweetsWithoutMedia(afterId = "", limit = 50)
+            val ids = dao.getTweetsWithoutMedia(afterId = "", limit = 50)
 
-        assertEquals(listOf("b-nomedia", "c-nomedia"), ids)
-    }
+            assertEquals(listOf("b-nomedia", "c-nomedia"), ids)
+        }
 
     @Test
-    fun keysetPaginationAdvancesPastTheCursor() = runTest {
-        dao.insertTweet(tweet("id-1"))
-        dao.insertTweet(tweet("id-2"))
-        dao.insertTweet(tweet("id-3"))
+    fun keysetPaginationAdvancesPastTheCursor() =
+        runTest {
+            dao.insertTweet(tweet("id-1"))
+            dao.insertTweet(tweet("id-2"))
+            dao.insertTweet(tweet("id-3"))
 
-        val firstPage = dao.getTweetsWithoutMedia(afterId = "", limit = 2)
-        assertEquals(listOf("id-1", "id-2"), firstPage)
+            val firstPage = dao.getTweetsWithoutMedia(afterId = "", limit = 2)
+            assertEquals(listOf("id-1", "id-2"), firstPage)
 
-        val secondPage = dao.getTweetsWithoutMedia(afterId = firstPage.last(), limit = 2)
-        assertEquals(listOf("id-3"), secondPage)
-    }
+            val secondPage = dao.getTweetsWithoutMedia(afterId = firstPage.last(), limit = 2)
+            assertEquals(listOf("id-3"), secondPage)
+        }
 }

@@ -25,70 +25,75 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class TwitterOAuthCoordinatorTest {
+    @Test
+    fun handleDeepLink_complete_emitsSuccess() =
+        runTest(UnconfinedTestDispatcher()) {
+            val coordinator = TwitterOAuthCoordinator(mockk(relaxed = true))
+            val results = mutableListOf<OAuthResult>()
+            val collector =
+                backgroundScope.launch {
+                    coordinator.results.collect { results += it }
+                }
+            yield()
+            coordinator.handleDeepLink(Uri.parse("crumbs://graphitenerd.xyz/x-oauth-complete"))
+            yield()
+            assertTrue("expected at least one result", results.isNotEmpty())
+            assertEquals(OAuthResult.Success, results.first())
+            collector.cancel()
+        }
 
     @Test
-    fun handleDeepLink_complete_emitsSuccess() = runTest(UnconfinedTestDispatcher()) {
-        val coordinator = TwitterOAuthCoordinator(mockk(relaxed = true))
-        val results = mutableListOf<OAuthResult>()
-        val collector = backgroundScope.launch {
-            coordinator.results.collect { results += it }
+    fun handleDeepLink_error_emitsFailureWithReason() =
+        runTest(UnconfinedTestDispatcher()) {
+            val coordinator = TwitterOAuthCoordinator(mockk(relaxed = true))
+            val results = mutableListOf<OAuthResult>()
+            val collector =
+                backgroundScope.launch {
+                    coordinator.results.collect { results += it }
+                }
+            yield()
+            coordinator.handleDeepLink(
+                Uri.parse("crumbs://graphitenerd.xyz/x-oauth-error?reason=invalid_grant"),
+            )
+            yield()
+            assertEquals(1, results.size)
+            assertEquals(OAuthResult.Failure("invalid_grant"), results.first())
+            collector.cancel()
         }
-        yield()
-        coordinator.handleDeepLink(Uri.parse("crumbs://graphitenerd.xyz/x-oauth-complete"))
-        yield()
-        assertTrue("expected at least one result", results.isNotEmpty())
-        assertEquals(OAuthResult.Success, results.first())
-        collector.cancel()
-    }
 
     @Test
-    fun handleDeepLink_error_emitsFailureWithReason() = runTest(UnconfinedTestDispatcher()) {
-        val coordinator = TwitterOAuthCoordinator(mockk(relaxed = true))
-        val results = mutableListOf<OAuthResult>()
-        val collector = backgroundScope.launch {
-            coordinator.results.collect { results += it }
+    fun handleDeepLink_unknownPath_emitsNothing() =
+        runTest(UnconfinedTestDispatcher()) {
+            val coordinator = TwitterOAuthCoordinator(mockk(relaxed = true))
+            val results = mutableListOf<OAuthResult>()
+            val collector =
+                backgroundScope.launch {
+                    coordinator.results.collect { results += it }
+                }
+            yield()
+            coordinator.handleDeepLink(Uri.parse("crumbs://graphitenerd.xyz/?code=abc"))
+            yield()
+            assertTrue("expected no emissions, got $results", results.isEmpty())
+            collector.cancel()
         }
-        yield()
-        coordinator.handleDeepLink(
-            Uri.parse("crumbs://graphitenerd.xyz/x-oauth-error?reason=invalid_grant"),
-        )
-        yield()
-        assertEquals(1, results.size)
-        assertEquals(OAuthResult.Failure("invalid_grant"), results.first())
-        collector.cancel()
-    }
-
-    @Test
-    fun handleDeepLink_unknownPath_emitsNothing() = runTest(UnconfinedTestDispatcher()) {
-        val coordinator = TwitterOAuthCoordinator(mockk(relaxed = true))
-        val results = mutableListOf<OAuthResult>()
-        val collector = backgroundScope.launch {
-            coordinator.results.collect { results += it }
-        }
-        yield()
-        coordinator.handleDeepLink(Uri.parse("crumbs://graphitenerd.xyz/?code=abc"))
-        yield()
-        assertTrue("expected no emissions, got $results", results.isEmpty())
-        collector.cancel()
-    }
 
     @Test
     fun mintOAuthState_unauthenticated_emitsUnauthenticatedFailure() =
         runTest(UnconfinedTestDispatcher()) {
             // FirebaseFunctionsException's primary constructor is internal in Kotlin but
             // public in Java bytecode — use reflection to construct it cross-module in tests.
-            val unauthException = FirebaseFunctionsException::class.java
-                .getDeclaredConstructor(
-                    String::class.java,
-                    FirebaseFunctionsException.Code::class.java,
-                    Any::class.java,
-                )
-                .apply { isAccessible = true }
-                .newInstance(
-                    "Sign-in required",
-                    FirebaseFunctionsException.Code.UNAUTHENTICATED,
-                    null,
-                )
+            val unauthException =
+                FirebaseFunctionsException::class.java
+                    .getDeclaredConstructor(
+                        String::class.java,
+                        FirebaseFunctionsException.Code::class.java,
+                        Any::class.java,
+                    ).apply { isAccessible = true }
+                    .newInstance(
+                        "Sign-in required",
+                        FirebaseFunctionsException.Code.UNAUTHENTICATED,
+                        null,
+                    )
 
             // warmUp succeeds (relaxed); mintOAuthState throws UNAUTHENTICATED.
             val warmUpCallable = mockk<HttpsCallableReference>(relaxed = true)
@@ -96,17 +101,19 @@ class TwitterOAuthCoordinatorTest {
             val functions = mockk<FirebaseFunctions>()
             every { functions.getHttpsCallable("warmUp") } returns warmUpCallable
             every { functions.getHttpsCallable("mintOAuthState") } returns mintCallable
-            every { warmUpCallable.call() } returns Tasks.forResult(
-                mockk<HttpsCallableResult>(relaxed = true),
-            )
+            every { warmUpCallable.call() } returns
+                Tasks.forResult(
+                    mockk<HttpsCallableResult>(relaxed = true),
+                )
             every { mintCallable.call(any<Map<String, Any>>()) } returns
                 Tasks.forException(unauthException)
 
             val coordinator = TwitterOAuthCoordinator(functions)
             val results = mutableListOf<OAuthResult>()
-            val collector = backgroundScope.launch {
-                coordinator.results.collect { results += it }
-            }
+            val collector =
+                backgroundScope.launch {
+                    coordinator.results.collect { results += it }
+                }
             yield()
 
             coordinator.launchAuthorize(mockk<Activity>(relaxed = true))

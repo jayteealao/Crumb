@@ -29,26 +29,28 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xxhdpi")
 class BookmarkActionsOverlayTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-    private val options = RoborazziOptions(
-        compareOptions = RoborazziOptions.CompareOptions(
-            imageComparator = SimpleImageComparator(maxDistance = 0.01f),
-        ),
-    )
+    private val options =
+        RoborazziOptions(
+            compareOptions =
+                RoborazziOptions.CompareOptions(
+                    imageComparator = SimpleImageComparator(maxDistance = 0.01f),
+                ),
+        )
 
-    private val sample = Bookmark(
-        id = "1",
-        source = BookmarkSource.Twitter,
-        author = "@compose",
-        title = "Sample bookmark",
-        previewText = "Preview text",
-        contentType = ContentType.Text,
-        savedAt = 1730000000000L,
-        sourceUrl = "https://example.com/1",
-    )
+    private val sample =
+        Bookmark(
+            id = "1",
+            source = BookmarkSource.Twitter,
+            author = "@compose",
+            title = "Sample bookmark",
+            previewText = "Preview text",
+            contentType = ContentType.Text,
+            savedAt = 1730000000000L,
+            sourceUrl = "https://example.com/1",
+        )
 
     @Test
     fun bookmarkActionsOverlay_open_light() {
@@ -65,7 +67,8 @@ class BookmarkActionsOverlayTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/BookmarkActionsOverlay_open_light.png", options)
     }
 
@@ -84,7 +87,8 @@ class BookmarkActionsOverlayTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/BookmarkActionsOverlay_open_dark.png", options)
     }
 

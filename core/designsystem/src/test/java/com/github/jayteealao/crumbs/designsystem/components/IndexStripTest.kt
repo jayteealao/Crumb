@@ -17,7 +17,6 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class IndexStripTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -33,7 +32,8 @@ class IndexStripTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsIndexStrip_default_light.png")
     }
 
@@ -49,7 +49,8 @@ class IndexStripTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsIndexStrip_default_dark.png")
     }
 
@@ -66,7 +67,8 @@ class IndexStripTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsIndexStrip_inverted_searchHit_light.png")
     }
 }

@@ -19,9 +19,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.github.jayteealao.crumbs.designsystem.modifiers.dashedBorder
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
@@ -41,14 +41,18 @@ import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsTypography
 // overload is preserved as a thin wrapper over the content-slot overload.
 
 enum class ButtonSize {
-    Small, Medium
+    Small,
+    Medium,
 }
 
 // JS-spec enum name. `ButtonStyle` is kept as a typealias so existing call
 // sites that import it (`ButtonStyle.Primary` / `ButtonStyle.Secondary`)
 // continue to compile.
 enum class CrumbsButtonVariant {
-    Primary, Secondary, Ghost, Destructive
+    Primary,
+    Secondary,
+    Ghost,
+    Destructive,
 }
 
 typealias ButtonStyle = CrumbsButtonVariant
@@ -69,51 +73,58 @@ fun CrumbsButton(
     val typography = LocalCrumbsTypography.current
     val interaction = remember { MutableInteractionSource() }
 
-    val containerColor = when {
-        !enabled -> colors.surface
-        style == CrumbsButtonVariant.Primary -> colors.accent
-        style == CrumbsButtonVariant.Secondary -> colors.surface
-        style == CrumbsButtonVariant.Ghost -> Color.Transparent
-        style == CrumbsButtonVariant.Destructive -> colors.surface
-        else -> colors.surface
-    }
-    val contentColor = when {
-        !enabled -> colors.onSurfaceVariant
-        style == CrumbsButtonVariant.Primary -> colors.onAccent
-        style == CrumbsButtonVariant.Destructive -> colors.error
-        else -> colors.ink
-    }
-    val borderColor = when (style) {
-        CrumbsButtonVariant.Destructive -> colors.error
-        else -> colors.ink
-    }
-    val labelStyle: TextStyle = when (size) {
-        ButtonSize.Small -> typography.labelLarge
-        ButtonSize.Medium -> typography.displaySmall
-    }
-    val (minHeight, contentPadding) = when (size) {
-        ButtonSize.Small -> 44.dp to PaddingValues(horizontal = 14.dp, vertical = 10.dp)
-        ButtonSize.Medium -> 56.dp to PaddingValues(horizontal = 24.dp, vertical = 12.dp)
-    }
+    val containerColor =
+        when {
+            !enabled -> colors.surface
+            style == CrumbsButtonVariant.Primary -> colors.accent
+            style == CrumbsButtonVariant.Secondary -> colors.surface
+            style == CrumbsButtonVariant.Ghost -> Color.Transparent
+            style == CrumbsButtonVariant.Destructive -> colors.surface
+            else -> colors.surface
+        }
+    val contentColor =
+        when {
+            !enabled -> colors.onSurfaceVariant
+            style == CrumbsButtonVariant.Primary -> colors.onAccent
+            style == CrumbsButtonVariant.Destructive -> colors.error
+            else -> colors.ink
+        }
+    val borderColor =
+        when (style) {
+            CrumbsButtonVariant.Destructive -> colors.error
+            else -> colors.ink
+        }
+    val labelStyle: TextStyle =
+        when (size) {
+            ButtonSize.Small -> typography.labelLarge
+            ButtonSize.Medium -> typography.displaySmall
+        }
+    val (minHeight, contentPadding) =
+        when (size) {
+            ButtonSize.Small -> 44.dp to PaddingValues(horizontal = 14.dp, vertical = 10.dp)
+            ButtonSize.Medium -> 56.dp to PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+        }
 
-    val borderModifier: Modifier = if (style == CrumbsButtonVariant.Ghost) {
-        Modifier.dashedBorder(width = stroke.regular, color = borderColor)
-    } else {
-        Modifier.border(stroke.regular, borderColor)
-    }
+    val borderModifier: Modifier =
+        if (style == CrumbsButtonVariant.Ghost) {
+            Modifier.dashedBorder(width = stroke.regular, color = borderColor)
+        } else {
+            Modifier.border(stroke.regular, borderColor)
+        }
 
-    val buttonModifier = modifier
-        .defaultMinSize(minHeight = minHeight)
-        .background(containerColor)
-        .then(borderModifier)
-        .clickable(
-            enabled = enabled,
-            interactionSource = interaction,
-            indication = null,
-            role = Role.Button,
-        ) { onClick() }
-        .padding(contentPadding)
-        .testTag("btn-${style.name.lowercase()}-${size.name.lowercase()}")
+    val buttonModifier =
+        modifier
+            .defaultMinSize(minHeight = minHeight)
+            .background(containerColor)
+            .then(borderModifier)
+            .clickable(
+                enabled = enabled,
+                interactionSource = interaction,
+                indication = null,
+                role = Role.Button,
+            ) { onClick() }
+            .padding(contentPadding)
+            .testTag("btn-${style.name.lowercase()}-${size.name.lowercase()}")
 
     Row(
         modifier = buttonModifier,
@@ -152,8 +163,13 @@ fun CrumbsButton(
 }
 
 @Composable
-private fun ProvideTextStyle(value: TextStyle, content: @Composable () -> Unit) {
-    val merged = androidx.compose.material3.LocalTextStyle.current.merge(value)
+private fun ProvideTextStyle(
+    value: TextStyle,
+    content: @Composable () -> Unit,
+) {
+    val merged =
+        androidx.compose.material3.LocalTextStyle.current
+            .merge(value)
     CompositionLocalProvider(androidx.compose.material3.LocalTextStyle provides merged, content = content)
 }
 

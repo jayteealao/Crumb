@@ -34,7 +34,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class DeletedBookmarkRepositoryTest {
-
     private lateinit var db: AppDatabase
     private lateinit var snackbarBus: SnackbarBus
     private lateinit var repo: DeletedBookmarkRepository
@@ -42,9 +41,11 @@ class DeletedBookmarkRepositoryTest {
     @Before
     fun setUp() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
-            .allowMainThreadQueries()
-            .build()
+        db =
+            Room
+                .inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+                .allowMainThreadQueries()
+                .build()
         snackbarBus = SnackbarBus()
         repo = DeletedBookmarkRepository(db.deletedBookmarkDao(), snackbarBus)
     }
@@ -55,53 +56,56 @@ class DeletedBookmarkRepositoryTest {
     }
 
     @Test
-    fun softDelete_insertsTombstone_isDeletedReturnsTrue() = runTest {
-        repo.softDelete("tweet-123", BookmarkSource.Twitter)
+    fun softDelete_insertsTombstone_isDeletedReturnsTrue() =
+        runTest {
+            repo.softDelete("tweet-123", BookmarkSource.Twitter)
 
-        assertTrue(
-            "Tombstoned id should be reported as deleted so sync filters it out",
-            repo.isDeleted("tweet-123", BookmarkSource.Twitter),
-        )
-        assertFalse(
-            "Untouched id should not be reported as deleted",
-            repo.isDeleted("other-id", BookmarkSource.Twitter),
-        )
-    }
-
-    @Test
-    fun undoDelete_removesTombstone_isDeletedReturnsFalse() = runTest {
-        repo.softDelete("tweet-456", BookmarkSource.Twitter)
-        assertTrue(repo.isDeleted("tweet-456", BookmarkSource.Twitter))
-
-        repo.undoDelete("tweet-456", BookmarkSource.Twitter)
-
-        assertFalse(
-            "UNDO must clear the tombstone so the bookmark re-appears in sync",
-            repo.isDeleted("tweet-456", BookmarkSource.Twitter),
-        )
-    }
+            assertTrue(
+                "Tombstoned id should be reported as deleted so sync filters it out",
+                repo.isDeleted("tweet-123", BookmarkSource.Twitter),
+            )
+            assertFalse(
+                "Untouched id should not be reported as deleted",
+                repo.isDeleted("other-id", BookmarkSource.Twitter),
+            )
+        }
 
     @Test
-    fun softDelete_emitsUndoableDeleteEvent() = runTest(UnconfinedTestDispatcher()) {
-        // snackbarBus.events is a MutableSharedFlow with replay = 0, so the collector
-        // must be subscribed before the emission. UnconfinedTestDispatcher starts the
-        // async block eagerly (before the next suspension point), guaranteeing the
-        // collector is active when softDelete emits — no yield() busy-waits needed.
-        val deferredEvent = async { snackbarBus.events.first() }
+    fun undoDelete_removesTombstone_isDeletedReturnsFalse() =
+        runTest {
+            repo.softDelete("tweet-456", BookmarkSource.Twitter)
+            assertTrue(repo.isDeleted("tweet-456", BookmarkSource.Twitter))
 
-        repo.softDelete("reddit-abc", BookmarkSource.Reddit)
+            repo.undoDelete("tweet-456", BookmarkSource.Twitter)
 
-        // Drain any pending coroutine work (e.g. the collector processing the emission).
-        advanceUntilIdle()
+            assertFalse(
+                "UNDO must clear the tombstone so the bookmark re-appears in sync",
+                repo.isDeleted("tweet-456", BookmarkSource.Twitter),
+            )
+        }
 
-        val event = deferredEvent.await()
+    @Test
+    fun softDelete_emitsUndoableDeleteEvent() =
+        runTest(UnconfinedTestDispatcher()) {
+            // snackbarBus.events is a MutableSharedFlow with replay = 0, so the collector
+            // must be subscribed before the emission. UnconfinedTestDispatcher starts the
+            // async block eagerly (before the next suspension point), guaranteeing the
+            // collector is active when softDelete emits — no yield() busy-waits needed.
+            val deferredEvent = async { snackbarBus.events.first() }
 
-        assertTrue(
-            "Expected UndoableDelete but got ${event::class.simpleName}",
-            event is SnackbarEvent.UndoableDelete,
-        )
-        val undoable = event as SnackbarEvent.UndoableDelete
-        assertEquals("reddit-abc", undoable.id)
-        assertEquals(BookmarkSource.Reddit, undoable.source)
-    }
+            repo.softDelete("reddit-abc", BookmarkSource.Reddit)
+
+            // Drain any pending coroutine work (e.g. the collector processing the emission).
+            advanceUntilIdle()
+
+            val event = deferredEvent.await()
+
+            assertTrue(
+                "Expected UndoableDelete but got ${event::class.simpleName}",
+                event is SnackbarEvent.UndoableDelete,
+            )
+            val undoable = event as SnackbarEvent.UndoableDelete
+            assertEquals("reddit-abc", undoable.id)
+            assertEquals(BookmarkSource.Reddit, undoable.source)
+        }
 }

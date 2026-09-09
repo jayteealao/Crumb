@@ -36,7 +36,7 @@ fun CrumbsSnackbar(
     message: String,
     modifier: Modifier = Modifier,
     actionLabel: String? = null,
-    onAction: (() -> Unit)? = null
+    onAction: (() -> Unit)? = null,
 ) {
     val colors = LocalCrumbsColors.current
     val stroke = LocalCrumbsStroke.current
@@ -44,14 +44,15 @@ fun CrumbsSnackbar(
     val typography = LocalCrumbsTypography.current
 
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .background(colors.ink)
-            .border(stroke.regular, colors.accent, shapes.dialog)
-            .padding(horizontal = 12.dp, vertical = 12.dp)
-            .testTag("snackbar")
-            .semantics { liveRegion = LiveRegionMode.Polite },
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .background(colors.ink)
+                .border(stroke.regular, colors.accent, shapes.dialog)
+                .padding(horizontal = 12.dp, vertical = 12.dp)
+                .testTag("snackbar")
+                .semantics { liveRegion = LiveRegionMode.Polite },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -66,12 +67,12 @@ fun CrumbsSnackbar(
                 text = actionLabel.uppercase(),
                 style = typography.captionMono,
                 color = colors.accent,
-                modifier = Modifier
-                    .semantics(mergeDescendants = true) {
-                        contentDescription = actionLabel
-                    }
-                    .clickable(role = Role.Button) { onAction() }
-                    .testTag("snackbar-action"),
+                modifier =
+                    Modifier
+                        .semantics(mergeDescendants = true) {
+                            contentDescription = actionLabel
+                        }.clickable(role = Role.Button) { onAction() }
+                        .testTag("snackbar-action"),
             )
         }
     }

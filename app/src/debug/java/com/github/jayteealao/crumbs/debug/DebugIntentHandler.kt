@@ -19,7 +19,6 @@ import timber.log.Timber
  *   handleIntent(activity: ComponentActivity, intent: Intent?)
  */
 object DebugIntentHandler {
-
     private const val ACTION_SEED = "seed"
     private const val ACTION_WIPE = "wipe"
     private const val ACTION_CORRUPT_TOKEN = "corrupt_token"
@@ -30,11 +29,15 @@ object DebugIntentHandler {
     private const val ACTION_SEED_PARTIAL_SYNC_PROGRESS = "seed_partial_sync_progress"
 
     @JvmStatic
-    fun handleIntent(activity: ComponentActivity, intent: Intent?) {
+    fun handleIntent(
+        activity: ComponentActivity,
+        intent: Intent?,
+    ) {
         val action = intent?.getStringExtra("debug_action") ?: return
-        val injector = EntryPointAccessors
-            .fromApplication(activity.application, DebugInjectorEntryPoint::class.java)
-            .debugDataInjector()
+        val injector =
+            EntryPointAccessors
+                .fromApplication(activity.application, DebugInjectorEntryPoint::class.java)
+                .debugDataInjector()
         when (action) {
             ACTION_SEED -> {
                 val wipe = intent.getBooleanExtra("wipe", false)
@@ -43,35 +46,41 @@ object DebugIntentHandler {
                         .onFailure { Timber.e(it, "DebugDataInjector.run failed") }
                 }
             }
+
             ACTION_WIPE -> {
                 activity.lifecycleScope.launch {
                     runCatching { injector.run(wipe = true) }
                         .onFailure { Timber.e(it, "DebugDataInjector.run(wipe=true) failed") }
                 }
             }
+
             ACTION_CORRUPT_TOKEN -> {
                 activity.lifecycleScope.launch {
                     runCatching { injector.corruptTwitterToken() }
                         .onFailure { Timber.e(it, "DebugDataInjector.corruptTwitterToken failed") }
                 }
             }
+
             ACTION_SEED_SYNC_STATUS -> {
                 val linked = intent.getStringExtra("linked")?.equals("true", ignoreCase = true) ?: false
                 runCatching { injector.seedSyncStatus(linked = linked) }
                     .onFailure { Timber.e(it, "DebugDataInjector.seedSyncStatus failed") }
             }
+
             ACTION_SEED_PENDING_DELETE -> {
                 activity.lifecycleScope.launch {
                     runCatching { injector.seedPendingDelete() }
                         .onFailure { Timber.e(it, "DebugDataInjector.seedPendingDelete failed") }
                 }
             }
+
             ACTION_SEED_LEGACY_X_TOKENS -> {
                 activity.lifecycleScope.launch {
                     runCatching { injector.seedLegacyXTokens() }
                         .onFailure { Timber.e(it, "DebugDataInjector.seedLegacyXTokens failed") }
                 }
             }
+
             ACTION_SEED_INCREMENTAL_SYNC_CORPUS -> {
                 val tweetCount = intent.getStringExtra("tweet_count")?.toIntOrNull() ?: 75
                 activity.lifecycleScope.launch {
@@ -79,6 +88,7 @@ object DebugIntentHandler {
                         .onFailure { Timber.e(it, "DebugDataInjector.seedIncrementalSyncCorpus failed") }
                 }
             }
+
             ACTION_SEED_PARTIAL_SYNC_PROGRESS -> {
                 val batchK = intent.getStringExtra("batch_k")?.toIntOrNull() ?: 3
                 activity.lifecycleScope.launch {
@@ -86,7 +96,10 @@ object DebugIntentHandler {
                         .onFailure { Timber.e(it, "DebugDataInjector.seedPartialSyncProgress failed") }
                 }
             }
-            else -> Timber.w("DebugIntentHandler: unknown debug_action=%s", action)
+
+            else -> {
+                Timber.w("DebugIntentHandler: unknown debug_action=%s", action)
+            }
         }
     }
 }

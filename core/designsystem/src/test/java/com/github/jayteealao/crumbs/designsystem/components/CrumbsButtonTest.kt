@@ -16,7 +16,6 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class CrumbsButtonTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -28,12 +27,13 @@ class CrumbsButtonTest {
                     onClick = {},
                     text = "Click Me",
                     style = ButtonStyle.Primary,
-                    size = ButtonSize.Medium
+                    size = ButtonSize.Medium,
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsButton_primary_medium_enabled_light.png")
     }
 
@@ -45,12 +45,13 @@ class CrumbsButtonTest {
                     onClick = {},
                     text = "Click Me",
                     style = ButtonStyle.Primary,
-                    size = ButtonSize.Medium
+                    size = ButtonSize.Medium,
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsButton_primary_medium_enabled_dark.png")
     }
 
@@ -63,12 +64,13 @@ class CrumbsButtonTest {
                     text = "Disabled",
                     enabled = false,
                     style = ButtonStyle.Primary,
-                    size = ButtonSize.Medium
+                    size = ButtonSize.Medium,
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsButton_primary_medium_disabled_light.png")
     }
 
@@ -80,12 +82,13 @@ class CrumbsButtonTest {
                     onClick = {},
                     text = "Small",
                     style = ButtonStyle.Secondary,
-                    size = ButtonSize.Small
+                    size = ButtonSize.Small,
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsButton_secondary_small_enabled_light.png")
     }
 }

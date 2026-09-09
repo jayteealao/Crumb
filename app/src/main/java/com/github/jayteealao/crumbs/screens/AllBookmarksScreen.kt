@@ -10,7 +10,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -20,6 +19,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
@@ -27,10 +27,10 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import com.github.jayteealao.crumbs.Screens
 import com.github.jayteealao.crumbs.auth.SessionViewModel
+import com.github.jayteealao.crumbs.designsystem.components.BookmarkActionsOverlay
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsBookmarkCard
 import com.github.jayteealao.crumbs.designsystem.components.EmptyState
 import com.github.jayteealao.crumbs.designsystem.components.LoadingCard
-import com.github.jayteealao.crumbs.designsystem.components.BookmarkActionsOverlay
 import com.github.jayteealao.crumbs.designsystem.components.rememberLongPressState
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
@@ -93,36 +93,41 @@ fun AllBookmarksScreen(
             message = "Connect an account to start saving bookmarks.",
             actionText = "CONNECT AN ACCOUNT",
             onActionClick = onConnectAccountClick,
-            modifier = modifier
-                .testTag("all-bookmarks-empty"),
+            modifier =
+                modifier
+                    .testTag("all-bookmarks-empty"),
         )
         return
     }
 
     // Single batch tag load per page-snapshot change — replaces per-item LaunchedEffect.
-    val twitterIds = remember(twitterItems?.itemSnapshotList) {
-        twitterItems?.itemSnapshotList?.mapNotNull { it?.tweet?.id } ?: emptyList()
-    }
+    val twitterIds =
+        remember(twitterItems?.itemSnapshotList) {
+            twitterItems?.itemSnapshotList?.mapNotNull { it?.tweet?.id } ?: emptyList()
+        }
     LaunchedEffect(twitterIds) {
         if (twitterIds.isNotEmpty()) onLoadTwitterTags(twitterIds)
     }
 
-    val redditIds = remember(redditItems?.itemSnapshotList) {
-        redditItems?.itemSnapshotList?.mapNotNull { it?.post?.id } ?: emptyList()
-    }
+    val redditIds =
+        remember(redditItems?.itemSnapshotList) {
+            redditItems?.itemSnapshotList?.mapNotNull { it?.post?.id } ?: emptyList()
+        }
     LaunchedEffect(redditIds) {
         if (redditIds.isNotEmpty()) onLoadRedditTags(redditIds)
     }
 
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .testTag("all-bookmarks-screen"),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .testTag("all-bookmarks-screen"),
     ) {
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .testTag("all-bookmarks-feed"),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .testTag("all-bookmarks-feed"),
             contentPadding = contentPadding,
         ) {
             if (uiState.twitterConnected && twitterItems != null) {
@@ -131,9 +136,10 @@ fun AllBookmarksScreen(
                         text = "TWITTER",
                         style = typography.titleSection,
                         color = colors.ink,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
                     )
                 }
                 renderPagingSection(
@@ -153,9 +159,10 @@ fun AllBookmarksScreen(
                         text = "REDDIT",
                         style = typography.titleSection,
                         color = colors.ink,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
                     )
                 }
                 renderPagingSection(
@@ -184,20 +191,28 @@ private fun <T : Any> androidx.compose.foundation.lazy.LazyListScope.renderPagin
     emptyMessage: String,
 ) {
     when (items.loadState.refresh) {
-        is LoadState.Loading -> items(3) {
-            LoadingCard(
-                hasImage = it % 2 == 0,
-                modifier = Modifier.padding(horizontal = 16.dp),
-            )
+        is LoadState.Loading -> {
+            items(3) {
+                LoadingCard(
+                    hasImage = it % 2 == 0,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+            }
         }
-        is LoadState.Error -> item("error") {
-            EmptyState(
-                title = "ERROR LOADING CRUMBS",
-                message = "SOMETHING WENT WRONG. PULL TO REFRESH TO TRY AGAIN.",
-                modifier = Modifier.padding(16.dp),
-            )
+
+        is LoadState.Error -> {
+            item("error") {
+                EmptyState(
+                    title = "ERROR LOADING CRUMBS",
+                    message = "SOMETHING WENT WRONG. PULL TO REFRESH TO TRY AGAIN.",
+                    modifier = Modifier.padding(16.dp),
+                )
+            }
         }
-        else -> Unit
+
+        else -> {
+            Unit
+        }
     }
     items(
         count = items.itemCount,
@@ -274,11 +289,12 @@ fun AllBookmarksRoute(
     val lps = rememberLongPressState()
 
     AllBookmarksScreen(
-        uiState = AllBookmarksUiState(
-            twitterConnected = twitterLinked,
-            redditConnected = redditLoggedIn,
-            tagsMap = tagsMap,
-        ),
+        uiState =
+            AllBookmarksUiState(
+                twitterConnected = twitterLinked,
+                redditConnected = redditLoggedIn,
+                tagsMap = tagsMap,
+            ),
         twitterItems = if (twitterLinked) twitterItems else null,
         redditItems = if (redditLoggedIn) redditItems else null,
         onCardClick = { url ->
@@ -316,14 +332,17 @@ fun AllBookmarksRoute(
                     val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(b.sourceUrl))
                     context.startActivity(intent)
                 }
+
                 "share" -> {
                     Timber.d("AllBookmarks long-press: SHARE")
-                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, b.sourceUrl)
-                    }
+                    val shareIntent =
+                        Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, b.sourceUrl)
+                        }
                     context.startActivity(Intent.createChooser(shareIntent, "Share bookmark"))
                 }
+
                 "delete" -> {
                     Timber.d("AllBookmarks long-press: DELETE")
                     when (b.source) {

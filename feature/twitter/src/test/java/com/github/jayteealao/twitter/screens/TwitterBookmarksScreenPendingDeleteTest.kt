@@ -44,40 +44,43 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xxhdpi")
 class TwitterBookmarksScreenPendingDeleteTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-    private val options = RoborazziOptions(
-        compareOptions = RoborazziOptions.CompareOptions(
-            imageComparator = SimpleImageComparator(maxDistance = 0.01f),
-        ),
-    )
+    private val options =
+        RoborazziOptions(
+            compareOptions =
+                RoborazziOptions.CompareOptions(
+                    imageComparator = SimpleImageComparator(maxDistance = 0.01f),
+                ),
+        )
 
-    private val pendingBookmark = Bookmark(
-        id = "tweet-pending-1",
-        source = BookmarkSource.Twitter,
-        author = "@crumbs_test",
-        title = "Pending removal — swipe to confirm",
-        previewText = "X removed this bookmark. Swipe right to confirm, left to keep it.",
-        contentType = ContentType.Text,
-        savedAt = 1747526400000L,
-        tags = listOf("design"),
-        pendingDelete = true,
-        sourceUrl = "https://twitter.com/i/web/status/tweet-pending-1",
-    )
+    private val pendingBookmark =
+        Bookmark(
+            id = "tweet-pending-1",
+            source = BookmarkSource.Twitter,
+            author = "@crumbs_test",
+            title = "Pending removal — swipe to confirm",
+            previewText = "X removed this bookmark. Swipe right to confirm, left to keep it.",
+            contentType = ContentType.Text,
+            savedAt = 1747526400000L,
+            tags = listOf("design"),
+            pendingDelete = true,
+            sourceUrl = "https://twitter.com/i/web/status/tweet-pending-1",
+        )
 
-    private val keptBookmark = Bookmark(
-        id = "tweet-kept-1",
-        source = BookmarkSource.Twitter,
-        author = "@crumbs_test",
-        title = "Brutalist design system applied to bookmarks",
-        previewText = "Mono everything. Ink-stroked borders. No Material ripples.",
-        contentType = ContentType.Text,
-        savedAt = 1747526460000L,
-        tags = listOf("design", "brutalist"),
-        sourceUrl = "https://twitter.com/i/web/status/tweet-kept-1",
-    )
+    private val keptBookmark =
+        Bookmark(
+            id = "tweet-kept-1",
+            source = BookmarkSource.Twitter,
+            author = "@crumbs_test",
+            title = "Brutalist design system applied to bookmarks",
+            previewText = "Mono everything. Ink-stroked borders. No Material ripples.",
+            contentType = ContentType.Text,
+            savedAt = 1747526460000L,
+            tags = listOf("design", "brutalist"),
+            sourceUrl = "https://twitter.com/i/web/status/tweet-kept-1",
+        )
 
     @Test
     fun withPendingDelete_light() {
@@ -92,7 +95,8 @@ class TwitterBookmarksScreenPendingDeleteTest {
         composeTestRule.onNodeWithTag("bookmark-card-strikethrough").assertIsDisplayed()
         composeTestRule.onNodeWithText(pendingBookmark.title.uppercase()).assertIsDisplayed()
         composeTestRule.onNodeWithText(keptBookmark.title.uppercase()).assertIsDisplayed()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage(
                 "src/test/screenshots/TwitterBookmarksScreen_pendingDelete_light.png",
                 options,
@@ -111,7 +115,8 @@ class TwitterBookmarksScreenPendingDeleteTest {
         composeTestRule.onNodeWithTag("bookmark-card-strikethrough").assertIsDisplayed()
         composeTestRule.onNodeWithText(pendingBookmark.title.uppercase()).assertIsDisplayed()
         composeTestRule.onNodeWithText(keptBookmark.title.uppercase()).assertIsDisplayed()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage(
                 "src/test/screenshots/TwitterBookmarksScreen_pendingDelete_dark.png",
                 options,
@@ -129,7 +134,8 @@ class TwitterBookmarksScreenPendingDeleteTest {
         // the "card-title" test tag (not the strikethrough variant).
         composeTestRule.onNodeWithTag("card-title").assertIsDisplayed()
         composeTestRule.onNodeWithText(keptBookmark.title.uppercase()).assertIsDisplayed()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage(
                 "src/test/screenshots/TwitterBookmarksScreen_feedNoPendingDelete_light.png",
                 options,
@@ -146,7 +152,8 @@ class TwitterBookmarksScreenPendingDeleteTest {
         // Behavioral: when there are no pending-delete rows, a normal bookmark card is displayed (dark theme).
         composeTestRule.onNodeWithTag("card-title").assertIsDisplayed()
         composeTestRule.onNodeWithText(keptBookmark.title.uppercase()).assertIsDisplayed()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage(
                 "src/test/screenshots/TwitterBookmarksScreen_feedNoPendingDelete_dark.png",
                 options,
@@ -158,10 +165,11 @@ class TwitterBookmarksScreenPendingDeleteTest {
         val rows = if (showPending) listOf(pendingBookmark, keptBookmark) else listOf(keptBookmark)
         val colors = LocalCrumbsColors.current
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(colors.background)
-                .padding(16.dp),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(colors.background)
+                    .padding(16.dp),
         ) {
             rows.forEach { bookmark ->
                 CrumbsBookmarkCard(

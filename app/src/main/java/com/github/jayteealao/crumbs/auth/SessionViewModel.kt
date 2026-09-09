@@ -17,22 +17,24 @@ import javax.inject.Inject
  * reads are immediately correct without a frame delay (Splash parity, per PO Q4).
  */
 @HiltViewModel
-class SessionViewModel @Inject constructor(
-    authGateway: AuthGateway,
-) : ViewModel() {
-
-    /**
-     * `true` when a Firebase Auth session is active; `false` when signed out.
-     *
-     * Initialised synchronously from [AuthGateway.currentUser] so the first
-     * collected value is accurate before any listener fires.
-     * The [viewModelScope] ensures collection stops when the ViewModel is cleared.
-     */
-    val isSignedIn: StateFlow<Boolean> = authGateway.currentUser
-        .map { it != null }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.Eagerly,
-            initialValue = authGateway.currentUser.value != null,
-        )
-}
+class SessionViewModel
+    @Inject
+    constructor(
+        authGateway: AuthGateway,
+    ) : ViewModel() {
+        /**
+         * `true` when a Firebase Auth session is active; `false` when signed out.
+         *
+         * Initialised synchronously from [AuthGateway.currentUser] so the first
+         * collected value is accurate before any listener fires.
+         * The [viewModelScope] ensures collection stops when the ViewModel is cleared.
+         */
+        val isSignedIn: StateFlow<Boolean> =
+            authGateway.currentUser
+                .map { it != null }
+                .stateIn(
+                    scope = viewModelScope,
+                    started = SharingStarted.Eagerly,
+                    initialValue = authGateway.currentUser.value != null,
+                )
+    }

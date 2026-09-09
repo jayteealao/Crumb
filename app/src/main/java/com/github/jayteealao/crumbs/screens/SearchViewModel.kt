@@ -10,7 +10,6 @@ import com.github.jayteealao.pref.addRecentSearch
 import com.github.jayteealao.pref.recentSearches
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import javax.inject.Inject
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -27,6 +26,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
  * SearchScreen state machine. The query flow is debounced 300 ms (NowInAndroid
@@ -40,80 +40,89 @@ import kotlinx.coroutines.launch
  * both empty-state composition modes.
  */
 @HiltViewModel
-class SearchViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val searchRepository: SearchRepository,
-    @Suppress("unused") savedStateHandle: SavedStateHandle,
-) : ViewModel() {
+class SearchViewModel
+    @Inject
+    constructor(
+        @ApplicationContext private val context: Context,
+        private val searchRepository: SearchRepository,
+        @Suppress("unused") savedStateHandle: SavedStateHandle,
+    ) : ViewModel() {
+        private val queryFlow = MutableStateFlow("")
 
-    private val queryFlow = MutableStateFlow("")
+        val query: StateFlow<String> = queryFlow
 
-    val query: StateFlow<String> = queryFlow
+        val recentSearches: StateFlow<ImmutableList<String>> =
+            context
+                .recentSearches()
+                .map { it.toImmutableList() }
+                .stateIn(
+                    viewModelScope,
+                    SharingStarted.WhileSubscribed(5_000),
+                    persistentListOf(),
+                )
 
-    val recentSearches: StateFlow<ImmutableList<String>> = context
-        .recentSearches()
-        .map { it.toImmutableList() }
-        .stateIn(
-            viewModelScope,
-            SharingStarted.WhileSubscribed(5_000),
-            persistentListOf(),
-        )
-
-    @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
-    val uiState: StateFlow<SearchUiState> = queryFlow
-        .debounce(DEBOUNCE_MS)
-        .distinctUntilChanged()
-        .flatMapLatest { q ->
-            if (q.isBlank()) {
-                flowOf(SearchUiState.Idle)
-            } else {
-                searchRepository.search(q)
-                    .map { hits ->
-                        if (hits.isEmpty()) {
-                            SearchUiState.Empty(q)
-                        } else {
-                            SearchUiState.Results(q, hits.toImmutableList())
-                        }
+        @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
+        val uiState: StateFlow<SearchUiState> =
+            queryFlow
+                .debounce(DEBOUNCE_MS)
+                .distinctUntilChanged()
+                .flatMapLatest { q ->
+                    if (q.isBlank()) {
+                        flowOf(SearchUiState.Idle)
+                    } else {
+                        searchRepository
+                            .search(q)
+                            .map { hits ->
+                                if (hits.isEmpty()) {
+                                    SearchUiState.Empty(q)
+                                } else {
+                                    SearchUiState.Results(q, hits.toImmutableList())
+                                }
+                            }.onStart { emit(SearchUiState.Loading(q)) }
                     }
-                    .onStart { emit(SearchUiState.Loading(q)) }
+                }.stateIn(
+                    viewModelScope,
+                    SharingStarted.WhileSubscribed(5_000),
+                    SearchUiState.Idle,
+                )
+
+        fun onQueryChanged(q: String) {
+            queryFlow.value = q
+        }
+
+        /**
+         * Promote the current query to the recent-searches list. Called when the
+         * IME Search action fires or a hit is opened — i.e. when the user signals
+         * the query is "done", not on every keystroke.
+         */
+        fun onSearchSubmitted() {
+            val q = queryFlow.value.trim()
+            if (q.isEmpty()) return
+            viewModelScope.launch {
+                context.addRecentSearch(q)
             }
         }
-        .stateIn(
-            viewModelScope,
-            SharingStarted.WhileSubscribed(5_000),
-            SearchUiState.Idle,
-        )
 
-    fun onQueryChanged(q: String) {
-        queryFlow.value = q
-    }
+        fun onRecentSearchSelected(query: String) {
+            queryFlow.value = query
+        }
 
-    /**
-     * Promote the current query to the recent-searches list. Called when the
-     * IME Search action fires or a hit is opened — i.e. when the user signals
-     * the query is "done", not on every keystroke.
-     */
-    fun onSearchSubmitted() {
-        val q = queryFlow.value.trim()
-        if (q.isEmpty()) return
-        viewModelScope.launch {
-            context.addRecentSearch(q)
+        companion object {
+            const val DEBOUNCE_MS = 300L
         }
     }
-
-    fun onRecentSearchSelected(query: String) {
-        queryFlow.value = query
-    }
-
-    companion object {
-        const val DEBOUNCE_MS = 300L
-    }
-}
 
 sealed interface SearchUiState {
     data object Idle : SearchUiState
-    data class Loading(val query: String) : SearchUiState
-    data class Empty(val query: String) : SearchUiState
+
+    data class Loading(
+        val query: String,
+    ) : SearchUiState
+
+    data class Empty(
+        val query: String,
+    ) : SearchUiState
+
     data class Results(
         val query: String,
         val hits: ImmutableList<Bookmark>,

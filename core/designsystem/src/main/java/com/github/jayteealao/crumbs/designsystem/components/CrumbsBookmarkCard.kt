@@ -20,11 +20,11 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
-import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -91,21 +91,26 @@ fun CrumbsBookmarkCard(
     modifier: Modifier = Modifier,
 ) {
     if (bookmark.pendingDelete) {
-        val dismissState = rememberSwipeToDismissBoxState(
-            confirmValueChange = { value ->
-                when (value) {
-                    SwipeToDismissBoxValue.StartToEnd -> {
-                        onCancelDeletePending?.invoke(bookmark.id)
-                        true
+        val dismissState =
+            rememberSwipeToDismissBoxState(
+                confirmValueChange = { value ->
+                    when (value) {
+                        SwipeToDismissBoxValue.StartToEnd -> {
+                            onCancelDeletePending?.invoke(bookmark.id)
+                            true
+                        }
+
+                        SwipeToDismissBoxValue.EndToStart -> {
+                            onConfirmDeletePending?.invoke(bookmark.id)
+                            true
+                        }
+
+                        SwipeToDismissBoxValue.Settled -> {
+                            false
+                        }
                     }
-                    SwipeToDismissBoxValue.EndToStart -> {
-                        onConfirmDeletePending?.invoke(bookmark.id)
-                        true
-                    }
-                    SwipeToDismissBoxValue.Settled -> false
-                }
-            },
-        )
+                },
+            )
         SwipeToDismissBox(
             state = dismissState,
             modifier = modifier.testTag("bookmark-card-pending-${bookmark.id}"),
@@ -165,25 +170,31 @@ private fun BookmarkCardContent(
     val typography = LocalCrumbsTypography.current
 
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(colors.surface)
-            .border(stroke.regular, colors.ink, shapes.card)
-            .testTag("bookmark-card")
-            .pointerInput(bookmark.id) {
-                detectTapGestures(
-                    onTap = { onCardClick(bookmark.sourceUrl) },
-                    onLongPress = { offsetPx -> onLongPress(bookmark, offsetPx) },
-                )
-            }
-            .semantics {
-                onClick(label = "Open bookmark") { onCardClick(bookmark.sourceUrl); true }
-                onLongClick(label = "Show actions") { onLongPress(bookmark, Offset.Zero); true }
-                if (bookmark.pendingDelete) {
-                    stateDescription = "Pending removal — swipe to confirm or cancel"
-                    liveRegion = LiveRegionMode.Polite
-                }
-            },
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .background(colors.surface)
+                .border(stroke.regular, colors.ink, shapes.card)
+                .testTag("bookmark-card")
+                .pointerInput(bookmark.id) {
+                    detectTapGestures(
+                        onTap = { onCardClick(bookmark.sourceUrl) },
+                        onLongPress = { offsetPx -> onLongPress(bookmark, offsetPx) },
+                    )
+                }.semantics {
+                    onClick(label = "Open bookmark") {
+                        onCardClick(bookmark.sourceUrl)
+                        true
+                    }
+                    onLongClick(label = "Show actions") {
+                        onLongPress(bookmark, Offset.Zero)
+                        true
+                    }
+                    if (bookmark.pendingDelete) {
+                        stateDescription = "Pending removal — swipe to confirm or cancel"
+                        liveRegion = LiveRegionMode.Polite
+                    }
+                },
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             BookmarkCardMedia(
@@ -230,10 +241,11 @@ private fun BookmarkCardContent(
             )
             // 1.5dp hairline separator below the strip.
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(stroke.hairline)
-                    .background(colors.ink),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(stroke.hairline)
+                        .background(colors.ink),
             )
 
             // Body column — title, preview, dashed footer, meta, tags.
@@ -248,9 +260,10 @@ private fun BookmarkCardContent(
 
         if (bookmark.isDeleted) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(colors.surface.copy(alpha = 0.97f)),
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .background(colors.surface.copy(alpha = 0.97f)),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -324,20 +337,22 @@ private fun BookmarkCardMedia(
         return
     }
 
-    val images = when {
-        imageUrls.isNotEmpty() -> imageUrls
-        imageUrl != null -> listOf(imageUrl)
-        else -> emptyList()
-    }
+    val images =
+        when {
+            imageUrls.isNotEmpty() -> imageUrls
+            imageUrl != null -> listOf(imageUrl)
+            else -> emptyList()
+        }
     if (images.isEmpty() || contentType != ContentType.Image) return
 
     if (images.size == 1) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(16f / 7f)
-                .testTag("bookmark-card-image")
-                .clickable { onImageClick(0) },
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(16f / 7f)
+                    .testTag("bookmark-card-image")
+                    .clickable { onImageClick(0) },
         ) {
             CrumbsCardMediaImage(
                 url = images[0],
@@ -353,12 +368,16 @@ private fun BookmarkCardMedia(
 
 /** 1dp hairline separator drawn below the media band. */
 @Composable
-private fun MediaHairline(color: androidx.compose.ui.graphics.Color, height: androidx.compose.ui.unit.Dp) {
+private fun MediaHairline(
+    color: androidx.compose.ui.graphics.Color,
+    height: androidx.compose.ui.unit.Dp,
+) {
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(height)
-            .background(color),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(height)
+                .background(color),
     )
 }
 
@@ -386,33 +405,38 @@ private fun BookmarkCardLinkPreview(
     val typography = LocalCrumbsTypography.current
 
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(spacing.cardContentInset),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(spacing.cardContentInset),
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(stroke.regular, colors.ink, shapes.card)
-                .testTag("bookmark-card-link-preview")
-                .clickable { onClick() },
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .border(stroke.regular, colors.ink, shapes.card)
+                    .testTag("bookmark-card-link-preview")
+                    .clickable { onClick() },
         ) {
             if (imageUrl != null) {
                 CrumbsCardMediaImage(
                     url = imageUrl,
                     contentDescription = "Link preview image",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(16f / 7f),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 7f),
                 )
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(stroke.hairline)
-                        .background(colors.ink),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(stroke.hairline)
+                            .background(colors.ink),
                 )
             }
-            Column(modifier = Modifier.padding(spacing.sm + 2.dp)) { // 10dp inner
+            Column(modifier = Modifier.padding(spacing.sm + 2.dp)) {
+                // 10dp inner
                 Text(
                     text = title ?: displayUrl ?: "",
                     style = typography.bodyMono,
@@ -470,17 +494,20 @@ private fun BookmarkCardQuotedTweet(
     val typography = LocalCrumbsTypography.current
 
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(spacing.cardContentInset),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(spacing.cardContentInset),
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(stroke.regular, colors.ink, shapes.card)
-                .testTag("bookmark-card-quoted-tweet")
-                .clickable { onClick() }
-                .padding(spacing.sm + 2.dp), // 10dp inner
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .border(stroke.regular, colors.ink, shapes.card)
+                    .testTag("bookmark-card-quoted-tweet")
+                    .clickable { onClick() }
+                    .padding(spacing.sm + 2.dp),
+            // 10dp inner
         ) {
             if (isUnavailable) {
                 Text(
@@ -530,7 +557,10 @@ private fun BookmarkCardQuotedTweet(
  * behaviour (Reddit, pre-enrichment tweets).
  */
 @Composable
-private fun BookmarkCardBody(bookmark: Bookmark, onLinkClick: (String) -> Unit) {
+private fun BookmarkCardBody(
+    bookmark: Bookmark,
+    onLinkClick: (String) -> Unit,
+) {
     val colors = LocalCrumbsColors.current
     val spacing = LocalCrumbsSpacing.current
     val typography = LocalCrumbsTypography.current
@@ -541,18 +571,20 @@ private fun BookmarkCardBody(bookmark: Bookmark, onLinkClick: (String) -> Unit) 
         color = colors.ink,
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,
-        modifier = Modifier
-            .testTag(if (bookmark.pendingDelete) "bookmark-card-strikethrough" else "card-title")
-            .brutalistStrikethrough(active = bookmark.pendingDelete, color = colors.ink),
+        modifier =
+            Modifier
+                .testTag(if (bookmark.pendingDelete) "bookmark-card-strikethrough" else "card-title")
+                .brutalistStrikethrough(active = bookmark.pendingDelete, color = colors.ink),
     )
     Spacer(Modifier.height(spacing.sm))
     Text(
-        text = buildBodyAnnotatedString(
-            text = bookmark.previewText,
-            textLinks = bookmark.textLinks,
-            accentColor = Color(0xFF_FF5A1F),
-            onLinkClick = onLinkClick,
-        ),
+        text =
+            buildBodyAnnotatedString(
+                text = bookmark.previewText,
+                textLinks = bookmark.textLinks,
+                accentColor = Color(0xFF_FF5A1F),
+                onLinkClick = onLinkClick,
+            ),
         style = typography.bodyMono,
         color = colors.ink,
         maxLines = 3,
@@ -582,15 +614,16 @@ private fun BookmarkCardFooter(bookmark: Bookmark) {
 
     // Dashed 1dp footer divider — per handoff-components.jsx:114, 370.
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(2.dp)
-            .dashedDivider(
-                color = colors.ink,
-                strokeWidth = stroke.hairline,
-                dashLengthDp = 4.dp,
-                gapDp = CrumbsSpacing.dashGap,
-            ),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(2.dp)
+                .dashedDivider(
+                    color = colors.ink,
+                    strokeWidth = stroke.hairline,
+                    dashLengthDp = 4.dp,
+                    gapDp = CrumbsSpacing.dashGap,
+                ),
     )
     Spacer(Modifier.height(spacing.xs))
     // Engagement meta row — "IMAGE · ↑ 2.4k" / "TEXT" (when null).
@@ -617,93 +650,100 @@ private fun BookmarkCardFooter(bookmark: Bookmark) {
 }
 
 // k/m suffix formatter matching the JS demo at handoff-components.jsx:117.
-private fun formatCount(n: Int): String = when {
-    n >= 1_000_000 -> "%.1fm".format(n / 1_000_000.0).removeSuffix(".0m") + if (n % 1_000_000 == 0) "m" else ""
-    n >= 10_000 -> "${n / 1000}k"
-    n >= 1_000 -> "%.1fk".format(n / 1000.0)
-    else -> n.toString()
-}
+private fun formatCount(n: Int): String =
+    when {
+        n >= 1_000_000 -> "%.1fm".format(n / 1_000_000.0).removeSuffix(".0m") + if (n % 1_000_000 == 0) "m" else ""
+        n >= 10_000 -> "${n / 1000}k"
+        n >= 1_000 -> "%.1fk".format(n / 1000.0)
+        else -> n.toString()
+    }
 
 // Sample data for previews
-private val sampleTwitterText = Bookmark(
-    id = "1",
-    source = BookmarkSource.Twitter,
-    author = "@designpatterns",
-    title = "Understanding SOLID Principles",
-    previewText = "Let me explain the five SOLID principles that every developer should know. These fundamental concepts will help you write better, more maintainable code.",
-    contentType = ContentType.Text,
-    savedAt = System.currentTimeMillis() - 3600000,
-    tags = listOf("programming", "design"),
-    sourceUrl = "https://twitter.com/i/web/status/123",
-    engagementCount = 247,
-)
+private val sampleTwitterText =
+    Bookmark(
+        id = "1",
+        source = BookmarkSource.Twitter,
+        author = "@designpatterns",
+        title = "Understanding SOLID Principles",
+        previewText = "Let me explain the five SOLID principles that every developer should know. These fundamental concepts will help you write better, more maintainable code.",
+        contentType = ContentType.Text,
+        savedAt = System.currentTimeMillis() - 3600000,
+        tags = listOf("programming", "design"),
+        sourceUrl = "https://twitter.com/i/web/status/123",
+        engagementCount = 247,
+    )
 
-private val sampleTwitterImage = Bookmark(
-    id = "2",
-    source = BookmarkSource.Twitter,
-    author = "@kotlinconf",
-    title = "Compose Multiplatform is here!",
-    previewText = "Excited to announce the stable release of Compose Multiplatform. Build beautiful UIs for Android, iOS, Desktop, and Web.",
-    imageUrl = "https://example.com/image.jpg",
-    contentType = ContentType.Image,
-    savedAt = System.currentTimeMillis() - 7200000,
-    tags = listOf("kotlin", "compose", "multiplatform"),
-    sourceUrl = "https://twitter.com/i/web/status/124",
-    engagementCount = 2400,
-)
+private val sampleTwitterImage =
+    Bookmark(
+        id = "2",
+        source = BookmarkSource.Twitter,
+        author = "@kotlinconf",
+        title = "Compose Multiplatform is here!",
+        previewText = "Excited to announce the stable release of Compose Multiplatform. Build beautiful UIs for Android, iOS, Desktop, and Web.",
+        imageUrl = "https://example.com/image.jpg",
+        contentType = ContentType.Image,
+        savedAt = System.currentTimeMillis() - 7200000,
+        tags = listOf("kotlin", "compose", "multiplatform"),
+        sourceUrl = "https://twitter.com/i/web/status/124",
+        engagementCount = 2400,
+    )
 
-private val sampleTwitterThread = Bookmark(
-    id = "3",
-    source = BookmarkSource.Twitter,
-    author = "@architectpatterns",
-    title = "Clean Architecture Thread",
-    previewText = "1/ Let's talk about Clean Architecture and why it matters for modern Android development...",
-    contentType = ContentType.Thread,
-    savedAt = System.currentTimeMillis() - 86400000,
-    tags = listOf("architecture", "android"),
-    isThread = true,
-    threadCount = 12,
-    sourceUrl = "https://twitter.com/i/web/status/125",
-)
+private val sampleTwitterThread =
+    Bookmark(
+        id = "3",
+        source = BookmarkSource.Twitter,
+        author = "@architectpatterns",
+        title = "Clean Architecture Thread",
+        previewText = "1/ Let's talk about Clean Architecture and why it matters for modern Android development...",
+        contentType = ContentType.Thread,
+        savedAt = System.currentTimeMillis() - 86400000,
+        tags = listOf("architecture", "android"),
+        isThread = true,
+        threadCount = 12,
+        sourceUrl = "https://twitter.com/i/web/status/125",
+    )
 
-private val sampleRedditPost = Bookmark(
-    id = "4",
-    source = BookmarkSource.Reddit,
-    author = "u/androiddev",
-    title = "Tips for optimizing RecyclerView performance",
-    previewText = "Here are some lesser-known tips for getting better performance out of RecyclerView. These helped me reduce jank significantly in my production app.",
-    contentType = ContentType.Text,
-    savedAt = System.currentTimeMillis() - 172800000,
-    tags = listOf("android", "performance"),
-    sourceUrl = "https://reddit.com/r/androiddev/comments/abc123",
-)
+private val sampleRedditPost =
+    Bookmark(
+        id = "4",
+        source = BookmarkSource.Reddit,
+        author = "u/androiddev",
+        title = "Tips for optimizing RecyclerView performance",
+        previewText = "Here are some lesser-known tips for getting better performance out of RecyclerView. These helped me reduce jank significantly in my production app.",
+        contentType = ContentType.Text,
+        savedAt = System.currentTimeMillis() - 172800000,
+        tags = listOf("android", "performance"),
+        sourceUrl = "https://reddit.com/r/androiddev/comments/abc123",
+    )
 
-private val sampleDeletedBookmark = Bookmark(
-    id = "5",
-    source = BookmarkSource.Twitter,
-    author = "@deleteduser",
-    title = "This tweet has been deleted",
-    previewText = "This content is no longer available.",
-    contentType = ContentType.Text,
-    savedAt = System.currentTimeMillis() - 604800000,
-    isDeleted = true,
-    sourceUrl = "https://twitter.com/i/web/status/126",
-)
+private val sampleDeletedBookmark =
+    Bookmark(
+        id = "5",
+        source = BookmarkSource.Twitter,
+        author = "@deleteduser",
+        title = "This tweet has been deleted",
+        previewText = "This content is no longer available.",
+        contentType = ContentType.Text,
+        savedAt = System.currentTimeMillis() - 604800000,
+        isDeleted = true,
+        sourceUrl = "https://twitter.com/i/web/status/126",
+    )
 
-private val sampleTwitterLink = Bookmark(
-    id = "6",
-    source = BookmarkSource.Twitter,
-    author = "@reader",
-    title = "Worth a read on brutalist design",
-    previewText = "Sharing this great piece on raw, honest web interfaces. https://t.co/abc",
-    contentType = ContentType.Link,
-    savedAt = System.currentTimeMillis() - 5400000,
-    sourceUrl = "https://twitter.com/i/web/status/127",
-    linkUrl = "https://brutalist-web.design/",
-    linkDisplayUrl = "brutalist-web.design",
-    linkTitle = "Guidelines for Brutalist Web Design",
-    linkDescription = "Raw content, honest materials, and a focus on the reader over decoration.",
-)
+private val sampleTwitterLink =
+    Bookmark(
+        id = "6",
+        source = BookmarkSource.Twitter,
+        author = "@reader",
+        title = "Worth a read on brutalist design",
+        previewText = "Sharing this great piece on raw, honest web interfaces. https://t.co/abc",
+        contentType = ContentType.Link,
+        savedAt = System.currentTimeMillis() - 5400000,
+        sourceUrl = "https://twitter.com/i/web/status/127",
+        linkUrl = "https://brutalist-web.design/",
+        linkDisplayUrl = "brutalist-web.design",
+        linkTitle = "Guidelines for Brutalist Web Design",
+        linkDescription = "Raw content, honest materials, and a focus on the reader over decoration.",
+    )
 
 @Preview(name = "Twitter Text Light", showBackground = true)
 @Composable
@@ -761,21 +801,22 @@ private fun PreviewTwitterLinkLight() {
     }
 }
 
-private val sampleTwitterQuote = Bookmark(
-    id = "7",
-    source = BookmarkSource.Twitter,
-    author = "@commenter",
-    title = "Adding my take on this",
-    previewText = "This thread completely reframed how I think about it. Worth a full read.",
-    contentType = ContentType.Text,
-    savedAt = System.currentTimeMillis() - 4500000,
-    sourceUrl = "https://twitter.com/i/web/status/128",
-    quotedTweetId = "999",
-    quotedText = "The original insight everyone is quoting: simplicity scales, cleverness doesn't.",
-    quotedAuthorName = "Original Author",
-    quotedAuthorHandle = "@original",
-    quotedTweetUrl = "https://twitter.com/original/status/999",
-)
+private val sampleTwitterQuote =
+    Bookmark(
+        id = "7",
+        source = BookmarkSource.Twitter,
+        author = "@commenter",
+        title = "Adding my take on this",
+        previewText = "This thread completely reframed how I think about it. Worth a full read.",
+        contentType = ContentType.Text,
+        savedAt = System.currentTimeMillis() - 4500000,
+        sourceUrl = "https://twitter.com/i/web/status/128",
+        quotedTweetId = "999",
+        quotedText = "The original insight everyone is quoting: simplicity scales, cleverness doesn't.",
+        quotedAuthorName = "Original Author",
+        quotedAuthorHandle = "@original",
+        quotedTweetUrl = "https://twitter.com/original/status/999",
+    )
 
 @Preview(name = "Twitter Quote Light", showBackground = true)
 @Composable

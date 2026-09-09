@@ -41,11 +41,12 @@ fun CrumbsNavHost(
     // Store. The repository throttles to one read per 5s internally.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_START) {
-                bookmarksViewModel.refreshSyncStatus()
+        val observer =
+            LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_START) {
+                    bookmarksViewModel.refreshSyncStatus()
+                }
             }
-        }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
@@ -65,8 +66,11 @@ fun CrumbsNavHost(
         ) {
             LoginRoute(
                 navController = navController,
-                authorizationCode = navController
-                    .currentBackStackEntry?.arguments?.getString("code"),
+                authorizationCode =
+                    navController
+                        .currentBackStackEntry
+                        ?.arguments
+                        ?.getString("code"),
                 loginViewModel = loginViewModel,
             )
         }
@@ -77,8 +81,11 @@ fun CrumbsNavHost(
         ) {
             HomeRoute(
                 navController = navController,
-                twitterAuthCode = navController
-                    .currentBackStackEntry?.arguments?.getString("code") ?: "",
+                twitterAuthCode =
+                    navController
+                        .currentBackStackEntry
+                        ?.arguments
+                        ?.getString("code") ?: "",
                 loginViewModel = loginViewModel,
                 bookmarksViewModel = bookmarksViewModel,
             )
@@ -121,12 +128,13 @@ fun CrumbsNavHost(
 
         composable(
             "${Screens.THREADDETAIL.name}?bookmarkId={bookmarkId}",
-            arguments = listOf(
-                navArgument("bookmarkId") {
-                    type = NavType.StringType
-                    nullable = true
-                },
-            ),
+            arguments =
+                listOf(
+                    navArgument("bookmarkId") {
+                        type = NavType.StringType
+                        nullable = true
+                    },
+                ),
         ) {
             ThreadDetailRoute(navController = navController)
         }
@@ -144,6 +152,7 @@ enum class Screens {
     DELETE_ACCOUNT,
     HOMESCREEN {
         override fun screenRoute(refreshed: Boolean) = "${this.name}/$refreshed"
-    };
+    }, ;
+
     open fun screenRoute(refreshed: Boolean) = this.name
 }

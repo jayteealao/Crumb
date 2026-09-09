@@ -10,7 +10,6 @@ import org.junit.Test
  * function's own read cannot cross a boundary.
  */
 class ToRelativeTimeTest {
-
     private fun ago(deltaMs: Long): Long = System.currentTimeMillis() - deltaMs
 
     @Test

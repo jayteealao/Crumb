@@ -22,17 +22,21 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xxhdpi")
 class SearchScreenTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-    private val options = RoborazziOptions(
-        compareOptions = RoborazziOptions.CompareOptions(
-            imageComparator = SimpleImageComparator(maxDistance = 0.01f),
-        ),
-    )
+    private val options =
+        RoborazziOptions(
+            compareOptions =
+                RoborazziOptions.CompareOptions(
+                    imageComparator = SimpleImageComparator(maxDistance = 0.01f),
+                ),
+        )
 
-    private fun sampleBookmark(id: String, title: String) = Bookmark(
+    private fun sampleBookmark(
+        id: String,
+        title: String,
+    ) = Bookmark(
         id = id,
         source = BookmarkSource.Twitter,
         author = "@compose",
@@ -59,7 +63,8 @@ class SearchScreenTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/SearchScreen_recent_light.png", options)
     }
 
@@ -79,7 +84,8 @@ class SearchScreenTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/SearchScreen_recent_dark.png", options)
     }
 
@@ -89,13 +95,15 @@ class SearchScreenTest {
             CrumbsTheme(darkTheme = false) {
                 SearchScreen(
                     query = "compose",
-                    uiState = SearchUiState.Results(
-                        query = "compose",
-                        hits = persistentListOf(
-                            sampleBookmark("1", "First hit on compose"),
-                            sampleBookmark("2", "Second hit text"),
+                    uiState =
+                        SearchUiState.Results(
+                            query = "compose",
+                            hits =
+                                persistentListOf(
+                                    sampleBookmark("1", "First hit on compose"),
+                                    sampleBookmark("2", "Second hit text"),
+                                ),
                         ),
-                    ),
                     recentSearches = persistentListOf(),
                     onQueryChange = {},
                     onSubmit = {},
@@ -105,7 +113,8 @@ class SearchScreenTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/SearchScreen_results_light.png", options)
     }
 
@@ -125,7 +134,8 @@ class SearchScreenTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/SearchScreen_empty_dark.png", options)
     }
 }

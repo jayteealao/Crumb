@@ -1,16 +1,16 @@
 package com.github.jayteealao.crumbs.screens
 
 import androidx.activity.ComponentActivity
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import com.dropbox.differ.SimpleImageComparator
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.screens.login.LoginScreen
 import com.github.jayteealao.crumbs.screens.login.LoginUiState
-import com.dropbox.differ.SimpleImageComparator
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Assert.assertTrue
@@ -25,15 +25,16 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xxhdpi")
 class LoginScreenTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-    private val options = RoborazziOptions(
-        compareOptions = RoborazziOptions.CompareOptions(
-            imageComparator = SimpleImageComparator(maxDistance = 0.01f),
-        ),
-    )
+    private val options =
+        RoborazziOptions(
+            compareOptions =
+                RoborazziOptions.CompareOptions(
+                    imageComparator = SimpleImageComparator(maxDistance = 0.01f),
+                ),
+        )
 
     @Test
     fun loginScreen_default_light() {
@@ -52,7 +53,8 @@ class LoginScreenTest {
         composeTestRule.onNodeWithTag("login-google-cta").assertIsDisplayed()
         composeTestRule.onNodeWithTag("login-twitter-cta").assertIsDisplayed()
         composeTestRule.onNodeWithTag("login-reddit-cta").assertIsDisplayed()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/LoginScreen_default_light.png", options)
     }
 
@@ -73,7 +75,8 @@ class LoginScreenTest {
         composeTestRule.onNodeWithTag("login-google-cta").assertIsDisplayed()
         composeTestRule.onNodeWithTag("login-twitter-cta").assertIsDisplayed()
         composeTestRule.onNodeWithTag("login-reddit-cta").assertIsDisplayed()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/LoginScreen_default_dark.png", options)
     }
 
@@ -148,7 +151,8 @@ class LoginScreenTest {
         // Behavioral: Google CTA is the primary button and is enabled by default.
         composeTestRule.onNodeWithTag("login-google-cta").assertIsDisplayed()
         composeTestRule.onNodeWithText("CONTINUE WITH GOOGLE").assertIsDisplayed()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/LoginScreen_googlePrimary_light.png", options)
     }
 
@@ -167,7 +171,8 @@ class LoginScreenTest {
         // Behavioral: Google CTA is the primary button and is enabled by default (dark theme).
         composeTestRule.onNodeWithTag("login-google-cta").assertIsDisplayed()
         composeTestRule.onNodeWithText("CONTINUE WITH GOOGLE").assertIsDisplayed()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/LoginScreen_googlePrimary_dark.png", options)
     }
 
@@ -186,7 +191,8 @@ class LoginScreenTest {
         // Behavioral: collision dialog is shown with the "EXISTING ACCOUNT FOUND" heading.
         composeTestRule.onNodeWithTag("login-email-dialog").assertIsDisplayed()
         composeTestRule.onNodeWithText("EXISTING ACCOUNT FOUND").assertIsDisplayed()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/LoginScreen_collisionPrompt_light.png", options)
     }
 
@@ -205,7 +211,8 @@ class LoginScreenTest {
         // Behavioral: collision dialog is shown with the "EXISTING ACCOUNT FOUND" heading (dark theme).
         composeTestRule.onNodeWithTag("login-email-dialog").assertIsDisplayed()
         composeTestRule.onNodeWithText("EXISTING ACCOUNT FOUND").assertIsDisplayed()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/LoginScreen_collisionPrompt_dark.png", options)
     }
 
@@ -226,7 +233,8 @@ class LoginScreenTest {
         composeTestRule.onNodeWithText("SIGN IN WITH EMAIL").assertIsDisplayed()
         composeTestRule.onNodeWithTag("login-email-field").assertIsDisplayed()
         composeTestRule.onNodeWithTag("login-password-field").assertIsDisplayed()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/LoginScreen_emailDialog_light.png", options)
     }
 
@@ -247,7 +255,8 @@ class LoginScreenTest {
         composeTestRule.onNodeWithText("SIGN IN WITH EMAIL").assertIsDisplayed()
         composeTestRule.onNodeWithTag("login-email-field").assertIsDisplayed()
         composeTestRule.onNodeWithTag("login-password-field").assertIsDisplayed()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/LoginScreen_emailDialog_dark.png", options)
     }
 
@@ -266,7 +275,8 @@ class LoginScreenTest {
         // Behavioral: when signed in, the "SIGN OUT" button replaces the Google CTA.
         composeTestRule.onNodeWithTag("login-firebase-signout").assertIsDisplayed()
         composeTestRule.onNodeWithText("SIGN OUT").assertIsDisplayed()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/LoginScreen_signedIn_light.png", options)
     }
 
@@ -285,7 +295,8 @@ class LoginScreenTest {
         // Behavioral: when signed in, the "SIGN OUT" button replaces the Google CTA (dark theme).
         composeTestRule.onNodeWithTag("login-firebase-signout").assertIsDisplayed()
         composeTestRule.onNodeWithText("SIGN OUT").assertIsDisplayed()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/LoginScreen_signedIn_dark.png", options)
     }
 }

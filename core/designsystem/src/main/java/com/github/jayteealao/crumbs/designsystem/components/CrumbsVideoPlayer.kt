@@ -59,11 +59,12 @@ fun CrumbsVideoPlayer(
     val typography = LocalCrumbsTypography.current
 
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .aspectRatio(16f / 7f)
-            .background(colors.ink)
-            .testTag("bookmark-card-video"),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 7f)
+                .background(colors.ink)
+                .testTag("bookmark-card-video"),
         contentAlignment = Alignment.Center,
     ) {
         if (player != null) {
@@ -83,12 +84,13 @@ fun CrumbsVideoPlayer(
                 text = "[ PLAY ]",
                 style = typography.captionMono,
                 color = colors.ink,
-                modifier = Modifier
-                    .background(colors.surface)
-                    .border(stroke.regular, colors.ink, shapes.card)
-                    .clickable { onPlayClick() }
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .testTag("bookmark-card-video-play"),
+                modifier =
+                    Modifier
+                        .background(colors.surface)
+                        .border(stroke.regular, colors.ink, shapes.card)
+                        .clickable { onPlayClick() }
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .testTag("bookmark-card-video-play"),
             )
         }
 
@@ -97,14 +99,15 @@ fun CrumbsVideoPlayer(
             text = "[ FULL ]",
             style = typography.captionMono,
             color = colors.ink,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(8.dp)
-                .background(colors.surface)
-                .border(stroke.regular, colors.ink, shapes.card)
-                .clickable { onExpand() }
-                .padding(horizontal = 8.dp, vertical = 4.dp)
-                .testTag("bookmark-card-video-expand"),
+            modifier =
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .background(colors.surface)
+                    .border(stroke.regular, colors.ink, shapes.card)
+                    .clickable { onExpand() }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .testTag("bookmark-card-video-expand"),
         )
     }
 }
@@ -114,7 +117,10 @@ fun CrumbsVideoPlayer(
  * accent placeholder treatment) over an ink fill, or just the ink fill when no poster exists.
  */
 @Composable
-private fun VideoPoster(posterUrl: String?, modifier: Modifier = Modifier) {
+private fun VideoPoster(
+    posterUrl: String?,
+    modifier: Modifier = Modifier,
+) {
     val colors = LocalCrumbsColors.current
     Box(modifier = modifier.fillMaxSize().background(colors.ink)) {
         if (!posterUrl.isNullOrBlank()) {

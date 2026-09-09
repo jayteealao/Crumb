@@ -14,7 +14,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import com.github.jayteealao.crumbs.data.BannerState
 import com.github.jayteealao.crumbs.data.FilterState
-import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.designsystem.components.BottomNavTab
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsBanner
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsBottomNav
@@ -26,6 +25,7 @@ import com.github.jayteealao.crumbs.designsystem.components.FilterOverlay
 import com.github.jayteealao.crumbs.designsystem.components.FilterOverlaySection
 import com.github.jayteealao.crumbs.designsystem.layouts.HomeScaffold
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
+import com.github.jayteealao.crumbs.models.BookmarkSource
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
@@ -54,21 +54,25 @@ data class HomeUiState(
     /** Formatted bookmark count shown in the filter bar. Signals incompleteness when the local corpus
      * is below the Firestore server total and the fill sync is in flight. */
     val countLabel: String get() =
-        if (isSyncIncomplete) "%03d CATCHING UP".format(itemCount)
-        else "%03d SAVED".format(itemCount)
+        if (isSyncIncomplete) {
+            "%03d CATCHING UP".format(itemCount)
+        } else {
+            "%03d SAVED".format(itemCount)
+        }
 
     /** Sort pill label. Currently static; extracted here so it is testable and overridable. */
     val sortLabel: String get() = "SORT ↓ NEW"
 }
 
-internal val HomeFilterChips: ImmutableList<FilterChipItem> = persistentListOf(
-    FilterChipItem("all", "ALL"),
-    FilterChipItem("article", "ARTICLES"),
-    FilterChipItem("video", "VIDEOS"),
-    FilterChipItem("image", "IMAGES"),
-    FilterChipItem("thread", "THREADS"),
-    FilterChipItem("text", "TEXT"),
-)
+internal val HomeFilterChips: ImmutableList<FilterChipItem> =
+    persistentListOf(
+        FilterChipItem("all", "ALL"),
+        FilterChipItem("article", "ARTICLES"),
+        FilterChipItem("video", "VIDEOS"),
+        FilterChipItem("image", "IMAGES"),
+        FilterChipItem("thread", "THREADS"),
+        FilterChipItem("text", "TEXT"),
+    )
 
 /**
  * Namespace prefix for tag filter-chip ids. Keeps tag ids disjoint from the plain type ids in
@@ -83,10 +87,11 @@ internal fun tagChipId(tag: String): String = "$TAG_CHIP_PREFIX$tag"
  * Selected filter-overlay chip ids for a given [state]: the active type id plus a namespaced id per
  * selected tag. Mirrors [rememberHomeFilterSections] so selected tag chips render in the active state.
  */
-internal fun filterChipIdsFor(state: FilterState): Set<String> = buildSet {
-    add(state.type.name.lowercase())
-    state.selectedTags.forEach { add(tagChipId(it)) }
-}
+internal fun filterChipIdsFor(state: FilterState): Set<String> =
+    buildSet {
+        add(state.type.name.lowercase())
+        state.selectedTags.forEach { add(tagChipId(it)) }
+    }
 
 /**
  * Routes a filter-overlay chip toggle by id: namespaced `tag:` ids strip the prefix and go to
@@ -166,16 +171,17 @@ fun HomeScreen(
                 onSearchActiveChange = onSearchActiveChange,
             )
         },
-        banner = uiState.bannerState?.let { state ->
-            {
-                CrumbsBanner(
-                    kickerLine = state.kicker,
-                    detail = state.detail,
-                    ctaLabel = state.ctaLabel,
-                    onCta = onBannerCta,
-                )
-            }
-        },
+        banner =
+            uiState.bannerState?.let { state ->
+                {
+                    CrumbsBanner(
+                        kickerLine = state.kicker,
+                        detail = state.detail,
+                        ctaLabel = state.ctaLabel,
+                        onCta = onBannerCta,
+                    )
+                }
+            },
         filterBar = {
             CrumbsFilterBar(
                 countLabel = uiState.countLabel,
@@ -253,15 +259,17 @@ private fun PreviewHomeDark() {
 private fun PreviewHomeBannerLight() {
     CrumbsTheme(darkTheme = false) {
         HomeScreen(
-            uiState = HomeUiState(
-                selectedTab = BottomNavTab.TWITTER,
-                bannerState = BannerState(
-                    source = BookmarkSource.Twitter,
-                    kicker = "ERR · RECONNECT TWITTER",
-                    detail = "Twitter session expired. Tap to reconnect.",
-                    ctaLabel = "RECONNECT",
+            uiState =
+                HomeUiState(
+                    selectedTab = BottomNavTab.TWITTER,
+                    bannerState =
+                        BannerState(
+                            source = BookmarkSource.Twitter,
+                            kicker = "ERR · RECONNECT TWITTER",
+                            detail = "Twitter session expired. Tap to reconnect.",
+                            ctaLabel = "RECONNECT",
+                        ),
                 ),
-            ),
             onTabSelected = {},
             onSearchQueryChange = {},
             onSearchActiveChange = {},

@@ -59,11 +59,13 @@ internal fun CrumbsCardMediaImage(
     // No per-request crossfade: the app-level ImageLoader (CrumbApplication) already
     // applies a global crossfade, and a request-level fade animates from alpha 0 —
     // which makes the synchronous Roborazzi goldens capture a mid-fade transparent tile.
-    val request = remember(url) {
-        ImageRequest.Builder(context)
-            .data(url)
-            .build()
-    }
+    val request =
+        remember(url) {
+            ImageRequest
+                .Builder(context)
+                .data(url)
+                .build()
+        }
     var settled by remember(url) { mutableStateOf(false) }
     Box(
         modifier = modifier.background(if (settled) Color.Transparent else colors.accent),
@@ -97,17 +99,21 @@ internal fun BookmarkCardImageGrid(
     val overflow = images.size - shown.size
 
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(colors.ink),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .background(colors.ink),
         verticalArrangement = Arrangement.spacedBy(stroke.hairline),
     ) {
         when (shown.size) {
             // 2 → one row of two squares.
-            2 -> GridRow {
-                GridTile(shown[0], index = 0, overflowCount = 0, onImageClick)
-                GridTile(shown[1], index = 1, overflowCount = 0, onImageClick)
+            2 -> {
+                GridRow {
+                    GridTile(shown[0], index = 0, overflowCount = 0, onImageClick)
+                    GridTile(shown[1], index = 1, overflowCount = 0, onImageClick)
+                }
             }
+
             // 3 → two on top, one wide below.
             3 -> {
                 GridRow {
@@ -118,6 +124,7 @@ internal fun BookmarkCardImageGrid(
                     GridTile(shown[2], index = 2, overflowCount = 0, onImageClick)
                 }
             }
+
             // 4 (and 4-with-overflow) → full 2×2; the 4th tile carries the "+N" scrim.
             else -> {
                 GridRow {
@@ -138,9 +145,10 @@ internal fun BookmarkCardImageGrid(
 private fun GridRow(content: @Composable RowScope.() -> Unit) {
     val stroke = LocalCrumbsStroke.current
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(2f),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(2f),
         horizontalArrangement = Arrangement.spacedBy(stroke.hairline),
         content = content,
     )
@@ -160,11 +168,12 @@ private fun RowScope.GridTile(
     val colors = LocalCrumbsColors.current
     val typography = LocalCrumbsTypography.current
     Box(
-        modifier = Modifier
-            .weight(1f)
-            .fillMaxHeight()
-            .testTag("bookmark-card-image")
-            .clickable { onImageClick(index) },
+        modifier =
+            Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .testTag("bookmark-card-image")
+                .clickable { onImageClick(index) },
     ) {
         CrumbsCardMediaImage(
             url = url,
@@ -173,9 +182,10 @@ private fun RowScope.GridTile(
         )
         if (overflowCount > 0) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(colors.ink.copy(alpha = 0.6f)),
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .background(colors.ink.copy(alpha = 0.6f)),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(

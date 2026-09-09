@@ -30,28 +30,29 @@ data class OnboardingPageData(
     val body: String,
 )
 
-internal val BrutalistOnboardingPages: ImmutableList<OnboardingPageData> = persistentListOf(
-    OnboardingPageData(
-        kicker = "01 / 04",
-        title = "LEAVE BREADCRUMBS",
-        body = "SAVE SOCIAL CONTENT WORTH REMEMBERING FROM TWITTER AND REDDIT.",
-    ),
-    OnboardingPageData(
-        kicker = "02 / 04",
-        title = "FIND YOUR WAY BACK",
-        body = "SEARCH AND FILTER THROUGH YOUR SAVED BOOKMARKS INSTANTLY.",
-    ),
-    OnboardingPageData(
-        kicker = "03 / 04",
-        title = "BUILD A KNOWLEDGE BASE",
-        body = "ORGANIZE BOOKMARKS WITH TAGS FOR EASY DISCOVERY.",
-    ),
-    OnboardingPageData(
-        kicker = "04 / 04",
-        title = "DISCOVER CONNECTIONS",
-        body = "VISUALIZE RELATIONSHIPS BETWEEN YOUR BOOKMARKS.",
-    ),
-)
+internal val BrutalistOnboardingPages: ImmutableList<OnboardingPageData> =
+    persistentListOf(
+        OnboardingPageData(
+            kicker = "01 / 04",
+            title = "LEAVE BREADCRUMBS",
+            body = "SAVE SOCIAL CONTENT WORTH REMEMBERING FROM TWITTER AND REDDIT.",
+        ),
+        OnboardingPageData(
+            kicker = "02 / 04",
+            title = "FIND YOUR WAY BACK",
+            body = "SEARCH AND FILTER THROUGH YOUR SAVED BOOKMARKS INSTANTLY.",
+        ),
+        OnboardingPageData(
+            kicker = "03 / 04",
+            title = "BUILD A KNOWLEDGE BASE",
+            body = "ORGANIZE BOOKMARKS WITH TAGS FOR EASY DISCOVERY.",
+        ),
+        OnboardingPageData(
+            kicker = "04 / 04",
+            title = "DISCOVER CONNECTIONS",
+            body = "VISUALIZE RELATIONSHIPS BETWEEN YOUR BOOKMARKS.",
+        ),
+    )
 
 /**
  * Multi-page onboarding carousel shown the first time the user launches the app. Each page
@@ -71,11 +72,12 @@ fun OnboardingScreen(
 ) {
     val isLastPage = pagerState.currentPage >= pages.size - 1
     OnboardingShell(
-        pages = persistentListOf<@Composable () -> Unit>(
-            *Array(pages.size) { idx ->
-                { OnboardingPageContent(page = pages[idx], pageIndex = idx) }
-            },
-        ),
+        pages =
+            persistentListOf<@Composable () -> Unit>(
+                *Array(pages.size) { idx ->
+                    { OnboardingPageContent(page = pages[idx], pageIndex = idx) }
+                },
+            ),
         pagerState = pagerState,
         footerCtaText = if (isLastPage) "GET STARTED" else "NEXT",
         onFooterCtaClick = onCtaClick,
@@ -84,16 +86,20 @@ fun OnboardingScreen(
 }
 
 @Composable
-private fun OnboardingPageContent(page: OnboardingPageData, pageIndex: Int) {
+private fun OnboardingPageContent(
+    page: OnboardingPageData,
+    pageIndex: Int,
+) {
     val colors = LocalCrumbsColors.current
     val spacing = LocalCrumbsSpacing.current
     val typography = LocalCrumbsTypography.current
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = spacing.xl)
-            .testTag("onboarding-page-$pageIndex"),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(horizontal = spacing.xl)
+                .testTag("onboarding-page-$pageIndex"),
         horizontalAlignment = Alignment.Start,
         verticalArrangement = Arrangement.Center,
     ) {

@@ -9,7 +9,7 @@ import com.google.gson.annotations.SerializedName
 
 data class TweetAttachments(
     @SerializedName("poll_ids") val pollIds: List<String>?,
-    @SerializedName("media_keys") val mediaKeys: List<String>?
+    @SerializedName("media_keys") val mediaKeys: List<String>?,
 )
 
 @Entity(
@@ -18,17 +18,16 @@ data class TweetAttachments(
         ForeignKey(
             entity = TweetEntity::class,
             parentColumns = arrayOf("id"),
-            childColumns = arrayOf("tweetId")
-
-        )
+            childColumns = arrayOf("tweetId"),
+        ),
     ],
     // Index the FK column so deleting/updating a parent tweet does not
     // trigger a full pollIds scan (KSP warns about this otherwise).
-    indices = [Index("tweetId")]
+    indices = [Index("tweetId")],
 )
 data class PollIds(
     val tweetId: String,
-    @PrimaryKey val id: String
+    @PrimaryKey val id: String,
 )
 
 @Entity(
@@ -40,14 +39,13 @@ data class PollIds(
         ForeignKey(
             entity = TweetEntity::class,
             parentColumns = arrayOf("id"),
-            childColumns = arrayOf("tweet_id")
-
-        )
+            childColumns = arrayOf("tweet_id"),
+        ),
     ],
-    indices = [Index("tweet_id")]
+    indices = [Index("tweet_id")],
 )
 data class MediaKeys(
     @ColumnInfo(name = "tweet_id") val tweetId: String,
     @ColumnInfo(name = "media_key")
-    val mediaKey: String
+    val mediaKey: String,
 )

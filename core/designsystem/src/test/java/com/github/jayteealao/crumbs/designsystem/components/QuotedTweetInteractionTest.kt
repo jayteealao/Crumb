@@ -35,25 +35,25 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class QuotedTweetInteractionTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-    private val quoteBookmark = Bookmark(
-        id = "quote-1",
-        source = BookmarkSource.Twitter,
-        author = "@commenter",
-        title = "Adding my take on this",
-        previewText = "This thread completely reframed how I think about it.",
-        contentType = ContentType.Text,
-        savedAt = System.currentTimeMillis() - 3600000,
-        sourceUrl = "https://twitter.com/i/web/status/207",
-        quotedTweetId = "999",
-        quotedText = "The original insight everyone keeps quoting.",
-        quotedAuthorName = "Original Author",
-        quotedAuthorHandle = "@original",
-        quotedTweetUrl = "https://twitter.com/original/status/999",
-    )
+    private val quoteBookmark =
+        Bookmark(
+            id = "quote-1",
+            source = BookmarkSource.Twitter,
+            author = "@commenter",
+            title = "Adding my take on this",
+            previewText = "This thread completely reframed how I think about it.",
+            contentType = ContentType.Text,
+            savedAt = System.currentTimeMillis() - 3600000,
+            sourceUrl = "https://twitter.com/i/web/status/207",
+            quotedTweetId = "999",
+            quotedText = "The original insight everyone keeps quoting.",
+            quotedAuthorName = "Original Author",
+            quotedAuthorHandle = "@original",
+            quotedTweetUrl = "https://twitter.com/original/status/999",
+        )
 
     @Test
     fun quotedSubCardTap_routesToOnQuoteClick_withQuotedUrl_notOnCardClick() {

@@ -12,10 +12,10 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import com.dropbox.differ.SimpleImageComparator
 import com.github.jayteealao.crumbs.data.BannerState
-import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.jayteealao.crumbs.designsystem.components.BottomNavTab
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
+import com.github.jayteealao.crumbs.models.BookmarkSource
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Assert.assertTrue
@@ -30,15 +30,16 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xxhdpi")
 class HomeScreenTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-    private val options = RoborazziOptions(
-        compareOptions = RoborazziOptions.CompareOptions(
-            imageComparator = SimpleImageComparator(maxDistance = 0.01f),
-        ),
-    )
+    private val options =
+        RoborazziOptions(
+            compareOptions =
+                RoborazziOptions.CompareOptions(
+                    imageComparator = SimpleImageComparator(maxDistance = 0.01f),
+                ),
+        )
 
     @Test
     fun homeScreen_twitter_light() {
@@ -64,7 +65,8 @@ class HomeScreenTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/HomeScreen_twitter_light.png", options)
     }
 
@@ -94,7 +96,8 @@ class HomeScreenTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/HomeScreen_twitter_withCount_light.png", options)
     }
 
@@ -122,7 +125,8 @@ class HomeScreenTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/HomeScreen_all_dark.png", options)
     }
 
@@ -132,15 +136,17 @@ class HomeScreenTest {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = false) {
                 HomeScreen(
-                    uiState = HomeUiState(
-                        selectedTab = BottomNavTab.TWITTER,
-                        bannerState = BannerState(
-                            source = BookmarkSource.Twitter,
-                            kicker = "ERR · RECONNECT TWITTER",
-                            detail = "Twitter session expired. Tap to reconnect.",
-                            ctaLabel = "RECONNECT",
+                    uiState =
+                        HomeUiState(
+                            selectedTab = BottomNavTab.TWITTER,
+                            bannerState =
+                                BannerState(
+                                    source = BookmarkSource.Twitter,
+                                    kicker = "ERR · RECONNECT TWITTER",
+                                    detail = "Twitter session expired. Tap to reconnect.",
+                                    ctaLabel = "RECONNECT",
+                                ),
                         ),
-                    ),
                     onTabSelected = {},
                     onSearchQueryChange = {},
                     onSearchActiveChange = {},
@@ -158,7 +164,8 @@ class HomeScreenTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/HomeScreen_withSyncErrorBanner_light.png", options)
     }
 
@@ -172,15 +179,17 @@ class HomeScreenTest {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = false) {
                 HomeScreen(
-                    uiState = HomeUiState(
-                        selectedTab = BottomNavTab.TWITTER,
-                        bannerState = BannerState(
-                            source = BookmarkSource.Twitter,
-                            kicker = "ERR · RECONNECT TWITTER",
-                            detail = "Twitter session expired. Tap to reconnect.",
-                            ctaLabel = "RECONNECT",
+                    uiState =
+                        HomeUiState(
+                            selectedTab = BottomNavTab.TWITTER,
+                            bannerState =
+                                BannerState(
+                                    source = BookmarkSource.Twitter,
+                                    kicker = "ERR · RECONNECT TWITTER",
+                                    detail = "Twitter session expired. Tap to reconnect.",
+                                    ctaLabel = "RECONNECT",
+                                ),
                         ),
-                    ),
                     onTabSelected = {},
                     onSearchQueryChange = {},
                     onSearchActiveChange = {},
@@ -212,15 +221,17 @@ class HomeScreenTest {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = true) {
                 HomeScreen(
-                    uiState = HomeUiState(
-                        selectedTab = BottomNavTab.REDDIT,
-                        bannerState = BannerState(
-                            source = BookmarkSource.Reddit,
-                            kicker = "ERR · RECONNECT REDDIT",
-                            detail = "Reddit session expired. Tap to reconnect.",
-                            ctaLabel = "RECONNECT",
+                    uiState =
+                        HomeUiState(
+                            selectedTab = BottomNavTab.REDDIT,
+                            bannerState =
+                                BannerState(
+                                    source = BookmarkSource.Reddit,
+                                    kicker = "ERR · RECONNECT REDDIT",
+                                    detail = "Reddit session expired. Tap to reconnect.",
+                                    ctaLabel = "RECONNECT",
+                                ),
                         ),
-                    ),
                     onTabSelected = {},
                     onSearchQueryChange = {},
                     onSearchActiveChange = {},
@@ -238,7 +249,8 @@ class HomeScreenTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/HomeScreen_withSyncErrorBanner_dark.png", options)
     }
 }

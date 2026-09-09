@@ -12,7 +12,7 @@ data class TweetTextEntity(
     val cashtags: List<TweetTextEntityAnnotation>?,
     val hashtags: List<TweetTextEntityAnnotation>?,
     val mentions: List<TweetTextEntityAnnotation>?,
-    val urls: List<TweetTextEntityAnnotation>?
+    val urls: List<TweetTextEntityAnnotation>?,
 )
 
 @Entity(
@@ -21,12 +21,12 @@ data class TweetTextEntity(
         ForeignKey(
             entity = TweetEntity::class,
             parentColumns = ["id"],
-            childColumns = ["tweet_id"]
-        )
+            childColumns = ["tweet_id"],
+        ),
     ],
     indices = [
-        Index(value = ["tweet_id"])
-    ]
+        Index(value = ["tweet_id"]),
+    ],
 )
 data class TweetTextEntityAnnotation(
 //    this value only exists for mentions
@@ -66,7 +66,7 @@ data class TweetTextEntityAnnotation(
     @PrimaryKey(autoGenerate = true)
     val entityId: Int = 0,
     @ColumnInfo(name = "tweet_id") val tweetId: String? = null,
-    val type: String
+    val type: String,
 )
 
 fun TweetTextEntity.toTweetTextEntityAnnotation(tweetId: String): List<TweetTextEntityAnnotation> =

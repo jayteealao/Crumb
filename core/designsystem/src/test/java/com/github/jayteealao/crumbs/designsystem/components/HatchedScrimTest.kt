@@ -20,7 +20,6 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class HatchedScrimTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -33,7 +32,8 @@ class HatchedScrimTest {
                 }
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/HatchedScrim_default_light.png")
     }
 
@@ -46,7 +46,8 @@ class HatchedScrimTest {
                 }
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/HatchedScrim_default_dark.png")
     }
 }

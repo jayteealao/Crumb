@@ -3,7 +3,6 @@ package com.github.jayteealao.crumbs.screens
 import android.app.Activity
 import android.widget.Toast
 import androidx.compose.runtime.Composable
-import timber.log.Timber
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,6 +19,7 @@ import com.github.jayteealao.twitter.oauth.TwitterOAuthCoordinator
 import com.github.jayteealao.twitter.screens.BookmarksViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
+import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,14 +29,18 @@ import javax.inject.Singleton
  * guard reads the same flag the ConnectXRoute writes.
  */
 @Singleton
-class ConnectXSkipState @Inject constructor() {
-    @Volatile var skipped: Boolean = false
-}
+class ConnectXSkipState
+    @Inject
+    constructor() {
+        @Volatile var skipped: Boolean = false
+    }
 
 @HiltViewModel
-class ConnectXViewModel @Inject constructor(
-    val skipState: ConnectXSkipState,
-) : ViewModel()
+class ConnectXViewModel
+    @Inject
+    constructor(
+        val skipState: ConnectXSkipState,
+    ) : ViewModel()
 
 /**
  * Navigation entry point for the ConnectX destination. Launches the Twitter OAuth Custom Tabs
@@ -70,12 +74,14 @@ fun ConnectXRoute(
                         popUpTo(Screens.CONNECTX.name) { inclusive = true }
                     }
                 }
+
                 is OAuthResult.Failure -> {
                     Timber.w("OAuth failure: ${result.reason}")
-                    val message = when (result.reason) {
-                        OAuthResult.Failure.REASON_UNAUTHENTICATED -> "Sign in to connect X. Please sign in first."
-                        else -> "Couldn't connect to X. Please try again."
-                    }
+                    val message =
+                        when (result.reason) {
+                            OAuthResult.Failure.REASON_UNAUTHENTICATED -> "Sign in to connect X. Please sign in first."
+                            else -> "Couldn't connect to X. Please try again."
+                        }
                     Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                 }
             }

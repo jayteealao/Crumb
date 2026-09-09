@@ -36,8 +36,7 @@ object FirebaseProviders {
     // triggerPoll surface lives in europe-west2.
     @Provides
     @Singleton
-    fun provideFirebaseFunctions(): FirebaseFunctions =
-        FirebaseFunctions.getInstance("europe-west2")
+    fun provideFirebaseFunctions(): FirebaseFunctions = FirebaseFunctions.getInstance("europe-west2")
 }
 
 @Module
@@ -49,7 +48,5 @@ abstract class FirebaseAuthBindings {
 
     @Binds
     @Singleton
-    abstract fun bindCredentialManagerCoordinator(
-        impl: RealCredentialManagerCoordinator,
-    ): CredentialManagerCoordinator
+    abstract fun bindCredentialManagerCoordinator(impl: RealCredentialManagerCoordinator): CredentialManagerCoordinator
 }

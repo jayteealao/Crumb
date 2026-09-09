@@ -43,7 +43,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class XTokenMigrationWorkerTest {
-
     private lateinit var context: Context
     private lateinit var prefs: Prefs
     private lateinit var functions: FirebaseFunctions
@@ -52,23 +51,24 @@ class XTokenMigrationWorkerTest {
     private val refreshFlow = MutableStateFlow("")
 
     @Before
-    fun setUp() = runTest {
-        context = ApplicationProvider.getApplicationContext()
-        // CrumbApplication.onCreate enqueues a real WorkManager request; init
-        // the test scheduler so the enqueue resolves to an in-memory backend.
-        WorkManagerTestInitHelper.initializeTestWorkManager(
-            context,
-            Configuration.Builder().setMinimumLoggingLevel(android.util.Log.DEBUG).build(),
-        )
-        context.writeString(MigrationKeys.X_TOKEN_MIGRATED, "")
+    fun setUp() =
+        runTest {
+            context = ApplicationProvider.getApplicationContext()
+            // CrumbApplication.onCreate enqueues a real WorkManager request; init
+            // the test scheduler so the enqueue resolves to an in-memory backend.
+            WorkManagerTestInitHelper.initializeTestWorkManager(
+                context,
+                Configuration.Builder().setMinimumLoggingLevel(android.util.Log.DEBUG).build(),
+            )
+            context.writeString(MigrationKeys.X_TOKEN_MIGRATED, "")
 
-        prefs = mockk(relaxed = true)
-        functions = mockk()
-        callable = mockk()
-        every { functions.getHttpsCallable("migrateXToken") } returns callable
-        every { prefs.refreshCode } returns refreshFlow
-        coEvery { prefs.clearAllTokens() } just Runs
-    }
+            prefs = mockk(relaxed = true)
+            functions = mockk()
+            callable = mockk()
+            every { functions.getHttpsCallable("migrateXToken") } returns callable
+            every { prefs.refreshCode } returns refreshFlow
+            coEvery { prefs.clearAllTokens() } just Runs
+        }
 
     private fun stubCallableResult(data: Any?) {
         val result = mockk<HttpsCallableResult>(relaxed = true)
@@ -77,104 +77,111 @@ class XTokenMigrationWorkerTest {
     }
 
     @Test
-    fun alreadyMigrated_returnsSuccess_withoutCallingFirebase() = runTest {
-        context.writeString(MigrationKeys.X_TOKEN_MIGRATED, "true")
-        refreshFlow.value = "rt-stale"
+    fun alreadyMigrated_returnsSuccess_withoutCallingFirebase() =
+        runTest {
+            context.writeString(MigrationKeys.X_TOKEN_MIGRATED, "true")
+            refreshFlow.value = "rt-stale"
 
-        val result = runXTokenMigration(context, prefs, functions)
+            val result = runXTokenMigration(context, prefs, functions)
 
-        assertEquals(ListenableWorker.Result.success(), result)
-        verify(exactly = 0) { functions.getHttpsCallable(any()) }
-    }
-
-    @Test
-    fun noLegacyToken_marksMigrated_returnsSuccess() = runTest {
-        refreshFlow.value = ""
-
-        val result = runXTokenMigration(context, prefs, functions)
-
-        assertEquals(ListenableWorker.Result.success(), result)
-        assertEquals("true", context.readString(MigrationKeys.X_TOKEN_MIGRATED).first())
-        verify(exactly = 0) { functions.getHttpsCallable(any()) }
-    }
+            assertEquals(ListenableWorker.Result.success(), result)
+            verify(exactly = 0) { functions.getHttpsCallable(any()) }
+        }
 
     @Test
-    fun callableOk_clearsPrefs_marksMigrated_returnsSuccess() = runTest {
-        refreshFlow.value = "rt-fresh"
-        stubCallableResult(mapOf("ok" to true))
+    fun noLegacyToken_marksMigrated_returnsSuccess() =
+        runTest {
+            refreshFlow.value = ""
 
-        val result = runXTokenMigration(context, prefs, functions)
+            val result = runXTokenMigration(context, prefs, functions)
 
-        assertEquals(ListenableWorker.Result.success(), result)
-        assertEquals("true", context.readString(MigrationKeys.X_TOKEN_MIGRATED).first())
-        coVerify(exactly = 1) { prefs.clearAllTokens() }
-    }
-
-    @Test
-    fun callableInvalid_marksMigrated_doesNotClearPrefs_returnsSuccess() = runTest {
-        refreshFlow.value = "rt-bogus"
-        stubCallableResult(mapOf("ok" to false, "reason" to "invalid"))
-
-        val result = runXTokenMigration(context, prefs, functions)
-
-        assertEquals(ListenableWorker.Result.success(), result)
-        assertEquals("true", context.readString(MigrationKeys.X_TOKEN_MIGRATED).first())
-        coVerify(exactly = 0) { prefs.clearAllTokens() }
-    }
+            assertEquals(ListenableWorker.Result.success(), result)
+            assertEquals("true", context.readString(MigrationKeys.X_TOKEN_MIGRATED).first())
+            verify(exactly = 0) { functions.getHttpsCallable(any()) }
+        }
 
     @Test
-    fun callableThrows_returnsRetry_doesNotMarkMigrated() = runTest {
-        refreshFlow.value = "rt-fresh"
-        every { callable.call(any()) } returns Tasks.forException(java.io.IOException("ETIMEDOUT"))
+    fun callableOk_clearsPrefs_marksMigrated_returnsSuccess() =
+        runTest {
+            refreshFlow.value = "rt-fresh"
+            stubCallableResult(mapOf("ok" to true))
 
-        val result = runXTokenMigration(context, prefs, functions)
+            val result = runXTokenMigration(context, prefs, functions)
 
-        assertEquals(ListenableWorker.Result.retry(), result)
-        assertEquals("", context.readString(MigrationKeys.X_TOKEN_MIGRATED).first())
-        coVerify(exactly = 0) { prefs.clearAllTokens() }
-    }
-
-    @Test
-    fun callableUnauthenticated_returnsFailure_doesNotRetry() = runTest {
-        refreshFlow.value = "rt-fresh"
-        // FirebaseFunctionsException's primary constructor is internal in Kotlin but public
-        // in Java bytecode. Use reflection to construct it cross-module in tests.
-        val unauthException = FirebaseFunctionsException::class.java
-            .getDeclaredConstructor(
-                String::class.java,
-                FirebaseFunctionsException.Code::class.java,
-                Any::class.java,
-            )
-            .apply { isAccessible = true }
-            .newInstance("Sign-in required", FirebaseFunctionsException.Code.UNAUTHENTICATED, null)
-        every { callable.call(any()) } returns Tasks.forException(unauthException)
-
-        val result = runXTokenMigration(context, prefs, functions)
-
-        assertEquals(ListenableWorker.Result.failure(), result)
-        assertEquals("", context.readString(MigrationKeys.X_TOKEN_MIGRATED).first())
-        coVerify(exactly = 0) { prefs.clearAllTokens() }
-    }
+            assertEquals(ListenableWorker.Result.success(), result)
+            assertEquals("true", context.readString(MigrationKeys.X_TOKEN_MIGRATED).first())
+            coVerify(exactly = 1) { prefs.clearAllTokens() }
+        }
 
     @Test
-    fun callableFirebaseError_nonUnauthenticated_returnsRetry() = runTest {
-        refreshFlow.value = "rt-fresh"
-        // A non-UNAUTHENTICATED FirebaseFunctionsException (e.g. INTERNAL, UNAVAILABLE)
-        // should be treated as transient and return retry(), not failure().
-        val internalException = FirebaseFunctionsException::class.java
-            .getDeclaredConstructor(
-                String::class.java,
-                FirebaseFunctionsException.Code::class.java,
-                Any::class.java,
-            )
-            .apply { isAccessible = true }
-            .newInstance("Internal error", FirebaseFunctionsException.Code.INTERNAL, null)
-        every { callable.call(any()) } returns Tasks.forException(internalException)
+    fun callableInvalid_marksMigrated_doesNotClearPrefs_returnsSuccess() =
+        runTest {
+            refreshFlow.value = "rt-bogus"
+            stubCallableResult(mapOf("ok" to false, "reason" to "invalid"))
 
-        val result = runXTokenMigration(context, prefs, functions)
+            val result = runXTokenMigration(context, prefs, functions)
 
-        assertEquals(ListenableWorker.Result.retry(), result)
-        assertEquals("", context.readString(MigrationKeys.X_TOKEN_MIGRATED).first())
-        coVerify(exactly = 0) { prefs.clearAllTokens() }
-    }
+            assertEquals(ListenableWorker.Result.success(), result)
+            assertEquals("true", context.readString(MigrationKeys.X_TOKEN_MIGRATED).first())
+            coVerify(exactly = 0) { prefs.clearAllTokens() }
+        }
+
+    @Test
+    fun callableThrows_returnsRetry_doesNotMarkMigrated() =
+        runTest {
+            refreshFlow.value = "rt-fresh"
+            every { callable.call(any()) } returns Tasks.forException(java.io.IOException("ETIMEDOUT"))
+
+            val result = runXTokenMigration(context, prefs, functions)
+
+            assertEquals(ListenableWorker.Result.retry(), result)
+            assertEquals("", context.readString(MigrationKeys.X_TOKEN_MIGRATED).first())
+            coVerify(exactly = 0) { prefs.clearAllTokens() }
+        }
+
+    @Test
+    fun callableUnauthenticated_returnsFailure_doesNotRetry() =
+        runTest {
+            refreshFlow.value = "rt-fresh"
+            // FirebaseFunctionsException's primary constructor is internal in Kotlin but public
+            // in Java bytecode. Use reflection to construct it cross-module in tests.
+            val unauthException =
+                FirebaseFunctionsException::class.java
+                    .getDeclaredConstructor(
+                        String::class.java,
+                        FirebaseFunctionsException.Code::class.java,
+                        Any::class.java,
+                    ).apply { isAccessible = true }
+                    .newInstance("Sign-in required", FirebaseFunctionsException.Code.UNAUTHENTICATED, null)
+            every { callable.call(any()) } returns Tasks.forException(unauthException)
+
+            val result = runXTokenMigration(context, prefs, functions)
+
+            assertEquals(ListenableWorker.Result.failure(), result)
+            assertEquals("", context.readString(MigrationKeys.X_TOKEN_MIGRATED).first())
+            coVerify(exactly = 0) { prefs.clearAllTokens() }
+        }
+
+    @Test
+    fun callableFirebaseError_nonUnauthenticated_returnsRetry() =
+        runTest {
+            refreshFlow.value = "rt-fresh"
+            // A non-UNAUTHENTICATED FirebaseFunctionsException (e.g. INTERNAL, UNAVAILABLE)
+            // should be treated as transient and return retry(), not failure().
+            val internalException =
+                FirebaseFunctionsException::class.java
+                    .getDeclaredConstructor(
+                        String::class.java,
+                        FirebaseFunctionsException.Code::class.java,
+                        Any::class.java,
+                    ).apply { isAccessible = true }
+                    .newInstance("Internal error", FirebaseFunctionsException.Code.INTERNAL, null)
+            every { callable.call(any()) } returns Tasks.forException(internalException)
+
+            val result = runXTokenMigration(context, prefs, functions)
+
+            assertEquals(ListenableWorker.Result.retry(), result)
+            assertEquals("", context.readString(MigrationKeys.X_TOKEN_MIGRATED).first())
+            coVerify(exactly = 0) { prefs.clearAllTokens() }
+        }
 }

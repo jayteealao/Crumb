@@ -18,7 +18,6 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class StatesTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -29,7 +28,8 @@ class StatesTest {
                 EmptyState()
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/EmptyState_default_light.png")
     }
 
@@ -40,7 +40,8 @@ class StatesTest {
                 EmptyState()
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/EmptyState_default_dark.png")
     }
 
@@ -54,7 +55,8 @@ class StatesTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/EmptyState_filtered_light.png")
     }
 
@@ -70,7 +72,8 @@ class StatesTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/EmptyState_withAction_light.png")
     }
 
@@ -86,7 +89,8 @@ class StatesTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/EmptyState_withAction_dark.png")
     }
 }

@@ -65,16 +65,18 @@ fun CrumbsTopBar(
     val trailingInteraction = remember { MutableInteractionSource() }
 
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(colors.background)
-            .testTag("top-bar"),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .background(colors.background)
+                .testTag("top-bar"),
     ) {
         if (kickerText != null) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = spacing.lg, end = spacing.lg, top = spacing.sm),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = spacing.lg, end = spacing.lg, top = spacing.sm),
             ) {
                 Text(
                     text = kickerText.uppercase(),
@@ -89,9 +91,10 @@ fun CrumbsTopBar(
             // Wordmark row — Alignment.Bottom (handoff-components.jsx:134),
             // baseline-aligned padding (top 6 / bottom 10 / start 16 / end 12).
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = spacing.lg, end = spacing.md, top = 6.dp, bottom = 10.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = spacing.lg, end = spacing.md, top = 6.dp, bottom = 10.dp),
                 verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
@@ -105,11 +108,12 @@ fun CrumbsTopBar(
                     // Inline accent dot — ink box with accent "·" glyph,
                     // baseline-aligned to the wordmark.
                     Box(
-                        modifier = Modifier
-                            .padding(horizontal = 4.dp)
-                            .offset(x = CrumbsSpacing.xxs)
-                            .background(colors.ink)
-                            .padding(horizontal = CrumbsSpacing.xxs, vertical = 1.dp),
+                        modifier =
+                            Modifier
+                                .padding(horizontal = 4.dp)
+                                .offset(x = CrumbsSpacing.xxs)
+                                .background(colors.ink)
+                                .padding(horizontal = CrumbsSpacing.xxs, vertical = 1.dp),
                     ) {
                         Text(
                             text = "•",
@@ -121,19 +125,19 @@ fun CrumbsTopBar(
                 }
                 // 44dp square trailing action.
                 Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .background(trailing.bg(colors))
-                        .border(stroke.regular, colors.ink)
-                        .clickable(
-                            interactionSource = trailingInteraction,
-                            indication = null,
-                            role = Role.Button,
-                        ) {
-                            if (trailing == TopBarAction.Search) onSearchActiveChange(true)
-                            onTrailingClick()
-                        }
-                        .testTag("top-bar-trailing-${trailing::class.simpleName?.lowercase()}"),
+                    modifier =
+                        Modifier
+                            .size(44.dp)
+                            .background(trailing.bg(colors))
+                            .border(stroke.regular, colors.ink)
+                            .clickable(
+                                interactionSource = trailingInteraction,
+                                indication = null,
+                                role = Role.Button,
+                            ) {
+                                if (trailing == TopBarAction.Search) onSearchActiveChange(true)
+                                onTrailingClick()
+                            }.testTag("top-bar-trailing-${trailing::class.simpleName?.lowercase()}"),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -162,10 +166,11 @@ fun CrumbsTopBar(
         }
 
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(stroke.regular)
-                .background(colors.ink),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(stroke.regular)
+                    .background(colors.ink),
         )
     }
 }

@@ -17,7 +17,6 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class TagEditorDialogTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -34,7 +33,8 @@ class TagEditorDialogTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/TagEditorDialog_withCurrentTags_light.png")
     }
 
@@ -51,7 +51,8 @@ class TagEditorDialogTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/TagEditorDialog_withCurrentTags_dark.png")
     }
 
@@ -68,7 +69,8 @@ class TagEditorDialogTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/TagEditorDialog_emptyTags_light.png")
     }
 }

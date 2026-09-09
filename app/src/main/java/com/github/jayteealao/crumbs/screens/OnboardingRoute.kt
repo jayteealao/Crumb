@@ -14,9 +14,7 @@ import kotlinx.coroutines.launch
  * @param navController Used to navigate to the Login destination after the final onboarding page.
  */
 @Composable
-fun OnboardingRoute(
-    navController: NavController,
-) {
+fun OnboardingRoute(navController: NavController) {
     val pages = BrutalistOnboardingPages
     val pagerState = rememberPagerState(pageCount = { pages.size })
     val scope = rememberCoroutineScope()

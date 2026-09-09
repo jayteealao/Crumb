@@ -38,7 +38,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class RepositoryTest {
-
     private val dispatcher = StandardTestDispatcher()
 
     private lateinit var tweetDao: TweetDao
@@ -69,17 +68,18 @@ class RepositoryTest {
         every { syncEnqueuer.observeIsRunning() } returns flowOf(false)
         scope = CoroutineScope(dispatcher)
 
-        repository = Repository(
-            tweetDao,
-            authPref,
-            firestoreRepository,
-            deletedBookmarkRepository,
-            callableService,
-            scope,
-            syncEnqueuer,
-            syncProgressDao,
-            auth,
-        )
+        repository =
+            Repository(
+                tweetDao,
+                authPref,
+                firestoreRepository,
+                deletedBookmarkRepository,
+                callableService,
+                scope,
+                syncEnqueuer,
+                syncProgressDao,
+                auth,
+            )
     }
 
     @After
@@ -88,41 +88,45 @@ class RepositoryTest {
     }
 
     @Test
-    fun getTagsForItems_chunksIdsAtMost900PerDaoQuery() = runTest(dispatcher) {
-        val ids = (1..950).map { "id$it" }
-        val chunks = mutableListOf<List<String>>()
-        coEvery { tweetDao.getTagsForTweets(capture(chunks)) } returns emptyList()
+    fun getTagsForItems_chunksIdsAtMost900PerDaoQuery() =
+        runTest(dispatcher) {
+            val ids = (1..950).map { "id$it" }
+            val chunks = mutableListOf<List<String>>()
+            coEvery { tweetDao.getTagsForTweets(capture(chunks)) } returns emptyList()
 
-        val result = repository.getTagsForItems(ids)
+            val result = repository.getTagsForItems(ids)
 
-        // 950 ids → two DAO queries (900 + 50); neither may exceed the 900-param guard.
-        assertEquals(2, chunks.size)
-        assertTrue("each chunk must stay within the 900-param guard", chunks.all { it.size <= 900 })
-        assertEquals(listOf(900, 50), chunks.map { it.size })
-        // Every requested id is represented with an explicit (here empty) entry.
-        assertEquals(950, result.size)
-        assertTrue(result.values.all { it.isEmpty() })
-    }
-
-    @Test
-    fun getTagsForItems_groupsRowsAndInjectsEmptyEntryForZeroTagIds() = runTest(dispatcher) {
-        coEvery { tweetDao.getTagsForTweets(listOf("a", "b", "c")) } returns listOf(
-            TweetTagCrossRef("a", "kotlin"),
-            TweetTagCrossRef("a", "android"),
-            TweetTagCrossRef("b", "compose"),
-        )
-
-        val result = repository.getTagsForItems(listOf("a", "b", "c"))
-
-        assertEquals(listOf("kotlin", "android"), result["a"])
-        assertEquals(listOf("compose"), result["b"])
-        // c had no rows → explicit empty entry so the ViewModel overwrite clears its chips.
-        assertEquals(emptyList<String>(), result["c"])
-    }
+            // 950 ids → two DAO queries (900 + 50); neither may exceed the 900-param guard.
+            assertEquals(2, chunks.size)
+            assertTrue("each chunk must stay within the 900-param guard", chunks.all { it.size <= 900 })
+            assertEquals(listOf(900, 50), chunks.map { it.size })
+            // Every requested id is represented with an explicit (here empty) entry.
+            assertEquals(950, result.size)
+            assertTrue(result.values.all { it.isEmpty() })
+        }
 
     @Test
-    fun getTagsForItems_emptyInput_returnsEmptyMapWithoutQuerying() = runTest(dispatcher) {
-        val result = repository.getTagsForItems(emptyList())
-        assertTrue(result.isEmpty())
-    }
+    fun getTagsForItems_groupsRowsAndInjectsEmptyEntryForZeroTagIds() =
+        runTest(dispatcher) {
+            coEvery { tweetDao.getTagsForTweets(listOf("a", "b", "c")) } returns
+                listOf(
+                    TweetTagCrossRef("a", "kotlin"),
+                    TweetTagCrossRef("a", "android"),
+                    TweetTagCrossRef("b", "compose"),
+                )
+
+            val result = repository.getTagsForItems(listOf("a", "b", "c"))
+
+            assertEquals(listOf("kotlin", "android"), result["a"])
+            assertEquals(listOf("compose"), result["b"])
+            // c had no rows → explicit empty entry so the ViewModel overwrite clears its chips.
+            assertEquals(emptyList<String>(), result["c"])
+        }
+
+    @Test
+    fun getTagsForItems_emptyInput_returnsEmptyMapWithoutQuerying() =
+        runTest(dispatcher) {
+            val result = repository.getTagsForItems(emptyList())
+            assertTrue(result.isEmpty())
+        }
 }

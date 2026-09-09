@@ -26,16 +26,15 @@ data class TweetReferencedTweets(
 
 data class TweetReferencedTweetsFull(
     val referencedTweets: TweetReferencedTweets,
-    val tweet: TweetEntity?
+    val tweet: TweetEntity?,
 )
 
 fun TweetReferencedTweets.toTweetReferencedTweetsFull(
     parentTweetId: String,
     includes: TweetIncludes,
-) =
-    TweetReferencedTweetsFull(
-        // Stamp the parent id so the junction lookup resolves. The X-API DTO leaves
-        // tweet_id unset (it is not in the wire payload), so copy it in here.
-        referencedTweets = this.copy(tweetId = parentTweetId),
-        includes.tweets?.firstOrNull { it.id == id }?.toTweetEntity(true)
-    )
+) = TweetReferencedTweetsFull(
+    // Stamp the parent id so the junction lookup resolves. The X-API DTO leaves
+    // tweet_id unset (it is not in the wire payload), so copy it in here.
+    referencedTweets = this.copy(tweetId = parentTweetId),
+    includes.tweets?.firstOrNull { it.id == id }?.toTweetEntity(true),
+)

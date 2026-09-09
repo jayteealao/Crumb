@@ -23,8 +23,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -36,11 +36,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsStroke
-import kotlin.math.hypot
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsShapes
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
+import kotlin.math.hypot
 
 // Brutalist floating-card overlay shell. In-tree composition (Box +
 // AnimatedVisibility + BackHandler) instead of Popup so IME insets dispatch
@@ -70,7 +70,7 @@ fun OverlayShell(
     Box(
         modifier
             .fillMaxSize()
-            .testTag("overlay-shell")
+            .testTag("overlay-shell"),
     ) {
         AnimatedVisibility(
             visible = visible,
@@ -107,26 +107,27 @@ fun OverlayShell(
                                 }
                             }
                         }
-                    }
-                    .semantics { contentDescription = "Dismiss overlay" }
+                    }.semantics { contentDescription = "Dismiss overlay" }
                     .clickable(
                         interactionSource = backdropInteraction,
                         indication = null,
                     ) { onDismiss() }
-                    .testTag("overlay-shell-backdrop")
+                    .testTag("overlay-shell-backdrop"),
             )
         }
 
         AnimatedVisibility(
             visible = visible,
-            enter = scaleIn(
-                initialScale = 0.95f,
-                animationSpec = tween(durationMillis = 150, easing = LinearEasing),
-            ) + fadeIn(animationSpec = tween(durationMillis = 150)),
-            exit = scaleOut(
-                targetScale = 0.95f,
-                animationSpec = tween(durationMillis = 150, easing = LinearEasing),
-            ) + fadeOut(animationSpec = tween(durationMillis = 150)),
+            enter =
+                scaleIn(
+                    initialScale = 0.95f,
+                    animationSpec = tween(durationMillis = 150, easing = LinearEasing),
+                ) + fadeIn(animationSpec = tween(durationMillis = 150)),
+            exit =
+                scaleOut(
+                    targetScale = 0.95f,
+                    animationSpec = tween(durationMillis = 150, easing = LinearEasing),
+                ) + fadeOut(animationSpec = tween(durationMillis = 150)),
             modifier = Modifier.align(Alignment.Center),
         ) {
             Surface(
@@ -134,18 +135,19 @@ fun OverlayShell(
                 contentColor = colors.ink,
                 shape = shapes.dialog,
                 border = BorderStroke(stroke.regular, colors.ink),
-                modifier = Modifier
-                    .padding(horizontal = 16.dp, vertical = 96.dp)
-                    .dropShadow(
-                        shape = shapes.dialog,
-                        shadow = Shadow(
-                            radius = 0.dp,
-                            spread = 0.dp,
-                            color = colors.offsetShadow,
-                            offset = DpOffset(CrumbsStroke.offsetX, CrumbsStroke.offsetY),
-                        ),
-                    )
-                    .imePadding(),
+                modifier =
+                    Modifier
+                        .padding(horizontal = 16.dp, vertical = 96.dp)
+                        .dropShadow(
+                            shape = shapes.dialog,
+                            shadow =
+                                Shadow(
+                                    radius = 0.dp,
+                                    spread = 0.dp,
+                                    color = colors.offsetShadow,
+                                    offset = DpOffset(CrumbsStroke.offsetX, CrumbsStroke.offsetY),
+                                ),
+                        ).imePadding(),
             ) {
                 Column {
                     if (header != null) {

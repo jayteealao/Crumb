@@ -52,9 +52,10 @@ fun buildBodyAnnotatedString(
             withLink(
                 LinkAnnotation.Url(
                     url = link.expandedUrl,
-                    styles = TextLinkStyles(
-                        style = SpanStyle(color = accentColor),
-                    ),
+                    styles =
+                        TextLinkStyles(
+                            style = SpanStyle(color = accentColor),
+                        ),
                     linkInteractionListener = { onLinkClick(link.expandedUrl) },
                 ),
             ) {

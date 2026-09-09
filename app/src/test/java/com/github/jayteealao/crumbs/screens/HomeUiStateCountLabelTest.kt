@@ -9,7 +9,6 @@ import org.junit.Test
  * larger ones — the "must not truncate rowids exceeding three digits" acceptance criterion.
  */
 class HomeUiStateCountLabelTest {
-
     @Test
     fun countLabel_zeroPadsToThreeDigits() {
         assertEquals("000 SAVED", HomeUiState(itemCount = 0).countLabel)

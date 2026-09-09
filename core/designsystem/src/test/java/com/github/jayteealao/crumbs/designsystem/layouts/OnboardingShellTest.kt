@@ -27,7 +27,6 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class OnboardingShellTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -38,18 +37,20 @@ class OnboardingShellTest {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = false) {
                 OnboardingShell(
-                    pages = persistentListOf(
-                        { StubPage(label = "Page 0") },
-                        { StubPage(label = "Page 1") },
-                        { StubPage(label = "Page 2") },
-                    ),
+                    pages =
+                        persistentListOf(
+                            { StubPage(label = "Page 0") },
+                            { StubPage(label = "Page 1") },
+                            { StubPage(label = "Page 2") },
+                        ),
                     footerCtaText = "NEXT",
                     onFooterCtaClick = {},
                 )
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/OnboardingShell_page0_light.png")
     }
 
@@ -60,11 +61,12 @@ class OnboardingShellTest {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = false) {
                 OnboardingShell(
-                    pages = persistentListOf(
-                        { StubPage(label = "Page 0") },
-                        { StubPage(label = "Page 1") },
-                        { StubPage(label = "Page 2") },
-                    ),
+                    pages =
+                        persistentListOf(
+                            { StubPage(label = "Page 0") },
+                            { StubPage(label = "Page 1") },
+                            { StubPage(label = "Page 2") },
+                        ),
                     signInLink = {
                         androidx.compose.material3.Text(
                             text = "or sign in →",
@@ -77,7 +79,8 @@ class OnboardingShellTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/OnboardingShell_withSignInLink_light.png")
     }
 
@@ -88,11 +91,12 @@ class OnboardingShellTest {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = true) {
                 OnboardingShell(
-                    pages = persistentListOf(
-                        { StubPage(label = "Page 0") },
-                        { StubPage(label = "Page 1") },
-                        { StubPage(label = "Page 2") },
-                    ),
+                    pages =
+                        persistentListOf(
+                            { StubPage(label = "Page 0") },
+                            { StubPage(label = "Page 1") },
+                            { StubPage(label = "Page 2") },
+                        ),
                     pagerState = rememberPagerState(pageCount = { 3 }, initialPage = 1),
                     footerCtaText = "NEXT",
                     onFooterCtaClick = {},
@@ -100,7 +104,8 @@ class OnboardingShellTest {
             }
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/OnboardingShell_page1_dark.png")
     }
 }

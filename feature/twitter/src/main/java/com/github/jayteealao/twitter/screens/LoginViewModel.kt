@@ -15,46 +15,47 @@ import javax.inject.Inject
 // Firebase Auth + sync_status.linked; the legacy isAccessTokenAvailable flow
 // resolves to false once the migration worker clears Prefs.
 @HiltViewModel
-class LoginViewModel @Inject constructor(
-    private val authRepository: AuthRepository,
-    private val authPref: Prefs,
-) : ViewModel() {
+class LoginViewModel
+    @Inject
+    constructor(
+        private val authRepository: AuthRepository,
+        private val authPref: Prefs,
+    ) : ViewModel() {
+        private var _isAccessTokenAvailable: MutableStateFlow<Boolean> = MutableStateFlow(false)
+        val isAccessTokenAvailable: StateFlow<Boolean>
+            get() = _isAccessTokenAvailable
 
-    private var _isAccessTokenAvailable: MutableStateFlow<Boolean> = MutableStateFlow(false)
-    val isAccessTokenAvailable: StateFlow<Boolean>
-        get() = _isAccessTokenAvailable
+        val user: StateFlow<TwitterUser?>
+            get() = authRepository.user
 
-    val user: StateFlow<TwitterUser?>
-        get() = authRepository.user
+        var refreshedTokens = false
 
-    var refreshedTokens = false
+        init {
+            viewModelScope.launch {
+                authRepository.isAccessTokenAvailable.collect {
+                    _isAccessTokenAvailable.value = it
+                }
+            }
+        }
 
-    init {
-        viewModelScope.launch {
-            authRepository.isAccessTokenAvailable.collect {
-                _isAccessTokenAvailable.value = it
+        fun getAccessToken(authorizationCode: String) {
+            viewModelScope.launch {
+                authRepository.getAccess(authorizationCode = authorizationCode)
+            }
+        }
+
+        suspend fun refreshToken(): Boolean {
+            val refreshed = authRepository.refreshAccessToken()
+            refreshedTokens = refreshed
+            return refreshed
+        }
+
+        suspend fun revokeToken() = authRepository.revokeToken()
+
+        fun logout() {
+            viewModelScope.launch {
+                authPref.clearAllTokens()
+                _isAccessTokenAvailable.value = false
             }
         }
     }
-
-    fun getAccessToken(authorizationCode: String) {
-        viewModelScope.launch {
-            authRepository.getAccess(authorizationCode = authorizationCode)
-        }
-    }
-
-    suspend fun refreshToken(): Boolean {
-        val refreshed = authRepository.refreshAccessToken()
-        refreshedTokens = refreshed
-        return refreshed
-    }
-
-    suspend fun revokeToken() = authRepository.revokeToken()
-
-    fun logout() {
-        viewModelScope.launch {
-            authPref.clearAllTokens()
-            _isAccessTokenAvailable.value = false
-        }
-    }
-}

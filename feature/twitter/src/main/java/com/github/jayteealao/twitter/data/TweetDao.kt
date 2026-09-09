@@ -68,7 +68,7 @@ interface TweetDao {
         tweetReferencedTweets: List<TweetReferencedTweets>,
         tweetContextAnnotationEntity: List<TweetContextAnnotationEntity>,
         tweetTextEntity: List<TweetTextEntityAnnotation>,
-        mediaKeys: List<MediaKeys>
+        mediaKeys: List<MediaKeys>,
     )
 
     /**
@@ -153,7 +153,8 @@ interface TweetDao {
     fun getTweets(): PagingSource<Int, TweetData>
 
     @Transaction
-    @Query("""
+    @Query(
+        """
         SELECT t.rowid AS db_rowid, t.* FROM tweetEntity t
         LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
         WHERE t.referenced = 0
@@ -175,11 +176,13 @@ interface TweetDao {
                  CAST(CASE WHEN t.created_at GLOB '????-??-??T*'
                            THEN STRFTIME('%s', t.created_at) * 1000
                            ELSE 0 END AS INTEGER) DESC
-    """)
+    """,
+    )
     fun getTweetsTombstoneAware(type: String): PagingSource<Int, TweetData>
 
     @Transaction
-    @Query("""
+    @Query(
+        """
         SELECT t.rowid AS db_rowid, t.* FROM tweetEntity t
         LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
         INNER JOIN tweet_tags tt ON tt.tweetId = t.id
@@ -204,8 +207,12 @@ interface TweetDao {
                  CAST(CASE WHEN t.created_at GLOB '????-??-??T*'
                            THEN STRFTIME('%s', t.created_at) * 1000
                            ELSE 0 END AS INTEGER) DESC
-    """)
-    fun getTweetsByTagsTombstoneAware(tagNames: List<String>, type: String): PagingSource<Int, TweetData>
+    """,
+    )
+    fun getTweetsByTagsTombstoneAware(
+        tagNames: List<String>,
+        type: String,
+    ): PagingSource<Int, TweetData>
 
     /**
      * Reactive count of the visible (no-tag) feed for the SAVED header. The WHERE
@@ -213,7 +220,8 @@ interface TweetDao {
      * filter, same `:type` predicate block — so the header can never disagree with
      * the rendered list. Emits via Room's InvalidationTracker on any matching write.
      */
-    @Query("""
+    @Query(
+        """
         SELECT COUNT(*) FROM tweetEntity t
         LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
         WHERE t.referenced = 0
@@ -231,7 +239,8 @@ interface TweetDao {
                   AND NOT EXISTS (SELECT 1 FROM tweetTextEntityAnnotation a WHERE a.tweet_id = t.id AND a.type = 'urls'
                     AND a.expanded_url IS NOT NULL AND a.expanded_url NOT LIKE '%twitter.com%' AND a.expanded_url NOT LIKE '%x.com%'))
           )
-    """)
+    """,
+    )
     fun countTombstoneAware(type: String): Flow<Int>
 
     /**
@@ -240,11 +249,13 @@ interface TweetDao {
      * total — it cares only about the ALL-type total, not any active type filter, so it omits
      * the type-predicate block that [countTombstoneAware] carries.
      */
-    @Query("""
+    @Query(
+        """
         SELECT COUNT(*) FROM tweetEntity t
         LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
         WHERE t.referenced = 0 AND d.bookmarkId IS NULL
-    """)
+    """,
+    )
     suspend fun countAllActive(): Int
 
     /**
@@ -253,7 +264,8 @@ interface TweetDao {
      * fan a single tweet across multiple matching tags (the list query collapses those
      * with `GROUP BY t.id`).
      */
-    @Query("""
+    @Query(
+        """
         SELECT COUNT(DISTINCT t.id) FROM tweetEntity t
         LEFT JOIN deleted_bookmarks d ON t.id = d.bookmarkId AND d.source = 'twitter'
         INNER JOIN tweet_tags tt ON tt.tweetId = t.id
@@ -273,8 +285,12 @@ interface TweetDao {
                   AND NOT EXISTS (SELECT 1 FROM tweetTextEntityAnnotation a WHERE a.tweet_id = t.id AND a.type = 'urls'
                     AND a.expanded_url IS NOT NULL AND a.expanded_url NOT LIKE '%twitter.com%' AND a.expanded_url NOT LIKE '%x.com%'))
           )
-    """)
-    fun countByTagsTombstoneAware(tagNames: List<String>, type: String): Flow<Int>
+    """,
+    )
+    fun countByTagsTombstoneAware(
+        tagNames: List<String>,
+        type: String,
+    ): Flow<Int>
 
     @Query("SELECT * FROM tweetEntity WHERE referenced = false ORDER BY `order` DESC LIMIT 1")
     fun getLatestBookmark(): TweetEntity?
@@ -295,7 +311,7 @@ interface TweetDao {
           AND t.referenced = 0
           AND d.bookmarkId IS NULL
         LIMIT 1
-        """
+        """,
     )
     suspend fun getTweetById(id: String): TweetData?
 
@@ -313,7 +329,7 @@ interface TweetDao {
         WHERE t.conversation_id = :conversationId
           AND d.bookmarkId IS NULL
         ORDER BY t.created_at ASC
-        """
+        """,
     )
     fun tweetsByConversationId(conversationId: String): Flow<List<TweetData>>
 
@@ -338,9 +354,12 @@ interface TweetDao {
           AND NOT EXISTS (SELECT 1 FROM tweetMedia m WHERE m.tweet_id = t.id)
         ORDER BY t.id ASC
         LIMIT :limit
-        """
+        """,
     )
-    suspend fun getTweetsWithoutMedia(afterId: String, limit: Int): List<String>
+    suspend fun getTweetsWithoutMedia(
+        afterId: String,
+        limit: Int,
+    ): List<String>
 
     /**
      * Tweet ids for the widened video-variant backfill: non-referenced, non-tombstoned
@@ -364,9 +383,12 @@ interface TweetDao {
           )
         ORDER BY t.id ASC
         LIMIT :limit
-        """
+        """,
     )
-    suspend fun getVideoTweetsWithoutVariants(afterId: String, limit: Int): List<String>
+    suspend fun getVideoTweetsWithoutVariants(
+        afterId: String,
+        limit: Int,
+    ): List<String>
 
     /**
      * Refresh a single media row in place (keyed by `media_key`). Used by the media re-fetch
@@ -398,9 +420,12 @@ interface TweetDao {
           )
         ORDER BY t.id ASC
         LIMIT :limit
-        """
+        """,
     )
-    suspend fun getExternalLinkTweetsWithoutPreview(afterId: String, limit: Int): List<String>
+    suspend fun getExternalLinkTweetsWithoutPreview(
+        afterId: String,
+        limit: Int,
+    ): List<String>
 
     /**
      * Tweet ids for the one-time quoted-tweet backfill: non-referenced, non-tombstoned
@@ -424,9 +449,12 @@ interface TweetDao {
           )
         ORDER BY t.id ASC
         LIMIT :limit
-        """
+        """,
     )
-    suspend fun getQuoteTweetsWithoutBody(afterId: String, limit: Int): List<String>
+    suspend fun getQuoteTweetsWithoutBody(
+        afterId: String,
+        limit: Int,
+    ): List<String>
 
     /** Delete a tweet's url-entity annotation rows. Backs the duplicate-safe link re-fetch. */
     @Query("DELETE FROM tweetTextEntityAnnotation WHERE tweet_id = :tweetId AND type = 'urls'")
@@ -440,7 +468,10 @@ interface TweetDao {
      * `entityId` is reset to 0 so Room assigns fresh ids.
      */
     @Transaction
-    suspend fun replaceUrlAnnotations(tweetId: String, rows: List<TweetTextEntityAnnotation>) {
+    suspend fun replaceUrlAnnotations(
+        tweetId: String,
+        rows: List<TweetTextEntityAnnotation>,
+    ) {
         deleteUrlAnnotationsForTweet(tweetId)
         rows.forEach { insertTweetTextEntityAnnotationSuspend(it.copy(entityId = 0)) }
     }
@@ -457,7 +488,10 @@ interface TweetDao {
      * DeletedBookmarkDao instead and does not call this.
      */
     @Query("UPDATE tweetEntity SET pending_delete = :value WHERE id = :id")
-    suspend fun updatePendingDelete(id: String, value: Boolean)
+    suspend fun updatePendingDelete(
+        id: String,
+        value: Boolean,
+    )
 
     // Tag operations
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -480,7 +514,10 @@ interface TweetDao {
     suspend fun getAllTags(): List<TagEntity>
 
     @Query("DELETE FROM tweet_tags WHERE tweetId = :tweetId AND tagName = :tagName")
-    suspend fun deleteTweetTag(tweetId: String, tagName: String)
+    suspend fun deleteTweetTag(
+        tweetId: String,
+        tagName: String,
+    )
 
     /**
      * Atomically replaces a tweet's full tag set. The read-modify-write
@@ -489,7 +526,10 @@ interface TweetDao {
      * and produce lost updates.
      */
     @Transaction
-    suspend fun saveTagsAtomic(tweetId: String, tags: List<String>) {
+    suspend fun saveTagsAtomic(
+        tweetId: String,
+        tags: List<String>,
+    ) {
         val currentTags = getTagsForTweet(tweetId)
         currentTags.forEach { tag ->
             if (tag !in tags) deleteTweetTag(tweetId, tag)

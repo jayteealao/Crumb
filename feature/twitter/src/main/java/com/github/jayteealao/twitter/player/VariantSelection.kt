@@ -23,7 +23,6 @@ import com.github.jayteealao.crumbs.models.VideoVariant
  * (`feature/twitter/build.gradle`).
  */
 object VariantSelection {
-
     private const val HLS = "application/x-mpegurl"
     private const val DASH = "application/dash+xml"
     private const val MP4 = "video/mp4"
@@ -48,12 +47,14 @@ object VariantSelection {
      */
     fun toMediaItem(variants: List<VideoVariant>): MediaItem? {
         val variant = select(variants) ?: return null
-        val mimeType = when {
-            variant.contentType.equals(HLS, ignoreCase = true) -> MimeTypes.APPLICATION_M3U8
-            variant.contentType.equals(DASH, ignoreCase = true) -> MimeTypes.APPLICATION_MPD
-            else -> MimeTypes.VIDEO_MP4
-        }
-        return MediaItem.Builder()
+        val mimeType =
+            when {
+                variant.contentType.equals(HLS, ignoreCase = true) -> MimeTypes.APPLICATION_M3U8
+                variant.contentType.equals(DASH, ignoreCase = true) -> MimeTypes.APPLICATION_MPD
+                else -> MimeTypes.VIDEO_MP4
+            }
+        return MediaItem
+            .Builder()
             .setUri(variant.url)
             .setMimeType(mimeType)
             .build()

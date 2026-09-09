@@ -18,22 +18,24 @@ data class CrumbsColors(
     val offsetShadow: Color,
 )
 
-val LightColors = CrumbsColors(
-    background = Color(0xFFEFEEE9),
-    surface = Color(0xFFFFFFFF),
-    ink = Color(0xFF0A0A0A),
-    onSurfaceVariant = Color(0xFF535353),
-    accent = Color(0xFFFF5A1F),
-    onAccent = Color(0xFF0A0A0A),
-    error = Color(0xFFA40000),
-    success = Color(0xFF206040),
-    offsetShadow = Color(0xFF0A0A0A),
-)
+val LightColors =
+    CrumbsColors(
+        background = Color(0xFFEFEEE9),
+        surface = Color(0xFFFFFFFF),
+        ink = Color(0xFF0A0A0A),
+        onSurfaceVariant = Color(0xFF535353),
+        accent = Color(0xFFFF5A1F),
+        onAccent = Color(0xFF0A0A0A),
+        error = Color(0xFFA40000),
+        success = Color(0xFF206040),
+        offsetShadow = Color(0xFF0A0A0A),
+    )
 
-val DarkColors = LightColors.copy(
-    background = Color(0xFF0B0B0B),
-    surface = Color(0xFF161616),
-    ink = Color(0xFFFFFFFF),
-    onSurfaceVariant = Color(0xFF9A9A9A),
-    offsetShadow = Color(0xFFFFFFFF),
-)
+val DarkColors =
+    LightColors.copy(
+        background = Color(0xFF0B0B0B),
+        surface = Color(0xFF161616),
+        ink = Color(0xFFFFFFFF),
+        onSurfaceVariant = Color(0xFF9A9A9A),
+        offsetShadow = Color(0xFFFFFFFF),
+    )

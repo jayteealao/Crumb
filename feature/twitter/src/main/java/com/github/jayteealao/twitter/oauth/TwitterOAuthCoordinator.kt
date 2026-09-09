@@ -29,101 +29,119 @@ import javax.inject.Singleton
  * the HMAC-signed state JWT minted server-side. See RFC 9700 / OAuth 2.1.
  */
 @Singleton
-class TwitterOAuthCoordinator @Inject constructor(
-    private val functions: FirebaseFunctions,
-) {
-    private val _results = MutableSharedFlow<OAuthResult>(replay = 0, extraBufferCapacity = 1)
-    val results: SharedFlow<OAuthResult> = _results.asSharedFlow()
+class TwitterOAuthCoordinator
+    @Inject
+    constructor(
+        private val functions: FirebaseFunctions,
+    ) {
+        private val _results = MutableSharedFlow<OAuthResult>(replay = 0, extraBufferCapacity = 1)
+        val results: SharedFlow<OAuthResult> = _results.asSharedFlow()
 
-    suspend fun launchAuthorize(activity: Activity) {
-        val verifier = generateCodeVerifier()
-        val challenge = sha256Base64Url(verifier)
+        suspend fun launchAuthorize(activity: Activity) {
+            val verifier = generateCodeVerifier()
+            val challenge = sha256Base64Url(verifier)
 
-        // Fire-and-forget warmup — keeps the oauthCallback Cloud Run instance
-        // hot while the user is in the Custom Tab. Errors are swallowed.
-        runCatching {
-            functions.getHttpsCallable("warmUp").call().await()
-        }.onFailure { Timber.w(it, "warmUp ping failed") }
+            // Fire-and-forget warmup — keeps the oauthCallback Cloud Run instance
+            // hot while the user is in the Custom Tab. Errors are swallowed.
+            runCatching {
+                functions.getHttpsCallable("warmUp").call().await()
+            }.onFailure { Timber.w(it, "warmUp ping failed") }
 
-        val state = try {
-            val data = mapOf("code_verifier" to verifier)
-            val result = functions.getHttpsCallable("mintOAuthState").call(data).await()
-            @Suppress("UNCHECKED_CAST")
-            val payload = result.data as? Map<String, Any?>
-            payload?.get("state") as? String
-                ?: throw IllegalStateException("mintOAuthState returned no state")
-        } catch (e: FirebaseFunctionsException) {
-            Timber.e(e, "mintOAuthState failed: ${e.code}")
-            if (e.code == FirebaseFunctionsException.Code.UNAUTHENTICATED) {
-                // Surface as a distinct reason so the UI can show a sign-in-specific message
-                // rather than the generic "Couldn't connect to X" toast.
-                _results.tryEmit(OAuthResult.Failure(OAuthResult.Failure.REASON_UNAUTHENTICATED))
-            } else {
-                _results.tryEmit(OAuthResult.Failure("mint_state_failed"))
-            }
-            return
+            val state =
+                try {
+                    val data = mapOf("code_verifier" to verifier)
+                    val result = functions.getHttpsCallable("mintOAuthState").call(data).await()
+
+                    @Suppress("UNCHECKED_CAST")
+                    val payload = result.data as? Map<String, Any?>
+                    payload?.get("state") as? String
+                        ?: throw IllegalStateException("mintOAuthState returned no state")
+                } catch (e: FirebaseFunctionsException) {
+                    Timber.e(e, "mintOAuthState failed: ${e.code}")
+                    if (e.code == FirebaseFunctionsException.Code.UNAUTHENTICATED) {
+                        // Surface as a distinct reason so the UI can show a sign-in-specific message
+                        // rather than the generic "Couldn't connect to X" toast.
+                        _results.tryEmit(OAuthResult.Failure(OAuthResult.Failure.REASON_UNAUTHENTICATED))
+                    } else {
+                        _results.tryEmit(OAuthResult.Failure("mint_state_failed"))
+                    }
+                    return
+                }
+
+            val authorizeUrl = buildAuthorizeUrl(state, challenge)
+            val intent =
+                CustomTabsIntent
+                    .Builder()
+                    .setShowTitle(true)
+                    .build()
+            intent.launchUrl(activity, Uri.parse(authorizeUrl))
         }
 
-        val authorizeUrl = buildAuthorizeUrl(state, challenge)
-        val intent = CustomTabsIntent.Builder()
-            .setShowTitle(true)
-            .build()
-        intent.launchUrl(activity, Uri.parse(authorizeUrl))
-    }
+        /**
+         * Called from the NavHost when the deep-link receipt fires. Parses the
+         * URI and emits the result on the shared flow. Safe to call repeatedly.
+         */
+        fun handleDeepLink(uri: Uri) {
+            when (uri.path) {
+                PATH_COMPLETE -> {
+                    _results.tryEmit(OAuthResult.Success)
+                }
 
-    /**
-     * Called from the NavHost when the deep-link receipt fires. Parses the
-     * URI and emits the result on the shared flow. Safe to call repeatedly.
-     */
-    fun handleDeepLink(uri: Uri) {
-        when (uri.path) {
-            PATH_COMPLETE -> _results.tryEmit(OAuthResult.Success)
-            PATH_ERROR -> {
-                val reason = uri.getQueryParameter("reason") ?: "unknown"
-                _results.tryEmit(OAuthResult.Failure(reason))
+                PATH_ERROR -> {
+                    val reason = uri.getQueryParameter("reason") ?: "unknown"
+                    _results.tryEmit(OAuthResult.Failure(reason))
+                }
+
+                else -> {
+                    Timber.w("TwitterOAuthCoordinator: unknown deep-link path ${uri.path}")
+                }
             }
-            else -> Timber.w("TwitterOAuthCoordinator: unknown deep-link path ${uri.path}")
+        }
+
+        private fun generateCodeVerifier(): String {
+            val bytes = ByteArray(VERIFIER_BYTES)
+            SecureRandom().nextBytes(bytes)
+            return Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
+        }
+
+        private fun sha256Base64Url(input: String): String {
+            val digest = MessageDigest.getInstance("SHA-256").digest(input.toByteArray(Charsets.US_ASCII))
+            return Base64.encodeToString(digest, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
+        }
+
+        private fun buildAuthorizeUrl(
+            state: String,
+            challenge: String,
+        ): String {
+            val clientId = BuildConfig.TWITTER_CLIENT_ID
+            return "https://x.com/i/oauth2/authorize" +
+                "?response_type=code" +
+                "&client_id=" + Uri.encode(clientId) +
+                "&redirect_uri=" + Uri.encode(REDIRECT_URI) +
+                "&scope=" + Uri.encode("tweet.read bookmark.read users.read offline.access") +
+                "&state=" + Uri.encode(state) +
+                "&code_challenge=" + Uri.encode(challenge) +
+                "&code_challenge_method=S256"
+        }
+
+        companion object {
+            private const val VERIFIER_BYTES = 32
+            private const val REDIRECT_URI =
+                "https://europe-west2-crumbs-a4fdb.cloudfunctions.net/oauthCallback"
+            const val PATH_COMPLETE = "/x-oauth-complete"
+            const val PATH_ERROR = "/x-oauth-error"
+            const val SCHEME_HOST = "crumbs://graphitenerd.xyz"
+            const val DEEP_LINK_COMPLETE = "$SCHEME_HOST$PATH_COMPLETE"
+            const val DEEP_LINK_ERROR = "$SCHEME_HOST$PATH_ERROR"
         }
     }
-
-    private fun generateCodeVerifier(): String {
-        val bytes = ByteArray(VERIFIER_BYTES)
-        SecureRandom().nextBytes(bytes)
-        return Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
-    }
-
-    private fun sha256Base64Url(input: String): String {
-        val digest = MessageDigest.getInstance("SHA-256").digest(input.toByteArray(Charsets.US_ASCII))
-        return Base64.encodeToString(digest, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
-    }
-
-    private fun buildAuthorizeUrl(state: String, challenge: String): String {
-        val clientId = BuildConfig.TWITTER_CLIENT_ID
-        return "https://x.com/i/oauth2/authorize" +
-            "?response_type=code" +
-            "&client_id=" + Uri.encode(clientId) +
-            "&redirect_uri=" + Uri.encode(REDIRECT_URI) +
-            "&scope=" + Uri.encode("tweet.read bookmark.read users.read offline.access") +
-            "&state=" + Uri.encode(state) +
-            "&code_challenge=" + Uri.encode(challenge) +
-            "&code_challenge_method=S256"
-    }
-
-    companion object {
-        private const val VERIFIER_BYTES = 32
-        private const val REDIRECT_URI =
-            "https://europe-west2-crumbs-a4fdb.cloudfunctions.net/oauthCallback"
-        const val PATH_COMPLETE = "/x-oauth-complete"
-        const val PATH_ERROR = "/x-oauth-error"
-        const val SCHEME_HOST = "crumbs://graphitenerd.xyz"
-        const val DEEP_LINK_COMPLETE = "$SCHEME_HOST$PATH_COMPLETE"
-        const val DEEP_LINK_ERROR = "$SCHEME_HOST$PATH_ERROR"
-    }
-}
 
 sealed class OAuthResult {
     object Success : OAuthResult()
-    data class Failure(val reason: String) : OAuthResult() {
+
+    data class Failure(
+        val reason: String,
+    ) : OAuthResult() {
         companion object {
             /** Reason code emitted when the Firebase Auth session is absent. */
             const val REASON_UNAUTHENTICATED = "unauthenticated"

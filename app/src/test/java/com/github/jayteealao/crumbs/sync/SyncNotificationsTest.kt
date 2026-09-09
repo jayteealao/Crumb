@@ -36,7 +36,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class SyncNotificationsTest {
-
     private lateinit var application: Application
     private lateinit var notificationManager: NotificationManager
 
@@ -49,11 +48,9 @@ class SyncNotificationsTest {
         notificationManager = application.getSystemService(NotificationManager::class.java)
     }
 
-    private fun textOf(notification: Notification): String? =
-        notification.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
+    private fun textOf(notification: Notification): String? = notification.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
 
-    private fun titleOf(notification: Notification): String? =
-        notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
+    private fun titleOf(notification: Notification): String? = notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
 
     @Test
     fun registerChannels_createsBothChannels_withExpectedImportance() {

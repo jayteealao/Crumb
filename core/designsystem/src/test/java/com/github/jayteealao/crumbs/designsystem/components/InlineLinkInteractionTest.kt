@@ -37,7 +37,6 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class InlineLinkInteractionTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -53,41 +52,46 @@ class InlineLinkInteractionTest {
      * AnnotatedString is built, not before). We use a short, single-line body so
      * the link span is always visible and tappable.
      */
-    private val textWithLinks = Bookmark(
-        id = "inline-1",
-        source = BookmarkSource.Twitter,
-        author = "@reader",
-        title = "Article round-up",
-        // previewText: "Read https://t.co/aaa and https://t.co/bbb for info."
-        // link1 covers [5, 26), link2 covers [31, 52) — 21 chars each (t.co length)
-        previewText = "Read https://t.co/aaa and https://t.co/bbb for info.",
-        contentType = ContentType.Text,
-        savedAt = System.currentTimeMillis() - 3600000,
-        sourceUrl = "https://twitter.com/i/web/status/900",
-        textLinks = listOf(
-            BookmarkTextLink(
-                start = 5, end = 26,
-                displayUrl = "example.com/a",
-                expandedUrl = "https://example.com/a",
-            ),
-            BookmarkTextLink(
-                start = 31, end = 52,
-                displayUrl = "other.org/b",
-                expandedUrl = "https://other.org/b",
-            ),
-        ),
-    )
+    private val textWithLinks =
+        Bookmark(
+            id = "inline-1",
+            source = BookmarkSource.Twitter,
+            author = "@reader",
+            title = "Article round-up",
+            // previewText: "Read https://t.co/aaa and https://t.co/bbb for info."
+            // link1 covers [5, 26), link2 covers [31, 52) — 21 chars each (t.co length)
+            previewText = "Read https://t.co/aaa and https://t.co/bbb for info.",
+            contentType = ContentType.Text,
+            savedAt = System.currentTimeMillis() - 3600000,
+            sourceUrl = "https://twitter.com/i/web/status/900",
+            textLinks =
+                listOf(
+                    BookmarkTextLink(
+                        start = 5,
+                        end = 26,
+                        displayUrl = "example.com/a",
+                        expandedUrl = "https://example.com/a",
+                    ),
+                    BookmarkTextLink(
+                        start = 31,
+                        end = 52,
+                        displayUrl = "other.org/b",
+                        expandedUrl = "https://other.org/b",
+                    ),
+                ),
+        )
 
-    private val textWithNoLinks = Bookmark(
-        id = "inline-2",
-        source = BookmarkSource.Twitter,
-        author = "@plain",
-        title = "No links here",
-        previewText = "Just a plain tweet with no URL entities at all.",
-        contentType = ContentType.Text,
-        savedAt = System.currentTimeMillis() - 3600000,
-        sourceUrl = "https://twitter.com/i/web/status/901",
-    )
+    private val textWithNoLinks =
+        Bookmark(
+            id = "inline-2",
+            source = BookmarkSource.Twitter,
+            author = "@plain",
+            title = "No links here",
+            previewText = "Just a plain tweet with no URL entities at all.",
+            contentType = ContentType.Text,
+            savedAt = System.currentTimeMillis() - 3600000,
+            sourceUrl = "https://twitter.com/i/web/status/901",
+        )
 
     @Test
     fun cardBodyTap_routesToOnCardClick_notOnLinkClick_forNoLinkBookmark() {

@@ -54,10 +54,11 @@ fun CrumbsVideoViewer(
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Box(
-            modifier = modifier
-                .fillMaxSize()
-                .background(colors.ink)
-                .testTag("video-viewer-screen"),
+            modifier =
+                modifier
+                    .fillMaxSize()
+                    .background(colors.ink)
+                    .testTag("video-viewer-screen"),
         ) {
             ContentFrame(
                 player = player,
@@ -78,14 +79,15 @@ fun CrumbsVideoViewer(
                 text = "[ CLOSE ]",
                 style = typography.captionMono,
                 color = colors.ink,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(16.dp)
-                    .background(colors.surface)
-                    .border(stroke.regular, colors.ink, shapes.card)
-                    .clickable { onDismiss() }
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                    .testTag("video-viewer-close"),
+                modifier =
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(16.dp)
+                        .background(colors.surface)
+                        .border(stroke.regular, colors.ink, shapes.card)
+                        .clickable { onDismiss() }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .testTag("video-viewer-close"),
             )
         }
     }

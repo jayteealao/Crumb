@@ -25,21 +25,26 @@ fun Modifier.dashedBorder(
     dashLengthDp: Dp = 4.dp,
     gapDp: Dp = CrumbsSpacing.dashGap,
     shape: Shape? = null,
-): Modifier = this.drawWithContent {
-    drawContent()
-    val strokePx = width.toPx()
-    val dashPx = dashLengthDp.toPx()
-    val gapPx = gapDp.toPx()
-    val effect = PathEffect.dashPathEffect(floatArrayOf(dashPx, gapPx), 0f)
-    val path = shape?.toBorderPath(size, this) ?: Path().apply {
-        addRect(androidx.compose.ui.geometry.Rect(Offset.Zero, size))
+): Modifier =
+    this.drawWithContent {
+        drawContent()
+        val strokePx = width.toPx()
+        val dashPx = dashLengthDp.toPx()
+        val gapPx = gapDp.toPx()
+        val effect = PathEffect.dashPathEffect(floatArrayOf(dashPx, gapPx), 0f)
+        val path =
+            shape?.toBorderPath(size, this) ?: Path().apply {
+                addRect(
+                    androidx.compose.ui.geometry
+                        .Rect(Offset.Zero, size),
+                )
+            }
+        drawPath(
+            path = path,
+            color = color,
+            style = Stroke(width = strokePx, cap = StrokeCap.Butt, pathEffect = effect),
+        )
     }
-    drawPath(
-        path = path,
-        color = color,
-        style = Stroke(width = strokePx, cap = StrokeCap.Butt, pathEffect = effect),
-    )
-}
 
 // Modifier.dashedDivider — single horizontal dashed line of the given height.
 // Convenience wrapper used by CrumbsBookmarkCard footer.
@@ -48,24 +53,28 @@ fun Modifier.dashedDivider(
     strokeWidth: Dp = 1.dp,
     dashLengthDp: Dp = 4.dp,
     gapDp: Dp = CrumbsSpacing.dashGap,
-): Modifier = this.drawWithContent {
-    drawContent()
-    val strokePx = strokeWidth.toPx()
-    val dashPx = dashLengthDp.toPx()
-    val gapPx = gapDp.toPx()
-    val effect = PathEffect.dashPathEffect(floatArrayOf(dashPx, gapPx), 0f)
-    val y = size.height / 2f
-    drawLine(
-        color = color,
-        start = Offset(0f, y),
-        end = Offset(size.width, y),
-        strokeWidth = strokePx,
-        pathEffect = effect,
-        cap = StrokeCap.Butt,
-    )
-}
+): Modifier =
+    this.drawWithContent {
+        drawContent()
+        val strokePx = strokeWidth.toPx()
+        val dashPx = dashLengthDp.toPx()
+        val gapPx = gapDp.toPx()
+        val effect = PathEffect.dashPathEffect(floatArrayOf(dashPx, gapPx), 0f)
+        val y = size.height / 2f
+        drawLine(
+            color = color,
+            start = Offset(0f, y),
+            end = Offset(size.width, y),
+            strokeWidth = strokePx,
+            pathEffect = effect,
+            cap = StrokeCap.Butt,
+        )
+    }
 
-private fun Shape.toBorderPath(size: Size, density: Density): Path {
+private fun Shape.toBorderPath(
+    size: Size,
+    density: Density,
+): Path {
     val outline = createOutline(size, androidx.compose.ui.unit.LayoutDirection.Ltr, density)
     return Path().apply {
         addOutline(outline)

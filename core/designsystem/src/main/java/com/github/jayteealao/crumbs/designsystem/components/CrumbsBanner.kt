@@ -38,35 +38,37 @@ fun CrumbsBanner(
     detail: String,
     modifier: Modifier = Modifier,
     ctaLabel: String? = null,
-    onCta: (() -> Unit)? = null
+    onCta: (() -> Unit)? = null,
 ) {
     val colors = LocalCrumbsColors.current
     val stroke = LocalCrumbsStroke.current
     val typography = LocalCrumbsTypography.current
 
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(colors.surface)
-            // Polite liveRegion: screen readers announce kicker+detail when the
-            // banner appears (e.g., after a 401), without interrupting the user's
-            // current focus. The CTA below is independently focusable.
-            .semantics(mergeDescendants = false) {
-                liveRegion = LiveRegionMode.Polite
-                contentDescription = "$kickerLine. $detail"
-            }
-            .testTag("banner"),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .background(colors.surface)
+                // Polite liveRegion: screen readers announce kicker+detail when the
+                // banner appears (e.g., after a 401), without interrupting the user's
+                // current focus. The CTA below is independently focusable.
+                .semantics(mergeDescendants = false) {
+                    liveRegion = LiveRegionMode.Polite
+                    contentDescription = "$kickerLine. $detail"
+                }.testTag("banner"),
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(stroke.regular)
-                .background(colors.ink),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(stroke.regular)
+                    .background(colors.ink),
         )
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
@@ -87,23 +89,24 @@ fun CrumbsBanner(
                     text = ctaLabel.uppercase(),
                     style = typography.captionMono,
                     color = colors.accent,
-                    modifier = Modifier
-                        .semantics(mergeDescendants = true) {
-                            role = Role.Button
-                            contentDescription = ctaLabel
-                        }
-                        .minimumInteractiveComponentSize()
-                        .clickable { onCta() }
-                        .padding(horizontal = 4.dp)
-                        .testTag("banner-cta"),
+                    modifier =
+                        Modifier
+                            .semantics(mergeDescendants = true) {
+                                role = Role.Button
+                                contentDescription = ctaLabel
+                            }.minimumInteractiveComponentSize()
+                            .clickable { onCta() }
+                            .padding(horizontal = 4.dp)
+                            .testTag("banner-cta"),
                 )
             }
         }
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(stroke.regular)
-                .background(colors.ink),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(stroke.regular)
+                    .background(colors.ink),
         )
     }
 }

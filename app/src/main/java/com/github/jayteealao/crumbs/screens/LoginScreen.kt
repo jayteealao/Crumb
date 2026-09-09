@@ -105,11 +105,12 @@ fun LoginScreen(
 
     Box(modifier = modifier.fillMaxSize().background(colors.background)) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(horizontal = spacing.xl)
-                .testTag("login-screen"),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(horizontal = spacing.xl)
+                    .testTag("login-screen"),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.Start,
         ) {
@@ -141,9 +142,10 @@ fun LoginScreen(
                     onClick = onSignOutFirebase,
                     text = "SIGN OUT",
                     style = ButtonStyle.Secondary,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("login-firebase-signout"),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .testTag("login-firebase-signout"),
                 )
             } else {
                 CrumbsButton(
@@ -151,19 +153,21 @@ fun LoginScreen(
                     text = if (uiState.firebaseSigningIn) "SIGNING IN…" else "CONTINUE WITH GOOGLE",
                     style = ButtonStyle.Primary,
                     enabled = !uiState.firebaseSigningIn,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("login-google-cta"),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .testTag("login-google-cta"),
                 )
                 Spacer(modifier = Modifier.height(spacing.sm))
                 Text(
                     text = "SIGN IN WITH EMAIL INSTEAD",
                     style = typography.captionMono.copy(textDecoration = TextDecoration.Underline),
                     color = colors.ink,
-                    modifier = Modifier
-                        .testTag("login-email-link")
-                        .clickable(enabled = !uiState.firebaseSigningIn) { onSignInWithEmail() }
-                        .padding(vertical = spacing.xs),
+                    modifier =
+                        Modifier
+                            .testTag("login-email-link")
+                            .clickable(enabled = !uiState.firebaseSigningIn) { onSignInWithEmail() }
+                            .padding(vertical = spacing.xs),
                 )
             }
 
@@ -182,12 +186,13 @@ fun LoginScreen(
             // Twitter row — unchanged from prior brutalist surface.
             if (uiState.twitterConnected && uiState.twitterUsername.isNotBlank()) {
                 UserProfileDisplay(
-                    profile = UserProfile(
-                        username = uiState.twitterUsername,
-                        displayName = uiState.twitterDisplayName.ifBlank { "@${uiState.twitterUsername}" },
-                        avatarUrl = uiState.twitterAvatarUrl,
-                        source = BookmarkSource.Twitter,
-                    ),
+                    profile =
+                        UserProfile(
+                            username = uiState.twitterUsername,
+                            displayName = uiState.twitterDisplayName.ifBlank { "@${uiState.twitterUsername}" },
+                            avatarUrl = uiState.twitterAvatarUrl,
+                            source = BookmarkSource.Twitter,
+                        ),
                     size = ProfileSize.Medium,
                     modifier = Modifier.testTag("login-twitter-profile"),
                 )
@@ -196,18 +201,20 @@ fun LoginScreen(
                     onClick = onLogoutTwitter,
                     text = "LOGOUT TWITTER",
                     style = ButtonStyle.Secondary,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("login-twitter-logout"),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .testTag("login-twitter-logout"),
                 )
             } else {
                 CrumbsButton(
                     onClick = onConnectTwitter,
                     text = "CONNECT TWITTER",
                     style = ButtonStyle.Secondary,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("login-twitter-cta"),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .testTag("login-twitter-cta"),
                 )
             }
             Spacer(modifier = Modifier.height(spacing.md))
@@ -215,12 +222,13 @@ fun LoginScreen(
             // Reddit row — unchanged.
             if (uiState.redditConnected && uiState.redditUsername.isNotBlank()) {
                 UserProfileDisplay(
-                    profile = UserProfile(
-                        username = uiState.redditUsername,
-                        displayName = "u/${uiState.redditUsername}",
-                        avatarUrl = "",
-                        source = BookmarkSource.Reddit,
-                    ),
+                    profile =
+                        UserProfile(
+                            username = uiState.redditUsername,
+                            displayName = "u/${uiState.redditUsername}",
+                            avatarUrl = "",
+                            source = BookmarkSource.Reddit,
+                        ),
                     size = ProfileSize.Medium,
                     modifier = Modifier.testTag("login-reddit-profile"),
                 )
@@ -229,18 +237,20 @@ fun LoginScreen(
                     onClick = onLogoutReddit,
                     text = "LOGOUT REDDIT",
                     style = ButtonStyle.Secondary,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("login-reddit-logout"),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .testTag("login-reddit-logout"),
                 )
             } else {
                 CrumbsButton(
                     onClick = onConnectReddit,
                     text = "CONNECT REDDIT",
                     style = ButtonStyle.Secondary,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("login-reddit-cta"),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .testTag("login-reddit-cta"),
                 )
             }
 
@@ -250,9 +260,10 @@ fun LoginScreen(
                     onClick = onSkipAuth,
                     text = "SKIP AUTH (DEBUG)",
                     style = ButtonStyle.Secondary,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("login-skip-auth"),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .testTag("login-skip-auth"),
                 )
             }
         }
@@ -282,12 +293,15 @@ private fun EmailPasswordSignInDialog(
     var password by rememberSaveable { mutableStateOf("") }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            // Tap-outside-to-dismiss; matches the brutalist no-chrome aesthetic.
-            .semantics { role = Role.Button; contentDescription = "Dismiss dialog" }
-            .clickable(onClickLabel = "Dismiss", onClick = onDismiss)
-            .testTag("login-email-dialog-scrim"),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                // Tap-outside-to-dismiss; matches the brutalist no-chrome aesthetic.
+                .semantics {
+                    role = Role.Button
+                    contentDescription = "Dismiss dialog"
+                }.clickable(onClickLabel = "Dismiss", onClick = onDismiss)
+                .testTag("login-email-dialog-scrim"),
         contentAlignment = Alignment.Center,
     ) {
         // Hatched-scrim brush replaces the plain alpha-60 black backdrop so
@@ -298,14 +312,15 @@ private fun EmailPasswordSignInDialog(
             baseAlpha = 0.32f,
         )
         Column(
-            modifier = Modifier
-                .fillMaxWidth(0.86f)
-                .background(colors.surface)
-                .border(stroke.regular, colors.ink)
-                .padding(spacing.lg)
-                // Swallow scrim taps inside the card so typing doesn't dismiss.
-                .clickable(enabled = false) {}
-                .testTag("login-email-dialog"),
+            modifier =
+                Modifier
+                    .fillMaxWidth(0.86f)
+                    .background(colors.surface)
+                    .border(stroke.regular, colors.ink)
+                    .padding(spacing.lg)
+                    // Swallow scrim taps inside the card so typing doesn't dismiss.
+                    .clickable(enabled = false) {}
+                    .testTag("login-email-dialog"),
         ) {
             Text(
                 text = if (isCollision) "EXISTING ACCOUNT FOUND" else "SIGN IN WITH EMAIL",
@@ -314,11 +329,12 @@ private fun EmailPasswordSignInDialog(
             )
             Spacer(modifier = Modifier.height(spacing.xs))
             Text(
-                text = if (isCollision) {
-                    "AN ACCOUNT WITH THIS EMAIL ALREADY EXISTS.\nSIGN IN WITH YOUR PASSWORD TO CONNECT YOUR GOOGLE ACCOUNT."
-                } else {
-                    "ENTER YOUR EMAIL AND PASSWORD."
-                },
+                text =
+                    if (isCollision) {
+                        "AN ACCOUNT WITH THIS EMAIL ALREADY EXISTS.\nSIGN IN WITH YOUR PASSWORD TO CONNECT YOUR GOOGLE ACCOUNT."
+                    } else {
+                        "ENTER YOUR EMAIL AND PASSWORD."
+                    },
                 style = typography.bodyMono,
                 color = colors.onSurfaceVariant,
             )
@@ -331,12 +347,13 @@ private fun EmailPasswordSignInDialog(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                 textStyle = typography.bodyMono.copy(color = colors.ink),
                 cursorBrush = SolidColor(colors.ink),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(stroke.regular, colors.ink)
-                    .padding(horizontal = spacing.sm, vertical = spacing.sm)
-                    .semantics { contentDescription = "Email" }
-                    .testTag("login-email-field"),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .border(stroke.regular, colors.ink)
+                        .padding(horizontal = spacing.sm, vertical = spacing.sm)
+                        .semantics { contentDescription = "Email" }
+                        .testTag("login-email-field"),
             )
             Spacer(modifier = Modifier.height(spacing.sm))
             BasicTextField(
@@ -347,12 +364,13 @@ private fun EmailPasswordSignInDialog(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 textStyle = typography.bodyMono.copy(color = colors.ink),
                 cursorBrush = SolidColor(colors.ink),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(stroke.regular, colors.ink)
-                    .padding(horizontal = spacing.sm, vertical = spacing.sm)
-                    .semantics { contentDescription = "Password" }
-                    .testTag("login-password-field"),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .border(stroke.regular, colors.ink)
+                        .padding(horizontal = spacing.sm, vertical = spacing.sm)
+                        .semantics { contentDescription = "Password" }
+                        .testTag("login-password-field"),
             )
 
             Spacer(modifier = Modifier.height(spacing.lg))
@@ -361,20 +379,22 @@ private fun EmailPasswordSignInDialog(
                 text = if (isCollision) "SIGN IN & LINK" else "SIGN IN",
                 style = ButtonStyle.Primary,
                 enabled = email.isNotBlank() && password.isNotBlank(),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("login-email-submit"),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .testTag("login-email-submit"),
             )
             Spacer(modifier = Modifier.height(spacing.sm))
             Text(
                 text = "CANCEL",
                 style = typography.captionMono.copy(textDecoration = TextDecoration.Underline),
                 color = colors.ink,
-                modifier = Modifier
-                    .testTag("login-email-cancel")
-                    .semantics { role = Role.Button }
-                    .clickable(onClickLabel = "Cancel", onClick = onDismiss)
-                    .padding(vertical = spacing.xs),
+                modifier =
+                    Modifier
+                        .testTag("login-email-cancel")
+                        .semantics { role = Role.Button }
+                        .clickable(onClickLabel = "Cancel", onClick = onDismiss)
+                        .padding(vertical = spacing.xs),
             )
         }
     }
@@ -398,12 +418,13 @@ private fun PreviewLoginLight() {
 private fun PreviewLoginDark() {
     CrumbsTheme(darkTheme = true) {
         LoginScreen(
-            uiState = LoginUiState(
-                twitterConnected = true,
-                twitterUsername = "design",
-                twitterDisplayName = "@design",
-                redditConnected = false,
-            ),
+            uiState =
+                LoginUiState(
+                    twitterConnected = true,
+                    twitterUsername = "design",
+                    twitterDisplayName = "@design",
+                    redditConnected = false,
+                ),
             onConnectTwitter = {},
             onConnectReddit = {},
             onSkipAuth = {},

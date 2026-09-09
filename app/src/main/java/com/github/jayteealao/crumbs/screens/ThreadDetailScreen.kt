@@ -81,9 +81,10 @@ fun ThreadDetailScreen(
         ThreadDetailBody(
             uiState = uiState,
             onRootCardClick = onRootCardClick,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding),
         )
     }
 }
@@ -100,27 +101,37 @@ private fun ThreadDetailBody(
 
     Box(modifier = modifier.background(colors.background)) {
         when (uiState) {
-            ThreadDetailUiState.Loading -> Text(
-                text = "Loading thread…",
-                style = typography.bodyMono,
-                color = colors.onSurfaceVariant,
-                modifier = Modifier
-                    .padding(spacing.lg)
-                    .testTag("thread-detail-loading"),
-            )
-            is ThreadDetailUiState.Error -> Text(
-                text = uiState.message,
-                style = typography.bodyMono,
-                color = colors.ink,
-                modifier = Modifier
-                    .padding(spacing.lg)
-                    .testTag("thread-detail-error"),
-            )
-            is ThreadDetailUiState.Loaded -> LoadedThread(
-                root = uiState.root,
-                replies = uiState.replies,
-                onRootCardClick = onRootCardClick,
-            )
+            ThreadDetailUiState.Loading -> {
+                Text(
+                    text = "Loading thread…",
+                    style = typography.bodyMono,
+                    color = colors.onSurfaceVariant,
+                    modifier =
+                        Modifier
+                            .padding(spacing.lg)
+                            .testTag("thread-detail-loading"),
+                )
+            }
+
+            is ThreadDetailUiState.Error -> {
+                Text(
+                    text = uiState.message,
+                    style = typography.bodyMono,
+                    color = colors.ink,
+                    modifier =
+                        Modifier
+                            .padding(spacing.lg)
+                            .testTag("thread-detail-error"),
+                )
+            }
+
+            is ThreadDetailUiState.Loaded -> {
+                LoadedThread(
+                    root = uiState.root,
+                    replies = uiState.replies,
+                    onRootCardClick = onRootCardClick,
+                )
+            }
         }
     }
 }
@@ -133,15 +144,17 @@ private fun LoadedThread(
 ) {
     val spacing = LocalCrumbsSpacing.current
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .testTag("thread-detail-feed"),
-        contentPadding = PaddingValues(
-            start = spacing.lg,
-            end = spacing.lg,
-            top = spacing.md,
-            bottom = spacing.lg,
-        ),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .testTag("thread-detail-feed"),
+        contentPadding =
+            PaddingValues(
+                start = spacing.lg,
+                end = spacing.lg,
+                top = spacing.md,
+                bottom = spacing.lg,
+            ),
         verticalArrangement = Arrangement.spacedBy(spacing.md),
     ) {
         item("root") {
@@ -179,9 +192,10 @@ private fun EmptyRepliesNote() {
         text = "No bookmarked replies in this thread.",
         style = typography.bodyMono,
         color = colors.onSurfaceVariant,
-        modifier = Modifier
-            .padding(top = spacing.lg)
-            .testTag("thread-detail-empty-replies"),
+        modifier =
+            Modifier
+                .padding(top = spacing.lg)
+                .testTag("thread-detail-empty-replies"),
     )
 }
 
@@ -207,9 +221,10 @@ private fun ThreadReplyRow(
             modifier = Modifier.padding(vertical = spacing.sm),
         ) {
             Box(
-                modifier = Modifier
-                    .size(22.dp)
-                    .background(colors.ink),
+                modifier =
+                    Modifier
+                        .size(22.dp)
+                        .background(colors.ink),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -228,15 +243,16 @@ private fun ThreadReplyRow(
             )
         }
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(2.dp)
-                .dashedDivider(
-                    color = colors.ink,
-                    strokeWidth = stroke.hairline,
-                    dashLengthDp = 4.dp,
-                    gapDp = 3.dp,
-                ),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(2.dp)
+                    .dashedDivider(
+                        color = colors.ink,
+                        strokeWidth = stroke.hairline,
+                        dashLengthDp = 4.dp,
+                        gapDp = 3.dp,
+                    ),
         )
     }
 }
@@ -247,13 +263,15 @@ private fun PreviewThreadLoadedLight() {
     val root = sampleBookmark()
     CrumbsTheme(darkTheme = false) {
         ThreadDetailScreen(
-            uiState = ThreadDetailUiState.Loaded(
-                root = root,
-                replies = persistentListOf(
-                    root.copy(id = "r1", previewText = "Reply one — short answer."),
-                    root.copy(id = "r2", previewText = "Reply two — longer answer with more text."),
+            uiState =
+                ThreadDetailUiState.Loaded(
+                    root = root,
+                    replies =
+                        persistentListOf(
+                            root.copy(id = "r1", previewText = "Reply one — short answer."),
+                            root.copy(id = "r2", previewText = "Reply two — longer answer with more text."),
+                        ),
                 ),
-            ),
             onClose = {},
             onRootCardClick = {},
         )
@@ -265,25 +283,27 @@ private fun PreviewThreadLoadedLight() {
 private fun PreviewThreadEmptyDark() {
     CrumbsTheme(darkTheme = true) {
         ThreadDetailScreen(
-            uiState = ThreadDetailUiState.Loaded(
-                root = sampleBookmark(),
-                replies = persistentListOf(),
-            ),
+            uiState =
+                ThreadDetailUiState.Loaded(
+                    root = sampleBookmark(),
+                    replies = persistentListOf(),
+                ),
             onClose = {},
             onRootCardClick = {},
         )
     }
 }
 
-private fun sampleBookmark() = Bookmark(
-    id = "root-1",
-    source = BookmarkSource.Twitter,
-    author = "@compose",
-    title = "Brutalist thread root",
-    previewText = "Root tweet preview text body content goes here.",
-    contentType = ContentType.Thread,
-    savedAt = 1730000000000L,
-    isThread = true,
-    threadCount = 3,
-    sourceUrl = "https://twitter.com/compose/status/root-1",
-)
+private fun sampleBookmark() =
+    Bookmark(
+        id = "root-1",
+        source = BookmarkSource.Twitter,
+        author = "@compose",
+        title = "Brutalist thread root",
+        previewText = "Root tweet preview text body content goes here.",
+        contentType = ContentType.Thread,
+        savedAt = 1730000000000L,
+        isThread = true,
+        threadCount = 3,
+        sourceUrl = "https://twitter.com/compose/status/root-1",
+    )

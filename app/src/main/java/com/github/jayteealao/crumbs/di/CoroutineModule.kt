@@ -15,7 +15,6 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 class CoroutineModule {
-
     @ApplicationScope
     @Singleton
     @Provides
@@ -24,9 +23,10 @@ class CoroutineModule {
         // CoroutineExceptionHandler: surface uncaught exceptions to Timber so
         // a transient network error in Repository.init does not silently kill
         // background sync for the process lifetime.
-        val handler = CoroutineExceptionHandler { _, throwable ->
-            Timber.e(throwable, "Uncaught exception in application coroutine scope")
-        }
+        val handler =
+            CoroutineExceptionHandler { _, throwable ->
+                Timber.e(throwable, "Uncaught exception in application coroutine scope")
+            }
         return CoroutineScope(SupervisorJob() + Dispatchers.IO + handler)
     }
 }

@@ -36,6 +36,7 @@ import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 private const val INDETERMINATE_ARC_SWEEP_FRACTION = 0.27f
 
 enum class ProgressSize { Small, Medium, Large }
+
 enum class ProgressStyle { Circular, Linear }
 
 @Composable
@@ -43,33 +44,36 @@ fun CrumbsProgressIndicator(
     modifier: Modifier = Modifier,
     size: ProgressSize = ProgressSize.Medium,
     style: ProgressStyle = ProgressStyle.Circular,
-    progress: Float? = null,                  // null = indeterminate, 0..1 = determinate
+    progress: Float? = null, // null = indeterminate, 0..1 = determinate
     color: Color? = null,
-    progressFraction: Float? = null,          // test override for indeterminate frame pinning
+    progressFraction: Float? = null, // test override for indeterminate frame pinning
 ) {
     val colors = LocalCrumbsColors.current
     val stroke = LocalCrumbsStroke.current
     val indicatorColor = color ?: colors.accent
     val trackColor = colors.onSurfaceVariant
 
-    val diameter = when (size) {
-        ProgressSize.Small -> 24.dp
-        ProgressSize.Medium -> 40.dp
-        ProgressSize.Large -> 56.dp
-    }
-    val strokeWidth = when (size) {
-        ProgressSize.Small -> 2.dp
-        ProgressSize.Medium -> stroke.regular
-        ProgressSize.Large -> stroke.emphasis
-    }
+    val diameter =
+        when (size) {
+            ProgressSize.Small -> 24.dp
+            ProgressSize.Medium -> 40.dp
+            ProgressSize.Large -> 56.dp
+        }
+    val strokeWidth =
+        when (size) {
+            ProgressSize.Small -> 2.dp
+            ProgressSize.Medium -> stroke.regular
+            ProgressSize.Large -> stroke.emphasis
+        }
 
     val animatedFraction by rememberInfiniteTransition(label = "progress").animateFloat(
         initialValue = 0f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(1200, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
         label = "progress-fraction",
     )
     val fraction = progressFraction ?: animatedFraction
@@ -101,8 +105,17 @@ fun CrumbsProgressIndicator(
                 )
             }
         }
+
         ProgressStyle.Linear -> {
-            Canvas(modifier.width(diameter * 4).size(width = diameter * 4, height = strokeWidth * 2).semantics { contentDescription = "Loading" }.testTag("progress-linear")) {
+            Canvas(
+                modifier
+                    .width(diameter * 4)
+                    .size(width = diameter * 4, height = strokeWidth * 2)
+                    .semantics {
+                        contentDescription =
+                            "Loading"
+                    }.testTag("progress-linear"),
+            ) {
                 val totalWidth = this.size.width
                 val totalHeight = this.size.height
                 drawRect(color = trackColor, size = this.size)
@@ -116,11 +129,13 @@ fun CrumbsProgressIndicator(
                     drawRect(
                         color = indicatorColor,
                         topLeft = Offset(x.coerceAtLeast(0f), 0f),
-                        size = Size(
-                            barWidth.coerceAtMost(totalWidth - x.coerceAtLeast(0f))
-                                .coerceAtLeast(0f),
-                            totalHeight,
-                        ),
+                        size =
+                            Size(
+                                barWidth
+                                    .coerceAtMost(totalWidth - x.coerceAtLeast(0f))
+                                    .coerceAtLeast(0f),
+                                totalHeight,
+                            ),
                     )
                 }
             }

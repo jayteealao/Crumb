@@ -43,33 +43,39 @@ internal fun assembleTweetEntities(
     // (or null when unavailable). The DAO batch inserts the quoted TweetEntity with
     // referenced=true, keeping it out of the feed.  The dangerous mention/reply FK
     // relation is intentionally NOT re-enabled; tweetIncludesEntity stays empty.
-    val referencedFull: List<TweetReferencedTweetsFull> = includes[tweetId].orEmpty()
-        .filter { it.type == "quoted" && it.referencedTweetId != null }
-        .distinctBy { it.referencedTweetId }
-        .map { inc ->
-            val refId = inc.referencedTweetId!!
-            TweetReferencedTweetsFull(
-                referencedTweets = TweetReferencedTweets(
-                    type = "quoted",
-                    id = refId,
-                    tweetId = tweetId,
-                ),
-                tweet = quotedTweets[refId]?.toTweetEntity(referenced = true),
-            )
-        }
+    val referencedFull: List<TweetReferencedTweetsFull> =
+        includes[tweetId]
+            .orEmpty()
+            .filter { it.type == "quoted" && it.referencedTweetId != null }
+            .distinctBy { it.referencedTweetId }
+            .map { inc ->
+                val refId = inc.referencedTweetId!!
+                TweetReferencedTweetsFull(
+                    referencedTweets =
+                        TweetReferencedTweets(
+                            type = "quoted",
+                            id = refId,
+                            tweetId = tweetId,
+                        ),
+                    tweet = quotedTweets[refId]?.toTweetEntity(referenced = true),
+                )
+            }
 
-    val quotedAuthorEntities = referencedFull
-        .mapNotNull { it.tweet }
-        .mapNotNull { quotedAuthors[it.authorId]?.toTwitterUserEntity() }
+    val quotedAuthorEntities =
+        referencedFull
+            .mapNotNull { it.tweet }
+            .mapNotNull { quotedAuthors[it.authorId]?.toTwitterUserEntity() }
 
-    val authorEntities = (listOf(user.toTwitterUserEntity()) + quotedAuthorEntities)
-        .distinctBy { it.id }
+    val authorEntities =
+        (listOf(user.toTwitterUserEntity()) + quotedAuthorEntities)
+            .distinctBy { it.id }
 
     return TweetEntities(
         tweetEntity = firestoreTweet.toTweetEntity(),
         twitterUserEntity = authorEntities,
-        tweetPublicMetrics = metrics[tweetId]?.toTweetPublicMetrics()
-            ?: tweetPublicMetrics().copy(tweetId = tweetId),
+        tweetPublicMetrics =
+            metrics[tweetId]?.toTweetPublicMetrics()
+                ?: tweetPublicMetrics().copy(tweetId = tweetId),
         // Thread the in-scope parent tweetId onto each media row. FirestoreMedia docs
         // carry no tweetId of their own (the server keys them by mediaKey), so without
         // this every tweetMedia row persists with tweet_id = NULL and the TweetData.media

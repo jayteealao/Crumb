@@ -22,7 +22,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.selected as semanticsSelected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -30,13 +29,16 @@ import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsTypography
+import androidx.compose.ui.semantics.selected as semanticsSelected
 
 // Brutalist CrumbsBottomNav — Material3 NavigationBar stripped.
 // Manual Row of 4 fixed-weight cells (TWITTER / REDDIT / ALL / MAP), each a
 // clickable Box. Selected cell flips to ink background + accent text. No
 // ripple. Hairline ink dividers between cells. 8dp safe-area below.
 
-enum class BottomNavTab(val label: String) {
+enum class BottomNavTab(
+    val label: String,
+) {
     TWITTER("Twitter"),
     REDDIT("Reddit"),
     ALL("All"),
@@ -47,43 +49,45 @@ enum class BottomNavTab(val label: String) {
 fun CrumbsBottomNav(
     selected: BottomNavTab,
     onTabSelected: (BottomNavTab) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val colors = LocalCrumbsColors.current
     val stroke = LocalCrumbsStroke.current
     val typography = LocalCrumbsTypography.current
 
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(colors.surface)
-            .testTag("bottom-nav"),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .background(colors.surface)
+                .testTag("bottom-nav"),
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(stroke.regular)
-                .background(colors.ink),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(stroke.regular)
+                    .background(colors.ink),
         )
         Row(modifier = Modifier.fillMaxWidth().height(52.dp)) {
             BottomNavTab.entries.forEachIndexed { index, tab ->
                 val isSelected = tab == selected
                 val interactionSource = remember { MutableInteractionSource() }
                 Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .background(if (isSelected) colors.ink else Color.Transparent)
-                        .semantics(mergeDescendants = true) {
-                            role = Role.Tab
-                            semanticsSelected = isSelected
-                            contentDescription = tab.label
-                        }
-                        .clickable(
-                            interactionSource = interactionSource,
-                            indication = null,
-                        ) { onTabSelected(tab) }
-                        .testTag("nav-tab-${tab.name.lowercase()}"),
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .background(if (isSelected) colors.ink else Color.Transparent)
+                            .semantics(mergeDescendants = true) {
+                                role = Role.Tab
+                                semanticsSelected = isSelected
+                                contentDescription = tab.label
+                            }.clickable(
+                                interactionSource = interactionSource,
+                                indication = null,
+                            ) { onTabSelected(tab) }
+                            .testTag("nav-tab-${tab.name.lowercase()}"),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
@@ -94,15 +98,22 @@ fun CrumbsBottomNav(
                 }
                 if (index < BottomNavTab.entries.size - 1) {
                     Box(
-                        modifier = Modifier
-                            .width(stroke.hairline)
-                            .fillMaxHeight()
-                            .background(colors.ink),
+                        modifier =
+                            Modifier
+                                .width(stroke.hairline)
+                                .fillMaxHeight()
+                                .background(colors.ink),
                     )
                 }
             }
         }
-        Spacer(Modifier.fillMaxWidth().height(8.dp).background(colors.surface).padding(0.dp))
+        Spacer(
+            Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .background(colors.surface)
+                .padding(0.dp),
+        )
     }
 }
 
@@ -111,7 +122,7 @@ fun CrumbsBottomNav(
 @Composable
 private fun PreviewBottomNavTwitterLight() {
     CrumbsTheme(darkTheme = false) {
-        CrumbsBottomNav(selected =BottomNavTab.TWITTER, onTabSelected = {})
+        CrumbsBottomNav(selected = BottomNavTab.TWITTER, onTabSelected = {})
     }
 }
 
@@ -119,7 +130,7 @@ private fun PreviewBottomNavTwitterLight() {
 @Composable
 private fun PreviewBottomNavTwitterDark() {
     CrumbsTheme(darkTheme = true) {
-        CrumbsBottomNav(selected =BottomNavTab.TWITTER, onTabSelected = {})
+        CrumbsBottomNav(selected = BottomNavTab.TWITTER, onTabSelected = {})
     }
 }
 
@@ -127,7 +138,7 @@ private fun PreviewBottomNavTwitterDark() {
 @Composable
 private fun PreviewBottomNavAllLight() {
     CrumbsTheme(darkTheme = false) {
-        CrumbsBottomNav(selected =BottomNavTab.ALL, onTabSelected = {})
+        CrumbsBottomNav(selected = BottomNavTab.ALL, onTabSelected = {})
     }
 }
 
@@ -135,6 +146,6 @@ private fun PreviewBottomNavAllLight() {
 @Composable
 private fun PreviewBottomNavMapLight() {
     CrumbsTheme(darkTheme = false) {
-        CrumbsBottomNav(selected =BottomNavTab.MAP, onTabSelected = {})
+        CrumbsBottomNav(selected = BottomNavTab.MAP, onTabSelected = {})
     }
 }

@@ -18,12 +18,15 @@ sealed class TopBarAction(
     val label: String,
 ) {
     data object Search : TopBarAction(Icons.Default.Search, "Search")
+
     data object SwitchToFeed : TopBarAction(Icons.AutoMirrored.Filled.ViewList, "Switch to feed")
+
     data object Close : TopBarAction(Icons.Default.Close, "Close")
 
     @Composable
-    fun bg(colors: CrumbsColors): Color = when (this) {
-        Search -> colors.accent
-        else -> colors.surface
-    }
+    fun bg(colors: CrumbsColors): Color =
+        when (this) {
+            Search -> colors.accent
+            else -> colors.surface
+        }
 }

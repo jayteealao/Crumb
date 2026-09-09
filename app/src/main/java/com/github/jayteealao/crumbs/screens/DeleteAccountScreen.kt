@@ -86,11 +86,12 @@ fun DeleteAccountScreen(
     var showConfirm by remember { mutableStateOf(false) }
 
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(colors.background)
-            .padding(horizontal = spacing.xl, vertical = spacing.xl)
-            .testTag("delete-account-screen"),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .background(colors.background)
+                .padding(horizontal = spacing.xl, vertical = spacing.xl)
+                .testTag("delete-account-screen"),
         horizontalAlignment = Alignment.Start,
         verticalArrangement = Arrangement.Top,
     ) {
@@ -108,8 +109,9 @@ fun DeleteAccountScreen(
         )
         Spacer(Modifier.height(spacing.xs))
         Text(
-            text = "Permanently deletes your account, all saved bookmarks, " +
-                "and your linked X credentials from this service.",
+            text =
+                "Permanently deletes your account, all saved bookmarks, " +
+                    "and your linked X credentials from this service.",
             style = typography.bodyMono,
             color = colors.onSurfaceVariant,
         )
@@ -137,11 +139,12 @@ fun DeleteAccountScreen(
         modifier = Modifier.testTag("delete-account-overlay"),
         body = {
             Column(
-                modifier = Modifier
-                    .background(colors.surface)
-                    .border(BorderStroke(stroke.regular, colors.ink))
-                    .padding(spacing.xl)
-                    .testTag("delete-account-confirm-dialog"),
+                modifier =
+                    Modifier
+                        .background(colors.surface)
+                        .border(BorderStroke(stroke.regular, colors.ink))
+                        .padding(spacing.xl)
+                        .testTag("delete-account-confirm-dialog"),
             ) {
                 Text(
                     text = "DELETE ACCOUNT",
@@ -150,8 +153,9 @@ fun DeleteAccountScreen(
                 )
                 Spacer(Modifier.height(spacing.sm))
                 Text(
-                    text = "This cannot be undone. All bookmarks and your account " +
-                        "will be permanently erased.",
+                    text =
+                        "This cannot be undone. All bookmarks and your account " +
+                            "will be permanently erased.",
                     style = typography.bodyMono,
                     color = colors.onSurfaceVariant,
                 )
@@ -161,9 +165,10 @@ fun DeleteAccountScreen(
                         onClick = { showConfirm = false },
                         text = "CANCEL",
                         style = ButtonStyle.Secondary,
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("delete-account-confirm-cancel"),
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .testTag("delete-account-confirm-cancel"),
                     )
                     Spacer(Modifier.width(spacing.md))
                     CrumbsButton(
@@ -173,9 +178,10 @@ fun DeleteAccountScreen(
                         },
                         text = "DELETE",
                         style = ButtonStyle.Primary,
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("delete-account-confirm-yes"),
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .testTag("delete-account-confirm-yes"),
                     )
                 }
             }
@@ -189,11 +195,12 @@ fun DeleteAccountScreen(
         modifier = Modifier.testTag("delete-account-error-overlay"),
         body = {
             Column(
-                modifier = Modifier
-                    .background(colors.surface)
-                    .border(BorderStroke(stroke.regular, colors.error))
-                    .padding(spacing.xl)
-                    .testTag("delete-account-error-dialog"),
+                modifier =
+                    Modifier
+                        .background(colors.surface)
+                        .border(BorderStroke(stroke.regular, colors.error))
+                        .padding(spacing.xl)
+                        .testTag("delete-account-error-dialog"),
             ) {
                 Text(
                     text = "ERROR",
@@ -211,9 +218,10 @@ fun DeleteAccountScreen(
                     onClick = onErrorDismiss,
                     text = "DISMISS",
                     style = ButtonStyle.Secondary,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("delete-account-error-dismiss"),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .testTag("delete-account-error-dismiss"),
                 )
             }
         },

@@ -34,7 +34,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class FirestoreRepositoryTest {
-
     private lateinit var db: FirebaseFirestore
     private lateinit var auth: FirebaseAuth
     private lateinit var tweetsCollection: CollectionReference
@@ -59,7 +58,10 @@ class FirestoreRepositoryTest {
     }
 
     /** Stubs `query.count().get(AggregateSource.SERVER).await().count == value`. */
-    private fun stubCount(query: Query, value: Long) {
+    private fun stubCount(
+        query: Query,
+        value: Long,
+    ) {
         val aggQuery = mockk<AggregateQuery>()
         val snapshot = mockk<AggregateQuerySnapshot>()
         every { query.count() } returns aggQuery
@@ -68,47 +70,53 @@ class FirestoreRepositoryTest {
     }
 
     @Test
-    fun getServerBookmarkCount_netsTotalMinusReferencedMinusDeleted() = runTest {
-        val referencedQuery = mockk<Query>()
-        val deletedQuery = mockk<Query>()
-        every { tweetsCollection.whereEqualTo("referenced", true) } returns referencedQuery
-        every { tweetsCollection.whereEqualTo("deleted", true) } returns deletedQuery
+    fun getServerBookmarkCount_netsTotalMinusReferencedMinusDeleted() =
+        runTest {
+            val referencedQuery = mockk<Query>()
+            val deletedQuery = mockk<Query>()
+            every { tweetsCollection.whereEqualTo("referenced", true) } returns referencedQuery
+            every { tweetsCollection.whereEqualTo("deleted", true) } returns deletedQuery
 
-        stubCount(tweetsCollection, 1000L)
-        stubCount(referencedQuery, 120L)
-        stubCount(deletedQuery, 30L)
+            stubCount(tweetsCollection, 1000L)
+            stubCount(referencedQuery, 120L)
+            stubCount(deletedQuery, 30L)
 
-        val result = repository.getServerBookmarkCount()
+            val result = repository.getServerBookmarkCount()
 
-        assertTrue(result.isSuccess)
-        // 1000 - 120 - 30 = 850 — proves both the referenced AND the deleted subtraction
-        // (the latter is the DI-10 fix; a regression back to `total - referenced` would
-        // report 880 here instead).
-        assertEquals(850L, result.getOrNull())
-    }
-
-    @Test
-    fun getServerBookmarkCount_zeroReferencedAndDeleted_netsToTotal() = runTest {
-        val referencedQuery = mockk<Query>()
-        val deletedQuery = mockk<Query>()
-        every { tweetsCollection.whereEqualTo("referenced", true) } returns referencedQuery
-        every { tweetsCollection.whereEqualTo("deleted", true) } returns deletedQuery
-
-        stubCount(tweetsCollection, 500L)
-        stubCount(referencedQuery, 0L)
-        stubCount(deletedQuery, 0L)
-
-        val result = repository.getServerBookmarkCount()
-
-        assertEquals(500L, result.getOrNull())
-    }
+            assertTrue(result.isSuccess)
+            // 1000 - 120 - 30 = 850 — proves both the referenced AND the deleted subtraction
+            // (the latter is the DI-10 fix; a regression back to `total - referenced` would
+            // report 880 here instead).
+            assertEquals(850L, result.getOrNull())
+        }
 
     @Test
-    fun getServerBookmarkCount_aggregateFailure_returnsFailureResult() = runTest {
-        every { tweetsCollection.count() } throws RuntimeException("boom")
+    fun getServerBookmarkCount_zeroReferencedAndDeleted_netsToTotal() =
+        runTest {
+            val referencedQuery = mockk<Query>()
+            val deletedQuery = mockk<Query>()
+            every { tweetsCollection.whereEqualTo("referenced", true) } returns referencedQuery
+            every { tweetsCollection.whereEqualTo("deleted", true) } returns deletedQuery
 
-        val result = repository.getServerBookmarkCount()
+            stubCount(tweetsCollection, 500L)
+            stubCount(referencedQuery, 0L)
+            stubCount(deletedQuery, 0L)
 
-        assertTrue("a failed aggregate query must surface as Result.failure so the caller can reset the reconcile gate", result.isFailure)
-    }
+            val result = repository.getServerBookmarkCount()
+
+            assertEquals(500L, result.getOrNull())
+        }
+
+    @Test
+    fun getServerBookmarkCount_aggregateFailure_returnsFailureResult() =
+        runTest {
+            every { tweetsCollection.count() } throws RuntimeException("boom")
+
+            val result = repository.getServerBookmarkCount()
+
+            assertTrue(
+                "a failed aggregate query must surface as Result.failure so the caller can reset the reconcile gate",
+                result.isFailure,
+            )
+        }
 }

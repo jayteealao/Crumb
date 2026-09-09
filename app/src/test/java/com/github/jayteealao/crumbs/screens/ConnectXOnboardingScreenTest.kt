@@ -18,15 +18,16 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xxhdpi")
 class ConnectXOnboardingScreenTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-    private val options = RoborazziOptions(
-        compareOptions = RoborazziOptions.CompareOptions(
-            imageComparator = SimpleImageComparator(maxDistance = 0.01f),
-        ),
-    )
+    private val options =
+        RoborazziOptions(
+            compareOptions =
+                RoborazziOptions.CompareOptions(
+                    imageComparator = SimpleImageComparator(maxDistance = 0.01f),
+                ),
+        )
 
     @Test
     fun connectX_default_light() {
@@ -35,7 +36,8 @@ class ConnectXOnboardingScreenTest {
                 ConnectXOnboardingScreen(onConnect = {}, onSkip = {})
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/ConnectXOnboardingScreen_default_light.png", options)
     }
 
@@ -46,7 +48,8 @@ class ConnectXOnboardingScreenTest {
                 ConnectXOnboardingScreen(onConnect = {}, onSkip = {})
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/ConnectXOnboardingScreen_default_dark.png", options)
     }
 
@@ -57,7 +60,8 @@ class ConnectXOnboardingScreenTest {
                 ConnectXOnboardingScreen(onConnect = {}, onSkip = {}, connecting = true)
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/ConnectXOnboardingScreen_connecting_light.png", options)
     }
 }

@@ -31,16 +31,17 @@ import org.robolectric.annotation.Config
 // pull in Hilt / Firebase init — it only needs a Context to build an in-memory database.
 @Config(sdk = [34], application = Application::class)
 class TweetDaoSortTest {
-
     private lateinit var db: AppDatabase
     private lateinit var dao: TweetDao
 
     @Before
     fun setUp() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
-            .allowMainThreadQueries()
-            .build()
+        db =
+            Room
+                .inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+                .allowMainThreadQueries()
+                .build()
         dao = db.tweetDao()
         dao.insertTwitterUser(
             TwitterUserEntity(
@@ -61,7 +62,11 @@ class TweetDaoSortTest {
         db.close()
     }
 
-    private fun tweet(id: String, retrievedAt: Long?, createdAt: String) = TweetEntity(
+    private fun tweet(
+        id: String,
+        retrievedAt: Long?,
+        createdAt: String,
+    ) = TweetEntity(
         id = id,
         text = "text-$id",
         createdAt = createdAt,
@@ -73,34 +78,36 @@ class TweetDaoSortTest {
     )
 
     @Test
-    fun feedSortsByRetrievedAtDescThenCreatedAtDesc_nullRetrievedAtLast() = runTest {
-        // Insert deliberately out of final order.
-        dao.insertTweet(tweet("null-older", retrievedAt = null, createdAt = "2026-01-01T00:00:00.000Z"))
-        dao.insertTweet(tweet("null-newer", retrievedAt = null, createdAt = "2026-02-01T00:00:00.000Z"))
-        dao.insertTweet(tweet("ret-low", retrievedAt = 1_000L, createdAt = "2020-01-01T00:00:00.000Z"))
-        dao.insertTweet(tweet("ret-high", retrievedAt = 2_000L, createdAt = "2020-01-01T00:00:00.000Z"))
-        dao.insertTweet(tweet("ret-tieEarlier", retrievedAt = 1_500L, createdAt = "2021-06-01T00:00:00.000Z"))
-        dao.insertTweet(tweet("ret-tieLater", retrievedAt = 1_500L, createdAt = "2021-07-01T00:00:00.000Z"))
+    fun feedSortsByRetrievedAtDescThenCreatedAtDesc_nullRetrievedAtLast() =
+        runTest {
+            // Insert deliberately out of final order.
+            dao.insertTweet(tweet("null-older", retrievedAt = null, createdAt = "2026-01-01T00:00:00.000Z"))
+            dao.insertTweet(tweet("null-newer", retrievedAt = null, createdAt = "2026-02-01T00:00:00.000Z"))
+            dao.insertTweet(tweet("ret-low", retrievedAt = 1_000L, createdAt = "2020-01-01T00:00:00.000Z"))
+            dao.insertTweet(tweet("ret-high", retrievedAt = 2_000L, createdAt = "2020-01-01T00:00:00.000Z"))
+            dao.insertTweet(tweet("ret-tieEarlier", retrievedAt = 1_500L, createdAt = "2021-06-01T00:00:00.000Z"))
+            dao.insertTweet(tweet("ret-tieLater", retrievedAt = 1_500L, createdAt = "2021-07-01T00:00:00.000Z"))
 
-        val ids = loadAllIds(dao.getTweets())
+            val ids = loadAllIds(dao.getTweets())
 
-        assertEquals(
-            listOf(
-                "ret-high",        // retrieved_at 2000
-                "ret-tieLater",    // retrieved_at 1500, created_at 2021-07 (newer tiebreak first)
-                "ret-tieEarlier",  // retrieved_at 1500, created_at 2021-06
-                "ret-low",         // retrieved_at 1000
-                "null-newer",      // null retrieved_at sorts last; created_at 2026-02 before 2026-01
-                "null-older",
-            ),
-            ids,
-        )
-    }
+            assertEquals(
+                listOf(
+                    "ret-high", // retrieved_at 2000
+                    "ret-tieLater", // retrieved_at 1500, created_at 2021-07 (newer tiebreak first)
+                    "ret-tieEarlier", // retrieved_at 1500, created_at 2021-06
+                    "ret-low", // retrieved_at 1000
+                    "null-newer", // null retrieved_at sorts last; created_at 2026-02 before 2026-01
+                    "null-older",
+                ),
+                ids,
+            )
+        }
 
     private suspend fun loadAllIds(source: PagingSource<Int, TweetData>): List<String> {
-        val page = source.load(
-            PagingSource.LoadParams.Refresh(key = null, loadSize = 50, placeholdersEnabled = false),
-        ) as PagingSource.LoadResult.Page
+        val page =
+            source.load(
+                PagingSource.LoadParams.Refresh(key = null, loadSize = 50, placeholdersEnabled = false),
+            ) as PagingSource.LoadResult.Page
         return page.data.map { it.tweet.id }
     }
 }

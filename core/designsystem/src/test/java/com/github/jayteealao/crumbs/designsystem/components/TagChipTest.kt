@@ -21,7 +21,6 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class TagChipTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -38,7 +37,8 @@ class TagChipTest {
                 }
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsTagChip_plain_light.png")
     }
 
@@ -55,7 +55,8 @@ class TagChipTest {
                 }
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsTagChip_plain_dark.png")
     }
 
@@ -68,7 +69,8 @@ class TagChipTest {
                 }
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsTagChip_filterActive_light.png")
     }
 
@@ -81,7 +83,8 @@ class TagChipTest {
                 }
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsTagChip_filterActive_dark.png")
     }
 
@@ -94,7 +97,8 @@ class TagChipTest {
                 }
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsTagChip_addTag_light.png")
     }
 }

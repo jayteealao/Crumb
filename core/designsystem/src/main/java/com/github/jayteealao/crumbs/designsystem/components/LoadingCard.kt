@@ -54,73 +54,79 @@ fun LoadingCard(
     val animatedFraction by transition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1800, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(1800, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
         label = "scan-line-fraction",
     )
     val fraction = scanLinePositionFraction ?: animatedFraction
 
     Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(colors.surface)
-            .border(stroke.regular, colors.ink, shapes.card)
-            .testTag("loading-card")
-            .semantics {
-                contentDescription = "Loading content"
-                liveRegion = LiveRegionMode.Polite
-            }
-            .drawBehind {
-                val y = size.height * fraction
-                drawLine(
-                    color = colors.ink,
-                    start = Offset(0f, y),
-                    end = Offset(size.width, y),
-                    strokeWidth = stroke.hairline.toPx(),
-                )
-            },
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .background(colors.surface)
+                .border(stroke.regular, colors.ink, shapes.card)
+                .testTag("loading-card")
+                .semantics {
+                    contentDescription = "Loading content"
+                    liveRegion = LiveRegionMode.Polite
+                }.drawBehind {
+                    val y = size.height * fraction
+                    drawLine(
+                        color = colors.ink,
+                        start = Offset(0f, y),
+                        end = Offset(size.width, y),
+                        strokeWidth = stroke.hairline.toPx(),
+                    )
+                },
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             if (hasImage) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(160.dp)
-                        .background(colors.ink.copy(alpha = 0.08f))
-                        .testTag("loading-card-skeleton"),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(160.dp)
+                            .background(colors.ink.copy(alpha = 0.08f))
+                            .testTag("loading-card-skeleton"),
                 )
             }
             Column(
                 modifier = Modifier.padding(spacing.md),
             ) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.7f)
-                        .height(20.dp)
-                        .background(colors.ink.copy(alpha = 0.08f)),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth(0.7f)
+                            .height(20.dp)
+                            .background(colors.ink.copy(alpha = 0.08f)),
                 )
                 Spacer(modifier = Modifier.height(spacing.sm))
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.95f)
-                        .height(12.dp)
-                        .background(colors.ink.copy(alpha = 0.08f)),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth(0.95f)
+                            .height(12.dp)
+                            .background(colors.ink.copy(alpha = 0.08f)),
                 )
                 Spacer(modifier = Modifier.height(spacing.xs))
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.8f)
-                        .height(12.dp)
-                        .background(colors.ink.copy(alpha = 0.08f)),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth(0.8f)
+                            .height(12.dp)
+                            .background(colors.ink.copy(alpha = 0.08f)),
                 )
                 Spacer(modifier = Modifier.height(spacing.xs))
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.5f)
-                        .height(12.dp)
-                        .background(colors.ink.copy(alpha = 0.08f)),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth(0.5f)
+                            .height(12.dp)
+                            .background(colors.ink.copy(alpha = 0.08f)),
                 )
             }
         }

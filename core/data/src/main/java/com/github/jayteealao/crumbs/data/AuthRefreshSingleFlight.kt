@@ -33,17 +33,18 @@ suspend fun withAuthRefreshSingleFlight(
     mutex: Mutex,
     tag: String,
     doRefresh: suspend () -> Boolean,
-): Boolean = mutex.withLock {
-    try {
-        val ok = doRefresh()
-        if (ok) {
-            Timber.d("$tag: token refreshed and persisted")
-        } else {
-            Timber.w("$tag: refresh returned null/blank tokens")
+): Boolean =
+    mutex.withLock {
+        try {
+            val ok = doRefresh()
+            if (ok) {
+                Timber.d("$tag: token refreshed and persisted")
+            } else {
+                Timber.w("$tag: refresh returned null/blank tokens")
+            }
+            ok
+        } catch (e: Exception) {
+            Timber.e(e, "$tag: exception during refresh")
+            false
         }
-        ok
-    } catch (e: Exception) {
-        Timber.e(e, "$tag: exception during refresh")
-        false
     }
-}

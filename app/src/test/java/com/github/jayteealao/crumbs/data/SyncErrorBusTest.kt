@@ -28,64 +28,66 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class SyncErrorBusTest {
+    @Test
+    fun emit_delivers_event_to_active_collector() =
+        runTest(UnconfinedTestDispatcher()) {
+            // UnconfinedTestDispatcher starts the async block eagerly, so the collector is
+            // subscribed to the SharedFlow before emit() is called — no yield() busy-waits
+            // are needed to race the subscription into place.
+            val bus = SyncErrorBus()
+            val deferredEvent = async { bus.events.first() }
+
+            val accepted = bus.emit(SyncErrorEvent.TwitterAuth401())
+            assertTrue("emit() must return true when buffer/replay can accept the event", accepted)
+
+            // Drain remaining coroutine work before awaiting the result.
+            advanceUntilIdle()
+
+            val received = deferredEvent.await()
+            assertTrue(
+                "Active collector should receive TwitterAuth401 but got ${received::class.simpleName}",
+                received is SyncErrorEvent.TwitterAuth401,
+            )
+        }
 
     @Test
-    fun emit_delivers_event_to_active_collector() = runTest(UnconfinedTestDispatcher()) {
-        // UnconfinedTestDispatcher starts the async block eagerly, so the collector is
-        // subscribed to the SharedFlow before emit() is called — no yield() busy-waits
-        // are needed to race the subscription into place.
-        val bus = SyncErrorBus()
-        val deferredEvent = async { bus.events.first() }
+    fun emit_before_subscriber_is_replayed_to_late_collector() =
+        runTest {
+            // Reproduces the cold-start auth-failure path: Repository.init() runs and
+            // emits an error before HomeRoute's LaunchedEffect attaches its collector.
+            // replay = 1 must preserve that event so the banner appears when the UI
+            // finally subscribes.
+            val bus = SyncErrorBus()
 
-        val accepted = bus.emit(SyncErrorEvent.TwitterAuth401())
-        assertTrue("emit() must return true when buffer/replay can accept the event", accepted)
+            bus.emit(SyncErrorEvent.RedditAuth401())
 
-        // Drain remaining coroutine work before awaiting the result.
-        advanceUntilIdle()
-
-        val received = deferredEvent.await()
-        assertTrue(
-            "Active collector should receive TwitterAuth401 but got ${received::class.simpleName}",
-            received is SyncErrorEvent.TwitterAuth401,
-        )
-    }
+            val received = bus.events.first()
+            assertTrue(
+                "Late subscriber must receive the replayed event; got ${received::class.simpleName}",
+                received is SyncErrorEvent.RedditAuth401,
+            )
+        }
 
     @Test
-    fun emit_before_subscriber_is_replayed_to_late_collector() = runTest {
-        // Reproduces the cold-start auth-failure path: Repository.init() runs and
-        // emits an error before HomeRoute's LaunchedEffect attaches its collector.
-        // replay = 1 must preserve that event so the banner appears when the UI
-        // finally subscribes.
-        val bus = SyncErrorBus()
+    fun multiple_emits_keep_latest_for_late_collector() =
+        runTest {
+            // With replay = 1 + DROP_OLDEST, a late subscriber sees only the latest
+            // event. This is the intended UX — the most-recent auth failure is what
+            // the user needs to act on; earlier ones are obsolete.
+            val bus = SyncErrorBus()
 
-        bus.emit(SyncErrorEvent.RedditAuth401())
+            bus.emit(SyncErrorEvent.TwitterAuth401())
+            bus.emit(SyncErrorEvent.RedditAuth401())
 
-        val received = bus.events.first()
-        assertTrue(
-            "Late subscriber must receive the replayed event; got ${received::class.simpleName}",
-            received is SyncErrorEvent.RedditAuth401,
-        )
-    }
-
-    @Test
-    fun multiple_emits_keep_latest_for_late_collector() = runTest {
-        // With replay = 1 + DROP_OLDEST, a late subscriber sees only the latest
-        // event. This is the intended UX — the most-recent auth failure is what
-        // the user needs to act on; earlier ones are obsolete.
-        val bus = SyncErrorBus()
-
-        bus.emit(SyncErrorEvent.TwitterAuth401())
-        bus.emit(SyncErrorEvent.RedditAuth401())
-
-        val received = bus.events.first()
-        assertTrue(
-            "Latest emission should win for late subscriber; got ${received::class.simpleName}",
-            received is SyncErrorEvent.RedditAuth401,
-        )
-        assertEquals(
-            "Latest event's source should be Reddit",
-            com.github.jayteealao.crumbs.models.BookmarkSource.Reddit,
-            received.source,
-        )
-    }
+            val received = bus.events.first()
+            assertTrue(
+                "Latest emission should win for late subscriber; got ${received::class.simpleName}",
+                received is SyncErrorEvent.RedditAuth401,
+            )
+            assertEquals(
+                "Latest event's source should be Reddit",
+                com.github.jayteealao.crumbs.models.BookmarkSource.Reddit,
+                received.source,
+            )
+        }
 }

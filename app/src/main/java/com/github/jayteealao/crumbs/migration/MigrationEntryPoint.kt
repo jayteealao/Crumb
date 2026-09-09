@@ -13,5 +13,6 @@ import dagger.hilt.components.SingletonComponent
 @InstallIn(SingletonComponent::class)
 interface MigrationEntryPoint {
     fun prefs(): Prefs
+
     fun firebaseFunctions(): FirebaseFunctions
 }

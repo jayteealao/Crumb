@@ -33,16 +33,17 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], application = Application::class)
 class TweetDaoTypeFilterTest {
-
     private lateinit var db: AppDatabase
     private lateinit var dao: TweetDao
 
     @Before
     fun setUp() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
-            .allowMainThreadQueries()
-            .build()
+        db =
+            Room
+                .inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+                .allowMainThreadQueries()
+                .build()
         dao = db.tweetDao()
         dao.insertTwitterUser(
             TwitterUserEntity(
@@ -63,7 +64,10 @@ class TweetDaoTypeFilterTest {
         db.close()
     }
 
-    private fun tweet(id: String, conversationId: String = id) = TweetEntity(
+    private fun tweet(
+        id: String,
+        conversationId: String = id,
+    ) = TweetEntity(
         id = id,
         text = "text-$id",
         createdAt = "2026-01-01T00:00:00.000Z",
@@ -74,7 +78,11 @@ class TweetDaoTypeFilterTest {
         retrievedAt = 1_000L,
     )
 
-    private fun media(key: String, type: String, tweetId: String) = TweetMediaEntity(
+    private fun media(
+        key: String,
+        type: String,
+        tweetId: String,
+    ) = TweetMediaEntity(
         mediaKey = key,
         type = type,
         url = "https://example.com/$key",
@@ -86,7 +94,10 @@ class TweetDaoTypeFilterTest {
         tweetId = tweetId,
     )
 
-    private fun urlAnnotation(tweetId: String, expandedUrl: String) = TweetTextEntityAnnotation(
+    private fun urlAnnotation(
+        tweetId: String,
+        expandedUrl: String,
+    ) = TweetTextEntityAnnotation(
         id = null,
         start = 0,
         end = 0,
@@ -106,46 +117,49 @@ class TweetDaoTypeFilterTest {
     )
 
     @Test
-    fun typeFilters_returnExpectedSubsets() = runTest {
-        // One fixture per positive type marker, plus a media-less/link-less reply and a plain tweet.
-        dao.insertTweet(tweet("photo"))
-        dao.insertTweetMedia(media("m-photo", "photo", "photo"))
+    fun typeFilters_returnExpectedSubsets() =
+        runTest {
+            // One fixture per positive type marker, plus a media-less/link-less reply and a plain tweet.
+            dao.insertTweet(tweet("photo"))
+            dao.insertTweetMedia(media("m-photo", "photo", "photo"))
 
-        dao.insertTweet(tweet("video"))
-        dao.insertTweetMedia(media("m-video", "video", "video"))
+            dao.insertTweet(tweet("video"))
+            dao.insertTweetMedia(media("m-video", "video", "video"))
 
-        dao.insertTweet(tweet("article"))
-        dao.insertTweetTextEntityAnnotation(urlAnnotation("article", "https://example.com/post"))
+            dao.insertTweet(tweet("article"))
+            dao.insertTweetTextEntityAnnotation(urlAnnotation("article", "https://example.com/post"))
 
-        dao.insertTweet(tweet("reply", conversationId = "conv-root")) // conversation_id <> id → THREAD
-        dao.insertTweet(tweet("text"))
+            dao.insertTweet(tweet("reply", conversationId = "conv-root")) // conversation_id <> id → THREAD
+            dao.insertTweet(tweet("text"))
 
-        assertEquals(setOf("photo", "video", "article", "reply", "text"), idsFor("ALL"))
-        assertEquals(setOf("photo"), idsFor("IMAGE"))
-        assertEquals(setOf("video"), idsFor("VIDEO"))
-        assertEquals(setOf("article"), idsFor("ARTICLE"))
-        assertEquals(setOf("reply"), idsFor("THREAD"))
-        // TEXT = no media AND no external link → the plain tweet and the (media-less) reply.
-        assertEquals(setOf("text", "reply"), idsFor("TEXT"))
-    }
+            assertEquals(setOf("photo", "video", "article", "reply", "text"), idsFor("ALL"))
+            assertEquals(setOf("photo"), idsFor("IMAGE"))
+            assertEquals(setOf("video"), idsFor("VIDEO"))
+            assertEquals(setOf("article"), idsFor("ARTICLE"))
+            assertEquals(setOf("reply"), idsFor("THREAD"))
+            // TEXT = no media AND no external link → the plain tweet and the (media-less) reply.
+            assertEquals(setOf("text", "reply"), idsFor("TEXT"))
+        }
 
     @Test
-    fun articleIgnoresInternalTwitterLinks() = runTest {
-        // A urls annotation that points back at twitter.com must NOT count as an ARTICLE.
-        dao.insertTweet(tweet("internal-link"))
-        dao.insertTweetTextEntityAnnotation(
-            urlAnnotation("internal-link", "https://twitter.com/i/web/status/123"),
-        )
+    fun articleIgnoresInternalTwitterLinks() =
+        runTest {
+            // A urls annotation that points back at twitter.com must NOT count as an ARTICLE.
+            dao.insertTweet(tweet("internal-link"))
+            dao.insertTweetTextEntityAnnotation(
+                urlAnnotation("internal-link", "https://twitter.com/i/web/status/123"),
+            )
 
-        assertEquals(emptySet<String>(), idsFor("ARTICLE"))
-        // With no external link and no media it falls through to TEXT.
-        assertEquals(setOf("internal-link"), idsFor("TEXT"))
-    }
+            assertEquals(emptySet<String>(), idsFor("ARTICLE"))
+            // With no external link and no media it falls through to TEXT.
+            assertEquals(setOf("internal-link"), idsFor("TEXT"))
+        }
 
     private suspend fun idsFor(type: String): Set<String> {
-        val page = dao.getTweetsTombstoneAware(type).load(
-            PagingSource.LoadParams.Refresh(key = null, loadSize = 50, placeholdersEnabled = false),
-        ) as PagingSource.LoadResult.Page
+        val page =
+            dao.getTweetsTombstoneAware(type).load(
+                PagingSource.LoadParams.Refresh(key = null, loadSize = 50, placeholdersEnabled = false),
+            ) as PagingSource.LoadResult.Page
         return page.data.map { it.tweet.id }.toSet()
     }
 }

@@ -44,24 +44,28 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class ImageViewerTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-    private val threeImages = listOf(
-        "https://img/1.jpg",
-        "https://img/2.jpg",
-        "https://img/3.jpg",
-    )
+    private val threeImages =
+        listOf(
+            "https://img/1.jpg",
+            "https://img/2.jpg",
+            "https://img/3.jpg",
+        )
 
     @Before
     fun installFakeImageLoader() {
-        val engine = FakeImageLoaderEngine.Builder()
-            .default(ColorDrawable(Color.rgb(0x88, 0x88, 0x88)))
-            .build()
-        val imageLoader = ImageLoader.Builder(ApplicationProvider.getApplicationContext())
-            .components { add(engine) }
-            .build()
+        val engine =
+            FakeImageLoaderEngine
+                .Builder()
+                .default(ColorDrawable(Color.rgb(0x88, 0x88, 0x88)))
+                .build()
+        val imageLoader =
+            ImageLoader
+                .Builder(ApplicationProvider.getApplicationContext())
+                .components { add(engine) }
+                .build()
         Coil.setImageLoader(imageLoader)
     }
 

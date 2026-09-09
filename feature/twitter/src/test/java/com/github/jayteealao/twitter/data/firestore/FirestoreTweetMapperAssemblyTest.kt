@@ -19,44 +19,48 @@ import org.junit.Test
  * dependency, so no Robolectric runner is needed.
  */
 class FirestoreTweetMapperAssemblyTest {
-
     private val parentTweetId = "t1"
 
-    private fun tweet() = FirestoreTweet(
-        tweetId = parentTweetId,
-        text = "hello",
-        authorId = "u1",
-        createdAt = "2026-01-01T00:00:00.000Z",
-        conversationId = parentTweetId,
-    )
+    private fun tweet() =
+        FirestoreTweet(
+            tweetId = parentTweetId,
+            text = "hello",
+            authorId = "u1",
+            createdAt = "2026-01-01T00:00:00.000Z",
+            conversationId = parentTweetId,
+        )
 
-    private fun author() = FirestoreUser(
-        userId = "u1",
-        username = "tester",
-        name = "Tester",
-    )
+    private fun author() =
+        FirestoreUser(
+            userId = "u1",
+            username = "tester",
+            name = "Tester",
+        )
 
     // Media docs exactly as the server writes them: NO tweetId field on the doc itself.
-    private fun photoDoc() = FirestoreMedia(
-        mediaKey = "mk-photo",
-        type = "photo",
-        url = "https://img/mk-photo.jpg",
-        tweetId = null,
-    )
+    private fun photoDoc() =
+        FirestoreMedia(
+            mediaKey = "mk-photo",
+            type = "photo",
+            url = "https://img/mk-photo.jpg",
+            tweetId = null,
+        )
 
-    private fun videoDoc() = FirestoreMedia(
-        mediaKey = "mk-video",
-        type = "video",
-        previewImageUrl = "https://img/poster.jpg",
-        tweetId = null,
-        variants = listOf(
-            mapOf<String, Any?>(
-                "bit_rate" to 0,
-                "content_type" to "application/x-mpegURL",
-                "url" to "https://v/master.m3u8",
-            ),
-        ),
-    )
+    private fun videoDoc() =
+        FirestoreMedia(
+            mediaKey = "mk-video",
+            type = "video",
+            previewImageUrl = "https://img/poster.jpg",
+            tweetId = null,
+            variants =
+                listOf(
+                    mapOf<String, Any?>(
+                        "bit_rate" to 0,
+                        "content_type" to "application/x-mpegURL",
+                        "url" to "https://v/master.m3u8",
+                    ),
+                ),
+        )
 
     // The map is keyed by the real tweetId (re-keyed from mediaKey via the includes join
     // upstream); the FirestoreMedia objects inside it still carry tweetId = null.
@@ -124,25 +128,30 @@ class FirestoreTweetMapperAssemblyTest {
         // (and the mediaKeys junction). The composite (tweet_id, media_key) PK then stores
         // both pairings instead of collapsing the asset onto one arbitrary tweet.
         val sharedKey = "mk-shared"
-        fun tweetWithId(id: String) = FirestoreTweet(
-            tweetId = id,
-            text = "t-$id",
-            authorId = "u1",
-            createdAt = "2026-01-01T00:00:00.000Z",
-            conversationId = id,
-        )
-        fun assembleFor(id: String): TweetEntities = assembleTweetEntities(
-            firestoreTweet = tweetWithId(id),
-            users = mapOf("u1" to author()),
-            metrics = emptyMap(),
-            includes = emptyMap(),
-            media = mapOf(
-                id to listOf(FirestoreMedia(mediaKey = sharedKey, type = "photo", url = "https://img/s.jpg", tweetId = null)),
-            ),
-            textAnnotations = emptyMap(),
-            quotedTweets = emptyMap(),
-            quotedAuthors = emptyMap(),
-        )!!
+
+        fun tweetWithId(id: String) =
+            FirestoreTweet(
+                tweetId = id,
+                text = "t-$id",
+                authorId = "u1",
+                createdAt = "2026-01-01T00:00:00.000Z",
+                conversationId = id,
+            )
+
+        fun assembleFor(id: String): TweetEntities =
+            assembleTweetEntities(
+                firestoreTweet = tweetWithId(id),
+                users = mapOf("u1" to author()),
+                metrics = emptyMap(),
+                includes = emptyMap(),
+                media =
+                    mapOf(
+                        id to listOf(FirestoreMedia(mediaKey = sharedKey, type = "photo", url = "https://img/s.jpg", tweetId = null)),
+                    ),
+                textAnnotations = emptyMap(),
+                quotedTweets = emptyMap(),
+                quotedAuthors = emptyMap(),
+            )!!
 
         val a = assembleFor("A")
         val b = assembleFor("B")

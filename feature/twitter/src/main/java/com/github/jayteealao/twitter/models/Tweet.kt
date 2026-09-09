@@ -27,7 +27,7 @@ data class Tweet(
     @SerializedName("edit_controls") val editControls: TweetEditControls? = null,
     @SerializedName("note_tweet") val noteTweet: NoteTweet? = null,
     @SerializedName("reply_settings") val replySettings: String? = null,
-    @SerializedName("possibly_sensitive") val possiblySensitive: Boolean? = null
+    @SerializedName("possibly_sensitive") val possiblySensitive: Boolean? = null,
 )
 
 /*
@@ -48,7 +48,7 @@ data class Tweet(
         // subquery (`EXISTS (... WHERE s.conversation_id = t.conversation_id ...)`)
         // so it runs index-backed instead of O(n²). Added in migration v14.
         Index("conversation_id"),
-    ]
+    ],
 )
 data class TweetEntity(
     @PrimaryKey val id: String,
@@ -66,17 +66,18 @@ data class TweetEntity(
     @ColumnInfo(name = "retrieved_at") val retrievedAt: Long? = null,
 )
 
-fun Tweet.toTweetEntity(referenced: Boolean = false) = TweetEntity(
-    id,
-    text,
-    createdAt,
-    authorId,
-    conversationId,
-    inReplyToUserId,
-    lang,
-    referenced,
-    retrievedAt = System.currentTimeMillis(),
-)
+fun Tweet.toTweetEntity(referenced: Boolean = false) =
+    TweetEntity(
+        id,
+        text,
+        createdAt,
+        authorId,
+        conversationId,
+        inReplyToUserId,
+        lang,
+        referenced,
+        retrievedAt = System.currentTimeMillis(),
+    )
 
 data class TweetData(
     @Embedded val tweet: TweetEntity,
@@ -90,7 +91,6 @@ data class TweetData(
     val includes: List<TweetIncludesEntity>,
     @Relation(parentColumn = "id", entityColumn = "tweet_id")
     val tweetTextAnnotation: List<TweetTextEntityAnnotation>,
-
     // Raw referenced-tweet rows for this tweet (quoted / replied_to / retweeted).
     // Knowing a quote was referenced even when its body is absent is what drives the
     // "unavailable" placeholder; the mapper filters to type == "quoted". FK-free
@@ -98,7 +98,6 @@ data class TweetData(
     // body. Defaults empty so non-relation query paths and test fixtures still build.
     @Relation(parentColumn = "id", entityColumn = "tweet_id")
     val referencedTweets: List<TweetReferencedTweets> = emptyList(),
-
     // The resolved quoted-tweet bodies (+ their authors), joined through the FK-free
     // tweetReferencedTweets junction. Empty when the quote is unavailable (a reference
     // row exists in [referencedTweets] but no matching TweetEntity was stored). The
@@ -107,14 +106,14 @@ data class TweetData(
         entity = TweetEntity::class,
         parentColumn = "id",
         entityColumn = "id",
-        associateBy = Junction(
-            value = TweetReferencedTweets::class,
-            parentColumn = "tweet_id",
-            entityColumn = "id",
-        ),
+        associateBy =
+            Junction(
+                value = TweetReferencedTweets::class,
+                parentColumn = "tweet_id",
+                entityColumn = "id",
+            ),
     )
     val quotedTweets: List<QuotedTweetData> = emptyList(),
-
     // Display-only SQLite rowid, surfaced by the feed queries via
     // `SELECT t.rowid AS db_rowid`. Scalar (not part of the @Embedded entity)
     // so it never participates in writes. Defaults to 0 for any query path that
@@ -134,8 +133,11 @@ data class QuotedTweetData(
     val author: TwitterUserEntity?,
 )
 
-fun tweetResponseToTweetMapper(tweetData: List<Tweet>, includes: TweetIncludes): List<Tweet> {
-    return tweetData.map { tweet ->
+fun tweetResponseToTweetMapper(
+    tweetData: List<Tweet>,
+    includes: TweetIncludes,
+): List<Tweet> =
+    tweetData.map { tweet ->
         val user = includes.users.first { it?.id == tweet.authorId }
         val media = emptyList<TweetMedia>().toMutableList()
         if (!tweet.attachments?.mediaKeys.isNullOrEmpty()) {
@@ -144,14 +146,14 @@ fun tweetResponseToTweetMapper(tweetData: List<Tweet>, includes: TweetIncludes):
             }
         }
         tweet.copy(
-            includes = TweetIncludes(
-                users = listOf(user),
-                media = media,
-                tweets = null
-            )
+            includes =
+                TweetIncludes(
+                    users = listOf(user),
+                    media = media,
+                    tweets = null,
+                ),
         )
     }
-}
 
 /**
  * Edit controls data for tweets that can be edited
@@ -159,7 +161,7 @@ fun tweetResponseToTweetMapper(tweetData: List<Tweet>, includes: TweetIncludes):
 data class TweetEditControls(
     @SerializedName("edits_remaining") val editsRemaining: Int?,
     @SerializedName("is_edit_eligible") val isEditEligible: Boolean?,
-    @SerializedName("editable_until") val editableUntil: String?
+    @SerializedName("editable_until") val editableUntil: String?,
 )
 
 /**
@@ -167,5 +169,5 @@ data class TweetEditControls(
  */
 data class NoteTweet(
     val text: String?,
-    val entities: TweetTextEntity?
+    val entities: TweetTextEntity?,
 )

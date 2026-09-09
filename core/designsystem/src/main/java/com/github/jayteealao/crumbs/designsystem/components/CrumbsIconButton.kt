@@ -34,16 +34,16 @@ import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
 // background fill vs ink border. Sharp corners, no ripple.
 
 enum class IconButtonSize {
-    Small,      // 36.dp
-    Medium,     // 40.dp
-    Large       // 48.dp
+    Small, // 36.dp
+    Medium, // 40.dp
+    Large, // 48.dp
 }
 
 enum class IconButtonStyle {
-    Filled,         // accent fill, no border
-    FilledTonal,    // surface fill, ink border (subdued)
-    Outlined,       // transparent, ink border
-    Standard        // transparent, no border
+    Filled, // accent fill, no border
+    FilledTonal, // surface fill, ink border (subdued)
+    Outlined, // transparent, ink border
+    Standard, // transparent, no border
 }
 
 @Composable
@@ -55,56 +55,61 @@ fun CrumbsIconButton(
     enabled: Boolean = true,
     size: IconButtonSize = IconButtonSize.Medium,
     style: IconButtonStyle = IconButtonStyle.Standard,
-    tint: Color? = null
+    tint: Color? = null,
 ) {
     val colors = LocalCrumbsColors.current
     val stroke = LocalCrumbsStroke.current
     val shapes = LocalCrumbsShapes.current
 
-    val square = when (size) {
-        IconButtonSize.Small -> 36.dp
-        IconButtonSize.Medium -> 40.dp
-        IconButtonSize.Large -> 48.dp
-    }
+    val square =
+        when (size) {
+            IconButtonSize.Small -> 36.dp
+            IconButtonSize.Medium -> 40.dp
+            IconButtonSize.Large -> 48.dp
+        }
 
-    val backgroundColor = when (style) {
-        IconButtonStyle.Filled -> if (enabled) colors.accent else colors.surface
-        IconButtonStyle.FilledTonal -> colors.surface
-        IconButtonStyle.Outlined, IconButtonStyle.Standard -> Color.Transparent
-    }
+    val backgroundColor =
+        when (style) {
+            IconButtonStyle.Filled -> if (enabled) colors.accent else colors.surface
+            IconButtonStyle.FilledTonal -> colors.surface
+            IconButtonStyle.Outlined, IconButtonStyle.Standard -> Color.Transparent
+        }
     val showBorder = style == IconButtonStyle.Outlined || style == IconButtonStyle.FilledTonal
-    val resolvedTint = tint ?: when (style) {
-        IconButtonStyle.Filled -> colors.onAccent
-        IconButtonStyle.FilledTonal, IconButtonStyle.Outlined, IconButtonStyle.Standard -> colors.ink
-    }
+    val resolvedTint =
+        tint ?: when (style) {
+            IconButtonStyle.Filled -> colors.onAccent
+            IconButtonStyle.FilledTonal, IconButtonStyle.Outlined, IconButtonStyle.Standard -> colors.ink
+        }
 
     val interaction = remember { MutableInteractionSource() }
-    var inner: Modifier = modifier
-        .minimumInteractiveComponentSize()
-        .size(square)
-        .background(backgroundColor)
+    var inner: Modifier =
+        modifier
+            .minimumInteractiveComponentSize()
+            .size(square)
+            .background(backgroundColor)
     if (showBorder) inner = inner.border(stroke.regular, colors.ink, shapes.button)
     // Apply contentDescription + Role.Button at the clickable layer so TalkBack
     // reads a meaningful label even when the inner Icon was created with
     // contentDescription=null. Without this, the `contentDescription` parameter
     // is silently dropped by composition.
-    inner = inner
-        .semantics(mergeDescendants = true) {
-            role = Role.Button
-            contentDescription?.let { this.contentDescription = it }
-        }
-        // indication = null suppresses the default Material ripple; brutalist
-        // surfaces stay flat.
-        .clickable(
-            enabled = enabled,
-            interactionSource = interaction,
-            indication = null,
-        ) { onClick() }
-        .testTag("icon-btn-${style.name.lowercase()}")
+    inner =
+        inner
+            .semantics(mergeDescendants = true) {
+                role = Role.Button
+                contentDescription?.let { this.contentDescription = it }
+            }
+            // indication = null suppresses the default Material ripple; brutalist
+            // surfaces stay flat.
+            .clickable(
+                enabled = enabled,
+                interactionSource = interaction,
+                indication = null,
+            ) { onClick() }
+            .testTag("icon-btn-${style.name.lowercase()}")
 
     Box(modifier = inner, contentAlignment = Alignment.Center) {
         androidx.compose.runtime.CompositionLocalProvider(
-            androidx.compose.material3.LocalContentColor provides resolvedTint
+            androidx.compose.material3.LocalContentColor provides resolvedTint,
         ) {
             icon()
         }

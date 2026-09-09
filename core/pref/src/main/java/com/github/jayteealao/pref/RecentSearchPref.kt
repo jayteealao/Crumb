@@ -46,10 +46,11 @@ suspend fun Context.clearRecentSearches() {
     dataStore.edit { prefs -> prefs.remove(RECENT_SEARCHES_KEY) }
 }
 
-private fun String.decodeRecentSearches(): List<String> = try {
-    Json.decodeFromString(recentSearchesSerializer, this)
-} catch (_: Exception) {
-    // Corrupt payload (older format, manual tampering) — silently reset on
-    // next write rather than crash the search screen.
-    emptyList()
-}
+private fun String.decodeRecentSearches(): List<String> =
+    try {
+        Json.decodeFromString(recentSearchesSerializer, this)
+    } catch (_: Exception) {
+        // Corrupt payload (older format, manual tampering) — silently reset on
+        // next write rather than crash the search screen.
+        emptyList()
+    }

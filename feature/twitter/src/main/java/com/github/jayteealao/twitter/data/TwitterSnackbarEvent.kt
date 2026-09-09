@@ -9,7 +9,13 @@ package com.github.jayteealao.twitter.data
  * event domains no longer collide on a shared type name at call sites.
  */
 sealed class TwitterSnackbarEvent {
-    data class Debounced(val retryAfterSeconds: Int?) : TwitterSnackbarEvent()
+    data class Debounced(
+        val retryAfterSeconds: Int?,
+    ) : TwitterSnackbarEvent()
+
     object InProgress : TwitterSnackbarEvent()
-    data class GenericFailure(val reason: String) : TwitterSnackbarEvent()
+
+    data class GenericFailure(
+        val reason: String,
+    ) : TwitterSnackbarEvent()
 }

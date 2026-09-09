@@ -20,7 +20,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -30,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
 import androidx.navigation.NavController
 import androidx.paging.LoadState
@@ -38,20 +38,20 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import com.github.jayteealao.crumbs.designsystem.components.BookmarkActionsOverlay
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsBookmarkCard
+import com.github.jayteealao.crumbs.designsystem.components.CrumbsButton
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsImageViewer
 import com.github.jayteealao.crumbs.designsystem.components.CrumbsVideoViewer
-import com.github.jayteealao.crumbs.designsystem.components.CrumbsButton
 import com.github.jayteealao.crumbs.designsystem.components.EmptyState
 import com.github.jayteealao.crumbs.designsystem.components.LoadingCard
 import com.github.jayteealao.crumbs.designsystem.components.rememberLongPressState
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.models.Bookmark
 import com.github.jayteealao.crumbs.models.ContentType
-import com.github.jayteealao.twitter.data.toBookmark as toBookmarkImpl
 import com.github.jayteealao.twitter.models.TweetData
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.distinctUntilChanged
 import timber.log.Timber
+import com.github.jayteealao.twitter.data.toBookmark as toBookmarkImpl
 
 @androidx.compose.runtime.Immutable
 data class TwitterBookmarksUiState(
@@ -129,17 +129,19 @@ fun TwitterBookmarksScreen(
             message = "Sign in to start saving and viewing your bookmarks.",
             actionText = "CONNECT TWITTER",
             onActionClick = onConnectClick,
-            modifier = modifier
-                .testTag("twitter-bookmarks-empty"),
+            modifier =
+                modifier
+                    .testTag("twitter-bookmarks-empty"),
         )
         return
     }
 
     // Single batch tag load per page-snapshot change — replaces per-item LaunchedEffect.
-    val itemIds = remember(pagedBookmarks?.itemCount) {
-        val count = pagedBookmarks?.itemCount ?: 0
-        (0 until count).mapNotNull { pagedBookmarks?.peek(it)?.tweet?.id }
-    }
+    val itemIds =
+        remember(pagedBookmarks?.itemCount) {
+            val count = pagedBookmarks?.itemCount ?: 0
+            (0 until count).mapNotNull { pagedBookmarks?.peek(it)?.tweet?.id }
+        }
     LaunchedEffect(itemIds) {
         if (itemIds.isNotEmpty()) onLoadTagsForIds(itemIds)
     }
@@ -151,32 +153,42 @@ fun TwitterBookmarksScreen(
     PullToRefreshBox(
         isRefreshing = uiState.isRefreshing,
         onRefresh = onRefresh,
-        modifier = modifier
-            .fillMaxSize()
-            .testTag("twitter-bookmarks-screen"),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .testTag("twitter-bookmarks-screen"),
     ) {
         LazyColumn(
             state = lazyListState,
-            modifier = Modifier
-                .fillMaxSize()
-                .testTag("twitter-bookmarks-feed"),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .testTag("twitter-bookmarks-feed"),
             contentPadding = contentPadding,
         ) {
             when (pagedBookmarks?.loadState?.refresh) {
-                is LoadState.Loading -> items(5) {
-                    LoadingCard(
-                        hasImage = it % 2 == 0,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
+                is LoadState.Loading -> {
+                    items(5) {
+                        LoadingCard(
+                            hasImage = it % 2 == 0,
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                        )
+                    }
                 }
-                is LoadState.Error -> item {
-                    EmptyState(
-                        title = "ERROR LOADING CRUMBS",
-                        message = "SOMETHING WENT WRONG. PULL TO REFRESH.",
-                        modifier = Modifier.padding(16.dp),
-                    )
+
+                is LoadState.Error -> {
+                    item {
+                        EmptyState(
+                            title = "ERROR LOADING CRUMBS",
+                            message = "SOMETHING WENT WRONG. PULL TO REFRESH.",
+                            modifier = Modifier.padding(16.dp),
+                        )
+                    }
                 }
-                else -> Unit
+
+                else -> {
+                    Unit
+                }
             }
             if (pagedBookmarks != null) {
                 items(
@@ -194,8 +206,9 @@ fun TwitterBookmarksScreen(
                         // re-pull this tweet's media. The ViewModel dedupes attempts per
                         // session; on success Room's InvalidationTracker re-emits this card,
                         // so the retry-on-revisit is automatic. On failure it stays text-only.
-                        val needsMediaRefetch = (bookmark.imageUrls.isEmpty() && bookmark.videoUrl == null) ||
-                            (bookmark.contentType == ContentType.Video && bookmark.videoVariants.isEmpty())
+                        val needsMediaRefetch =
+                            (bookmark.imageUrls.isEmpty() && bookmark.videoUrl == null) ||
+                                (bookmark.contentType == ContentType.Video && bookmark.videoVariants.isEmpty())
                         if (needsMediaRefetch) {
                             LaunchedEffect(id) { onRequestMediaRefetch(id) }
                         }
@@ -205,10 +218,11 @@ fun TwitterBookmarksScreen(
                         // (deduped in the VM); on success the url row populates and the card re-emits
                         // as a Link with a preview. Bounded to non-media cards so image/video tweets
                         // that also contain a link are not re-pulled here.
-                        val needsLinkRefetch = bookmark.linkUrl == null &&
-                            bookmark.contentType != ContentType.Image &&
-                            bookmark.contentType != ContentType.Video &&
-                            bookmark.previewText.contains("http")
+                        val needsLinkRefetch =
+                            bookmark.linkUrl == null &&
+                                bookmark.contentType != ContentType.Image &&
+                                bookmark.contentType != ContentType.Video &&
+                                bookmark.previewText.contains("http")
                         if (needsLinkRefetch) {
                             LaunchedEffect("link-$id") { onRequestLinkRefetch(id) }
                         }
@@ -248,13 +262,18 @@ fun TwitterBookmarksScreen(
                     }
                 }
                 when (pagedBookmarks.loadState.append) {
-                    is LoadState.Loading -> item {
-                        LoadingCard(
-                            hasImage = false,
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                        )
+                    is LoadState.Loading -> {
+                        item {
+                            LoadingCard(
+                                hasImage = false,
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                            )
+                        }
                     }
-                    else -> Unit
+
+                    else -> {
+                        Unit
+                    }
                 }
                 if (pagedBookmarks.loadState.refresh is LoadState.NotLoading &&
                     pagedBookmarks.itemCount == 0
@@ -341,13 +360,14 @@ fun TwitterBookmarksRoute(
     // Background/foreground → pause/resume the shared player on ON_PAUSE/ON_RESUME.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_PAUSE -> bookmarksViewModel.onAppPaused()
-                Lifecycle.Event.ON_RESUME -> bookmarksViewModel.onAppResumed()
-                else -> Unit
+        val observer =
+            LifecycleEventObserver { _, event ->
+                when (event) {
+                    Lifecycle.Event.ON_PAUSE -> bookmarksViewModel.onAppPaused()
+                    Lifecycle.Event.ON_RESUME -> bookmarksViewModel.onAppResumed()
+                    else -> Unit
+                }
             }
-        }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
@@ -371,11 +391,12 @@ fun TwitterBookmarksRoute(
     }
 
     TwitterBookmarksScreen(
-        uiState = TwitterBookmarksUiState(
-            loggedIn = loggedIn,
-            isRefreshing = isRefreshing,
-            tagsMap = tagsMap,
-        ),
+        uiState =
+            TwitterBookmarksUiState(
+                loggedIn = loggedIn,
+                isRefreshing = isRefreshing,
+                tagsMap = tagsMap,
+            ),
         pagedBookmarks = if (loggedIn) pagedBookmarks else null,
         onCardClick = { url ->
             val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
@@ -400,8 +421,9 @@ fun TwitterBookmarksRoute(
         // guard mirror the standard external-link launch; the whole-card tap keeps
         // the tweet-permalink behaviour via onCardClick above.
         onLinkClick = { url ->
-            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
-                .addCategory(Intent.CATEGORY_BROWSABLE)
+            val intent =
+                Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                    .addCategory(Intent.CATEGORY_BROWSABLE)
             runCatching { context.startActivity(intent) }
                 .onFailure { Timber.w(it, "No browser to open link: $url") }
         },
@@ -410,8 +432,9 @@ fun TwitterBookmarksRoute(
         // browser (mirrors onLinkClick); the whole-card tap keeps the parent permalink
         // via onCardClick above. The non-consuming gesture in the card routes them apart.
         onQuoteClick = { url ->
-            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
-                .addCategory(Intent.CATEGORY_BROWSABLE)
+            val intent =
+                Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                    .addCategory(Intent.CATEGORY_BROWSABLE)
             runCatching { context.startActivity(intent) }
                 .onFailure { Timber.w(it, "No browser to open quoted tweet: $url") }
         },
@@ -441,14 +464,17 @@ fun TwitterBookmarksRoute(
                     val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(b.sourceUrl))
                     context.startActivity(intent)
                 }
+
                 "share" -> {
                     Timber.d("Twitter long-press: SHARE")
-                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, b.sourceUrl)
-                    }
+                    val shareIntent =
+                        Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, b.sourceUrl)
+                        }
                     context.startActivity(Intent.createChooser(shareIntent, "Share tweet"))
                 }
+
                 "delete" -> {
                     Timber.d("Twitter long-press: DELETE")
                     bookmarksViewModel.softDelete(b.id)

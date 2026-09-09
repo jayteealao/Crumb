@@ -26,7 +26,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class SyncStatusRepositoryTest {
-
     private lateinit var firestore: FirebaseFirestore
     private lateinit var auth: FirebaseAuth
     private lateinit var docRef: DocumentReference
@@ -55,63 +54,69 @@ class SyncStatusRepositoryTest {
     }
 
     @Test
-    fun refresh_returnsParsedSyncStatus() = runTest {
-        every { snapshot.data } returns mapOf(
-            "linked" to true,
-            "lastError" to null,
-            "itemsAdded" to 5L,
-            "xUserId" to "xuid-123",
-            "latest_tweet_id" to "9999",
-        )
+    fun refresh_returnsParsedSyncStatus() =
+        runTest {
+            every { snapshot.data } returns
+                mapOf(
+                    "linked" to true,
+                    "lastError" to null,
+                    "itemsAdded" to 5L,
+                    "xUserId" to "xuid-123",
+                    "latest_tweet_id" to "9999",
+                )
 
-        val repo = SyncStatusRepository(firestore, auth)
-        val result = repo.refresh()
+            val repo = SyncStatusRepository(firestore, auth)
+            val result = repo.refresh()
 
-        assertTrue(result?.linked == true)
-        assertEquals("xuid-123", result?.xUserId)
-        assertEquals(5, result?.itemsAdded)
-        assertEquals("9999", result?.latestTweetId)
-        // flow caches the parsed value
-        assertEquals(result, repo.flow.value)
-    }
-
-    @Test
-    fun refresh_throttlesWithinFiveSeconds() = runTest {
-        every { snapshot.data } returns mapOf("linked" to true)
-
-        val repo = SyncStatusRepository(firestore, auth)
-        repo.refresh()
-        repo.refresh() // second call within throttle window should be a no-op
-        repo.refresh()
-
-        // Exactly one server hit across three back-to-back calls.
-        verify(exactly = 1) { statusDoc.get(Source.SERVER) }
-    }
+            assertTrue(result?.linked == true)
+            assertEquals("xuid-123", result?.xUserId)
+            assertEquals(5, result?.itemsAdded)
+            assertEquals("9999", result?.latestTweetId)
+            // flow caches the parsed value
+            assertEquals(result, repo.flow.value)
+        }
 
     @Test
-    fun refresh_forceBypassesThrottle() = runTest {
-        every { snapshot.data } returns mapOf("linked" to true)
+    fun refresh_throttlesWithinFiveSeconds() =
+        runTest {
+            every { snapshot.data } returns mapOf("linked" to true)
 
-        val repo = SyncStatusRepository(firestore, auth)
-        repo.refresh()
-        repo.refresh(force = true)
+            val repo = SyncStatusRepository(firestore, auth)
+            repo.refresh()
+            repo.refresh() // second call within throttle window should be a no-op
+            repo.refresh()
 
-        verify(exactly = 2) { statusDoc.get(Source.SERVER) }
-    }
-
-    @Test
-    fun refresh_returnsNullWhenUnauthenticated() = runTest {
-        every { auth.currentUser } returns null
-        val repo = SyncStatusRepository(firestore, auth)
-        assertNull(repo.refresh())
-        assertNull(repo.flow.value)
-    }
+            // Exactly one server hit across three back-to-back calls.
+            verify(exactly = 1) { statusDoc.get(Source.SERVER) }
+        }
 
     @Test
-    fun parse_missingLinkedDefaultsFalse() = runTest {
-        every { snapshot.data } returns mapOf("xUserId" to "x")
-        val repo = SyncStatusRepository(firestore, auth)
-        val result = repo.refresh()
-        assertFalse(result?.linked ?: true)
-    }
+    fun refresh_forceBypassesThrottle() =
+        runTest {
+            every { snapshot.data } returns mapOf("linked" to true)
+
+            val repo = SyncStatusRepository(firestore, auth)
+            repo.refresh()
+            repo.refresh(force = true)
+
+            verify(exactly = 2) { statusDoc.get(Source.SERVER) }
+        }
+
+    @Test
+    fun refresh_returnsNullWhenUnauthenticated() =
+        runTest {
+            every { auth.currentUser } returns null
+            val repo = SyncStatusRepository(firestore, auth)
+            assertNull(repo.refresh())
+            assertNull(repo.flow.value)
+        }
+
+    @Test
+    fun parse_missingLinkedDefaultsFalse() =
+        runTest {
+            every { snapshot.data } returns mapOf("xUserId" to "x")
+            val repo = SyncStatusRepository(firestore, auth)
+            val result = repo.refresh()
+            assertFalse(result?.linked ?: true)
+        }
 }

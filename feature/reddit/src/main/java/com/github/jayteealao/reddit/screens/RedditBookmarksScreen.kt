@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -18,6 +17,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
@@ -72,47 +72,59 @@ fun RedditBookmarksScreen(
             message = "Sign in to start saving and viewing your bookmarks.",
             actionText = "CONNECT REDDIT",
             onActionClick = onConnectClick,
-            modifier = modifier
-                .testTag("reddit-bookmarks-empty"),
+            modifier =
+                modifier
+                    .testTag("reddit-bookmarks-empty"),
         )
         return
     }
 
     // Single batch tag load per page-snapshot change — replaces per-item LaunchedEffect.
-    val itemIds = remember(pagedPosts?.itemCount) {
-        val count = pagedPosts?.itemCount ?: 0
-        (0 until count).mapNotNull { pagedPosts?.peek(it)?.post?.id }
-    }
+    val itemIds =
+        remember(pagedPosts?.itemCount) {
+            val count = pagedPosts?.itemCount ?: 0
+            (0 until count).mapNotNull { pagedPosts?.peek(it)?.post?.id }
+        }
     LaunchedEffect(itemIds) {
         if (itemIds.isNotEmpty()) onLoadTagsForIds(itemIds)
     }
 
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .testTag("reddit-bookmarks-screen"),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .testTag("reddit-bookmarks-screen"),
     ) {
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .testTag("reddit-bookmarks-feed"),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .testTag("reddit-bookmarks-feed"),
             contentPadding = contentPadding,
         ) {
             when (pagedPosts?.loadState?.refresh) {
-                is LoadState.Loading -> items(5) {
-                    LoadingCard(
-                        hasImage = it % 2 == 0,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
+                is LoadState.Loading -> {
+                    items(5) {
+                        LoadingCard(
+                            hasImage = it % 2 == 0,
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                        )
+                    }
                 }
-                is LoadState.Error -> item {
-                    EmptyState(
-                        title = "ERROR LOADING CRUMBS",
-                        message = "SOMETHING WENT WRONG. PULL TO REFRESH.",
-                        modifier = Modifier.padding(16.dp),
-                    )
+
+                is LoadState.Error -> {
+                    item {
+                        EmptyState(
+                            title = "ERROR LOADING CRUMBS",
+                            message = "SOMETHING WENT WRONG. PULL TO REFRESH.",
+                            modifier = Modifier.padding(16.dp),
+                        )
+                    }
                 }
-                else -> Unit
+
+                else -> {
+                    Unit
+                }
             }
             if (pagedPosts != null) {
                 items(
@@ -133,13 +145,18 @@ fun RedditBookmarksScreen(
                     }
                 }
                 when (pagedPosts.loadState.append) {
-                    is LoadState.Loading -> item {
-                        LoadingCard(
-                            hasImage = false,
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                        )
+                    is LoadState.Loading -> {
+                        item {
+                            LoadingCard(
+                                hasImage = false,
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                            )
+                        }
                     }
-                    else -> Unit
+
+                    else -> {
+                        Unit
+                    }
                 }
                 if (pagedPosts.loadState.refresh is LoadState.NotLoading &&
                     pagedPosts.itemCount == 0
@@ -195,10 +212,11 @@ fun RedditBookmarksRoute(
     }
 
     RedditBookmarksScreen(
-        uiState = RedditBookmarksUiState(
-            loggedIn = loggedIn,
-            tagsMap = tagsMap,
-        ),
+        uiState =
+            RedditBookmarksUiState(
+                loggedIn = loggedIn,
+                tagsMap = tagsMap,
+            ),
         pagedPosts = if (loggedIn) pagedPosts else null,
         onCardClick = { url ->
             val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
@@ -229,14 +247,17 @@ fun RedditBookmarksRoute(
                     val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(b.sourceUrl))
                     context.startActivity(intent)
                 }
+
                 "share" -> {
                     Timber.d("Reddit long-press: SHARE")
-                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, b.sourceUrl)
-                    }
+                    val shareIntent =
+                        Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, b.sourceUrl)
+                        }
                     context.startActivity(Intent.createChooser(shareIntent, "Share post"))
                 }
+
                 "delete" -> {
                     Timber.d("Reddit long-press: DELETE")
                     redditViewModel.softDelete(b.id)
@@ -251,17 +272,19 @@ fun RedditBookmarksRoute(
 }
 
 fun RedditPostData.toBookmark(tags: List<String> = emptyList()): Bookmark {
-    val contentType = when {
-        post.isVideo -> ContentType.Video
-        post.thumbnail != null && post.thumbnail !in listOf("self", "default", "nsfw") -> ContentType.Image
-        !post.isSelf -> ContentType.Link
-        else -> ContentType.Text
-    }
-    val imageUrl = when {
-        post.thumbnail != null && post.thumbnail !in listOf("self", "default", "nsfw") -> post.thumbnail
-        contentType == ContentType.Image -> post.url
-        else -> null
-    }
+    val contentType =
+        when {
+            post.isVideo -> ContentType.Video
+            post.thumbnail != null && post.thumbnail !in listOf("self", "default", "nsfw") -> ContentType.Image
+            !post.isSelf -> ContentType.Link
+            else -> ContentType.Text
+        }
+    val imageUrl =
+        when {
+            post.thumbnail != null && post.thumbnail !in listOf("self", "default", "nsfw") -> post.thumbnail
+            contentType == ContentType.Image -> post.url
+            else -> null
+        }
     val videoUrl = if (post.isVideo) post.url else null
     return Bookmark(
         id = post.id,

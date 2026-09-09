@@ -35,7 +35,6 @@ import com.github.jayteealao.crumbs.R
  * crashing or silently throwing.
  */
 object SyncNotifications {
-
     /** Low-importance channel for the ongoing/determinate progress notifications (no sound). */
     const val CHANNEL_PROGRESS = "twitter_sync_progress"
 
@@ -68,20 +67,22 @@ object SyncNotifications {
      */
     fun registerChannels(context: Context) {
         val manager = NotificationManagerCompat.from(context)
-        val progress = NotificationChannelCompat.Builder(
-            CHANNEL_PROGRESS,
-            NotificationManagerCompat.IMPORTANCE_LOW,
-        )
-            .setName("Bookmark sync")
-            .setDescription("Progress while syncing your X bookmarks")
-            .build()
-        val alerts = NotificationChannelCompat.Builder(
-            CHANNEL_ALERTS,
-            NotificationManagerCompat.IMPORTANCE_DEFAULT,
-        )
-            .setName("Bookmark sync alerts")
-            .setDescription("Tells you when a bookmark sync finishes or fails")
-            .build()
+        val progress =
+            NotificationChannelCompat
+                .Builder(
+                    CHANNEL_PROGRESS,
+                    NotificationManagerCompat.IMPORTANCE_LOW,
+                ).setName("Bookmark sync")
+                .setDescription("Progress while syncing your X bookmarks")
+                .build()
+        val alerts =
+            NotificationChannelCompat
+                .Builder(
+                    CHANNEL_ALERTS,
+                    NotificationManagerCompat.IMPORTANCE_DEFAULT,
+                ).setName("Bookmark sync alerts")
+                .setDescription("Tells you when a bookmark sync finishes or fails")
+                .build()
         manager.createNotificationChannel(progress)
         manager.createNotificationChannel(alerts)
     }
@@ -93,9 +94,10 @@ object SyncNotifications {
      * cached intent fresh.
      */
     fun contentPendingIntent(context: Context): PendingIntent {
-        val intent = Intent(context, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        }
+        val intent =
+            Intent(context, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
         return PendingIntent.getActivity(
             context,
             0,
@@ -109,24 +111,30 @@ object SyncNotifications {
      * foreground service. `batchTotal == 0` (or `batchIdx == 0`) renders an
      * indeterminate bar; otherwise it's bounded ("Batch N of M").
      */
-    fun foregroundInfo(context: Context, batchIdx: Int, batchTotal: Int): ForegroundInfo {
-        val contentText = when {
-            batchTotal > 0 -> "Batch $batchIdx of $batchTotal"
-            batchIdx > 0 -> "Batch $batchIdx"
-            else -> TEXT_LOADING
-        }
-        val notification = NotificationCompat.Builder(context, CHANNEL_PROGRESS)
-            .setContentTitle(TITLE_SYNCING)
-            .setContentText(contentText)
-            .setSmallIcon(R.drawable.ic_sync_notification)
-            .setContentIntent(contentPendingIntent(context))
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .apply {
-                if (batchTotal > 0) setProgress(batchTotal, batchIdx, false) else setProgress(0, 0, true)
+    fun foregroundInfo(
+        context: Context,
+        batchIdx: Int,
+        batchTotal: Int,
+    ): ForegroundInfo {
+        val contentText =
+            when {
+                batchTotal > 0 -> "Batch $batchIdx of $batchTotal"
+                batchIdx > 0 -> "Batch $batchIdx"
+                else -> TEXT_LOADING
             }
-            .build()
+        val notification =
+            NotificationCompat
+                .Builder(context, CHANNEL_PROGRESS)
+                .setContentTitle(TITLE_SYNCING)
+                .setContentText(contentText)
+                .setSmallIcon(R.drawable.ic_sync_notification)
+                .setContentIntent(contentPendingIntent(context))
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .apply {
+                    if (batchTotal > 0) setProgress(batchTotal, batchIdx, false) else setProgress(0, 0, true)
+                }.build()
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             ForegroundInfo(ID_FOREGROUND, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
@@ -140,8 +148,12 @@ object SyncNotifications {
      * an indeterminate bar with a running processed count. Not ongoing — the user can
      * dismiss it, and best-effort backfill loss on process death is acceptable.
      */
-    fun backfillProgress(context: Context, processed: Int): Notification =
-        NotificationCompat.Builder(context, CHANNEL_PROGRESS)
+    fun backfillProgress(
+        context: Context,
+        processed: Int,
+    ): Notification =
+        NotificationCompat
+            .Builder(context, CHANNEL_PROGRESS)
             .setContentTitle(TITLE_BACKFILL)
             .setContentText(TEXT_BACKFILL)
             .setSmallIcon(R.drawable.ic_sync_notification)
@@ -153,12 +165,15 @@ object SyncNotifications {
             .build()
 
     /** Singular/plural copy for the terminal success notification. */
-    fun syncedCountText(count: Int): String =
-        if (count == 1) "Synced 1 bookmark" else "Synced $count bookmarks"
+    fun syncedCountText(count: Int): String = if (count == 1) "Synced 1 bookmark" else "Synced $count bookmarks"
 
     /** Terminal "sync complete" alert. Auto-cancels on tap; not ongoing. */
-    fun terminalSuccess(context: Context, count: Int): Notification =
-        NotificationCompat.Builder(context, CHANNEL_ALERTS)
+    fun terminalSuccess(
+        context: Context,
+        count: Int,
+    ): Notification =
+        NotificationCompat
+            .Builder(context, CHANNEL_ALERTS)
             .setContentTitle(TITLE_COMPLETE)
             .setContentText(syncedCountText(count))
             .setSmallIcon(R.drawable.ic_sync_notification)
@@ -170,7 +185,8 @@ object SyncNotifications {
 
     /** Terminal "sync failed" alert. Auto-cancels on tap; not ongoing. */
     fun terminalError(context: Context): Notification =
-        NotificationCompat.Builder(context, CHANNEL_ALERTS)
+        NotificationCompat
+            .Builder(context, CHANNEL_ALERTS)
             .setContentTitle(TITLE_FAILED)
             .setContentText(TEXT_ERROR)
             .setSmallIcon(R.drawable.ic_sync_notification)
@@ -188,7 +204,10 @@ object SyncNotifications {
     // honors a check that lexically guards the call. Below API 33 the grant is
     // implicit, so the short-circuit lets the notification through.
 
-    fun notifyBackfillProgress(context: Context, processed: Int) {
+    fun notifyBackfillProgress(
+        context: Context,
+        processed: Int,
+    ) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
@@ -202,7 +221,10 @@ object SyncNotifications {
         NotificationManagerCompat.from(context).cancel(ID_BACKFILL)
     }
 
-    fun notifyTerminalSuccess(context: Context, count: Int) {
+    fun notifyTerminalSuccess(
+        context: Context,
+        count: Int,
+    ) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED

@@ -24,15 +24,17 @@ import com.github.jayteealao.twitter.screens.LoginViewModel
  *
  * Pure function: unit-testable without a Compose host (see [LoginAutoNavTest]).
  */
-fun shouldAutoNavigate(authState: AuthUiState): Boolean = when (authState) {
-    is AuthUiState.Authenticated -> true
-    AuthUiState.SigningIn,
-    AuthUiState.SignedOut,
-    is AuthUiState.CollisionRequiresEmailLink,
-    AuthUiState.EmailPasswordEntry,
-    is AuthUiState.Error,
-    -> false
-}
+fun shouldAutoNavigate(authState: AuthUiState): Boolean =
+    when (authState) {
+        is AuthUiState.Authenticated -> true
+
+        AuthUiState.SigningIn,
+        AuthUiState.SignedOut,
+        is AuthUiState.CollisionRequiresEmailLink,
+        AuthUiState.EmailPasswordEntry,
+        is AuthUiState.Error,
+        -> false
+    }
 
 /**
  * Navigation entry point for the login destination. Wires ViewModels into [LoginScreen] and
@@ -88,25 +90,26 @@ fun LoginRoute(
     val errorMessage = (authState as? AuthUiState.Error)?.reason
 
     LoginScreen(
-        uiState = LoginUiState(
-            // Legacy Twitter token chip is retired post-cutover; hardwired false so
-            // a stale on-device Prefs token is never reflected in the UI.
-            twitterConnected = false,
-            redditConnected = redditAccess,
-            twitterUsername = twitterUser?.username.orEmpty(),
-            twitterDisplayName = twitterUser?.name.orEmpty(),
-            twitterAvatarUrl = twitterUser?.profileImageUrl.orEmpty(),
-            redditUsername = redditUsername,
-            // isProcessingCallback guards the Twitter OAuth callback path; no
-            // longer conditioned on twitterAccess since the token signal is retired.
-            isProcessingCallback = authorizationCode != null && !redditAccess,
-            isDebug = BuildConfig.DEBUG,
-            firebaseSignedIn = signedIn,
-            firebaseSigningIn = signingIn,
-            collisionPromptVisible = collisionVisible,
-            emailDialogVisible = emailEntryVisible,
-            authErrorMessage = errorMessage,
-        ),
+        uiState =
+            LoginUiState(
+                // Legacy Twitter token chip is retired post-cutover; hardwired false so
+                // a stale on-device Prefs token is never reflected in the UI.
+                twitterConnected = false,
+                redditConnected = redditAccess,
+                twitterUsername = twitterUser?.username.orEmpty(),
+                twitterDisplayName = twitterUser?.name.orEmpty(),
+                twitterAvatarUrl = twitterUser?.profileImageUrl.orEmpty(),
+                redditUsername = redditUsername,
+                // isProcessingCallback guards the Twitter OAuth callback path; no
+                // longer conditioned on twitterAccess since the token signal is retired.
+                isProcessingCallback = authorizationCode != null && !redditAccess,
+                isDebug = BuildConfig.DEBUG,
+                firebaseSignedIn = signedIn,
+                firebaseSigningIn = signingIn,
+                collisionPromptVisible = collisionVisible,
+                emailDialogVisible = emailEntryVisible,
+                authErrorMessage = errorMessage,
+            ),
         onConnectTwitter = {
             // Route X-OAuth through the dedicated Connect-X destination, which
             // owns the Custom Tabs + deep-link round-trip via

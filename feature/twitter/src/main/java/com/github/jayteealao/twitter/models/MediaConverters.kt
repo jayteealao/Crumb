@@ -20,12 +20,10 @@ import com.google.gson.reflect.TypeToken
  */
 class MediaConverters {
     @TypeConverter
-    fun variantsToJson(variants: List<Variant>?): String? =
-        if (variants.isNullOrEmpty()) null else GSON.toJson(variants)
+    fun variantsToJson(variants: List<Variant>?): String? = if (variants.isNullOrEmpty()) null else GSON.toJson(variants)
 
     @TypeConverter
-    fun jsonToVariants(json: String?): List<Variant>? =
-        if (json.isNullOrBlank()) null else GSON.fromJson(json, VARIANT_LIST_TYPE)
+    fun jsonToVariants(json: String?): List<Variant>? = if (json.isNullOrBlank()) null else GSON.fromJson(json, VARIANT_LIST_TYPE)
 
     private companion object {
         val GSON = Gson()

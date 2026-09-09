@@ -59,11 +59,12 @@ fun SettingsScreen(
     var showConfirm by remember { mutableStateOf(false) }
 
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(colors.background)
-            .padding(horizontal = spacing.xl, vertical = spacing.xl)
-            .testTag("settings-screen"),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .background(colors.background)
+                .padding(horizontal = spacing.xl, vertical = spacing.xl)
+                .testTag("settings-screen"),
         horizontalAlignment = Alignment.Start,
         verticalArrangement = Arrangement.Top,
     ) {
@@ -86,15 +87,17 @@ fun SettingsScreen(
             text = if (syncStatus?.linked == true) "CONNECTED" else "DISCONNECTED",
             style = typography.bodyMono,
             color = if (syncStatus?.linked == true) colors.success else colors.error,
-            modifier = Modifier
-                .testTag("settings-x-state")
-                .semantics {
-                    stateDescription = if (syncStatus?.linked == true) {
-                        "X sync enabled"
-                    } else {
-                        "X sync disabled"
-                    }
-                },
+            modifier =
+                Modifier
+                    .testTag("settings-x-state")
+                    .semantics {
+                        stateDescription =
+                            if (syncStatus?.linked == true) {
+                                "X sync enabled"
+                            } else {
+                                "X sync disabled"
+                            }
+                    },
         )
         Spacer(Modifier.height(spacing.xs))
         Text(
@@ -145,11 +148,12 @@ fun SettingsScreen(
         modifier = Modifier.testTag("settings-disconnect-overlay"),
         body = {
             Column(
-                modifier = Modifier
-                    .background(colors.surface)
-                    .border(BorderStroke(stroke.regular, colors.ink))
-                    .padding(spacing.xl)
-                    .testTag("settings-disconnect-confirm-dialog"),
+                modifier =
+                    Modifier
+                        .background(colors.surface)
+                        .border(BorderStroke(stroke.regular, colors.ink))
+                        .padding(spacing.xl)
+                        .testTag("settings-disconnect-confirm-dialog"),
             ) {
                 Text(
                     text = "DISCONNECT X",
@@ -168,9 +172,10 @@ fun SettingsScreen(
                         onClick = { showConfirm = false },
                         text = "CANCEL",
                         style = ButtonStyle.Secondary,
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("settings-disconnect-confirm-cancel"),
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .testTag("settings-disconnect-confirm-cancel"),
                     )
                     Spacer(Modifier.width(spacing.md))
                     CrumbsButton(
@@ -180,9 +185,10 @@ fun SettingsScreen(
                         },
                         text = "DISCONNECT",
                         style = ButtonStyle.Primary,
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("settings-disconnect-confirm-yes"),
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .testTag("settings-disconnect-confirm-yes"),
                     )
                 }
             }
@@ -196,5 +202,4 @@ private val timestampFormat: SimpleDateFormat by lazy {
     }
 }
 
-private fun formatTimestamp(date: Date?): String =
-    if (date == null) "Never" else timestampFormat.format(date)
+private fun formatTimestamp(date: Date?): String = if (date == null) "Never" else timestampFormat.format(date)

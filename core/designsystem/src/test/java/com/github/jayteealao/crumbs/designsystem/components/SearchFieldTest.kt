@@ -20,7 +20,6 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class SearchFieldTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -32,7 +31,8 @@ class SearchFieldTest {
                 CrumbsSearchField(query = "", onQueryChange = {}, onBack = {})
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsSearchField_empty_light.png")
     }
 
@@ -44,7 +44,8 @@ class SearchFieldTest {
                 CrumbsSearchField(query = "", onQueryChange = {}, onBack = {})
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsSearchField_empty_dark.png")
     }
 
@@ -62,7 +63,8 @@ class SearchFieldTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsSearchField_withHits_light.png")
     }
 
@@ -80,7 +82,8 @@ class SearchFieldTest {
                 )
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsSearchField_withHits_dark.png")
     }
 }

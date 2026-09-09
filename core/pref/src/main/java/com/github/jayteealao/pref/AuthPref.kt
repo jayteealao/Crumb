@@ -10,7 +10,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
-
 // Preference Name
 const val PREFERENCE_NAME = "MyDataStore"
 
@@ -20,7 +19,10 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = PRE
 /**
  * Add string data to DataStore (plaintext). Use [writeEncryptedString] for sensitive fields.
  */
-suspend fun Context.writeString(key: String, value: String) {
+suspend fun Context.writeString(
+    key: String,
+    value: String,
+) {
     dataStore.edit { pref -> pref[stringPreferencesKey(key)] = value }
 }
 
@@ -28,11 +30,10 @@ suspend fun Context.writeString(key: String, value: String) {
  * Read string from DataStore preferences (plaintext). Use [readEncryptedString] for
  * sensitive fields.
  */
-fun Context.readString(key: String): Flow<String> {
-    return dataStore.data.map { pref ->
+fun Context.readString(key: String): Flow<String> =
+    dataStore.data.map { pref ->
         pref[stringPreferencesKey(key)] ?: ""
     }
-}
 
 // ---------------------------------------------------------------------------
 // Encrypted token helpers
@@ -41,7 +42,10 @@ fun Context.readString(key: String): Flow<String> {
 // ---------------------------------------------------------------------------
 
 /** Encrypted variant of [writeString]. The value is AES/GCM-encrypted before storage. */
-suspend fun Context.writeEncryptedString(key: String, value: String) {
+suspend fun Context.writeEncryptedString(
+    key: String,
+    value: String,
+) {
     val encrypted = TokenCryptoManager.encrypt(value)
     dataStore.edit { pref -> pref[stringPreferencesKey(key)] = encrypted }
 }

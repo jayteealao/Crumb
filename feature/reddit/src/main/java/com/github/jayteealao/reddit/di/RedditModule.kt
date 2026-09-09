@@ -22,7 +22,6 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object RedditNetworkModule {
-
     // OkHttpClient was previously provided by the deleted Twitter NetworkModule.
     // Reddit is now the only HTTP consumer in the app, so the singleton lives
     // here. No interceptors needed — Reddit-side auth is handled per-request.
@@ -36,14 +35,14 @@ object RedditNetworkModule {
     @Provides
     @Singleton
     @RedditRetrofit
-    fun provideRedditRetrofit(okHttpClient: OkHttpClient): Retrofit {
-        return Retrofit.Builder()
+    fun provideRedditRetrofit(okHttpClient: OkHttpClient): Retrofit =
+        Retrofit
+            .Builder()
             .baseUrl(RedditApiService.BASE_URL)
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .addCallAdapterFactory(ApiResponseCallAdapterFactory.create())
             .build()
-    }
 
     /**
      * Provide Retrofit for Reddit OAuth (different base URL)
@@ -51,14 +50,14 @@ object RedditNetworkModule {
     @Provides
     @Singleton
     @RedditOAuthRetrofit
-    fun provideRedditOAuthRetrofit(okHttpClient: OkHttpClient): Retrofit {
-        return Retrofit.Builder()
+    fun provideRedditOAuthRetrofit(okHttpClient: OkHttpClient): Retrofit =
+        Retrofit
+            .Builder()
             .baseUrl(RedditApiService.AUTH_BASE_URL)
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .addCallAdapterFactory(ApiResponseCallAdapterFactory.create())
             .build()
-    }
 
     /**
      * Provide Reddit API Service
@@ -66,10 +65,8 @@ object RedditNetworkModule {
     @Provides
     @Singleton
     fun provideRedditApiService(
-        @RedditRetrofit retrofit: Retrofit
-    ): RedditApiService {
-        return retrofit.create(RedditApiService::class.java)
-    }
+        @RedditRetrofit retrofit: Retrofit,
+    ): RedditApiService = retrofit.create(RedditApiService::class.java)
 
     /**
      * Provide Reddit OAuth Service
@@ -77,24 +74,19 @@ object RedditNetworkModule {
     @Provides
     @Singleton
     fun provideRedditOAuthService(
-        @RedditOAuthRetrofit retrofit: Retrofit
-    ): RedditOAuthService {
-        return retrofit.create(RedditOAuthService::class.java)
-    }
+        @RedditOAuthRetrofit retrofit: Retrofit,
+    ): RedditOAuthService = retrofit.create(RedditOAuthService::class.java)
 }
 
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RedditBindsModule {
-
     /**
      * Bind RedditAuthClient implementation
      */
     @Binds
     @Singleton
-    abstract fun bindRedditAuthClient(
-        impl: RedditAuthClientImpl
-    ): RedditAuthClient
+    abstract fun bindRedditAuthClient(impl: RedditAuthClientImpl): RedditAuthClient
 }
 
 /**

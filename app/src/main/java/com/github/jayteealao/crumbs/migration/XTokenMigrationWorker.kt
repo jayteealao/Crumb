@@ -32,7 +32,6 @@ class XTokenMigrationWorker(
     appContext: Context,
     params: WorkerParameters,
 ) : CoroutineWorker(appContext, params) {
-
     override suspend fun doWork(): Result {
         val ctx = applicationContext
         val entry = EntryPointAccessors.fromApplication(ctx, MigrationEntryPoint::class.java)
@@ -51,7 +50,8 @@ internal suspend fun runXTokenMigration(
     val alreadyMigrated = ctx.readString(MigrationKeys.X_TOKEN_MIGRATED).first()
     if (alreadyMigrated == "true") {
         Timber.d("XTokenMigrationWorker: already migrated, skipping")
-        return androidx.work.ListenableWorker.Result.success()
+        return androidx.work.ListenableWorker.Result
+            .success()
     }
 
     // Re-encrypt any token still held in plaintext by a prior app version before
@@ -64,16 +64,18 @@ internal suspend fun runXTokenMigration(
     if (refreshToken.isBlank()) {
         Timber.d("XTokenMigrationWorker: no legacy refresh token, marking migrated")
         ctx.writeString(MigrationKeys.X_TOKEN_MIGRATED, "true")
-        return androidx.work.ListenableWorker.Result.success()
+        return androidx.work.ListenableWorker.Result
+            .success()
     }
 
     return try {
-        val result = withTimeout(TIMEOUT_MS) {
-            functions
-                .getHttpsCallable("migrateXToken")
-                .call(mapOf("refreshToken" to refreshToken))
-                .await()
-        }
+        val result =
+            withTimeout(TIMEOUT_MS) {
+                functions
+                    .getHttpsCallable("migrateXToken")
+                    .call(mapOf("refreshToken" to refreshToken))
+                    .await()
+            }
         val payload = result.data as? Map<*, *>
         val ok = payload?.get("ok") as? Boolean ?: false
         when {
@@ -81,24 +83,30 @@ internal suspend fun runXTokenMigration(
                 prefs.clearAllTokens()
                 ctx.writeString(MigrationKeys.X_TOKEN_MIGRATED, "true")
                 Timber.d("XTokenMigrationWorker: migrated successfully")
-                androidx.work.ListenableWorker.Result.success()
+                androidx.work.ListenableWorker.Result
+                    .success()
             }
+
             payload?.get("reason") == "invalid" -> {
                 // Token is dead server-side; no retry value. The reconnect
                 // banner is the user-visible UX path.
                 ctx.writeString(MigrationKeys.X_TOKEN_MIGRATED, "true")
                 Timber.d("XTokenMigrationWorker: invalid token, marking migrated")
-                androidx.work.ListenableWorker.Result.success()
+                androidx.work.ListenableWorker.Result
+                    .success()
             }
+
             else -> {
                 val payloadKeys = (payload as? Map<*, *>)?.keys?.joinToString() ?: "null"
                 Timber.w("XTokenMigrationWorker: unexpected payload keys=[$payloadKeys], retrying")
-                androidx.work.ListenableWorker.Result.retry()
+                androidx.work.ListenableWorker.Result
+                    .retry()
             }
         }
     } catch (e: TimeoutCancellationException) {
         Timber.w(e, "XTokenMigrationWorker: callable timed out after ${TIMEOUT_MS}ms, failing")
-        androidx.work.ListenableWorker.Result.failure()
+        androidx.work.ListenableWorker.Result
+            .failure()
     } catch (e: kotlinx.coroutines.CancellationException) {
         // The worker was stopped/cancelled cooperatively. Rethrow so WorkManager
         // records the cancellation instead of mistaking it for a transient retry.
@@ -109,14 +117,17 @@ internal suspend fun runXTokenMigration(
             // Returning failure() terminates the work request so WorkManager
             // does not spin an infinite retry loop on a signed-out device.
             Timber.w(e, "XTokenMigrationWorker: Sign-in required, skipping until authenticated")
-            androidx.work.ListenableWorker.Result.failure()
+            androidx.work.ListenableWorker.Result
+                .failure()
         } else {
             // Other Firebase Functions errors (UNAVAILABLE, INTERNAL, etc.) are transient.
             Timber.w(e, "XTokenMigrationWorker: transient Firebase error (${e.code}), retrying")
-            androidx.work.ListenableWorker.Result.retry()
+            androidx.work.ListenableWorker.Result
+                .retry()
         }
     } catch (e: Exception) {
         Timber.w(e, "XTokenMigrationWorker: transient failure, retrying")
-        androidx.work.ListenableWorker.Result.retry()
+        androidx.work.ListenableWorker.Result
+            .retry()
     }
 }

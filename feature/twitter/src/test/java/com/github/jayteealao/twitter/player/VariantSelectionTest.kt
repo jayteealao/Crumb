@@ -17,7 +17,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class VariantSelectionTest {
-
     private val hls = VideoVariant("application/x-mpegURL", "https://v/master.m3u8", 0)
     private val dash = VideoVariant("application/dash+xml", "https://v/manifest.mpd", 0)
     private val mp4Low = VideoVariant("video/mp4", "https://v/480.mp4", 832_000)

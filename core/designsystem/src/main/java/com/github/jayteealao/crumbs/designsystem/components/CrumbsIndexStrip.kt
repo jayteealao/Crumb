@@ -51,16 +51,18 @@ fun CrumbsIndexStrip(
     val indexFg = if (inverted) colors.accent else colors.onAccent
 
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(24.dp)
-            .testTag("index-strip"),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .height(24.dp)
+                .testTag("index-strip"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IndexStripCell(
-            modifier = Modifier
-                .background(indexBg)
-                .testTag("index-strip-index"),
+            modifier =
+                Modifier
+                    .background(indexBg)
+                    .testTag("index-strip-index"),
         ) {
             Text(
                 text = index,
@@ -82,9 +84,10 @@ fun CrumbsIndexStrip(
         }
         VerticalHairline(stroke.hairline, colors.ink)
         IndexStripCell(
-            modifier = Modifier
-                .weight(1f)
-                .testTag("index-strip-author"),
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .testTag("index-strip-author"),
             arrangement = Arrangement.Start,
         ) {
             Text(
@@ -104,11 +107,12 @@ fun CrumbsIndexStrip(
                 color = colors.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = if (isUnknownTimestamp) {
-                    Modifier.semantics { contentDescription = "Timestamp unavailable" }
-                } else {
-                    Modifier
-                },
+                modifier =
+                    if (isUnknownTimestamp) {
+                        Modifier.semantics { contentDescription = "Timestamp unavailable" }
+                    } else {
+                        Modifier
+                    },
             )
         }
     }
@@ -121,9 +125,10 @@ private fun androidx.compose.foundation.layout.RowScope.IndexStripCell(
     content: @Composable () -> Unit,
 ) {
     Row(
-        modifier = modifier
-            .fillMaxHeight()
-            .padding(horizontal = 8.dp, vertical = 5.dp),
+        modifier =
+            modifier
+                .fillMaxHeight()
+                .padding(horizontal = 8.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = arrangement,
     ) {
@@ -132,12 +137,16 @@ private fun androidx.compose.foundation.layout.RowScope.IndexStripCell(
 }
 
 @Composable
-private fun VerticalHairline(width: androidx.compose.ui.unit.Dp, color: Color) {
+private fun VerticalHairline(
+    width: androidx.compose.ui.unit.Dp,
+    color: Color,
+) {
     Box(
-        modifier = Modifier
-            .width(width)
-            .fillMaxHeight()
-            .background(color),
+        modifier =
+            Modifier
+                .width(width)
+                .fillMaxHeight()
+                .background(color),
     )
 }
 

@@ -59,25 +59,27 @@ fun OnboardingShell(
             .background(colors.background)
             .statusBarsPadding()
             .navigationBarsPadding()
-            .testTag("onboarding-shell")
+            .testTag("onboarding-shell"),
     ) {
         if (header != null) {
             header()
         }
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .testTag("onboarding-shell-pager"),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .testTag("onboarding-shell-pager"),
         ) { page ->
             pages[page]()
         }
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = spacing.lg, vertical = spacing.lg)
-                .testTag("onboarding-shell-footer"),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = spacing.lg, vertical = spacing.lg)
+                    .testTag("onboarding-shell-footer"),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -113,7 +115,7 @@ internal fun OnboardingPageIndicator(
                 Modifier
                     .width(14.dp)
                     .height(4.dp)
-                    .background(if (isCurrent) colors.accent else colors.ink.copy(alpha = 0.25f))
+                    .background(if (isCurrent) colors.accent else colors.ink.copy(alpha = 0.25f)),
             )
         }
     }
@@ -139,11 +141,12 @@ private fun PreviewOnboardingPage(label: String) {
 private fun PreviewOnboardingLight() {
     CrumbsTheme(darkTheme = false) {
         OnboardingShell(
-            pages = persistentListOf(
-                { PreviewOnboardingPage("Page 0") },
-                { PreviewOnboardingPage("Page 1") },
-                { PreviewOnboardingPage("Page 2") },
-            ),
+            pages =
+                persistentListOf(
+                    { PreviewOnboardingPage("Page 0") },
+                    { PreviewOnboardingPage("Page 1") },
+                    { PreviewOnboardingPage("Page 2") },
+                ),
             footerCtaText = "NEXT",
             onFooterCtaClick = {},
         )
@@ -155,11 +158,12 @@ private fun PreviewOnboardingLight() {
 private fun PreviewOnboardingDark() {
     CrumbsTheme(darkTheme = true) {
         OnboardingShell(
-            pages = persistentListOf(
-                { PreviewOnboardingPage("Page 0") },
-                { PreviewOnboardingPage("Page 1") },
-                { PreviewOnboardingPage("Page 2") },
-            ),
+            pages =
+                persistentListOf(
+                    { PreviewOnboardingPage("Page 0") },
+                    { PreviewOnboardingPage("Page 1") },
+                    { PreviewOnboardingPage("Page 2") },
+                ),
             pagerState = rememberPagerState(pageCount = { 3 }, initialPage = 1),
             footerCtaText = "NEXT",
             onFooterCtaClick = {},

@@ -21,30 +21,33 @@ import java.util.Date
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xxhdpi")
 class SettingsScreenTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-    private val options = RoborazziOptions(
-        compareOptions = RoborazziOptions.CompareOptions(
-            imageComparator = SimpleImageComparator(maxDistance = 0.01f),
-        ),
-    )
+    private val options =
+        RoborazziOptions(
+            compareOptions =
+                RoborazziOptions.CompareOptions(
+                    imageComparator = SimpleImageComparator(maxDistance = 0.01f),
+                ),
+        )
 
-    private val linkedStatus = SyncStatus(
-        linked = true,
-        lastPolledAt = Timestamp(Date(1_716_400_000_000L)),
-        lastError = null,
-        itemsAdded = 12,
-        xUserId = "x-uid",
-        latestTweetId = "1810000000000000000",
-    )
+    private val linkedStatus =
+        SyncStatus(
+            linked = true,
+            lastPolledAt = Timestamp(Date(1_716_400_000_000L)),
+            lastError = null,
+            itemsAdded = 12,
+            xUserId = "x-uid",
+            latestTweetId = "1810000000000000000",
+        )
 
-    private val erroredStatus = SyncStatus(
-        linked = false,
-        lastPolledAt = Timestamp(Date(1_716_400_000_000L)),
-        lastError = "invalid_grant",
-    )
+    private val erroredStatus =
+        SyncStatus(
+            linked = false,
+            lastPolledAt = Timestamp(Date(1_716_400_000_000L)),
+            lastError = "invalid_grant",
+        )
 
     @Test
     fun settings_linked_light() {
@@ -53,7 +56,8 @@ class SettingsScreenTest {
                 SettingsScreen(syncStatus = linkedStatus, onDisconnectClick = {})
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/SettingsScreen_linked_light.png", options)
     }
 
@@ -64,7 +68,8 @@ class SettingsScreenTest {
                 SettingsScreen(syncStatus = linkedStatus, onDisconnectClick = {})
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/SettingsScreen_linked_dark.png", options)
     }
 
@@ -75,7 +80,8 @@ class SettingsScreenTest {
                 SettingsScreen(syncStatus = erroredStatus, onDisconnectClick = {})
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/SettingsScreen_errored_light.png", options)
     }
 
@@ -86,7 +92,8 @@ class SettingsScreenTest {
                 SettingsScreen(syncStatus = SyncStatus(linked = false), onDisconnectClick = {})
             }
         }
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/SettingsScreen_disconnected_dark.png", options)
     }
 }

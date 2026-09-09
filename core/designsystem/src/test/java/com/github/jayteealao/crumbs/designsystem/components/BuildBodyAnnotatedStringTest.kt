@@ -18,7 +18,6 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class BuildBodyAnnotatedStringTest {
-
     private val accent = Color(0xFF_FF5A1Fu)
 
     private fun link(
@@ -42,12 +41,13 @@ class BuildBodyAnnotatedStringTest {
         // "Click https://t.co/abc here"
         //  01234 5         6          22 = end (exclusive) for "https://t.co/abc" which is 16 chars
         val text = "Click https://t.co/abc here"
-        val result = buildBodyAnnotatedString(
-            text = text,
-            textLinks = listOf(link(6, 22, "example.com/article")),
-            accentColor = accent,
-            onLinkClick = {},
-        )
+        val result =
+            buildBodyAnnotatedString(
+                text = text,
+                textLinks = listOf(link(6, 22, "example.com/article")),
+                accentColor = accent,
+                onLinkClick = {},
+            )
         // The resulting text should be the prefix + displayUrl + suffix
         assertEquals("Click example.com/article here", result.text)
     }
@@ -57,15 +57,17 @@ class BuildBodyAnnotatedStringTest {
         // "A https://t.co/x B https://t.co/y C"
         // link1: [2,16), link2: [19,33)
         val text = "A https://t.co/x B https://t.co/y C"
-        val result = buildBodyAnnotatedString(
-            text = text,
-            textLinks = listOf(
-                link(2, 16, "site1.com/a"),
-                link(19, 33, "site2.org/b"),
-            ),
-            accentColor = accent,
-            onLinkClick = {},
-        )
+        val result =
+            buildBodyAnnotatedString(
+                text = text,
+                textLinks =
+                    listOf(
+                        link(2, 16, "site1.com/a"),
+                        link(19, 33, "site2.org/b"),
+                    ),
+                accentColor = accent,
+                onLinkClick = {},
+            )
         assertEquals("A site1.com/a B site2.org/b C", result.text)
     }
 
@@ -77,12 +79,13 @@ class BuildBodyAnnotatedStringTest {
         // emoji is chars [0,2), space [2,3), "check " [3,9), link [9,22), " out" [22,26)
         // Simulate API v2 offset that is 1 short due to emoji (start=8 instead of 9):
         val text = "🔥 check https://t.co/x out"
-        val result = buildBodyAnnotatedString(
-            text = text,
-            textLinks = listOf(link(8, 21, "example.com/x")), // possibly 1 short due to surrogate
-            accentColor = accent,
-            onLinkClick = {},
-        )
+        val result =
+            buildBodyAnnotatedString(
+                text = text,
+                textLinks = listOf(link(8, 21, "example.com/x")), // possibly 1 short due to surrogate
+                accentColor = accent,
+                onLinkClick = {},
+            )
         // Should not throw; result text should be non-empty
         assert(result.text.isNotEmpty())
     }
@@ -91,12 +94,13 @@ class BuildBodyAnnotatedStringTest {
     fun outOfRangeOffset_isSkippedSilentlyWithNocrash() {
         // start=200, end=250 in a 30-char string → should be clamped and skipped (s >= e after clamp)
         val text = "short text with no real link"
-        val result = buildBodyAnnotatedString(
-            text = text,
-            textLinks = listOf(link(200, 250, "overflow.com")),
-            accentColor = accent,
-            onLinkClick = {},
-        )
+        val result =
+            buildBodyAnnotatedString(
+                text = text,
+                textLinks = listOf(link(200, 250, "overflow.com")),
+                accentColor = accent,
+                onLinkClick = {},
+            )
         // Falls back to the original text unchanged (the malformed span is skipped)
         assertEquals(text, result.text)
     }
@@ -111,14 +115,16 @@ class BuildBodyAnnotatedStringTest {
         //  0     6                22  — "https://t.co/abc" is 16 chars, end=22 (exclusive)
         var clicked: String? = null
         val text = "Visit https://t.co/abc today"
-        val result = buildBodyAnnotatedString(
-            text = text,
-            textLinks = listOf(
-                BookmarkTextLink(6, 22, "example.com/page", "https://example.com/page"),
-            ),
-            accentColor = accent,
-            onLinkClick = { clicked = it },
-        )
+        val result =
+            buildBodyAnnotatedString(
+                text = text,
+                textLinks =
+                    listOf(
+                        BookmarkTextLink(6, 22, "example.com/page", "https://example.com/page"),
+                    ),
+                accentColor = accent,
+                onLinkClick = { clicked = it },
+            )
         assertEquals("Visit example.com/page today", result.text)
         // clicked remains null until a real tap fires the listener
         assertEquals(null, clicked)

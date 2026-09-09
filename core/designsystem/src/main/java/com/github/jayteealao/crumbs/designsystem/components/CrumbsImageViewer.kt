@@ -53,15 +53,17 @@ fun CrumbsImageViewer(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
-        val pagerState = rememberPagerState(
-            initialPage = initialIndex.coerceIn(0, imageUrls.lastIndex),
-            pageCount = { imageUrls.size },
-        )
+        val pagerState =
+            rememberPagerState(
+                initialPage = initialIndex.coerceIn(0, imageUrls.lastIndex),
+                pageCount = { imageUrls.size },
+            )
         Box(
-            modifier = modifier
-                .fillMaxSize()
-                .background(colors.ink)
-                .testTag("image-viewer-screen"),
+            modifier =
+                modifier
+                    .fillMaxSize()
+                    .background(colors.ink)
+                    .testTag("image-viewer-screen"),
         ) {
             HorizontalPager(
                 state = pagerState,
@@ -79,14 +81,15 @@ fun CrumbsImageViewer(
                 text = "[ CLOSE ]",
                 style = typography.captionMono,
                 color = colors.ink,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(16.dp)
-                    .background(colors.surface)
-                    .border(stroke.regular, colors.ink, shapes.card)
-                    .clickable { onDismiss() }
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                    .testTag("image-viewer-close"),
+                modifier =
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(16.dp)
+                        .background(colors.surface)
+                        .border(stroke.regular, colors.ink, shapes.card)
+                        .clickable { onDismiss() }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .testTag("image-viewer-close"),
             )
 
             // "n / N" page indicator, only meaningful for multi-image tweets.
@@ -95,10 +98,11 @@ fun CrumbsImageViewer(
                     text = "${pagerState.currentPage + 1} / ${imageUrls.size}",
                     style = typography.captionMono,
                     color = colors.surface,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(16.dp)
-                        .testTag("image-viewer-indicator"),
+                    modifier =
+                        Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(16.dp)
+                            .testTag("image-viewer-indicator"),
                 )
             }
         }

@@ -16,13 +16,13 @@ data class TweetMedia(
     @SerializedName("preview_image_url") val previewImageUrl: String?,
     @SerializedName("public_metrics") val publicMetrics: TweetPublicMetrics?,
     @SerializedName("alt_text") val altText: String?,
-    val variants: List<Variant>?
+    val variants: List<Variant>?,
 )
 
 data class Variant(
     @SerializedName("bit_rate") val bitRate: Int,
     @SerializedName("content_type") val contentType: String,
-    val url: String
+    val url: String,
 )
 
 @Entity(
@@ -39,12 +39,12 @@ data class Variant(
         ForeignKey(
             entity = TweetEntity::class,
             parentColumns = ["id"],
-            childColumns = ["tweet_id"]
-        )
+            childColumns = ["tweet_id"],
+        ),
     ],
     indices = [
-        Index(value = ["tweet_id"])
-    ]
+        Index(value = ["tweet_id"]),
+    ],
 )
 data class TweetMediaEntity(
     @ColumnInfo(name = "media_key") val mediaKey: String,
@@ -66,19 +66,30 @@ data class TweetMediaEntity(
     @ColumnInfo(name = "video_variants") val videoVariants: List<Variant>? = null,
 )
 
-fun TweetMedia.toTweetMediaEntity(tweetId: String) = TweetMediaEntity(
-    mediaKey = mediaKey,
-    type = type,
-    url = url ?: variants?.firstOrNull()?.url,
-    durationMs = durationMs,
-    height = height,
-    width = width,
-    previewImageUrl = previewImageUrl,
-    altText = altText,
-    tweetId = tweetId,
-    videoVariants = variants?.takeIf { it.isNotEmpty() },
-)
+fun TweetMedia.toTweetMediaEntity(tweetId: String) =
+    TweetMediaEntity(
+        mediaKey = mediaKey,
+        type = type,
+        url = url ?: variants?.firstOrNull()?.url,
+        durationMs = durationMs,
+        height = height,
+        width = width,
+        previewImageUrl = previewImageUrl,
+        altText = altText,
+        tweetId = tweetId,
+        videoVariants = variants?.takeIf { it.isNotEmpty() },
+    )
 
-fun TweetMediaEntity.toTweetMedia() = TweetMedia(
-    mediaKey, type, url, durationMs, height, width, previewImageUrl, tweetPublicMetrics(), altText, videoVariants
-)
+fun TweetMediaEntity.toTweetMedia() =
+    TweetMedia(
+        mediaKey,
+        type,
+        url,
+        durationMs,
+        height,
+        width,
+        previewImageUrl,
+        tweetPublicMetrics(),
+        altText,
+        videoVariants,
+    )

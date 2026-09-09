@@ -41,7 +41,6 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class CrumbsVideoPlayerTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -49,12 +48,16 @@ class CrumbsVideoPlayerTest {
 
     @Before
     fun installFakeImageLoader() {
-        val engine = FakeImageLoaderEngine.Builder()
-            .default(ColorDrawable(Color.rgb(0x88, 0x88, 0x88)))
-            .build()
-        val imageLoader = ImageLoader.Builder(ApplicationProvider.getApplicationContext())
-            .components { add(engine) }
-            .build()
+        val engine =
+            FakeImageLoaderEngine
+                .Builder()
+                .default(ColorDrawable(Color.rgb(0x88, 0x88, 0x88)))
+                .build()
+        val imageLoader =
+            ImageLoader
+                .Builder(ApplicationProvider.getApplicationContext())
+                .components { add(engine) }
+                .build()
         Coil.setImageLoader(imageLoader)
     }
 

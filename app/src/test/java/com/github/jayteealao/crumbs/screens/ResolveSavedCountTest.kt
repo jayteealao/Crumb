@@ -15,7 +15,6 @@ import org.junit.Test
  * authoritative.
  */
 class ResolveSavedCountTest {
-
     @Test
     fun unlinked_twitterBackedTabs_reportZero() {
         for (tab in listOf(BottomNavTab.TWITTER, BottomNavTab.ALL, BottomNavTab.MAP)) {
@@ -43,7 +42,7 @@ class ResolveSavedCountTest {
     fun syncIncomplete_countLabel_showsCatchingUp() {
         assertEquals(
             "042 CATCHING UP",
-            HomeUiState(itemCount = 42, isSyncIncomplete = true).countLabel
+            HomeUiState(itemCount = 42, isSyncIncomplete = true).countLabel,
         )
     }
 
@@ -51,7 +50,7 @@ class ResolveSavedCountTest {
     fun syncComplete_countLabel_showsSaved() {
         assertEquals(
             "042 SAVED",
-            HomeUiState(itemCount = 42, isSyncIncomplete = false).countLabel
+            HomeUiState(itemCount = 42, isSyncIncomplete = false).countLabel,
         )
     }
 
@@ -59,7 +58,7 @@ class ResolveSavedCountTest {
     fun syncIncomplete_zeroCount_showsCatchingUp() {
         assertEquals(
             "000 CATCHING UP",
-            HomeUiState(itemCount = 0, isSyncIncomplete = true).countLabel
+            HomeUiState(itemCount = 0, isSyncIncomplete = true).countLabel,
         )
     }
 }

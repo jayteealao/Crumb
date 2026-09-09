@@ -14,7 +14,6 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 @Module
 abstract class TagRepositoryModule {
-
     // Source-scoped bindings. The unqualified TagRepository default still
     // resolves to Twitter so existing callers that did not specify a source
     // keep their old behavior; Reddit injects the qualified Reddit binding

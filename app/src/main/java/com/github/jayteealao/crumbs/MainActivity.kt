@@ -15,7 +15,6 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-
     @Inject lateinit var twitterOAuthCoordinator: TwitterOAuthCoordinator
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,11 +61,12 @@ class MainActivity : ComponentActivity() {
         if (intent == null) return
         try {
             val cls = Class.forName("com.github.jayteealao.crumbs.debug.DebugIntentHandler")
-            val method = cls.getMethod(
-                "handleIntent",
-                ComponentActivity::class.java,
-                Intent::class.java,
-            )
+            val method =
+                cls.getMethod(
+                    "handleIntent",
+                    ComponentActivity::class.java,
+                    Intent::class.java,
+                )
             method.invoke(null, this, intent)
         } catch (_: ClassNotFoundException) {
             // Release variant — DebugIntentHandler is excluded by AGP source-set rules.
