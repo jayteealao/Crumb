@@ -25,6 +25,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.github.jayteealao.crumbs.designsystem.theme.CrumbsSpacing
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsSpacing
@@ -106,9 +107,9 @@ fun CrumbsTopBar(
                     Box(
                         modifier = Modifier
                             .padding(horizontal = 4.dp)
-                            .offset(x = 3.dp)
+                            .offset(x = CrumbsSpacing.xxs)
                             .background(colors.ink)
-                            .padding(horizontal = 3.dp, vertical = 1.dp),
+                            .padding(horizontal = CrumbsSpacing.xxs, vertical = 1.dp),
                     ) {
                         Text(
                             text = "•",

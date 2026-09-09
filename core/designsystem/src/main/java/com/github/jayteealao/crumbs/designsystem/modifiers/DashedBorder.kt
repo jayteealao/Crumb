@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.github.jayteealao.crumbs.designsystem.theme.CrumbsSpacing
 
 // Modifier.border() does not accept a PathEffect, so dashed borders are drawn
 // manually via drawWithContent + drawPath with PathEffect.dashPathEffect.
@@ -22,7 +23,7 @@ fun Modifier.dashedBorder(
     width: Dp = 1.dp,
     color: Color,
     dashLengthDp: Dp = 4.dp,
-    gapDp: Dp = 3.dp,
+    gapDp: Dp = CrumbsSpacing.dashGap,
     shape: Shape? = null,
 ): Modifier = this.drawWithContent {
     drawContent()
@@ -46,7 +47,7 @@ fun Modifier.dashedDivider(
     color: Color,
     strokeWidth: Dp = 1.dp,
     dashLengthDp: Dp = 4.dp,
-    gapDp: Dp = 3.dp,
+    gapDp: Dp = CrumbsSpacing.dashGap,
 ): Modifier = this.drawWithContent {
     drawContent()
     val strokePx = strokeWidth.toPx()

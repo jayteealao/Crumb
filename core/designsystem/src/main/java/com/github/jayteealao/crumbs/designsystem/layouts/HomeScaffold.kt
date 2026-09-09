@@ -28,8 +28,8 @@ import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
 //   - navigationBar inset consumed once at the bottomBar Box
 //   - filterBar slot (optional) composed below topBar in the same Column
 //
-// This is intentionally NOT a wrapper around CrumbsScaffold — that would
-// collide the "scaffold-root" testTag with this shell's "home-scaffold" testTag.
+// This shell composes the slots directly rather than wrapping a generic
+// scaffold, so the "home-scaffold" testTag stays the single root tag.
 
 @Composable
 fun HomeScaffold(

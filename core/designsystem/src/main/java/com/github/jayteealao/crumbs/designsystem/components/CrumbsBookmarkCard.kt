@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
 import com.github.jayteealao.crumbs.designsystem.modifiers.brutalistStrikethrough
 import com.github.jayteealao.crumbs.designsystem.modifiers.dashedDivider
+import com.github.jayteealao.crumbs.designsystem.theme.CrumbsSpacing
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsShapes
@@ -588,7 +589,7 @@ private fun BookmarkCardFooter(bookmark: Bookmark) {
                 color = colors.ink,
                 strokeWidth = stroke.hairline,
                 dashLengthDp = 4.dp,
-                gapDp = 3.dp,
+                gapDp = CrumbsSpacing.dashGap,
             ),
     )
     Spacer(Modifier.height(spacing.xs))

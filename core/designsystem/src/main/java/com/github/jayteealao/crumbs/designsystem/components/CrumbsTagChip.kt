@@ -24,6 +24,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.github.jayteealao.crumbs.designsystem.modifiers.dashedBorder
+import com.github.jayteealao.crumbs.designsystem.theme.CrumbsSpacing
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
 import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsStroke
@@ -89,7 +90,7 @@ fun CrumbsFilterChipActive(
         modifier = modifier
             .background(colors.ink)
             .border(stroke.regular, colors.ink)
-            .padding(horizontal = 6.dp, vertical = 3.dp)
+            .padding(horizontal = 6.dp, vertical = CrumbsSpacing.xxs)
             .testTag("filter-chip-active-$label"),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -147,7 +148,7 @@ fun CrumbsAddTagChip(
                 .dashedBorder(
                     width = 1.dp,
                     color = colors.ink.copy(alpha = 0.5f),
-                    dashLengthDp = 3.dp,
+                    dashLengthDp = CrumbsSpacing.dashGap,
                     gapDp = 2.dp,
                 ),
         )

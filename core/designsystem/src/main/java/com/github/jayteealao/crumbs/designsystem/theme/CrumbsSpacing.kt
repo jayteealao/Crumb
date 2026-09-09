@@ -7,6 +7,8 @@ import androidx.compose.ui.unit.dp
  * Crumbs spacing scale
  */
 object CrumbsSpacing {
+    /** Smallest layout nudge — chip padding and wordmark badge offsets. */
+    val xxs: Dp = 3.dp
     val xs: Dp = 4.dp
     val sm: Dp = 8.dp
     val md: Dp = 12.dp
@@ -16,4 +18,7 @@ object CrumbsSpacing {
 
     /** Content inset for bookmark cards — keeps body, media, and footer aligned. */
     val cardContentInset: Dp = md + 2.dp
+
+    /** Gap between dashes in dashed borders and dividers. */
+    val dashGap: Dp = 3.dp
 }
