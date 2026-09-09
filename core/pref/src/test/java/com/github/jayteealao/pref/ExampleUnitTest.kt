@@ -1,6 +1,6 @@
 package com.github.jayteealao.pref
 
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**

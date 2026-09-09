@@ -665,7 +665,9 @@ private val sampleTwitterText =
         source = BookmarkSource.Twitter,
         author = "@designpatterns",
         title = "Understanding SOLID Principles",
-        previewText = "Let me explain the five SOLID principles that every developer should know. These fundamental concepts will help you write better, more maintainable code.",
+        previewText =
+            "Let me explain the five SOLID principles that every developer should know. " +
+                "These fundamental concepts will help you write better, more maintainable code.",
         contentType = ContentType.Text,
         savedAt = System.currentTimeMillis() - 3600000,
         tags = listOf("programming", "design"),
@@ -679,7 +681,9 @@ private val sampleTwitterImage =
         source = BookmarkSource.Twitter,
         author = "@kotlinconf",
         title = "Compose Multiplatform is here!",
-        previewText = "Excited to announce the stable release of Compose Multiplatform. Build beautiful UIs for Android, iOS, Desktop, and Web.",
+        previewText =
+            "Excited to announce the stable release of Compose Multiplatform. " +
+                "Build beautiful UIs for Android, iOS, Desktop, and Web.",
         imageUrl = "https://example.com/image.jpg",
         contentType = ContentType.Image,
         savedAt = System.currentTimeMillis() - 7200000,
@@ -709,7 +713,9 @@ private val sampleRedditPost =
         source = BookmarkSource.Reddit,
         author = "u/androiddev",
         title = "Tips for optimizing RecyclerView performance",
-        previewText = "Here are some lesser-known tips for getting better performance out of RecyclerView. These helped me reduce jank significantly in my production app.",
+        previewText =
+            "Here are some lesser-known tips for getting better performance out of RecyclerView. " +
+                "These helped me reduce jank significantly in my production app.",
         contentType = ContentType.Text,
         savedAt = System.currentTimeMillis() - 172800000,
         tags = listOf("android", "performance"),

@@ -558,7 +558,7 @@ class RedditViewModelTest {
     // -------------------------------------------------------------------------
 
     private fun markPostDirty(id: String) {
-        val field = RedditViewModel::class.java.getDeclaredField("_dirtyPostIds")
+        val field = RedditViewModel::class.java.getDeclaredField("dirtyPostIds")
         field.isAccessible = true
         @Suppress("UNCHECKED_CAST")
         (field.get(vm) as MutableSet<String>).add(id)

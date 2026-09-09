@@ -307,11 +307,11 @@ class BookmarksViewModel
         // [loadTagsForItems] with the full accumulated snapshot, so this set lets us query
         // only the new (delta) ids instead of re-fetching everything on every append.
         // ConcurrentHashMap-backed so it is safe under any dispatcher.
-        private val _loadedTweetIds: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
+        private val loadedTweetIds: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
 
         // Ids edited via [saveTags] since their last batch load. They are force-included in
         // the next delta so freshly-edited tags are re-queried even though they are "loaded".
-        private val _dirtyTweetIds: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
+        private val dirtyTweetIds: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap())
 
         private val _allTags = MutableStateFlow<List<String>>(emptyList())
         val allTags: StateFlow<List<String>> = _allTags
@@ -335,7 +335,7 @@ class BookmarksViewModel
             // Query only ids not yet loaded, plus any edited (dirty) id whose chips would
             // otherwise stay stale. The dirty check comes first so an edited-but-loaded id
             // is still re-fetched. Empty delta → nothing changed → skip the query entirely.
-            val delta = ids.filter { it !in _loadedTweetIds || it in _dirtyTweetIds }
+            val delta = ids.filter { it !in loadedTweetIds || it in dirtyTweetIds }
             if (delta.isEmpty()) return
             viewModelScope.launch {
                 val batch = repository.getTagsForItems(delta)
@@ -343,8 +343,8 @@ class BookmarksViewModel
                 // id, so this merge overwrites — clearing chips for ids whose tags were
                 // removed while preserving entries for ids outside the delta.
                 _tagsForTweet.update { it + batch }
-                _loadedTweetIds.addAll(delta)
-                _dirtyTweetIds.removeAll(delta.toSet())
+                loadedTweetIds.addAll(delta)
+                dirtyTweetIds.removeAll(delta.toSet())
             }
         }
 
@@ -362,7 +362,7 @@ class BookmarksViewModel
                 repository.saveTags(tweetId, tags)
                 // Mark dirty so the next batch load re-queries this id — a pure delta load
                 // would otherwise skip it as already-loaded and leave its chips stale.
-                _dirtyTweetIds.add(tweetId)
+                dirtyTweetIds.add(tweetId)
                 loadTagsForTweet(tweetId)
                 loadAllTags()
             }

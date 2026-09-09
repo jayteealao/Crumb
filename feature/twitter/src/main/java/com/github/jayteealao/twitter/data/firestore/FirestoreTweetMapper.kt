@@ -6,7 +6,7 @@ import com.github.jayteealao.twitter.models.TweetReferencedTweets
 import com.github.jayteealao.twitter.models.TweetReferencedTweetsFull
 import com.github.jayteealao.twitter.models.tweetPublicMetrics
 
-/**
+/*
  * Pure mapping helpers that assemble [TweetEntities] from the parallel-fetched
  * Firestore sub-collection results.  No Firestore SDK or IO imports live here —
  * only data-class transformations that can be tested without a Firestore stub.

@@ -67,7 +67,9 @@ class CardComponentsTest {
             source = BookmarkSource.Twitter,
             author = "@designpatterns",
             title = "Understanding SOLID Principles",
-            previewText = "Let me explain the five SOLID principles that every developer should know. These fundamental concepts will help you write better, more maintainable code.",
+            previewText =
+                "Let me explain the five SOLID principles that every developer should know. " +
+                    "These fundamental concepts will help you write better, more maintainable code.",
             contentType = ContentType.Text,
             savedAt = System.currentTimeMillis() - 3600000,
             tags = listOf("programming", "design"),
@@ -80,7 +82,9 @@ class CardComponentsTest {
             source = BookmarkSource.Twitter,
             author = "@architectpatterns",
             title = "Clean Architecture Thread",
-            previewText = "1/ Let's talk about Clean Architecture and why it matters for modern Android development. This is going to be a detailed thread...",
+            previewText =
+                "1/ Let's talk about Clean Architecture and why it matters for modern Android development. " +
+                    "This is going to be a detailed thread...",
             contentType = ContentType.Thread,
             savedAt = System.currentTimeMillis() - 86400000,
             tags = listOf("architecture", "android"),
@@ -95,7 +99,9 @@ class CardComponentsTest {
             source = BookmarkSource.Reddit,
             author = "u/androiddev",
             title = "Tips for optimizing RecyclerView performance",
-            previewText = "Here are some lesser-known tips for getting better performance out of RecyclerView. These helped me reduce jank significantly in my production app.",
+            previewText =
+                "Here are some lesser-known tips for getting better performance out of RecyclerView. " +
+                    "These helped me reduce jank significantly in my production app.",
             contentType = ContentType.Text,
             savedAt = System.currentTimeMillis() - 172800000,
             tags = listOf("android", "performance"),

@@ -245,7 +245,7 @@ tasks.register("verifyCutoverDeletions") {
             "XTokenMigrationWorker.kt",
             "MigrationEntryPoint.kt",
             "Prefs.kt",
-            "constants.kt",
+            "Constants.kt",
             // Debug-only seed for the migration worker — needs to write
             // synthetic legacy tokens to exercise the upgrade-install path.
             "DebugDataInjector.kt",

@@ -13,9 +13,6 @@ import com.google.firebase.firestore.IgnoreExtraProperties
 import com.google.firebase.firestore.PropertyName
 import java.util.Date
 
-/**
- * Firestore document model for tweets collection
- */
 // @IgnoreExtraProperties sets warnOnUnknownProperties=false in Firestore's bean mapper.
 // The server poll writes a snake_case overlay (like_count, retweet_count, …) alongside the
 // canonical camelCase keys; without this, CustomClassMapper logs ~50 "No setter/field for X"
@@ -23,6 +20,10 @@ import java.util.Date
 // 30s→120s timeout bump was papering over. Every field already maps via explicit @PropertyName,
 // so suppressing the unknown-key warning changes NO known-field mapping (the prior media /
 // timestamp / quoted-tweet fixes are untouched); it only drops the logging.
+
+/**
+ * Firestore document model for tweets collection
+ */
 @IgnoreExtraProperties
 data class FirestoreTweet(
     @DocumentId val documentId: String = "",
@@ -227,9 +228,6 @@ data class FirestoreMedia(
     }
 }
 
-/**
- * Firestore document model for metrics collection
- */
 // Field names are camelCase: the Android client is the writer of record for
 // metrics docs post-cutover, so its keys (likeCount, …) are the canonical
 // wire format. The server poll's snake_case overlay (like_count, …) is
@@ -239,6 +237,10 @@ data class FirestoreMedia(
 // store these as explicit `null` (impressionCount in particular is null on 100% of
 // sampled docs); a primitive `Int` setter would throw `IllegalArgumentException` on
 // deserialize and abort the whole tweet batch.
+
+/**
+ * Firestore document model for metrics collection
+ */
 @IgnoreExtraProperties
 data class FirestoreMetrics(
     @DocumentId val documentId: String = "",

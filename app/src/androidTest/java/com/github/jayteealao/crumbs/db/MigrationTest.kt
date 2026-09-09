@@ -718,7 +718,8 @@ class MigrationTest {
         helper.createDatabase(TEST_DB, 13).apply {
             execSQL(
                 "INSERT INTO tweetEntity " +
-                    "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete, retrieved_at) " +
+                    "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, " +
+                    "lang, referenced, `order`, pending_delete, retrieved_at) " +
                     "VALUES ('tweet-1', 'hello', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0, NULL)",
             )
             close()
@@ -760,7 +761,8 @@ class MigrationTest {
         helper.createDatabase(TEST_DB, 14).apply {
             execSQL(
                 "INSERT INTO tweetEntity " +
-                    "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete, retrieved_at) " +
+                    "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, " +
+                    "lang, referenced, `order`, pending_delete, retrieved_at) " +
                     "VALUES ('tweet-1', 'hi', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0, NULL)",
             )
             execSQL(
@@ -822,7 +824,8 @@ class MigrationTest {
         helper.createDatabase(TEST_DB, 15).apply {
             execSQL(
                 "INSERT INTO tweetEntity " +
-                    "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete, retrieved_at) " +
+                    "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, " +
+                    "lang, referenced, `order`, pending_delete, retrieved_at) " +
                     "VALUES ('tweet-1', 'hi https://example.com', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0, NULL)",
             )
             execSQL(
@@ -949,7 +952,8 @@ class MigrationTest {
         helper.createDatabase(TEST_DB, 17).apply {
             execSQL(
                 "INSERT INTO tweetEntity " +
-                    "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete, retrieved_at) " +
+                    "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, " +
+                    "lang, referenced, `order`, pending_delete, retrieved_at) " +
                     "VALUES ('tweet-1', 'hi', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0, NULL)",
             )
             // Broken row: tweet_id NULL, but a junction entry maps its media_key → tweet-1.
@@ -1020,12 +1024,14 @@ class MigrationTest {
         helper.createDatabase(TEST_DB, 18).apply {
             execSQL(
                 "INSERT INTO tweetEntity " +
-                    "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete, retrieved_at) " +
+                    "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, " +
+                    "lang, referenced, `order`, pending_delete, retrieved_at) " +
                     "VALUES ('tweet-1', 'hi', '2024-01-01T00:00:00Z', 'u1', 'tweet-1', NULL, 'en', 0, 1, 0, NULL)",
             )
             execSQL(
                 "INSERT INTO tweetEntity " +
-                    "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, lang, referenced, `order`, pending_delete, retrieved_at) " +
+                    "(id, text, created_at, author_id, conversation_id, in_reply_to_user_id, " +
+                    "lang, referenced, `order`, pending_delete, retrieved_at) " +
                     "VALUES ('tweet-2', 'yo', '2024-01-02T00:00:00Z', 'u1', 'tweet-2', NULL, 'en', 0, 2, 0, NULL)",
             )
             // Media + junction rows that the wipe must discard.
@@ -1126,11 +1132,13 @@ class MigrationTest {
 
         // Composite-key round-trip: the SAME media_key attaches to two different tweets...
         db.execSQL(
-            "INSERT INTO tweetMedia (media_key, type, url, duration_ms, height, width, preview_image_url, alt_text, tweet_id, video_variants) " +
+            "INSERT INTO tweetMedia (media_key, type, url, duration_ms, height, width, " +
+                "preview_image_url, alt_text, tweet_id, video_variants) " +
                 "VALUES ('mk-shared', 'photo', NULL, 0, 0, 0, NULL, NULL, 'tweet-1', NULL)",
         )
         db.execSQL(
-            "INSERT INTO tweetMedia (media_key, type, url, duration_ms, height, width, preview_image_url, alt_text, tweet_id, video_variants) " +
+            "INSERT INTO tweetMedia (media_key, type, url, duration_ms, height, width, " +
+                "preview_image_url, alt_text, tweet_id, video_variants) " +
                 "VALUES ('mk-shared', 'photo', NULL, 0, 0, 0, NULL, NULL, 'tweet-2', NULL)",
         )
         db.query("SELECT COUNT(*) FROM tweetMedia WHERE media_key = 'mk-shared'").use { cursor ->
@@ -1141,7 +1149,8 @@ class MigrationTest {
         var pkCollision = false
         try {
             db.execSQL(
-                "INSERT INTO tweetMedia (media_key, type, url, duration_ms, height, width, preview_image_url, alt_text, tweet_id, video_variants) " +
+                "INSERT INTO tweetMedia (media_key, type, url, duration_ms, height, width, " +
+                    "preview_image_url, alt_text, tweet_id, video_variants) " +
                     "VALUES ('mk-shared', 'photo', NULL, 0, 0, 0, NULL, NULL, 'tweet-1', NULL)",
             )
         } catch (e: Exception) {

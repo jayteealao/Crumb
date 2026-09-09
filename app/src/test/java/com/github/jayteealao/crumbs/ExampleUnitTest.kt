@@ -1,6 +1,6 @@
 package com.github.jayteealao.crumbs
 
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**

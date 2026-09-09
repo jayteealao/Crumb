@@ -369,13 +369,12 @@ internal suspend fun runTwitterSync(
                     androidx.work.ListenableWorker.Result
                         .retry()
                 }
-            }
-            // WorkManager stops the foreground dataSync worker when the Android-15 6h cap
-            // is hit, cancelling this coroutine. Per-batch commits already made progress
-            // durable, so a timeout stop is a retry — NOT a real failure — and must not
-            // raise the "sync failed" alert. Any other cancellation (e.g. a lost network
-            // constraint) is genuine: rethrow it so structured concurrency is preserved.
-            else if (stopReason() == WorkInfo.STOP_REASON_TIMEOUT) {
+            } else if (stopReason() == WorkInfo.STOP_REASON_TIMEOUT) {
+                // WorkManager stops the foreground dataSync worker when the Android-15 6h cap
+                // is hit, cancelling this coroutine. Per-batch commits already made progress
+                // durable, so a timeout stop is a retry — NOT a real failure — and must not
+                // raise the "sync failed" alert. Any other cancellation (e.g. a lost network
+                // constraint) is genuine: rethrow it so structured concurrency is preserved.
                 Timber.tag("IncrementalSync").w("stopped_by_timeout attempt=$runAttemptCount; retrying, no error alert")
                 androidx.work.ListenableWorker.Result
                     .retry()

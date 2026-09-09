@@ -2,7 +2,7 @@ package com.github.jayteealao.twitter.data.firestore
 
 import com.github.jayteealao.twitter.models.TweetEntities
 
-/**
+/*
  * Pure cursor-decision seam for the resumable, cursor-narrowed Twitter sync.
  *
  * The Firestore I/O (enumerate head/tail pages, fetch entities by id) lives in

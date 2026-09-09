@@ -993,7 +993,7 @@ class BookmarksViewModelTest {
     // Force an id into the private dirty set so the overwrite path can be exercised
     // in isolation (mirrors the wasPlayingBeforePause reflection precedent above).
     private fun markTweetDirty(id: String) {
-        val field = BookmarksViewModel::class.java.getDeclaredField("_dirtyTweetIds")
+        val field = BookmarksViewModel::class.java.getDeclaredField("dirtyTweetIds")
         field.isAccessible = true
         @Suppress("UNCHECKED_CAST")
         (field.get(vm) as MutableSet<String>).add(id)
