@@ -24,15 +24,20 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MIRROR="${CRUMB_LINUX_MIRROR:-$HOME/crumb-record}"
 DEFAULT_MODULES=(":core:designsystem" ":app" ":feature:reddit" ":feature:twitter")
 
-# Copy the working tree (not just HEAD) into the mirror. Build outputs and the
-# Gradle project cache stay in the mirror between runs for incremental builds.
+# Copy the working tree (not just HEAD) into the mirror. Whatever Git ignores
+# stays out, so the exclusion list is computed from .gitignore at run time
+# rather than repeated here. The mirror keeps its own build outputs and Gradle
+# project cache between runs for incremental builds.
 sync_mirror() {
   mkdir -p "$MIRROR"
-  rsync -a --delete \
-    --exclude '.git/' --exclude 'build/' --exclude '.gradle/' --exclude '.kotlin/' \
-    --exclude '.idea/' --exclude '.ai/' --exclude '.claude/' --exclude '.scratch/' \
-    --exclude 'node_modules/' --exclude 'local.properties' --exclude 'Crumbs-handoff*' \
+  local ignored
+  ignored="$(mktemp)"
+  (cd "$REPO_ROOT" && git -c core.quotepath=off ls-files --others --ignored --exclude-standard --directory) \
+    | sed 's#^#/#' > "$ignored"
+  rsync -a --delete --exclude-from "$ignored" \
+    --exclude '.git/' --exclude '.claude/' --exclude 'build/' --exclude '.gradle/' --exclude '.kotlin/' \
     "$REPO_ROOT/" "$MIRROR/"
+  rm -f "$ignored"
   {
     echo "sdk.dir=$ANDROID_HOME"
     [ -f "$REPO_ROOT/local.properties" ] && grep -E '^(twitter|firebase)\.' "$REPO_ROOT/local.properties" || true
