@@ -1,0 +1,58 @@
+# Filter behavior — open FilterOverlay from the FILTER cell, toggle chips
+# inside, apply / dismiss. Replaces the old in-bar chip-row selectors with
+# the new overlay-mounted picker.
+appId: com.github.jayteealao.crumbs
+---
+- launchApp:
+    arguments:
+      debug_action: "seed"
+      wipe: true
+- runFlow:
+    when:
+      visible:
+        id: "login-screen"
+    commands:
+      - tapOn:
+          id: "login-skip-auth"
+- extendedWaitUntil:
+    visible:
+      id: "home-screen"
+    timeout: 10000
+- tapOn:
+    id: "nav-tab-all"
+- extendedWaitUntil:
+    visible:
+      id: "all-bookmarks-feed"
+    timeout: 5000
+
+# --- Open the FilterOverlay from the FILTER cell ---
+- tapOn:
+    id: "filter-bar-cell"
+- extendedWaitUntil:
+    visible:
+      id: "filter-overlay"
+    timeout: 3000
+
+# --- Toggle a chip inside the overlay ---
+- tapOn:
+    id: "filter-overlay-chip-article"
+- assertVisible:
+    id: "filter-overlay-chip-article"
+
+# --- Apply + dismiss ---
+- tapOn:
+    id: "filter-overlay-apply"
+- assertNotVisible:
+    id: "filter-overlay"
+
+# --- Re-open and exercise backdrop dismiss ---
+- tapOn:
+    id: "filter-bar-cell"
+- extendedWaitUntil:
+    visible:
+      id: "filter-overlay"
+    timeout: 3000
+- tapOn:
+    id: "overlay-shell-backdrop"
+- assertNotVisible:
+    id: "filter-overlay"

@@ -1,0 +1,39 @@
+# Reconnect banner — closes AC8 of the android-reader slice.
+# Pre-seed: sync_status.linked=false so the home banner state turns on.
+appId: com.github.jayteealao.crumbs
+---
+- launchApp:
+    arguments:
+      debug_action: "seed_sync_status"
+      linked: "false"
+- extendedWaitUntil:
+    visible:
+      id: "twitter-bookmarks-screen"
+      optional: true
+    timeout: 10000
+
+# If the route guard pushed us to ConnectX, skip back to bookmarks so the
+# banner can render.
+- runFlow:
+    when:
+      visible:
+        id: "connect-x-skip"
+    commands:
+      - tapOn:
+          id: "connect-x-skip"
+      - extendedWaitUntil:
+          visible:
+            id: "twitter-bookmarks-screen"
+          timeout: 5000
+
+- assertVisible:
+    id: "banner"
+- assertVisible: "RECONNECT X"
+
+- tapOn:
+    id: "banner-cta"
+
+- extendedWaitUntil:
+    visible:
+      id: "connect-x-screen"
+    timeout: 10000

@@ -19,9 +19,8 @@ import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [33])
+@Config(sdk = [34])
 class ActionComponentsTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -33,12 +32,13 @@ class ActionComponentsTest {
                     onClick = {},
                     icon = { Icon(Icons.Default.Add, "Add") },
                     style = IconButtonStyle.Filled,
-                    size = IconButtonSize.Medium
+                    size = IconButtonSize.Medium,
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsIconButton_filled_medium_enabled_light.png")
     }
 
@@ -50,12 +50,13 @@ class ActionComponentsTest {
                     onClick = {},
                     icon = { Icon(Icons.Default.Add, "Add") },
                     style = IconButtonStyle.Filled,
-                    size = IconButtonSize.Medium
+                    size = IconButtonSize.Medium,
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsIconButton_filled_medium_enabled_dark.png")
     }
 
@@ -67,12 +68,13 @@ class ActionComponentsTest {
                     onClick = {},
                     icon = { Icon(Icons.Default.Favorite, "Favorite") },
                     style = IconButtonStyle.Filled,
-                    size = IconButtonSize.Small
+                    size = IconButtonSize.Small,
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsIconButton_filled_small_light.png")
     }
 
@@ -84,12 +86,13 @@ class ActionComponentsTest {
                     onClick = {},
                     icon = { Icon(Icons.Default.Search, "Search") },
                     style = IconButtonStyle.Filled,
-                    size = IconButtonSize.Large
+                    size = IconButtonSize.Large,
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsIconButton_filled_large_light.png")
     }
 
@@ -101,12 +104,13 @@ class ActionComponentsTest {
                     onClick = {},
                     icon = { Icon(Icons.Default.Favorite, "Favorite") },
                     style = IconButtonStyle.FilledTonal,
-                    size = IconButtonSize.Medium
+                    size = IconButtonSize.Medium,
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsIconButton_filledTonal_medium_light.png")
     }
 
@@ -118,12 +122,13 @@ class ActionComponentsTest {
                     onClick = {},
                     icon = { Icon(Icons.Default.Favorite, "Favorite") },
                     style = IconButtonStyle.FilledTonal,
-                    size = IconButtonSize.Medium
+                    size = IconButtonSize.Medium,
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsIconButton_filledTonal_medium_dark.png")
     }
 
@@ -135,12 +140,13 @@ class ActionComponentsTest {
                     onClick = {},
                     icon = { Icon(Icons.Default.Search, "Search") },
                     style = IconButtonStyle.Outlined,
-                    size = IconButtonSize.Medium
+                    size = IconButtonSize.Medium,
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsIconButton_outlined_medium_light.png")
     }
 
@@ -152,12 +158,13 @@ class ActionComponentsTest {
                     onClick = {},
                     icon = { Icon(Icons.Default.Search, "Search") },
                     style = IconButtonStyle.Outlined,
-                    size = IconButtonSize.Large
+                    size = IconButtonSize.Large,
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsIconButton_outlined_large_dark.png")
     }
 
@@ -169,12 +176,13 @@ class ActionComponentsTest {
                     onClick = {},
                     icon = { Icon(Icons.Default.Add, "Add") },
                     style = IconButtonStyle.Standard,
-                    size = IconButtonSize.Medium
+                    size = IconButtonSize.Medium,
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsIconButton_standard_medium_light.png")
     }
 
@@ -187,12 +195,13 @@ class ActionComponentsTest {
                     icon = { Icon(Icons.Default.Add, "Add") },
                     style = IconButtonStyle.Standard,
                     size = IconButtonSize.Medium,
-                    enabled = false
+                    enabled = false,
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsIconButton_standard_medium_disabled_light.png")
     }
 }

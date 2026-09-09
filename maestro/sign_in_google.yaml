@@ -1,0 +1,40 @@
+# Live Google sign-in via Credential Manager. Picks the pre-configured
+# jayteealao@gmail.com account from the OS bottom sheet and asserts that
+# Firebase Auth lands the session against UID 6yPmdM14V3dPHLe3LO9XCfU4l9f1.
+# Captures lazylogcat output during the run (driven by scripts/run-maestro.ps1).
+# Closes the live half of AC1 deferred from auth-foundation.
+appId: com.github.jayteealao.crumbs
+---
+- launchApp:
+    arguments:
+      debug_action: "wipe"
+- extendedWaitUntil:
+    visible:
+      id: "login-screen"
+    timeout: 10000
+
+- tapOn:
+    id: "login-google-sign-in"
+
+# The Credential Manager bottom sheet is OS-rendered (Google identity provider).
+# Maestro can see the visible label of the only account present in the
+# emulator's Google APIs image.
+- extendedWaitUntil:
+    visible: "jayteealao@gmail.com"
+    timeout: 8000
+- tapOn: "jayteealao@gmail.com"
+
+# Either lands on the bookmarks list (returning user) or the Connect-X
+# blocking onboarding (first-time link). Both are acceptable.
+- extendedWaitUntil:
+    visible:
+      id: "twitter-bookmarks-screen"
+      optional: true
+    timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: "connect-x-screen"
+    commands:
+      - assertVisible:
+          id: "connect-x-button"

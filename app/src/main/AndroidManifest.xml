@@ -4,6 +4,11 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Foreground service for the cold-start Twitter sync backfill. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <!-- Required on Android 13+ to post the sync-progress notification. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
         android:name=".CrumbApplication"
@@ -38,6 +43,15 @@
                 android:name="android.app.lib_name"
                 android:value="" />
         </activity>
+
+        <!-- Merge the foregroundServiceType="dataSync" attribute onto the
+             SystemForegroundService declared by androidx.work:work-runtime so
+             TwitterSyncWorker can promote itself to a foreground service on
+             API 34+ without crashing. -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
     </application>
 
 </manifest>

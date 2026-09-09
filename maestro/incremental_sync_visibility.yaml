@@ -1,0 +1,25 @@
+# AC2 — newest-first visibility.
+#
+# Seeds a synthetic local corpus of 75 tweets with monotonically decreasing
+# createdAt values, then launches the app and asserts the Twitter bookmarks
+# screen renders the first card within 30 s. In production verify the operator
+# runs this AFTER signing in so the worker exercises a real Firestore round
+# trip; the seed action keeps the flow runnable as a smoke check.
+appId: com.github.jayteealao.crumbs
+---
+- launchApp:
+    clearState: true
+    arguments:
+      debug_action: "seed_incremental_sync_corpus"
+      tweet_count: "75"
+- extendedWaitUntil:
+    visible:
+      id: "twitter-bookmarks-screen"
+    timeout: 15000
+- extendedWaitUntil:
+    visible:
+      id: "bookmark-card"
+    timeout: 30000
+- assertVisible:
+    id: "bookmark-card"
+    index: 0

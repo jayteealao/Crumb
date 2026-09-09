@@ -8,7 +8,7 @@ import androidx.compose.ui.layout.layout
 @Composable
 fun TweetPhotos(content: @Composable () -> Unit) {
     Layout(
-        content = content
+        content = content,
     ) { measurable, constraints ->
         val placeables = measurable.map { it.measure(constraints) }
         val size = placeables.size
@@ -21,8 +21,9 @@ fun TweetPhotos(content: @Composable () -> Unit) {
     }
 }
 
-fun Modifier.gridLayout(size: Int = 1) = layout { measurable, constraints ->
-    val placeables = measurable
-    layout(constraints.maxWidth, constraints.maxHeight) {
+fun Modifier.gridLayout(size: Int = 1) =
+    layout { measurable, constraints ->
+        val placeables = measurable
+        layout(constraints.maxWidth, constraints.maxHeight) {
+        }
     }
-}
