@@ -1,10 +1,12 @@
 package com.github.jayteealao.crumbs.designsystem.layouts
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -24,7 +26,12 @@ import com.github.jayteealao.crumbs.designsystem.theme.LocalCrumbsColors
 // Brutalist home layout shell. Slot-generic Scaffold wrapper that owns:
 //   - paper background (LocalCrumbsColors.current.background)
 //   - statusBar inset consumed once at the topBar Column (avoids double-consume
-//     against Scaffold.contentWindowInsets)
+//     against Scaffold.contentWindowInsets). The Column paints the paper
+//     background BEFORE it pads for the inset, so the strip behind the system
+//     status bar icons is opaque: Scaffold's own Surface sits under the content
+//     slot, and the feed list scrolls under this Column, so without the paint
+//     scrolled cards showed through the strip. The system bar itself stays
+//     transparent (enableEdgeToEdge at the Activity is unchanged).
 //   - navigationBar inset consumed once at the bottomBar Box
 //   - filterBar slot (optional) composed below topBar in the same Column
 //
@@ -52,6 +59,8 @@ fun HomeScaffold(
         topBar = {
             Column(
                 Modifier
+                    .fillMaxWidth()
+                    .background(colors.background)
                     .statusBarsPadding()
                     .testTag("home-scaffold-topbar"),
             ) {
