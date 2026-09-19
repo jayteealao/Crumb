@@ -1,0 +1,55 @@
+# Quoted tweets — seed the debug corpus (incl. a bookmark that quotes another tweet,
+# its quoted body stored referenced=true, plus a bookmark whose quoted body is absent —
+# the "unavailable" state), scroll to the quoted sub-card, assert it renders, then tap
+# it: the quoted permalink opens in the EXTERNAL browser (the app leaves the foreground).
+# System Back returns to the feed.
+#
+# NOTE: the bookmark-card surfaces render only on an authenticated/synced feed (the
+# !uiState.loggedIn server-auth gate), so this flow is a device-fidelity gate run with a
+# linked X session — the off-device contract is covered by ToBookmarkMapperTest (mapping +
+# unavailable/reply paths), the CardComponentsTest quoted goldens (available + unavailable
+# states), and QuotedTweetInteractionTest (tap routing).
+appId: com.github.jayteealao.crumbs
+---
+- launchApp:
+    arguments:
+      debug_action: "seed"
+      wipe: true
+- runFlow:
+    when:
+      visible:
+        id: "login-screen"
+    commands:
+      - tapOn:
+          id: "login-skip-auth"
+- extendedWaitUntil:
+    visible:
+      id: "home-screen"
+    timeout: 10000
+
+- tapOn:
+    id: "nav-tab-twitter"
+
+# --- Scroll the feed until a quoted sub-card is visible (quote fixtures sort below
+# the recency-stamped fixtures at the top) ---
+- scrollUntilVisible:
+    element:
+      id: "bookmark-card-quoted-tweet"
+    direction: DOWN
+    timeout: 10000
+
+# --- Tap the quoted sub-card → external browser launches (the app leaves the foreground) ---
+- tapOn:
+    id: "bookmark-card-quoted-tweet"
+    index: 0
+- extendedWaitUntil:
+    notVisible:
+      id: "twitter-bookmarks-screen"
+    timeout: 5000
+
+# --- Back returns to the feed ---
+- pressKey: Back
+- extendedWaitUntil:
+    visible:
+      id: "twitter-bookmarks-screen"
+    timeout: 5000

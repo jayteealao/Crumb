@@ -12,7 +12,20 @@
           "package_name": "com.github.jayteealao.crumbs"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1032153206630-i0qjif8nis06nm21nghdnnqc1jsv7hu0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.github.jayteealao.crumbs",
+            "certificate_hash": "dcb3020f3748998cf908b3f2802a9c43f27aa639"
+          }
+        },
+        {
+          "client_id": "1032153206630-tpdl1c45fg7i8a69sr9lnunmim4c1cm2.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAUXoD37Cy8ghlz7dGggEC9w657nHLbo9U"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1032153206630-tpdl1c45fg7i8a69sr9lnunmim4c1cm2.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

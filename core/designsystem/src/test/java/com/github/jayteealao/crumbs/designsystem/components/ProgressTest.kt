@@ -14,9 +14,8 @@ import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [33])
+@Config(sdk = [34])
 class ProgressTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -26,12 +25,13 @@ class ProgressTest {
             CrumbsTheme(darkTheme = false) {
                 CrumbsProgressIndicator(
                     style = ProgressStyle.Circular,
-                    size = ProgressSize.Medium
+                    size = ProgressSize.Medium,
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsProgressIndicator_circular_medium_indeterminate_light.png")
     }
 
@@ -41,12 +41,13 @@ class ProgressTest {
             CrumbsTheme(darkTheme = true) {
                 CrumbsProgressIndicator(
                     style = ProgressStyle.Circular,
-                    size = ProgressSize.Medium
+                    size = ProgressSize.Medium,
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsProgressIndicator_circular_medium_indeterminate_dark.png")
     }
 
@@ -56,12 +57,13 @@ class ProgressTest {
             CrumbsTheme(darkTheme = false) {
                 CrumbsProgressIndicator(
                     style = ProgressStyle.Circular,
-                    size = ProgressSize.Small
+                    size = ProgressSize.Small,
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsProgressIndicator_circular_small_light.png")
     }
 
@@ -71,12 +73,13 @@ class ProgressTest {
             CrumbsTheme(darkTheme = false) {
                 CrumbsProgressIndicator(
                     style = ProgressStyle.Circular,
-                    size = ProgressSize.Large
+                    size = ProgressSize.Large,
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsProgressIndicator_circular_large_light.png")
     }
 
@@ -87,12 +90,13 @@ class ProgressTest {
                 CrumbsProgressIndicator(
                     style = ProgressStyle.Circular,
                     size = ProgressSize.Medium,
-                    progress = 0.65f
+                    progress = 0.65f,
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsProgressIndicator_circular_medium_determinate_light.png")
     }
 
@@ -102,12 +106,13 @@ class ProgressTest {
             CrumbsTheme(darkTheme = false) {
                 CrumbsProgressIndicator(
                     style = ProgressStyle.Linear,
-                    size = ProgressSize.Medium
+                    size = ProgressSize.Medium,
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsProgressIndicator_linear_medium_indeterminate_light.png")
     }
 
@@ -118,12 +123,13 @@ class ProgressTest {
                 CrumbsProgressIndicator(
                     style = ProgressStyle.Linear,
                     size = ProgressSize.Medium,
-                    progress = 0.75f
+                    progress = 0.75f,
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsProgressIndicator_linear_medium_determinate_light.png")
     }
 
@@ -134,12 +140,13 @@ class ProgressTest {
                 CrumbsProgressIndicator(
                     style = ProgressStyle.Linear,
                     size = ProgressSize.Large,
-                    progress = 0.45f
+                    progress = 0.45f,
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsProgressIndicator_linear_large_determinate_dark.png")
     }
 }

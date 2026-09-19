@@ -8,20 +8,19 @@ import androidx.room.PrimaryKey
 
 data class TweetContextAnnotation(
     val domain: ContextAnnotationDomain,
-    val entity: ContextAnnotationEntity
-
+    val entity: ContextAnnotationEntity,
 )
 
 data class ContextAnnotationEntity(
     @PrimaryKey val id: String,
     val name: String,
-    val desc: String
+    val desc: String,
 )
 
 data class ContextAnnotationDomain(
     val id: String,
     val name: String,
-    val desc: String
+    val desc: String,
 )
 
 @Entity(
@@ -30,15 +29,14 @@ data class ContextAnnotationDomain(
         ForeignKey(
             entity = TweetEntity::class,
             parentColumns = ["id"],
-            childColumns = ["tweet_id"]
-        )
+            childColumns = ["tweet_id"],
+        ),
     ],
     indices = [
-        Index(value = ["tweet_id"])
-    ]
+        Index(value = ["tweet_id"]),
+    ],
 )
 data class TweetContextAnnotationEntity(
-
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     @ColumnInfo(name = "entity_id") val entityId: String,
     @ColumnInfo(name = "domain_id") val domainId: String,
@@ -46,8 +44,7 @@ data class TweetContextAnnotationEntity(
     @ColumnInfo(name = "domain_name") val domainName: String,
     @ColumnInfo(name = "entity_name") val entityName: String,
     @ColumnInfo(name = "domain_desc") val domainDesc: String?,
-    @ColumnInfo(name = "entity_desc") val entityDesc: String?
-
+    @ColumnInfo(name = "entity_desc") val entityDesc: String?,
 )
 
 fun TweetContextAnnotation.toTweetContextAnnotationEntity(tweetId: String) =
@@ -58,5 +55,5 @@ fun TweetContextAnnotation.toTweetContextAnnotationEntity(tweetId: String) =
         domainName = domain.name,
         entityName = entity.name,
         domainDesc = domain.name,
-        entityDesc = entity.desc
+        entityDesc = entity.desc,
     )

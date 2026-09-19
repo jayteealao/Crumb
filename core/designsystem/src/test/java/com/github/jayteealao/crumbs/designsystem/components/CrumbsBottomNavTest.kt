@@ -14,9 +14,8 @@ import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [33])
+@Config(sdk = [34])
 class CrumbsBottomNavTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
@@ -25,13 +24,14 @@ class CrumbsBottomNavTest {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = false) {
                 CrumbsBottomNav(
-                    selectedTab = BottomNavTab.TWITTER,
-                    onTabSelected = {}
+                    selected = BottomNavTab.TWITTER,
+                    onTabSelected = {},
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBottomNav_twitterSelected_light.png")
     }
 
@@ -40,13 +40,14 @@ class CrumbsBottomNavTest {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = true) {
                 CrumbsBottomNav(
-                    selectedTab = BottomNavTab.TWITTER,
-                    onTabSelected = {}
+                    selected = BottomNavTab.TWITTER,
+                    onTabSelected = {},
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBottomNav_twitterSelected_dark.png")
     }
 
@@ -55,13 +56,14 @@ class CrumbsBottomNavTest {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = false) {
                 CrumbsBottomNav(
-                    selectedTab = BottomNavTab.REDDIT,
-                    onTabSelected = {}
+                    selected = BottomNavTab.REDDIT,
+                    onTabSelected = {},
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBottomNav_redditSelected_light.png")
     }
 
@@ -70,13 +72,14 @@ class CrumbsBottomNavTest {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = false) {
                 CrumbsBottomNav(
-                    selectedTab = BottomNavTab.ALL,
-                    onTabSelected = {}
+                    selected = BottomNavTab.ALL,
+                    onTabSelected = {},
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBottomNav_allSelected_light.png")
     }
 
@@ -85,13 +88,62 @@ class CrumbsBottomNavTest {
         composeTestRule.setContent {
             CrumbsTheme(darkTheme = false) {
                 CrumbsBottomNav(
-                    selectedTab = BottomNavTab.MAP,
-                    onTabSelected = {}
+                    selected = BottomNavTab.MAP,
+                    onTabSelected = {},
                 )
             }
         }
 
-        composeTestRule.onRoot()
+        composeTestRule
+            .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBottomNav_mapSelected_light.png")
+    }
+
+    @Test
+    fun bottomNav_redditSelected_dark() {
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = true) {
+                CrumbsBottomNav(
+                    selected = BottomNavTab.REDDIT,
+                    onTabSelected = {},
+                )
+            }
+        }
+
+        composeTestRule
+            .onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBottomNav_redditSelected_dark.png")
+    }
+
+    @Test
+    fun bottomNav_allSelected_dark() {
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = true) {
+                CrumbsBottomNav(
+                    selected = BottomNavTab.ALL,
+                    onTabSelected = {},
+                )
+            }
+        }
+
+        composeTestRule
+            .onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBottomNav_allSelected_dark.png")
+    }
+
+    @Test
+    fun bottomNav_mapSelected_dark() {
+        composeTestRule.setContent {
+            CrumbsTheme(darkTheme = true) {
+                CrumbsBottomNav(
+                    selected = BottomNavTab.MAP,
+                    onTabSelected = {},
+                )
+            }
+        }
+
+        composeTestRule
+            .onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBottomNav_mapSelected_dark.png")
     }
 }

@@ -1,0 +1,23 @@
+<!--
+  Monochrome notification small icon. The status bar tints every non-transparent
+  pixel, so this must be a single white silhouette on a transparent background — a
+  full-color raster (e.g. R.mipmap.ic_launcher) renders as a white square instead.
+  The shape is the app-logo knot from logo_2.xml, recolored white and inset ~18%
+  via the group scale so the silhouette is not clipped at the icon bounds.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="454.48"
+    android:viewportHeight="430.12">
+  <group
+      android:pivotX="227.24"
+      android:pivotY="215.06"
+      android:scaleX="0.82"
+      android:scaleY="0.82">
+    <path
+        android:pathData="M312.6,410.71L401.27,322l9.44,-9.44 33.91,-33.91c25,-22.12 -17.92,-21.09 -36,-21l-13.1,0.09 -31.17,0.21 -48,0.32 -101.29,101.29 -144.5,-144.5 144.5,-144.5 107,107 0.27,-0.12v0.39l90.42,-0.6c25.81,-0.17 60.93,2.68 29,-28.65l-31,-31 -98.15,-98.17a66.73,66.73 0,0 0,-94.1 0l-3.44,3.44 -3.44,-3.44a66.74,66.74 0,0 0,-94.1 0l-98.11,98.11a66.74,66.74 0,0 0,0 94.1l3.44,3.44 -3.44,3.44a66.74,66.74 0,0 0,0 94.1l98.11,98.11a66.74,66.74 0,0 0,94.1 0l3.44,-3.44 3.44,3.44a66.74,66.74 0,0 0,94.1 0zM336.18,144l-97.27,-97.3 3.44,-3.44a33,33 0,0 1,46.39 0l98.11,98.11q1.09,1.09 2.05,2.25l-52.72,0.35zM384,291.62l-95.24,95.24a33,33 0,0 1,-46.39 0l-3.44,-3.44L330.36,292l53.63,-0.35zM46.7,191.21l-3.44,-3.44a33,33 0,0 1,0 -46.39l98.11,-98.11a33,33 0,0 1,46.39 0l3.44,3.44 -144.5,144.5zM46.7,238.92l144.5,144.5 -3.44,3.44a33,33 0,0 1,-46.39 0l-98.11,-98.11a33,33 0,0 1,0 -46.39l3.44,-3.44z"
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"/>
+  </group>
+</vector>

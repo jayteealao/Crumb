@@ -1,0 +1,25 @@
+# Pull-to-refresh against triggerPoll callable. Pre-seeds a linked sync_status
+# so the route lands on the bookmarks screen, then performs a swipe-down to
+# trigger the refresh, asserts indicator visibility, and waits for the
+# 30-second AC budget.
+appId: com.github.jayteealao.crumbs
+---
+- launchApp:
+    arguments:
+      debug_action: "seed_sync_status"
+      linked: "true"
+- extendedWaitUntil:
+    visible:
+      id: "twitter-bookmarks-screen"
+    timeout: 15000
+
+# Swipe down from near top of the bookmarks LazyColumn to trigger
+# PullToRefreshBox.
+- swipe:
+    start: 50%, 25%
+    end: 50%, 80%
+
+- extendedWaitUntil:
+    visible:
+      id: "twitter-bookmarks-screen"
+    timeout: 30000

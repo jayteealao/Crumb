@@ -1,0 +1,31 @@
+# Probe-only Connect-X blocking onboarding flow. Maestro cannot reliably
+# script Chrome Custom Tab interactions, so this flow asserts up to the
+# Custom Tab launch and stops. Live X-authorize round-trip is a manual
+# operator step covered by the AC2-live evidence checklist.
+#
+# Pre-seed: debug_action=seed_sync_status writes a sync_status doc with
+# linked=false so the route guard pushes the user to ConnectX.
+appId: com.github.jayteealao.crumbs
+---
+- launchApp:
+    arguments:
+      debug_action: "seed_sync_status"
+      linked: "false"
+- extendedWaitUntil:
+    visible:
+      id: "connect-x-screen"
+    timeout: 10000
+- assertVisible:
+    id: "connect-x-kicker"
+- assertNotVisible:
+    id: "twitter-bookmarks-screen"
+
+- tapOn:
+    id: "connect-x-button"
+
+# Custom Tab opens in Chrome — verify the ConnectX surface is no longer
+# the foreground content. Live X-authorize completion is a manual step.
+- extendedWaitUntil:
+    notVisible:
+      id: "connect-x-screen"
+    timeout: 5000

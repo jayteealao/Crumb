@@ -11,7 +11,7 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "tags")
 data class TagEntity(
     @PrimaryKey
-    val name: String // Tag name is the primary key (unique tags)
+    val name: String, // Tag name is the primary key (unique tags)
 )
 
 /**
@@ -26,18 +26,18 @@ data class TagEntity(
             entity = TweetEntity::class,
             parentColumns = ["id"],
             childColumns = ["tweetId"],
-            onDelete = ForeignKey.CASCADE
+            onDelete = ForeignKey.CASCADE,
         ),
         ForeignKey(
             entity = TagEntity::class,
             parentColumns = ["name"],
             childColumns = ["tagName"],
-            onDelete = ForeignKey.CASCADE
-        )
+            onDelete = ForeignKey.CASCADE,
+        ),
     ],
-    indices = [Index("tweetId"), Index("tagName")]
+    indices = [Index("tweetId"), Index("tagName")],
 )
 data class TweetTagCrossRef(
     val tweetId: String,
-    val tagName: String
+    val tagName: String,
 )

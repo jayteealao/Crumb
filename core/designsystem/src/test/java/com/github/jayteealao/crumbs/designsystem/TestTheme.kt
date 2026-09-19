@@ -20,7 +20,7 @@ import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
 @Composable
 fun TestCrumbsTheme(
     darkTheme: Boolean = false,
-    content: @Composable () -> Unit
+    content: @Composable () -> Unit,
 ) {
     // In NATIVE mode with font fallback enabled, this will use system fonts
     // when the custom Funnel Display fonts can't be loaded

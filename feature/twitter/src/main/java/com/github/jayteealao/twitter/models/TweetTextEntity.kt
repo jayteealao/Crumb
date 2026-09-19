@@ -12,7 +12,7 @@ data class TweetTextEntity(
     val cashtags: List<TweetTextEntityAnnotation>?,
     val hashtags: List<TweetTextEntityAnnotation>?,
     val mentions: List<TweetTextEntityAnnotation>?,
-    val urls: List<TweetTextEntityAnnotation>?
+    val urls: List<TweetTextEntityAnnotation>?,
 )
 
 @Entity(
@@ -21,12 +21,12 @@ data class TweetTextEntity(
         ForeignKey(
             entity = TweetEntity::class,
             parentColumns = ["id"],
-            childColumns = ["tweet_id"]
-        )
+            childColumns = ["tweet_id"],
+        ),
     ],
     indices = [
-        Index(value = ["tweet_id"])
-    ]
+        Index(value = ["tweet_id"]),
+    ],
 )
 data class TweetTextEntityAnnotation(
 //    this value only exists for mentions
@@ -38,6 +38,13 @@ data class TweetTextEntityAnnotation(
     val tag: String?,
     val title: String?,
     val description: String?,
+    // Link-preview thumbnail URL — the destination page's `og:image`, written
+    // server-side by the link-enrichment function (title/description are stored
+    // here too). Nullable: best-effort enrichment means a link with no obtainable
+    // image degrades to a URL-only chip. Added in Room migration v16.
+    @ColumnInfo(name = "image_url")
+    @SerializedName("image_url")
+    val imageUrl: String? = null,
     val url: String?,
     @ColumnInfo(name = "expanded_url")
     @SerializedName("expanded_url")
@@ -59,7 +66,7 @@ data class TweetTextEntityAnnotation(
     @PrimaryKey(autoGenerate = true)
     val entityId: Int = 0,
     @ColumnInfo(name = "tweet_id") val tweetId: String? = null,
-    val type: String
+    val type: String,
 )
 
 fun TweetTextEntity.toTweetTextEntityAnnotation(tweetId: String): List<TweetTextEntityAnnotation> =
