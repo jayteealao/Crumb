@@ -43,7 +43,8 @@ class SearchScreenTest {
         title = title,
         previewText = "Preview snippet for $title with mono body text.",
         contentType = ContentType.Text,
-        savedAt = 1730000000000L,
+        // Offset from the current clock keeps the relative-time label stable across recording dates.
+        savedAt = System.currentTimeMillis() - 3_600_000L,
         sourceUrl = "https://example.com/$id",
     )
 

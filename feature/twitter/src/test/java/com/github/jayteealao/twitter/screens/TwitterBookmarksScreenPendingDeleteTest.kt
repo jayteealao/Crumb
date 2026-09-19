@@ -55,6 +55,8 @@ class TwitterBookmarksScreenPendingDeleteTest {
                 ),
         )
 
+    // savedAt is an offset from the current clock, not a fixed epoch, so the rendered
+    // relative-time chip ("1H AGO") stays stable no matter when these goldens are recorded.
     private val pendingBookmark =
         Bookmark(
             id = "tweet-pending-1",
@@ -63,7 +65,7 @@ class TwitterBookmarksScreenPendingDeleteTest {
             title = "Pending removal — swipe to confirm",
             previewText = "X removed this bookmark. Swipe right to confirm, left to keep it.",
             contentType = ContentType.Text,
-            savedAt = 1747526400000L,
+            savedAt = System.currentTimeMillis() - 3_600_000L,
             tags = listOf("design"),
             pendingDelete = true,
             sourceUrl = "https://twitter.com/i/web/status/tweet-pending-1",
@@ -77,7 +79,7 @@ class TwitterBookmarksScreenPendingDeleteTest {
             title = "Brutalist design system applied to bookmarks",
             previewText = "Mono everything. Ink-stroked borders. No Material ripples.",
             contentType = ContentType.Text,
-            savedAt = 1747526460000L,
+            savedAt = System.currentTimeMillis() - 3_660_000L,
             tags = listOf("design", "brutalist"),
             sourceUrl = "https://twitter.com/i/web/status/tweet-kept-1",
         )

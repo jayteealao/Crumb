@@ -41,7 +41,8 @@ class ThreadDetailScreenTest {
             title = "Brutalist thread root",
             previewText = "Root tweet preview text body content goes here.",
             contentType = ContentType.Thread,
-            savedAt = 1730000000000L,
+            // Offset from the current clock keeps the relative-time label stable across recording dates.
+            savedAt = System.currentTimeMillis() - 3_600_000L,
             isThread = true,
             threadCount = 3,
             sourceUrl = "https://twitter.com/compose/status/root",

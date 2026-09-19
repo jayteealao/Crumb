@@ -24,6 +24,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertFalse
@@ -263,9 +264,15 @@ class SyncReconcilerTest {
             // Simulate Room count reaching the server threshold (4000 - tolerance 5 = 3995).
             countFlow.value = 3996
             // The auto-clear watcher on Dispatchers.IO will pick up the emission and clear the signal.
-            // Wait up to 2 seconds for the reactive clear to propagate.
-            withTimeout(2_000) {
-                repository.isSyncIncomplete.first { !it }
+            // Wait up to 2 seconds for the reactive clear to propagate. `withTimeout` inside `runTest`
+            // measures virtual time against the StandardTestDispatcher's scheduler, so with nothing
+            // else scheduled it would jump straight to the deadline instead of waiting for the watcher.
+            // The watcher runs on a real IO thread, so we switch to a real single-threaded dispatcher
+            // here to get actual wall-clock waiting for the timeout.
+            withContext(Dispatchers.Default.limitedParallelism(1)) {
+                withTimeout(2_000) {
+                    repository.isSyncIncomplete.first { !it }
+                }
             }
 
             assertFalse(repository.isSyncIncomplete.value)
