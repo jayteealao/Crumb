@@ -21,11 +21,16 @@ import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -33,11 +38,13 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
 import com.github.jayteealao.crumbs.designsystem.modifiers.brutalistStrikethrough
+import com.github.jayteealao.crumbs.designsystem.modifiers.brutalistStrikethroughLines
 import com.github.jayteealao.crumbs.designsystem.modifiers.dashedDivider
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsSpacing
 import com.github.jayteealao.crumbs.designsystem.theme.CrumbsTheme
@@ -53,9 +60,13 @@ import com.github.jayteealao.crumbs.models.toRelativeTime
 
 // Brutalist CrumbsBookmarkCard — composition follows handoff-components.jsx
 // :395-405: media (aspect 16:7) → hairline → CrumbsIndexStrip header →
-// padding(14.dp) Column [ title (UPPERCASE, displayHeadline) → spacer 8 →
-// preview (bodyMono, maxLines=3) → dashed footer divider → engagement meta
+// padding(14.dp) Column [ body → dashed footer divider → engagement meta
 // row → tag FlowRow using CrumbsTagChip ].
+//
+// The body differs by source (round-5 steering, 2026-09-19). A tweet has no
+// title, so a Twitter card renders only the preview (bodyMono, maxLines=5).
+// A Reddit post does have one, so a Reddit card keeps
+// title (UPPERCASE, displayHeadline) → spacer 8 → preview (bodyMono, maxLines=3).
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -545,8 +556,15 @@ private fun BookmarkCardQuotedTweet(
 }
 
 /**
- * Title and preview-text section of the card, including the optional thread
- * continuation indicator ("↳ + N MORE").
+ * Body section of the card: the preview text, the Reddit-only title above it,
+ * and the optional thread continuation indicator ("↳ + N MORE").
+ *
+ * The layout forks on [Bookmark.source]. A tweet has no title, so
+ * [TwitterCardBody] renders the preview alone with a 5-line clamp; a Reddit
+ * post has one, so [RedditCardBody] keeps the uppercase headline above a
+ * 3-line preview. The pending-delete strike and its
+ * `bookmark-card-strikethrough` test tag sit on the title for Reddit and on
+ * the body for Twitter.
  *
  * When the bookmark has inline URL entities ([Bookmark.textLinks] non-empty), the preview text
  * renders as a clickable [AnnotatedString] that replaces each t.co span with the human-readable
@@ -558,6 +576,66 @@ private fun BookmarkCardQuotedTweet(
  */
 @Composable
 private fun BookmarkCardBody(
+    bookmark: Bookmark,
+    onLinkClick: (String) -> Unit,
+) {
+    when (bookmark.source) {
+        BookmarkSource.Twitter -> TwitterCardBody(bookmark = bookmark, onLinkClick = onLinkClick)
+        BookmarkSource.Reddit -> RedditCardBody(bookmark = bookmark, onLinkClick = onLinkClick)
+    }
+}
+
+@Composable
+private fun TwitterCardBody(
+    bookmark: Bookmark,
+    onLinkClick: (String) -> Unit,
+) {
+    val colors = LocalCrumbsColors.current
+    val spacing = LocalCrumbsSpacing.current
+    val typography = LocalCrumbsTypography.current
+    val fontSizePx = with(LocalDensity.current) { typography.bodyMono.fontSize.toPx() }
+
+    // Read only inside the strike modifier's draw lambda, never during
+    // composition, so a layout write invalidates draw and not composition. A
+    // composition read would recompose every Twitter card once after its
+    // first layout.
+    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+
+    Text(
+        text =
+            buildBodyAnnotatedString(
+                text = bookmark.previewText,
+                textLinks = bookmark.textLinks,
+                accentColor = Color(0xFF_FF5A1F),
+                onLinkClick = onLinkClick,
+            ),
+        style = typography.bodyMono,
+        color = colors.ink,
+        maxLines = 5,
+        overflow = TextOverflow.Ellipsis,
+        onTextLayout = { layout = it },
+        modifier =
+            Modifier
+                .testTag(if (bookmark.pendingDelete) "bookmark-card-strikethrough" else "card-body-text")
+                .brutalistStrikethroughLines(
+                    active = bookmark.pendingDelete,
+                    layout = { layout },
+                    fontSizePx = fontSizePx,
+                    color = colors.ink,
+                ),
+    )
+    if (bookmark.isThread) {
+        Spacer(Modifier.height(spacing.xs))
+        Text(
+            text = "↳ + ${bookmark.threadCount} MORE",
+            style = typography.captionMono,
+            color = colors.ink,
+        )
+    }
+}
+
+@Composable
+private fun RedditCardBody(
     bookmark: Bookmark,
     onLinkClick: (String) -> Unit,
 ) {

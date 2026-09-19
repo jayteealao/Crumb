@@ -3,7 +3,9 @@ package com.github.jayteealao.crumbs.designsystem.components
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.test.core.app.ApplicationProvider
 import coil.Coil
@@ -264,6 +266,26 @@ class CardComponentsTest {
             sourceUrl = "https://twitter.com/i/web/status/208",
             quotedTweetId = "404",
             quotedTweetUrl = "https://x.com/i/status/404",
+        )
+
+    // Lays out to well over 5 lines at bodyMono 12.sp on the default test width,
+    // so the golden shows the 5-line clamp and the ellipsis on line 5.
+    private val twitterLongTextBookmark =
+        twitterTextBookmark.copy(
+            id = "31",
+            previewText =
+                "Long-form tweet. The card shows the first five lines of the preview and " +
+                    "ends the fifth line with an ellipsis. The rest of the tweet is read on " +
+                    "the detail screen, not on the card. Mono type, ink strokes, no Material " +
+                    "ripple. The index strip above still carries the source, the author, and " +
+                    "the relative age. Nothing else on the card moves when the preview grows " +
+                    "from three lines to five, and the footer keeps its dashed divider.",
+        )
+
+    private val twitterPendingDeleteLongTextBookmark =
+        twitterLongTextBookmark.copy(
+            id = "32",
+            pendingDelete = true,
         )
 
     // CrumbsBookmarkCard Tests
@@ -730,5 +752,97 @@ class CardComponentsTest {
         composeTestRule
             .onRoot()
             .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_imageLoadingPlaceholder_dark.png")
+    }
+
+    // Round 5 — Twitter cards carry no title row and clamp the preview at 5 lines;
+    // the pending-delete strike moves to the body, one line per laid-out line.
+
+    @Test
+    fun bookmarkCard_twitterLongText_light() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = false) {
+                CrumbsBookmarkCard(bookmark = twitterLongTextBookmark, onCardClick = {})
+            }
+        }
+
+        composeTestRule
+            .onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_twitterLongText_light.png")
+    }
+
+    @Test
+    fun bookmarkCard_twitterLongText_dark() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = true) {
+                CrumbsBookmarkCard(bookmark = twitterLongTextBookmark, onCardClick = {})
+            }
+        }
+
+        composeTestRule
+            .onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_twitterLongText_dark.png")
+    }
+
+    @Test
+    fun bookmarkCard_twitterPendingDeleteLongText_light() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = false) {
+                CrumbsBookmarkCard(bookmark = twitterPendingDeleteLongTextBookmark, onCardClick = {})
+            }
+        }
+
+        composeTestRule
+            .onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_twitterPendingDeleteLongText_light.png")
+    }
+
+    @Test
+    fun bookmarkCard_twitterPendingDeleteLongText_dark() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = true) {
+                CrumbsBookmarkCard(bookmark = twitterPendingDeleteLongTextBookmark, onCardClick = {})
+            }
+        }
+
+        composeTestRule
+            .onRoot()
+            .captureRoboImage("src/test/screenshots/CrumbsBookmarkCard_twitterPendingDeleteLongText_dark.png")
+    }
+
+    @Test
+    fun twitterCard_hasNoTitleRow_andBodyCarriesBodyTag() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = false) {
+                CrumbsBookmarkCard(bookmark = twitterTextBookmark, onCardClick = {})
+            }
+        }
+
+        composeTestRule.onNodeWithTag("card-title").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("card-body-text").assertIsDisplayed()
+    }
+
+    @Test
+    fun redditCard_keepsTitleRow() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = false) {
+                CrumbsBookmarkCard(bookmark = redditPostBookmark, onCardClick = {})
+            }
+        }
+
+        composeTestRule.onNodeWithTag("card-title").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("card-body-text").assertIsDisplayed()
+    }
+
+    @Test
+    fun twitterPendingCard_carriesStrikethroughTagOnBody() {
+        composeTestRule.setContent {
+            TestCrumbsTheme(darkTheme = false) {
+                CrumbsBookmarkCard(bookmark = twitterPendingDeleteLongTextBookmark, onCardClick = {})
+            }
+        }
+
+        composeTestRule.onNodeWithTag("bookmark-card-strikethrough").assertIsDisplayed()
+        composeTestRule.onNodeWithTag("card-body-text").assertDoesNotExist()
+        composeTestRule.onNodeWithTag("card-title").assertDoesNotExist()
     }
 }
